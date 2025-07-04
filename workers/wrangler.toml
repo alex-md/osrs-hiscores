@@ -11,7 +11,8 @@ compatibility_date = "2023-10-30"
 # - "0 0 * * *" = At 00:00 (every day)
 # - "0 9 * * mon-fri" = At 09:00 on weekdays
 [triggers]
-crons = ["*/25 * * * *"] # "At every 25th minute"
+# run every 15 minutes
+crons = ["*/15 * * * *"]
 
 # KV Namespace binding. This is where the hiscore data will be stored.
 # IMPORTANT: You must create this namespace in your Cloudflare dashboard and get its ID.

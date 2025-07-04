@@ -54,8 +54,10 @@
 
 3. **Configure build settings**:
    - **Build command**: Leave empty (no build required)
-   - **Build output directory**: `frontend`
    - **Root directory**: Leave empty
+   - **Deployment command**: Leave empty
+
+
 
 4. **Deploy**:
    - Click "Save and Deploy"
