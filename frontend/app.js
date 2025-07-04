@@ -1,9 +1,17 @@
 // frontend/app.js
 
 document.addEventListener('DOMContentLoaded', () => {
-    // IMPORTANT: Replace this with your deployed Cloudflare Worker URL
-    // For local development with `wrangler dev`, it's usually http://127.0.0.1:8787
-    const API_BASE_URL = 'http://127.0.0.1:8787';
+    // Auto-detect API URL based on environment
+    // Local development: http://127.0.0.1:8787
+    // Production: Replace with your actual worker URL
+    const API_BASE_URL = (() => {
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            return 'http://127.0.0.1:8787';
+        }
+        // TODO: Replace 'your-subdomain' with your actual Cloudflare Workers subdomain
+        // Example: https://osrs-hiscores-clone.alex-md.workers.dev
+        return ' https://osrs-hiscores-clone.vs.workers.dev';
+    })();
 
     // DOM Element References
     const mainContent = document.getElementById('main-content');

@@ -119,20 +119,21 @@ export async function handleFetch(request, env) {
 
 /**
  * Scheduled event handler for updating XP and creating new users.
- * @param {ScheduledEvent} event - The scheduled event.
+ * @param {ScheduledController} controller - The scheduled controller object.
  * @param {object} env - The worker environment.
  * @param {ExecutionContext} ctx - The execution context.
  */
-export async function handleScheduled(event, env, ctx) {
-    console.log(`Cron triggered at: ${new Date(event.scheduledTime)}`);
-    ctx.waitUntil(runHourlyUpdate(env));
+export async function handleScheduled(controller, env, ctx) {
+    console.log(`Cron triggered at: ${new Date(controller.scheduledTime)}`);
+    console.log(`Cron pattern: ${controller.cron}`);
+    ctx.waitUntil(runScheduledUpdate(env));
 }
 
 /**
  * Updates existing users' XP and creates new random users.
  * @param {object} env - The worker environment.
  */
-async function runHourlyUpdate(env) {
+export async function runScheduledUpdate(env) {
     try {
         const kvList = await listUsers(env);
         const updatePromises = [];
@@ -161,7 +162,7 @@ async function runHourlyUpdate(env) {
             }
         }
 
-        const newUserCount = Math.floor(Math.random() * 3);
+        const newUserCount = Math.floor(Math.random() * 3) + 1; // Generate 1-3 new users
         let createdUserCount = 0;
         if (newUserCount > 0) {
             for (let i = 0; i < newUserCount; i++) {
@@ -187,12 +188,25 @@ async function runHourlyUpdate(env) {
 
         if (updatePromises.length > 0) {
             await Promise.all(updatePromises);
-            console.log(`Hourly update complete. Updated ${updatePromises.length - createdUserCount} users and created ${createdUserCount} new users.`);
+            console.log(`Scheduled update complete. Updated ${updatePromises.length - createdUserCount} users and created ${createdUserCount} new users.`);
+            return {
+                success: true,
+                updatedUsers: updatePromises.length - createdUserCount,
+                createdUsers: createdUserCount,
+                totalUpdates: updatePromises.length
+            };
         } else {
             console.log('No user XP was updated in this run.');
+            return {
+                success: true,
+                updatedUsers: 0,
+                createdUsers: 0,
+                totalUpdates: 0
+            };
         }
 
     } catch (error) {
-        console.error('Failed to run hourly update:', error);
+        console.error('Failed to run scheduled update:', error);
+        throw error;
     }
 }
