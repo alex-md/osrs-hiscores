@@ -1,0 +1,143 @@
+/* frontend/styles.css */
+
+:root {
+    --bg-color: #1e1e1e;
+    --container-bg: #2d2d2d;
+    --text-color: #dcdcdc;
+    --header-color: #ffffff;
+    --primary-accent: #f0b134;
+    /* OSRS Gold color */
+    --border-color: #444444;
+    --table-header-bg: #3a3a3a;
+    --table-row-hover: #4a4a4a;
+}
+
+body {
+    font-family: 'Roboto', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+}
+
+.container {
+    width: 100%;
+    max-width: 800px;
+    background-color: var(--container-bg);
+    border-radius: 8px;
+    padding: 20px 30px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+}
+
+header,
+footer {
+    text-align: center;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 15px;
+    margin-bottom: 20px;
+}
+
+footer {
+    border-bottom: none;
+    border-top: 1px solid var(--border-color);
+    padding-top: 15px;
+    margin-top: 20px;
+    font-size: 0.9em;
+    color: #888;
+}
+
+header h1 {
+    color: var(--header-color);
+    margin: 0 0 10px 0;
+}
+
+header p {
+    margin: 0;
+    color: #aaa;
+}
+
+/* Table Styles */
+.hiscores-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.hiscores-table th,
+.hiscores-table td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.hiscores-table th {
+    background-color: var(--table-header-bg);
+    color: var(--header-color);
+    font-weight: bold;
+}
+
+.hiscores-table tbody tr:hover {
+    background-color: var(--table-row-hover);
+}
+
+.hiscores-table td:nth-child(1),
+.hiscores-table th:nth-child(1) {
+    text-align: center;
+    width: 80px;
+}
+
+.hiscores-table td:nth-child(3),
+.hiscores-table th:nth-child(3),
+.hiscores-table td:nth-child(4),
+.hiscores-table th:nth-child(4) {
+    text-align: right;
+}
+
+.hiscores-table a {
+    color: var(--primary-accent);
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.hiscores-table a:hover {
+    text-decoration: underline;
+}
+
+/* Loading Spinner */
+.loading-container {
+    text-align: center;
+    padding: 50px 0;
+}
+
+.spinner {
+    border: 5px solid rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    border-top: 5px solid var(--primary-accent);
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 15px auto;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+/* Error Message */
+.error-container {
+    text-align: center;
+    padding: 40px;
+    background-color: #4d2d2d;
+    border: 1px solid #a53838;
+    color: #ffcccc;
+    border-radius: 4px;
+}
