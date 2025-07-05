@@ -50,6 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentPlayer = null;
     let searchTimeout = null;
     let cachedUsers = null;
+    let cachedRankings = null;
 
     // =================================================================
     // UTILITY FUNCTIONS
@@ -197,6 +198,54 @@ document.addEventListener('DOMContentLoaded', () => {
     // =================================================================
 
     /**
+     * Fetches skill rankings for accurate rank display
+     */
+    const fetchSkillRankings = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/skill-rankings`);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch skill rankings: ${response.statusText}`);
+            }
+            const rankings = await response.json();
+            cachedRankings = rankings;
+            return rankings;
+        } catch (error) {
+            console.error('Error fetching skill rankings:', error);
+            return null;
+        }
+    };
+
+    /**
+     * Gets the actual rank for a user in a specific skill
+     * @param {string} username - The username
+     * @param {string} skillName - The skill name
+     * @returns {number} The user's rank in that skill
+     */
+    const getUserSkillRank = (username, skillName) => {
+        if (!cachedRankings || !cachedRankings.skills || !cachedRankings.skills[skillName]) {
+            return 'N/A';
+        }
+
+        const skillRanking = cachedRankings.skills[skillName];
+        const userRank = skillRanking.find(player => player.username === username);
+        return userRank ? userRank.rank : 'N/A';
+    };
+
+    /**
+     * Gets the actual total level rank for a user
+     * @param {string} username - The username
+     * @returns {number} The user's total level rank
+     */
+    const getUserTotalRank = (username) => {
+        if (!cachedRankings || !cachedRankings.totalLevel) {
+            return 'N/A';
+        }
+
+        const userRank = cachedRankings.totalLevel.find(player => player.username === username);
+        return userRank ? userRank.rank : 'N/A';
+    };
+
+    /**
      * Fetches all users for search suggestions and caching
      */
     const fetchAllUsers = async () => {
@@ -205,9 +254,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok) {
                 throw new Error(`Failed to fetch users: ${response.statusText}`);
             }
-            const users = await response.json();
-            cachedUsers = users;
-            return users;
+            const data = await response.json();
+            cachedUsers = data.users; // Extract the users array from the response
+            return data.users;
         } catch (error) {
             console.error('Error fetching users:', error);
             return [];
@@ -228,10 +277,13 @@ document.addEventListener('DOMContentLoaded', () => {
             renderLeaderboard(leaderboardData);
             showView('leaderboard');
 
-            // Cache users for search
+            // Cache users for search and refresh rankings
             if (!cachedUsers) {
                 fetchAllUsers();
             }
+
+            // Refresh rankings when leaderboard is refreshed
+            fetchSkillRankings();
         } catch (error) {
             console.error('Error fetching leaderboard:', error);
             errorMessage.textContent = `Error loading leaderboard: ${error.message}`;
@@ -247,16 +299,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const fetchUserStats = async (username) => {
         showView('loading');
         try {
-            const response = await fetch(`${API_BASE_URL}/api/users/${encodeURIComponent(username)}`);
-            if (!response.ok) {
-                if (response.status === 404) {
+            // Fetch user data and rankings in parallel
+            const [userResponse, rankings] = await Promise.all([
+                fetch(`${API_BASE_URL}/api/users/${encodeURIComponent(username)}`),
+                cachedRankings ? Promise.resolve(cachedRankings) : fetchSkillRankings()
+            ]);
+
+            if (!userResponse.ok) {
+                if (userResponse.status === 404) {
                     throw new Error(`Player "${username}" not found`);
                 }
-                throw new Error(`Failed to fetch user data: ${response.statusText}`);
+                throw new Error(`Failed to fetch user data: ${userResponse.statusText}`);
             }
-            const userData = await response.json();
+
+            const userData = await userResponse.json();
             currentPlayer = userData;
-            renderUserDetail(userData);
+
+            // Make sure we have rankings cached
+            if (rankings && !cachedRankings) {
+                cachedRankings = rankings;
+            }
+
+            await renderUserDetail(userData);
             showView('player');
         } catch (error) {
             console.error('Error fetching user stats:', error);
@@ -336,7 +400,7 @@ document.addEventListener('DOMContentLoaded', () => {
      * Renders the detailed user stats view
      * @param {object} user - User data object
      */
-    const renderUserDetail = (user) => {
+    const renderUserDetail = async (user) => {
         // Update player info
         document.getElementById('player-name').textContent = user.username;
 
@@ -350,10 +414,45 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('total-xp').textContent = formatNumber(totalXp);
         document.getElementById('combat-level').textContent = combatLevel;
 
+        // Ensure rankings are loaded
+        if (!cachedRankings) {
+            await fetchSkillRankings();
+        }
+
         // Render skills table
         const skillsTableBody = document.getElementById('skills-table-body');
         skillsTableBody.innerHTML = '';
 
+        // Add Overall row first
+        const overallRow = document.createElement('tr');
+        overallRow.className = 'hover:bg-slate-700/20 transition-colors duration-200 border-b border-slate-600/50';
+
+        // Get the actual overall rank
+        const overallRank = getUserTotalRank(user.username);
+        const displayOverallRank = overallRank === 'N/A' ? 'N/A' : overallRank.toLocaleString();
+
+        overallRow.innerHTML = `
+            <td class="px-4 py-3">
+                <div class="flex items-center">
+                    <div class="w-6 h-6 mr-3 flex items-center justify-center">
+                        <i data-lucide="trophy" class="w-4 h-4 text-amber-400"></i>
+                    </div>
+                    <span class="text-white font-bold">Overall</span>
+                </div>
+            </td>
+            <td class="px-4 py-3">
+                <span class="text-slate-300 font-medium">${displayOverallRank}</span>
+            </td>
+            <td class="px-4 py-3">
+                <span class="text-white font-bold">${totalLevel.toLocaleString()}</span>
+            </td>
+            <td class="px-4 py-3">
+                <span class="text-white font-bold">${totalXp.toLocaleString()}</span>
+            </td>
+        `;
+        skillsTableBody.appendChild(overallRow);
+
+        // Add individual skills
         SKILLS.forEach((skillName, index) => {
             const skill = user.skills[skillName];
             if (!skill) return;
@@ -361,13 +460,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const row = document.createElement('tr');
             row.className = 'hover:bg-slate-700/20 transition-colors duration-200';
 
-            // Generate a realistic rank based on skill level and XP
-            // Higher level/XP = better (lower) rank
-            const maxLevel = 99;
-            const maxXp = 13034431; // XP for level 99
-            const normalizedScore = (skill.level / maxLevel) * 0.7 + (skill.xp / maxXp) * 0.3;
-            const baseRank = Math.floor((1 - normalizedScore) * 500000) + Math.floor(Math.random() * 10000) + 1;
-            const displayRank = Math.min(baseRank, 2000000); // Cap at 2M for realism
+            // Get the actual rank for this skill
+            const actualRank = getUserSkillRank(user.username, skillName);
+            const displayRank = actualRank === 'N/A' ? 'N/A' : actualRank.toLocaleString();
 
             row.innerHTML = `
                 <td class="px-4 py-3">
@@ -379,7 +474,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </td>
                 <td class="px-4 py-3">
-                    <span class="text-slate-300">${displayRank.toLocaleString()}</span>
+                    <span class="text-slate-300">${displayRank}</span>
                 </td>
                 <td class="px-4 py-3">
                     <span class="text-white font-medium">${skill.level}</span>
@@ -447,26 +542,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Filter users based on query
-        const filteredUsers = cachedUsers.filter(user =>
-            user.username.toLowerCase().includes(query.toLowerCase())
+        const filteredUsers = cachedUsers.filter(username =>
+            username.toLowerCase().includes(query.toLowerCase())
         ).slice(0, 5);
 
         // Render suggestions
         searchSuggestions.innerHTML = '';
         if (filteredUsers.length > 0) {
-            filteredUsers.forEach(user => {
+            filteredUsers.forEach(username => {
                 const suggestion = document.createElement('div');
                 suggestion.className = 'search-suggestion';
                 suggestion.innerHTML = `
                     <div class="suggestion-content">
                         <i data-lucide="user"></i>
-                        <span class="suggestion-name">${user.username}</span>
-                        <span class="suggestion-level">Level ${Object.values(user.skills).reduce((sum, skill) => sum + skill.level, 0)}</span>
+                        <span class="suggestion-name">${username}</span>
+                        <span class="suggestion-level">Click to view</span>
                     </div>
                 `;
                 suggestion.addEventListener('click', () => {
-                    searchInput.value = user.username;
-                    window.location.hash = encodeURIComponent(user.username);
+                    searchInput.value = username;
+                    window.location.hash = encodeURIComponent(username);
                     hideSearch();
                 });
                 searchSuggestions.appendChild(suggestion);
@@ -569,8 +664,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Refresh buttons
     refreshLeaderboard?.addEventListener('click', fetchLeaderboard);
-    refreshPlayer?.addEventListener('click', () => {
+    refreshPlayer?.addEventListener('click', async () => {
         if (currentPlayer) {
+            // Refresh rankings before refreshing player data
+            await fetchSkillRankings();
             fetchUserStats(currentPlayer.username);
         }
     });
@@ -609,10 +706,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Check if there's a hash in URL
         handleRouteChange();
 
-        // Fetch users for search
-        await fetchAllUsers();
-
-
+        // Fetch users and rankings for search and accurate ranking display
+        await Promise.all([
+            fetchAllUsers(),
+            fetchSkillRankings()
+        ]);
     };
 
     // Start the application
