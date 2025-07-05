@@ -5,6 +5,7 @@
  * 
  * This worker provides an API for OSRS hiscores data and includes a scheduled
  * cron job that updates player XP and creates new random users.
+ */
 
 // =================================================================
 // KV HELPER FUNCTIONS
@@ -202,32 +203,103 @@ function calculateXpGainStats(xpGains) {
     };
 }
 
-// Username generation components
-const ADJECTIVES = [
-    'Brisk', 'Luminous', 'Gritty', 'Mellow', 'Jagged', 'Sleek', 'Timid', 'Radiant',
-    'Murky', 'Zesty', 'Brittle', 'Plush', 'Gaudy', 'Nimble', 'Rustic', 'Feeble',
-    'Vibrant', 'Hasty', 'Serene', 'Grimy', 'Quirky', 'Blunt', 'Lavish', 'Eerie',
-    'Crisp', 'Fuzzy', 'Dainty', 'Rugged', 'Glossy', 'Mellow'
-];
-
-const NOUNS = [
-    'Lantern', 'Canyon', 'Whisper', 'Glacier', 'Compass', 'Meadow', 'Relic', 'Ember',
-    'Turret', 'Prism', 'Orchard', 'Talon', 'Scroll', 'Anchor', 'Forge', 'Ripple',
-    'Beacon', 'Thicket', 'Vault', 'Spindle', 'Chalice', 'Gust', 'Tapestry', 'Quarry',
-    'Bramble', 'Silo', 'Perch', 'Rune', 'Vessel', 'Grove'
-];
+// =================================================================
+// START: USERNAME GENERATION REFACTOR
+// =================================================================
 
 /**
- * Generates a random, OSRS-style username.
- * Note: This does not guarantee uniqueness on its own. The caller must verify.
- * @returns {string} A randomly generated username.
+ * [MODIFIED] Fetches random words from a public API to create a username.
+ * There is a 15% chance of fetching two words, and an 85% chance of fetching one.
+ * @returns {Promise<string|null>} A username string if the API call is successful, otherwise null.
  */
-function generateRandomUsername() {
+async function generateUsernameFromAPI() {
+    // Decide whether to use one or two words (15% chance for two words)
+    const useTwoWords = Math.random() < 0.15;
+    const wordCount = useTwoWords ? 2 : 1;
+    const apiUrl = `https://random-word-api.herokuapp.com/word?number=${wordCount}`;
+
+    try {
+        const response = await fetch(apiUrl, {
+            headers: { 'User-Agent': 'osrs-hiscores-clone-worker/1.0' } // Good practice to set a user-agent
+        });
+
+        if (!response.ok) {
+            console.warn(`API call failed with status: ${response.status}`);
+            return null;
+        }
+
+        const words = await response.json();
+        if (!Array.isArray(words) || words.length !== wordCount) {
+            console.warn('API returned unexpected word format.');
+            return null;
+        }
+
+        const num = Math.floor(Math.random() * 999) + 1;
+
+        // Capitalize the first letter of each word for style
+        const capitalizedWords = words.map(w => w.charAt(0).toUpperCase() + w.slice(1));
+
+        if (useTwoWords) {
+            // Format: "WordOne_WordTwo"
+            return `${capitalizedWords[0]}_${capitalizedWords[1]}`;
+        } else {
+            // Format: "Word"
+            return `${capitalizedWords[0]}`;
+        }
+
+    } catch (error) {
+        console.error('Error fetching from random word API:', error);
+        return null;
+    }
+}
+
+/**
+ * Fallback local username generator. This is the original function,
+ * renamed to serve as a reliable backup if the API fails.
+ * @returns {string} A randomly generated username from a local, hardcoded list.
+ */
+function generateUsernameLocally() {
+    const ADJECTIVES = [
+        'Brisk', 'Luminous', 'Gritty', 'Mellow', 'Jagged', 'Sleek', 'Timid', 'Radiant',
+        'Murky', 'Zesty', 'Brittle', 'Plush', 'Gaudy', 'Nimble', 'Rustic', 'Feeble',
+        'Vibrant', 'Hasty', 'Serene', 'Grimy', 'Quirky', 'Blunt', 'Lavish', 'Eerie',
+        'Crisp', 'Fuzzy', 'Dainty', 'Rugged', 'Glossy', 'Mellow'
+    ];
+    const NOUNS = [
+        'Lantern', 'Canyon', 'Whisper', 'Glacier', 'Compass', 'Meadow', 'Relic', 'Ember',
+        'Turret', 'Prism', 'Orchard', 'Talon', 'Scroll', 'Anchor', 'Forge', 'Ripple',
+        'Beacon', 'Thicket', 'Vault', 'Spindle', 'Chalice', 'Gust', 'Tapestry', 'Quarry',
+        'Bramble', 'Silo', 'Perch', 'Rune', 'Vessel', 'Grove'
+    ];
     const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
     const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
     const num = Math.floor(Math.random() * 999) + 1;
     return `${adj}_${noun}_${num}`;
 }
+
+
+/**
+ * Generates a random, OSRS-style username.
+ * This function now acts as an orchestrator. It attempts to generate a username
+ * from the API and falls back to the local generator if the API call fails.
+ * Note: This does not guarantee uniqueness on its own. The caller must verify.
+ * @returns {Promise<string>} A randomly generated username.
+ */
+async function generateRandomUsername() {
+    const apiUsername = await generateUsernameFromAPI();
+    if (apiUsername) {
+        return apiUsername;
+    }
+
+    // Fallback if the API fails
+    console.warn('API username generation failed, falling back to local generator.');
+    return generateUsernameLocally();
+}
+
+// =================================================================
+// END: USERNAME GENERATION REFACTOR
+// =================================================================
+
 
 /**
  * Calculates the OSRS level for a given amount of XP.
@@ -678,7 +750,8 @@ async function runScheduledUpdate(env) {
                 let isUnique = false;
                 let attempts = 0;
                 while (!isUnique && attempts < 10) {
-                    newUsername = generateRandomUsername();
+                    // The username generator is now async, so we must await it.
+                    newUsername = await generateRandomUsername();
                     const existingUser = await getUser(env, newUsername);
                     if (!existingUser) {
                         isUnique = true;
@@ -968,15 +1041,16 @@ export default {
                 
                 const result = await response.json();
                 
-                if (result.success) {
+                if (response.ok && result.message === 'Cron job executed successfully') {
                     statusDiv.innerHTML = \`<div class="status success">
                         <strong>Success!</strong> Cron job executed successfully.<br>
-                        <small>Time: \${result.timestamp}</small>
+                        <small>Time: \${result.timestamp}</small><br>
+                        <small>Updated: \${result.result.updatedUsers}, Created: \${result.result.createdUsers}</small>
                     </div>\`;
                 } else {
                     statusDiv.innerHTML = \`<div class="status error">
-                        <strong>Error:</strong> \${result.message}<br>
-                        <small>\${result.error || ''}</small>
+                        <strong>Error:</strong> \${result.error || 'Unknown Error'}<br>
+                        <small>\${result.message || ''}</small>
                     </div>\`;
                 }
             } catch (error) {
