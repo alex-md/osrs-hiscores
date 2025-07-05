@@ -321,6 +321,34 @@ async function handleFetch(request, env) {
             return jsonResponse(rankedLeaderboard);
         }
 
+        // Handle manual cron trigger
+        if (path === '/api/cron/trigger' && request.method === 'POST') {
+            try {
+                const result = await runScheduledUpdate(env);
+                return jsonResponse({ 
+                    message: 'Cron job executed successfully', 
+                    result: result,
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                console.error('Manual cron trigger failed:', error);
+                return jsonResponse({ 
+                    error: 'Cron job failed', 
+                    message: error.message,
+                    timestamp: new Date().toISOString()
+                }, 500);
+            }
+        }
+
+        // Handle cron status check
+        if (path === '/api/cron/status') {
+            return jsonResponse({ 
+                status: 'Cron service is running',
+                timestamp: new Date().toISOString(),
+                nextScheduledRun: 'Every hour (0 * * * *)'
+            });
+        }
+
         return jsonResponse({ error: 'Not Found' }, 404);
 
     } catch (error) {

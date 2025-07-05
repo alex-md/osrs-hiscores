@@ -4,58 +4,357 @@
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>OSRS Hiscores Clone</title>
-        <link rel="stylesheet" href="styles.css">
+        <meta name="description" content="Modern OSRS hiscores lookup with real-time player statistics">
+        <meta name="theme-color" content="#0F172A">
+        <title>OSRS Hiscores | Modern Player Statistics</title>
+
+        <!-- Tailwind CSS -->
+        <script src="https://cdn.tailwindcss.com"></script>
+
+        <!-- Modern font stack with variable weights -->
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+
+        <!-- Lucide icons for modern iconography -->
+        <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+        <!-- Tailwind Configuration -->
+        <script>
+            tailwind.config = {
+                darkMode: 'class',
+                theme: {
+                    extend: {
+                        fontFamily: {
+                            'sans': ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+                        },
+                        animation: {
+                            'spin-slow': 'spin 3s linear infinite',
+                            'pulse-slow': 'pulse 3s ease-in-out infinite',
+                            'bounce-gentle': 'bounce 2s infinite',
+                            'float': 'float 6s ease-in-out infinite',
+                        },
+                        keyframes: {
+                            float: {
+                                '0%, 100%': { transform: 'translateY(0px)' },
+                                '50%': { transform: 'translateY(-10px)' },
+                            }
+                        },
+                        backdropBlur: {
+                            'xs': '2px',
+                        },
+                        colors: {
+                            'glass': 'rgba(255, 255, 255, 0.05)',
+                            'glass-border': 'rgba(255, 255, 255, 0.1)',
+                        }
+                    }
+                }
+            }
+        </script>
+
+        <!-- Theme management -->
+        <script>
+            // Immediate theme application to prevent flash
+            const theme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.classList.toggle('dark', theme === 'dark');
+        </script>
     </head>
 
-    <body>
+    <body
+        class="dark bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white min-h-screen font-sans antialiased">
 
-        <div class="container">
-            <header>
-                <h1>Hiscores</h1>
-                <p>A simulated OSRS hiscores powered by Cloudflare Workers.</p>
+        <!-- App Shell with modern layout -->
+        <div class="min-h-screen flex flex-col relative">
+            <!-- Navigation & Header -->
+            <header class="sticky top-0 z-50 backdrop-blur-xl bg-slate-900/80 border-b border-slate-700/50">
+                <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+                    <div class="flex items-center justify-between h-16">
+                        <div class="flex items-center space-x-4">
+                            <div
+                                class="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl shadow-lg">
+                                <i data-lucide="shield" class="w-5 h-5 text-white"></i>
+                            </div>
+                            <div class="hidden sm:block">
+                                <h1 class="text-xl font-bold text-white">OSRS Hiscores</h1>
+                                class="text-xl font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text
+                                text-transparent">
+                                OSRS Hiscores
+                                </h1>
+                                <p class="text-sm text-slate-400">Modern player statistics</p>
+                            </div>
+                        </div>
+
+                        <nav class="flex items-center space-x-2">
+                            <button
+                                class="p-2 rounded-xl bg-slate-800/50 hover:bg-slate-700/50 transition-all duration-200 hover:scale-105"
+                                id="theme-toggle" title="Toggle theme">
+                                <i data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
+                                <i data-lucide="moon" class="w-5 h-5 block dark:hidden"></i>
+                            </button>
+                            <button
+                                class="p-2 rounded-xl bg-slate-800/50 hover:bg-slate-700/50 transition-all duration-200 hover:scale-105"
+                                id="search-toggle" title="Search players">
+                                <i data-lucide="search" class="w-5 h-5"></i>
+                            </button>
+                        </nav>
+                    </div>
+                </div>
+
+                <!-- Search Bar -->
+                <div class="search-container hidden opacity-0 transform -translate-y-2 transition-all duration-300"
+                    id="search-container">
+                    <div class="container mx-auto px-4 sm:px-6 lg:px-8 pb-4">
+                        <div class="relative max-w-2xl mx-auto">
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <i data-lucide="search" class="w-5 h-5 text-slate-400"></i>
+                                </div>
+                                <input type="text"
+                                    class="block w-full pl-10 pr-12 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent placeholder-slate-400 text-white backdrop-blur-sm"
+                                    id="search-input" placeholder="Search for an OSRS player..." autocomplete="off"
+                                    spellcheck="false">
+                                <button
+                                    class="absolute inset-y-0 right-0 pr-3 flex items-center opacity-0 transition-opacity duration-200"
+                                    id="search-clear" title="Clear search">
+                                    <i data-lucide="x" class="w-5 h-5 text-slate-400 hover:text-white"></i>
+                                </button>
+                            </div>
+                            <div class="absolute top-full left-0 right-0 mt-2 bg-slate-800/90 backdrop-blur-sm border border-slate-700/50 rounded-xl shadow-2xl hidden"
+                                id="search-suggestions">
+                                <!-- Dynamic suggestions -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </header>
 
-            <main id="main-content">
-                <div id="loading" class="loading-container">
-                    <div class="spinner"></div>
-                    <p>Loading...</p>
+            <!-- Main Content Area -->
+            <main class="flex-1 container mx-auto px-4 sm:px-6 lg:px-8 py-8" id="main-content">
+                <!-- Loading State -->
+                <div class="loading-state flex items-center justify-center min-h-[60vh]" id="loading-state">
+                    <div class="text-center">
+                        <div class="relative mb-8">
+                            <div class="w-16 h-16 mx-auto">
+                                <div
+                                    class="absolute inset-0 bg-gradient-to-r from-amber-400 to-orange-500 rounded-full animate-ping opacity-20">
+                                </div>
+                                <div
+                                    class="absolute inset-0 bg-gradient-to-r from-amber-400 to-orange-500 rounded-full animate-pulse">
+                                </div>
+                                <div
+                                    class="relative w-16 h-16 bg-gradient-to-r from-amber-400 to-orange-500 rounded-full flex items-center justify-center">
+                                    <i data-lucide="loader" class="w-8 h-8 text-white animate-spin"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <h3 class="text-2xl font-bold text-white mb-2">Loading player data...</h3>
+                        <p class="text-slate-400">Fetching the latest statistics</p>
+                    </div>
                 </div>
 
-                <div id="error-message" class="error-container" style="display: none;"></div>
-
-                <!-- View for the main leaderboard -->
-                <div id="leaderboard-view" style="display: none;">
-                    <table class="hiscores-table">
-                        <thead>
-                            <tr>
-                                <th>Rank</th>
-                                <th>Username</th>
-                                <th>Total Level</th>
-                                <th>Total XP</th>
-                            </tr>
-                        </thead>
-                        <tbody id="leaderboard-body">
-                            <!-- Player data will be inserted here by app.js -->
-                        </tbody>
-                    </table>
+                <!-- Error State -->
+                <div class="error-state flex items-center justify-center min-h-[60vh] hidden" id="error-state">
+                    <div class="text-center max-w-md mx-auto">
+                        <div class="w-16 h-16 mx-auto mb-6 bg-red-500/20 rounded-full flex items-center justify-center">
+                            <i data-lucide="alert-triangle" class="w-8 h-8 text-red-400"></i>
+                        </div>
+                        <h3 class="text-2xl font-bold text-white mb-2">Something went wrong</h3>
+                        <p class="text-slate-400 mb-6" id="error-message">Unable to load player data</p>
+                        <button
+                            class="inline-flex items-center px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-medium rounded-xl transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-xl"
+                            id="retry-btn">
+                            <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i>
+                            Try Again
+                        </button>
+                    </div>
                 </div>
 
-                <!-- View for a single user's stats -->
-                <div id="user-detail-view" style="display: none;">
-                    <!-- User stats will be inserted here by app.js -->
+                <!-- Welcome/Home View -->
+                <div class="home-view hidden" id="home-view">
+                    <div class="text-center max-w-4xl mx-auto">
+                        <div class="mb-12">
+                            <h2
+                                class="text-5xl sm:text-6xl font-bold mb-6 bg-gradient-to-r from-amber-400 via-orange-500 to-red-500 bg-clip-text text-transparent">
+                                Old School RuneScape Hiscores
+                            </h2>
+                            <p class="text-xl text-slate-300 mb-8 max-w-2xl mx-auto leading-relaxed">
+                                Search for any Old School RuneScape player to view their complete hiscores,
+                                skill levels, and rankings in a modern, beautiful interface.
+                            </p>
+                            <button
+                                class="inline-flex items-center px-8 py-4 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-semibold rounded-xl transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-xl text-lg"
+                                id="start-search">
+                                <i data-lucide="search" class="w-5 h-5 mr-3"></i>
+                                Search Players
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+                        <div
+                            class="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-6 hover:bg-slate-800/70 transition-all duration-300 hover:scale-105">
+                            <div
+                                class="w-12 h-12 bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl flex items-center justify-center mb-4">
+                                <i data-lucide="trending-up" class="w-6 h-6 text-white"></i>
+                            </div>
+                            <h3 class="text-xl font-semibold text-white mb-2">Real-time Data</h3>
+                            <p class="text-slate-400">Live player statistics fetched directly from OSRS hiscores</p>
+                        </div>
+                        <div
+                            class="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-6 hover:bg-slate-800/70 transition-all duration-300 hover:scale-105">
+                            <div
+                                class="w-12 h-12 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-xl flex items-center justify-center mb-4">
+                                <i data-lucide="zap" class="w-6 h-6 text-white"></i>
+                            </div>
+                            <h3 class="text-xl font-semibold text-white mb-2">Lightning Fast</h3>
+                            <p class="text-slate-400">Powered by Cloudflare Workers for instant responses</p>
+                        </div>
+                        <div
+                            class="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-6 hover:bg-slate-800/70 transition-all duration-300 hover:scale-105">
+                            <div
+                                class="w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-500 rounded-xl flex items-center justify-center mb-4">
+                                <i data-lucide="smartphone" class="w-6 h-6 text-white"></i>
+                            </div>
+                            <h3 class="text-xl font-semibold text-white mb-2">Mobile Optimized</h3>
+                            <p class="text-slate-400">Perfect experience on any device, anywhere</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Leaderboard View -->
+                <div class="leaderboard-view hidden" id="leaderboard-view">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
+                        <div>
+                            <h2 class="text-3xl font-bold text-white mb-2">Old School RuneScape Hiscores</h2>
+                            <p class="text-slate-400">Overall Experience - Default</p>
+                        </div>
+                        <button
+                            class="mt-4 sm:mt-0 inline-flex items-center px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700/50 text-white rounded-xl transition-all duration-200 hover:scale-105"
+                            id="refresh-leaderboard">
+                            <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i>
+                            Refresh
+                        </button>
+                    </div>
+
+                    <div class="bg-slate-800/30 backdrop-blur-sm border border-slate-700/50 rounded-lg overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full osrs-hiscores-table" id="leaderboard-table">
+                                <thead class="bg-slate-700/50">
+                                    <tr class="border-b border-slate-600/50">
+                                        <th class="px-4 py-3 text-left text-amber-400 font-semibold">
+                                            Rank
+                                        </th>
+                                        <th class="px-4 py-3 text-left text-amber-400 font-semibold">
+                                            Name
+                                        </th>
+                                        <th class="px-4 py-3 text-left text-amber-400 font-semibold">
+                                            Level
+                                        </th>
+                                        <th class="px-4 py-3 text-left text-amber-400 font-semibold">
+                                            XP
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody id="leaderboard-body" class="divide-y divide-slate-700/30">
+                                    <!-- Dynamic content -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Player Detail View -->
+                <div class="player-view hidden" id="player-view">
+                    <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between mb-8">
+                        <div class="flex-1">
+                            <button
+                                class="inline-flex items-center px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700/50 text-white rounded-xl transition-all duration-200 hover:scale-105 mb-4"
+                                id="back-btn">
+                                <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+                                Back to Hiscores
+                            </button>
+                            <div class="bg-slate-800/30 backdrop-blur-sm border border-slate-700/50 rounded-lg p-6">
+                                <h2 class="text-3xl font-bold text-white mb-2" id="player-name">Player Name</h2>
+                                <p class="text-slate-400 mb-4">Personal Hiscores</p>
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4" id="player-stats-summary">
+                                    <div class="bg-slate-700/30 rounded-lg p-4 border border-slate-600/50">
+                                        <p class="text-amber-400 text-sm font-medium">Total Level</p>
+                                        <p class="text-2xl font-bold text-white" id="total-level">0</p>
+                                    </div>
+                                    <div class="bg-slate-700/30 rounded-lg p-4 border border-slate-600/50">
+                                        <p class="text-amber-400 text-sm font-medium">Total XP</p>
+                                        <p class="text-2xl font-bold text-white" id="total-xp">0</p>
+                                    </div>
+                                    <div class="bg-slate-700/30 rounded-lg p-4 border border-slate-600/50">
+                                        <p class="text-amber-400 text-sm font-medium">Combat Level</p>
+                                        <p class="text-2xl font-bold text-white" id="combat-level">0</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-4 lg:mt-0 lg:ml-6">
+                            <button
+                                class="inline-flex items-center px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700/50 text-white rounded-xl transition-all duration-200 hover:scale-105"
+                                id="refresh-player">
+                                <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i>
+                                Refresh
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Skills Table -->
+                    <div class="skills-container">
+                        <h3 class="text-2xl font-bold text-white mb-6">Skills</h3>
+                        <div
+                            class="bg-slate-800/30 backdrop-blur-sm border border-slate-700/50 rounded-lg overflow-hidden">
+                            <table class="w-full osrs-skills-table">
+                                <thead class="bg-slate-700/50">
+                                    <tr class="border-b border-slate-600/50">
+                                        <th class="px-4 py-3 text-left text-amber-400 font-semibold">Skill</th>
+                                        <th class="px-4 py-3 text-left text-amber-400 font-semibold">Rank</th>
+                                        <th class="px-4 py-3 text-left text-amber-400 font-semibold">Level</th>
+                                        <th class="px-4 py-3 text-left text-amber-400 font-semibold">XP</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="skills-table-body" class="divide-y divide-slate-700/30">
+                                    <!-- Dynamic skills content -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </main>
 
-            <footer>
-                <p>Data is auto-generated and updates hourly.</p>
+            <!-- Footer -->
+            <footer class="border-t border-slate-700/50 bg-slate-900/50 backdrop-blur-sm mt-auto">
+                <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    <div class="flex flex-col md:flex-row md:justify-between md:items-center space-y-4 md:space-y-0">
+                        <div class="text-center md:text-left">
+                            <p class="text-slate-400">
+                                Data updates automatically every hour.
+                                <span class="text-amber-400 font-medium">
+                                    Last updated: <span id="last-updated">Loading...</span>
+                                </span>
+                            </p>
+                        </div>
+                        <div class="text-center md:text-right">
+                            <p class="text-slate-500 text-sm">
+                                Not affiliated with Jagex Ltd. OSRS is a trademark of Jagex Ltd.
+                            </p>
+                        </div>
+                    </div>
+                </div>
             </footer>
         </div>
 
+        <!-- Toast Notifications -->
+        <div class="fixed top-4 right-4 z-50 space-y-2" id="toast-container"></div>
+
         <script src="app.js"></script>
+        <script>
+            // Initialize Lucide icons
+            lucide.createIcons();
+        </script>
     </body>
 
 </html>

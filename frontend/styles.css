@@ -1,143 +1,199 @@
-/* frontend/styles.css */
-
-:root {
-    --bg-color: #1e1e1e;
-    --container-bg: #2d2d2d;
-    --text-color: #dcdcdc;
-    --header-color: #ffffff;
-    --primary-accent: #f0b134;
-    /* OSRS Gold color */
-    --border-color: #444444;
-    --table-header-bg: #3a3a3a;
-    --table-row-hover: #4a4a4a;
-}
-
-body {
-    font-family: 'Roboto', sans-serif;
-    background-color: var(--bg-color);
-    color: var(--text-color);
-    margin: 0;
-    padding: 20px;
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    min-height: 100vh;
-}
-
-.container {
-    width: 100%;
-    max-width: 800px;
-    background-color: var(--container-bg);
-    border-radius: 8px;
-    padding: 20px 30px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-}
-
-header,
-footer {
-    text-align: center;
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: 15px;
-    margin-bottom: 20px;
-}
-
-footer {
-    border-bottom: none;
-    border-top: 1px solid var(--border-color);
-    padding-top: 15px;
-    margin-top: 20px;
-    font-size: 0.9em;
-    color: #888;
-}
-
-header h1 {
-    color: var(--header-color);
-    margin: 0 0 10px 0;
-}
-
-header p {
-    margin: 0;
-    color: #aaa;
-}
-
-/* Table Styles */
-.hiscores-table {
-    width: 100%;
+/* OSRS Hiscores Table Styling */
+.osrs-hiscores-table {
+    font-family: 'Inter', sans-serif;
     border-collapse: collapse;
 }
 
-.hiscores-table th,
-.hiscores-table td {
-    padding: 12px 15px;
-    text-align: left;
-    border-bottom: 1px solid var(--border-color);
+.osrs-hiscores-table th {
+    background-color: rgba(51, 65, 85, 0.8);
+    border-bottom: 2px solid rgba(251, 191, 36, 0.3);
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
-.hiscores-table th {
-    background-color: var(--table-header-bg);
-    color: var(--header-color);
-    font-weight: bold;
+.osrs-hiscores-table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid rgba(51, 65, 85, 0.3);
+    font-size: 0.875rem;
 }
 
-.hiscores-table tbody tr:hover {
-    background-color: var(--table-row-hover);
+.osrs-hiscores-table tbody tr:hover {
+    background-color: rgba(51, 65, 85, 0.4);
 }
 
-.hiscores-table td:nth-child(1),
-.hiscores-table th:nth-child(1) {
-    text-align: center;
-    width: 80px;
+.osrs-hiscores-table tbody tr:nth-child(even) {
+    background-color: rgba(51, 65, 85, 0.1);
 }
 
-.hiscores-table td:nth-child(3),
-.hiscores-table th:nth-child(3),
-.hiscores-table td:nth-child(4),
-.hiscores-table th:nth-child(4) {
-    text-align: right;
+.osrs-hiscores-table tbody tr:nth-child(odd) {
+    background-color: rgba(51, 65, 85, 0.05);
 }
 
-.hiscores-table a {
-    color: var(--primary-accent);
-    text-decoration: none;
-    font-weight: bold;
+/* Skills Table Styling */
+.osrs-skills-table {
+    font-family: 'Inter', sans-serif;
+    border-collapse: collapse;
 }
 
-.hiscores-table a:hover {
-    text-decoration: underline;
+.osrs-skills-table th {
+    background-color: rgba(51, 65, 85, 0.8);
+    border-bottom: 2px solid rgba(251, 191, 36, 0.3);
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
-/* Loading Spinner */
-.loading-container {
-    text-align: center;
-    padding: 50px 0;
+.osrs-skills-table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid rgba(51, 65, 85, 0.3);
+    font-size: 0.875rem;
 }
 
-.spinner {
-    border: 5px solid rgba(255, 255, 255, 0.2);
+.osrs-skills-table tbody tr:hover {
+    background-color: rgba(51, 65, 85, 0.3);
+}
+
+.osrs-skills-table tbody tr:nth-child(even) {
+    background-color: rgba(51, 65, 85, 0.1);
+}
+
+.osrs-skills-table tbody tr:nth-child(odd) {
+    background-color: rgba(51, 65, 85, 0.05);
+}
+
+/* Player Link Styling */
+.player-link {
+    all: unset;
+    cursor: pointer;
+    font-weight: 500;
+    transition: color 0.2s ease;
+}
+
+.player-link:hover {
+    color: #fbbf24 !important;
+}
+
+/* Top 3 Rank Styling */
+.rank-gold {
+    color: #fbbf24;
+    font-weight: 700;
+}
+
+.rank-silver {
+    color: #e5e7eb;
+    font-weight: 600;
+}
+
+.rank-bronze {
+    color: #d97706;
+    font-weight: 600;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+
+    .osrs-hiscores-table th,
+    .osrs-hiscores-table td,
+    .osrs-skills-table th,
+    .osrs-skills-table td {
+        padding: 0.5rem;
+        font-size: 0.8rem;
+    }
+
+    .osrs-hiscores-table th:first-child,
+    .osrs-hiscores-table td:first-child {
+        padding-left: 1rem;
+    }
+
+    .osrs-hiscores-table th:last-child,
+    .osrs-hiscores-table td:last-child {
+        padding-right: 1rem;
+    }
+}
+
+/* Skill Icons */
+.skill-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    margin-right: 0.75rem;
+}
+
+.skill-icon i {
+    width: 1rem;
+    height: 1rem;
+    color: #fbbf24;
+}
+
+/* Loading animations */
+.loading-dots {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
     border-radius: 50%;
-    border-top: 5px solid var(--primary-accent);
-    width: 50px;
-    height: 50px;
-    animation: spin 1s linear infinite;
-    margin: 0 auto 15px auto;
+    background-color: #fbbf24;
+    animation: loading-dots 1.4s infinite ease-in-out both;
 }
 
-@keyframes spin {
-    0% {
-        transform: rotate(0deg);
-    }
+.loading-dots:nth-child(1) {
+    animation-delay: -0.32s;
+}
 
+.loading-dots:nth-child(2) {
+    animation-delay: -0.16s;
+}
+
+@keyframes loading-dots {
+
+    0%,
+    80%,
     100% {
-        transform: rotate(360deg);
+        transform: scale(0);
+    }
+
+    40% {
+        transform: scale(1);
     }
 }
 
-/* Error Message */
-.error-container {
-    text-align: center;
-    padding: 40px;
-    background-color: #4d2d2d;
-    border: 1px solid #a53838;
-    color: #ffcccc;
-    border-radius: 4px;
+/* OSRS-style panel backgrounds */
+.osrs-panel {
+    background: linear-gradient(135deg,
+            rgba(51, 65, 85, 0.4) 0%,
+            rgba(71, 85, 105, 0.4) 50%,
+            rgba(51, 65, 85, 0.4) 100%);
+    border: 1px solid rgba(251, 191, 36, 0.2);
+    border-radius: 0.5rem;
+    backdrop-filter: blur(10px);
+}
+
+.osrs-panel-header {
+    background: linear-gradient(135deg,
+            rgba(51, 65, 85, 0.8) 0%,
+            rgba(71, 85, 105, 0.8) 50%,
+            rgba(51, 65, 85, 0.8) 100%);
+    border-bottom: 2px solid rgba(251, 191, 36, 0.3);
+}
+
+/* Combat level styling */
+.combat-level {
+    color: #ef4444;
+    font-weight: 700;
+}
+
+/* Total level styling */
+.total-level {
+    color: #10b981;
+    font-weight: 700;
+}
+
+/* XP styling */
+.xp-amount {
+    color: #8b5cf6;
+    font-weight: 600;
 }
