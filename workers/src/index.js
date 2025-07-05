@@ -28,9 +28,409 @@
  * every hour (0 * * * *) when deployed to Cloudflare Workers.
  */
 
-import { handleFetch, handleScheduled, runScheduledUpdate } from './handlers.js';
-import { generateNewUser } from './dataGenerator.js';
-import { getUser, putUser } from './kvHelper.js';
+// =================================================================
+// KV HELPER FUNCTIONS
+// =================================================================
+
+/**
+ * Retrieves a user's data from the KV store.
+ * @param {object} env - The worker environment containing the KV namespace.
+ * @param {string} username - The username to look up.
+ * @returns {Promise<object|null>} The user data object or null if not found.
+ */
+async function getUser(env, username) {
+    if (!username) return null;
+    const key = username.toLowerCase();
+    return await env.HISCORES_KV.get(key, 'json');
+}
+
+/**
+ * Saves a user's data to the KV store.
+ * @param {object} env - The worker environment containing the KV namespace.
+ * @param {string} username - The username to save the data under.
+ * @param {object} data - The user data object to store.
+ * @returns {Promise<void>}
+ */
+async function putUser(env, username, data) {
+    const key = username.toLowerCase();
+    await env.HISCORES_KV.put(key, JSON.stringify(data));
+}
+
+/**
+ * Lists all keys (usernames) currently in the KV store.
+ * @param {object} env - The worker environment containing the KV namespace.
+ * @returns {Promise<object>} The result of the KV list operation.
+ */
+async function listUsers(env) {
+    return await env.HISCORES_KV.list();
+}
+
+// =================================================================
+// DATA GENERATION FUNCTIONS
+// =================================================================
+
+/**
+ * List of all 23 skills in Old School RuneScape.
+ */
+const SKILLS = [
+    'Attack', 'Strength', 'Defence', 'Ranged', 'Prayer', 'Magic',
+    'Runecrafting', 'Construction', 'Hitpoints', 'Agility', 'Herblore',
+    'Thieving', 'Crafting', 'Fletching', 'Slayer', 'Hunter',
+    'Mining', 'Smithing', 'Fishing', 'Cooking', 'Firemaking',
+    'Woodcutting', 'Farming'
+];
+
+// Username generation components
+const ADJECTIVES = [
+    'Brisk', 'Luminous', 'Gritty', 'Mellow', 'Jagged', 'Sleek', 'Timid', 'Radiant',
+    'Murky', 'Zesty', 'Brittle', 'Plush', 'Gaudy', 'Nimble', 'Rustic', 'Feeble',
+    'Vibrant', 'Hasty', 'Serene', 'Grimy', 'Quirky', 'Blunt', 'Lavish', 'Eerie',
+    'Crisp', 'Fuzzy', 'Dainty', 'Rugged', 'Glossy', 'Mellow'
+];
+
+const NOUNS = [
+    'Lantern', 'Canyon', 'Whisper', 'Glacier', 'Compass', 'Meadow', 'Relic', 'Ember',
+    'Turret', 'Prism', 'Orchard', 'Talon', 'Scroll', 'Anchor', 'Forge', 'Ripple',
+    'Beacon', 'Thicket', 'Vault', 'Spindle', 'Chalice', 'Gust', 'Tapestry', 'Quarry',
+    'Bramble', 'Silo', 'Perch', 'Rune', 'Vessel', 'Grove'
+];
+
+/**
+ * Generates a random, OSRS-style username.
+ * Note: This does not guarantee uniqueness on its own. The caller must verify.
+ * @returns {string} A randomly generated username.
+ */
+function generateRandomUsername() {
+    const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
+    const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
+    const num = Math.floor(Math.random() * 999) + 1;
+    return `${adj}_${noun}_${num}`;
+}
+
+/**
+ * Calculates the OSRS level for a given amount of XP.
+ * The formula is a standard, well-known progression.
+ * @param {number} xp - The total experience points in a skill.
+ * @returns {number} The calculated level (1-99).
+ */
+function xpToLevel(xp) {
+    if (xp < 0) return 1;
+    let points = 0;
+    let output = 0;
+    for (let lvl = 1; lvl <= 99; lvl++) {
+        points += Math.floor(lvl + 300 * Math.pow(2, lvl / 7));
+        output = Math.floor(points / 4);
+        if (output > xp) {
+            return lvl;
+        }
+    }
+    return 99;
+}
+
+/**
+ * Calculates the XP required for a given level using the OSRS formula.
+ * Formula: (1/8)(lvl)((lvl)-1) + (75*(2^(((lvl)-1)/7)-1)/(1-2^(-1/7))) + ((lvl)*-0.109)
+ * @param {number} level - The level to calculate XP for (1-99).
+ * @returns {number} The XP required for that level.
+ */
+function levelToXp(level) {
+    if (level <= 1) return 0;
+
+    const part1 = (1 / 8) * level * (level - 1);
+    const part2 = (75 * (Math.pow(2, (level - 1) / 7) - 1)) / (1 - Math.pow(2, -1 / 7));
+    const part3 = level * -0.109;
+
+    return Math.floor(part1 + part2 + part3);
+}
+
+/**
+ * Generates a new user object with randomized hiscores for all 23 skills.
+ * XP is seeded to be somewhat realistic, favoring lower and mid-levels.
+ * Hitpoints is calculated based on combat skills (Attack, Strength, Defence, Ranged).
+ * @param {string} username - The username for the new player.
+ * @returns {object} A user object containing the username and a skills object.
+ */
+function generateNewUser(username) {
+    const user = {
+        username: username,
+        skills: {},
+    };
+
+    // Generate random XP for all skills except Hitpoints (1-15000 XP per skill)
+    SKILLS.forEach(skill => {
+        if (skill !== 'Hitpoints') {
+            const randomXp = Math.floor(Math.random() * 14999) + 1; // 1 to 15000 XP
+            user.skills[skill] = {
+                xp: randomXp,
+                level: xpToLevel(randomXp),
+            };
+        }
+    });
+
+    // Calculate Hitpoints based on combat skills
+    const combatSkills = ['Attack', 'Strength', 'Defence', 'Ranged'];
+    const totalCombatXp = combatSkills.reduce((sum, skill) => {
+        return sum + user.skills[skill].xp;
+    }, 0);
+
+    // Formula: Take total combat XP, divide by 4, multiply by 1.3
+    const hitpointsXp = Math.floor((totalCombatXp / 4) * 1.3);
+
+    user.skills['Hitpoints'] = {
+        xp: hitpointsXp,
+        level: xpToLevel(hitpointsXp),
+    };
+
+    return user;
+}
+
+/**
+ * Updates the Hitpoints skill for an existing user based on their combat skills.
+ * Formula: Take total combat XP (Attack, Strength, Defence, Ranged), divide by 4, multiply by 1.3
+ * @param {object} user - The user object to update.
+ * @returns {boolean} True if Hitpoints was updated, false otherwise.
+ */
+function updateHitpointsForUser(user) {
+    if (!user || !user.skills) return false;
+
+    const combatSkills = ['Attack', 'Strength', 'Defence', 'Ranged'];
+    const totalCombatXp = combatSkills.reduce((sum, skill) => {
+        return sum + (user.skills[skill]?.xp || 0);
+    }, 0);
+
+    // Formula: Take total combat XP, divide by 4, multiply by 1.3
+    const newHitpointsXp = Math.floor((totalCombatXp / 4) * 1.3);
+
+    // Only update if the new XP is different from current
+    if (user.skills['Hitpoints'] && user.skills['Hitpoints'].xp !== newHitpointsXp) {
+        user.skills['Hitpoints'].xp = newHitpointsXp;
+        user.skills['Hitpoints'].level = xpToLevel(newHitpointsXp);
+        return true;
+    }
+
+    return false;
+}
+
+// =================================================================
+// HANDLER FUNCTIONS
+// =================================================================
+
+/**
+ * Creates a JSON response with appropriate headers.
+ * @param {object | Array} data - The data to be sent as JSON.
+ * @param {number} [status=200] - The HTTP status code.
+ * @returns {Response}
+ */
+function jsonResponse(data, status = 200) {
+    const headers = {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*', // Allow cross-origin requests
+        'Access-Control-Allow-Methods': 'GET, HEAD, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+    };
+    return new Response(JSON.stringify(data, null, 2), { status, headers });
+}
+
+/**
+ * Handles OPTIONS requests for CORS preflight.
+ * @returns {Response}
+ */
+function handleOptions() {
+    const headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, HEAD, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+    };
+    return new Response(null, { headers });
+}
+
+/**
+ * Main fetch handler for routing API requests.
+ * @param {Request} request - The incoming request.
+ * @param {object} env - The worker environment.
+ * @returns {Promise<Response>}
+ */
+async function handleFetch(request, env) {
+    if (request.method === 'OPTIONS') {
+        return handleOptions();
+    }
+
+    const url = new URL(request.url);
+    const path = url.pathname;
+
+    // Using a more robust regex for usernames
+    const userDetailRegex = /^\/api\/users\/([^/]+)$/;
+    const userMatch = path.match(userDetailRegex);
+
+    try {
+        if (path === '/api/health') {
+            return jsonResponse({ status: 'ok', timestamp: new Date().toISOString() });
+        }
+
+        if (path === '/api/users') {
+            const kvList = await listUsers(env);
+            const usernames = kvList.keys.map(k => k.name);
+            return jsonResponse({ users: usernames });
+        }
+
+        if (userMatch && userMatch[1]) {
+            const username = decodeURIComponent(userMatch[1]);
+            const user = await getUser(env, username);
+            if (user) {
+                return jsonResponse(user);
+            } else {
+                return jsonResponse({ error: 'User not found' }, 404);
+            }
+        }
+
+        if (path === '/api/leaderboard') {
+            const kvList = await listUsers(env);
+            if (!kvList.keys || kvList.keys.length === 0) {
+                return jsonResponse([]);
+            }
+
+            const userPromises = kvList.keys.map(key => getUser(env, key.name));
+            const users = await Promise.all(userPromises);
+
+            const leaderboard = users
+                .map(user => {
+                    if (!user || !user.skills) return null;
+                    const totalXp = Object.values(user.skills).reduce((sum, skill) => sum + skill.xp, 0);
+                    const totalLevel = Object.values(user.skills).reduce((sum, skill) => sum + skill.level, 0);
+                    return {
+                        username: user.username,
+                        totalXp,
+                        totalLevel,
+                    };
+                })
+                .filter(Boolean);
+
+            // Sort by totalLevel first, then by totalXp as a tie-breaker
+            leaderboard.sort((a, b) => {
+                if (b.totalLevel !== a.totalLevel) {
+                    return b.totalLevel - a.totalLevel;
+                }
+                return b.totalXp - a.totalXp;
+            });
+
+            const rankedLeaderboard = leaderboard.map((player, index) => ({
+                rank: index + 1,
+                ...player,
+            }));
+
+            return jsonResponse(rankedLeaderboard);
+        }
+
+        return jsonResponse({ error: 'Not Found' }, 404);
+
+    } catch (error) {
+        console.error('Error in handleFetch:', error);
+        return jsonResponse({ error: 'Internal Server Error', message: error.message }, 500);
+    }
+}
+
+/**
+ * Scheduled event handler for updating XP and creating new users.
+ * @param {ScheduledController} controller - The scheduled controller object.
+ * @param {object} env - The worker environment.
+ * @param {ExecutionContext} ctx - The execution context.
+ */
+async function handleScheduled(controller, env, ctx) {
+    console.log(`Cron triggered at: ${new Date(controller.scheduledTime)}`);
+    console.log(`Cron pattern: ${controller.cron}`);
+    ctx.waitUntil(runScheduledUpdate(env));
+}
+
+/**
+ * Updates existing users' XP and creates new random users.
+ * @param {object} env - The worker environment.
+ */
+async function runScheduledUpdate(env) {
+    try {
+        const kvList = await listUsers(env);
+        const updatePromises = [];
+
+        if (kvList.keys && kvList.keys.length > 0) {
+            const userPromises = kvList.keys.map(key => getUser(env, key.name));
+            const users = await Promise.all(userPromises);
+
+            for (const user of users) {
+                if (!user) continue;
+
+                let hasChanges = false;
+                SKILLS.forEach(skillName => {
+                    // Skip Hitpoints - it will be calculated separately
+                    if (skillName === 'Hitpoints') return;
+
+                    const xpGained = Math.floor(Math.random() * 10000) + 100;
+                    const currentSkill = user.skills[skillName];
+                    if (currentSkill.xp < 200000000) {
+                        currentSkill.xp = Math.min(200000000, currentSkill.xp + xpGained);
+                        currentSkill.level = xpToLevel(currentSkill.xp);
+                        hasChanges = true;
+                    }
+                });
+
+                // Update Hitpoints based on combat skills
+                const hitpointsUpdated = updateHitpointsForUser(user);
+                if (hitpointsUpdated) {
+                    hasChanges = true;
+                }
+
+                if (hasChanges) {
+                    updatePromises.push(putUser(env, user.username, user));
+                }
+            }
+        }
+
+        const newUserCount = Math.floor(Math.random() * 3) + 1; // Generate 1-3 new users
+        let createdUserCount = 0;
+        if (newUserCount > 0) {
+            for (let i = 0; i < newUserCount; i++) {
+                let newUsername;
+                let isUnique = false;
+                let attempts = 0;
+                while (!isUnique && attempts < 10) {
+                    newUsername = generateRandomUsername();
+                    const existingUser = await getUser(env, newUsername);
+                    if (!existingUser) {
+                        isUnique = true;
+                    }
+                    attempts++;
+                }
+
+                if (isUnique) {
+                    const newUser = generateNewUser(newUsername);
+                    updatePromises.push(putUser(env, newUsername, newUser));
+                    createdUserCount++;
+                }
+            }
+        }
+
+        if (updatePromises.length > 0) {
+            await Promise.all(updatePromises);
+            console.log(`Scheduled update complete. Updated ${updatePromises.length - createdUserCount} users and created ${createdUserCount} new users.`);
+            return {
+                success: true,
+                updatedUsers: updatePromises.length - createdUserCount,
+                createdUsers: createdUserCount,
+                totalUpdates: updatePromises.length
+            };
+        } else {
+            console.log('No user XP was updated in this run.');
+            return {
+                success: true,
+                updatedUsers: 0,
+                createdUsers: 0,
+                totalUpdates: 0
+            };
+        }
+
+    } catch (error) {
+        console.error('Failed to run scheduled update:', error);
+        throw error;
+    }
+}
 
 // =================================================================
 // SEEDING BLOCK - For initial data population during development
