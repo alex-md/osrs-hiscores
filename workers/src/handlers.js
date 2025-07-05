@@ -1,6 +1,6 @@
 // osrs-hiscores-clone/workers/src/handlers.js
 
-import { SKILLS, xpToLevel, generateNewUser, generateRandomUsername } from './dataGenerator.js';
+import { SKILLS, xpToLevel, generateNewUser, generateRandomUsername, updateHitpointsForUser } from './dataGenerator.js';
 import { getUser, putUser, listUsers } from './kvHelper.js';
 
 /**
@@ -147,6 +147,9 @@ export async function runScheduledUpdate(env) {
 
                 let hasChanges = false;
                 SKILLS.forEach(skillName => {
+                    // Skip Hitpoints - it will be calculated separately
+                    if (skillName === 'Hitpoints') return;
+
                     const xpGained = Math.floor(Math.random() * 10000) + 100;
                     const currentSkill = user.skills[skillName];
                     if (currentSkill.xp < 200000000) {
@@ -155,6 +158,12 @@ export async function runScheduledUpdate(env) {
                         hasChanges = true;
                     }
                 });
+
+                // Update Hitpoints based on combat skills
+                const hitpointsUpdated = updateHitpointsForUser(user);
+                if (hitpointsUpdated) {
+                    hasChanges = true;
+                }
 
                 if (hasChanges) {
                     updatePromises.push(putUser(env, user.username, user));
