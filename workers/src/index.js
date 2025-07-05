@@ -109,21 +109,21 @@ const SKILL_POPULARITY_WEIGHTS = {
     'Hitpoints': 1.0, // Calculated separately
     'Prayer': 0.6,
     'Slayer': 1.1,
-    
+
     // Gathering skills (popular)
     'Woodcutting': 1.0,
     'Fishing': 0.95,
     'Mining': 0.9,
     'Hunter': 0.7,
     'Farming': 0.8,
-    
+
     // Artisan skills (moderate popularity)
     'Cooking': 0.85,
     'Firemaking': 0.4,
     'Smithing': 0.6,
     'Crafting': 0.7,
     'Fletching': 0.65,
-    
+
     // Specialist skills (less popular)
     'Runecrafting': 0.3,
     'Construction': 0.25,
@@ -139,14 +139,14 @@ const SKILL_POPULARITY_WEIGHTS = {
 function getPlayerActivityType() {
     const random = Math.random();
     let cumulativeProbability = 0;
-    
+
     for (const [activityType, config] of Object.entries(PLAYER_ACTIVITY_TYPES)) {
         cumulativeProbability += config.probability;
         if (random <= cumulativeProbability) {
             return activityType;
         }
     }
-    
+
     // Fallback to CASUAL if something goes wrong
     return 'CASUAL';
 }
@@ -160,22 +160,22 @@ function getPlayerActivityType() {
 function generateWeightedXpGain(activityType, skillName) {
     const activityConfig = PLAYER_ACTIVITY_TYPES[activityType];
     const skillWeight = SKILL_POPULARITY_WEIGHTS[skillName] || 1.0;
-    
+
     // Determine if this skill gets trained this update
     const adjustedSkillProbability = activityConfig.skillProbability * skillWeight;
     if (Math.random() > adjustedSkillProbability) {
         return 0; // No XP gain for this skill
     }
-    
+
     // Generate base XP within the activity type's range
     const baseXp = Math.floor(
-        Math.random() * (activityConfig.xpRange.max - activityConfig.xpRange.min + 1) + 
+        Math.random() * (activityConfig.xpRange.max - activityConfig.xpRange.min + 1) +
         activityConfig.xpRange.min
     );
-    
+
     // Apply skill-specific multiplier for final XP
     const finalXp = Math.floor(baseXp * skillWeight);
-    
+
     return Math.max(0, finalXp);
 }
 
@@ -189,11 +189,11 @@ function calculateXpGainStats(xpGains) {
     if (gains.length === 0) {
         return { totalXp: 0, skillsUpdated: 0, averageXp: 0, maxXp: 0 };
     }
-    
+
     const totalXp = gains.reduce((sum, xp) => sum + xp, 0);
     const maxXp = Math.max(...gains);
     const averageXp = Math.floor(totalXp / gains.length);
-    
+
     return {
         totalXp,
         skillsUpdated: gains.length,
@@ -282,7 +282,7 @@ function generateNewUser(username) {
     // Determine new player type (affects starting XP ranges)
     const playerType = Math.random();
     let xpMultiplier, baseXpRange;
-    
+
     if (playerType < 0.60) {
         // New/Low level player (60% chance)
         baseXpRange = { min: 0, max: 5000 };
@@ -309,11 +309,11 @@ function generateNewUser(username) {
                 min: Math.floor(baseXpRange.min * skillWeight),
                 max: Math.floor(baseXpRange.max * skillWeight * xpMultiplier)
             };
-            
+
             const randomXp = Math.floor(
                 Math.random() * (weightedRange.max - weightedRange.min + 1) + weightedRange.min
             );
-            
+
             user.skills[skill] = {
                 xp: Math.max(0, randomXp),
                 level: xpToLevel(Math.max(0, randomXp)),
@@ -615,7 +615,7 @@ async function runScheduledUpdate(env) {
         if (kvList.keys && kvList.keys.length > 0) {
             const userPromises = kvList.keys.map(key => getUser(env, key.name));
             const users = await Promise.all(userPromises);
-            
+
             // Track activity type distribution for logging
             const activityTypeCount = {};
             Object.keys(PLAYER_ACTIVITY_TYPES).forEach(type => {
@@ -628,7 +628,7 @@ async function runScheduledUpdate(env) {
                 // Determine this player's activity type for this update cycle
                 const activityType = getPlayerActivityType();
                 activityTypeCount[activityType]++;
-                
+
                 let hasChanges = false;
                 const xpGains = {};
 
@@ -638,9 +638,9 @@ async function runScheduledUpdate(env) {
 
                     const xpGained = generateWeightedXpGain(activityType, skillName);
                     const currentSkill = user.skills[skillName];
-                    
+
                     xpGains[skillName] = xpGained;
-                    
+
                     if (xpGained > 0 && currentSkill.xp < 200000000) {
                         const oldXp = currentSkill.xp;
                         currentSkill.xp = Math.min(200000000, currentSkill.xp + xpGained);
@@ -657,7 +657,7 @@ async function runScheduledUpdate(env) {
 
                 if (hasChanges) {
                     updatePromises.push(putUser(env, user.username, user));
-                    
+
                     // Log update details for players with significant activity
                     const stats = calculateXpGainStats(xpGains);
                     if (stats.totalXp > 0) {
@@ -665,7 +665,7 @@ async function runScheduledUpdate(env) {
                     }
                 }
             }
-            
+
             // Log activity type distribution
             console.log('Activity type distribution:', activityTypeCount);
         }
