@@ -1,6 +1,9 @@
 // frontend/app.js
 
 document.addEventListener('DOMContentLoaded', () => {
+    const ITEMS_PER_PAGE = 25;
+    let currentPage = 1;
+    let cachedLeaderboardData = [];
     // Auto-detect API URL based on environment
     // Local development: http://127.0.0.1:8787
     // Production: Replace with your actual worker URL
@@ -274,6 +277,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(`Failed to fetch leaderboard: ${response.statusText}`);
             }
             const leaderboardData = await response.json();
+
+            // Cache the leaderboard data for pagination
+            cachedLeaderboardData = leaderboardData;
+
             renderLeaderboard(leaderboardData);
             showView('leaderboard');
 
@@ -338,63 +345,71 @@ document.addEventListener('DOMContentLoaded', () => {
      * Renders the leaderboard table
      * @param {Array} data - Array of player objects
      */
-    const renderLeaderboard = (data) => {
+    function renderLeaderboard(data) {
+        const totalPages = Math.ceil(data.length / ITEMS_PER_PAGE);
+        // clamp currentPage
+        if (currentPage > totalPages) currentPage = totalPages;
+        if (currentPage < 1) currentPage = 1;
+
+        const startIdx = (currentPage - 1) * ITEMS_PER_PAGE;
+        const pageData = data.slice(startIdx, startIdx + ITEMS_PER_PAGE);
+
         leaderboardBody.innerHTML = '';
 
-        if (!data || data.length === 0) {
+        if (pageData.length === 0) {
             leaderboardBody.innerHTML = `
                 <tr>
                     <td colspan="4" class="px-4 py-8 text-center text-slate-400">
                         <div class="flex flex-col items-center">
                             <i data-lucide="users" class="w-12 h-12 mb-4 text-slate-500"></i>
-                            <p class="text-lg">No players found on the hiscores</p>
+                            <p class="text-lg">No players to show</p>
                         </div>
                     </td>
-                </tr>
-            `;
-            return;
+                </tr>`;
+        } else {
+            pageData.forEach((player, idx) => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-slate-700/30 transition-colors duration-200';
+                // highlight top-3 by absolute rank:
+                let rankClass = '';
+                if (player.rank === 1) rankClass = 'rank-gold';
+                else if (player.rank === 2) rankClass = 'rank-silver';
+                else if (player.rank === 3) rankClass = 'rank-bronze';
+
+                row.innerHTML = `
+                    <td class="px-4 py-3">
+                        <span class="text-white font-medium ${rankClass}">${player.rank}</span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <button class="player-link text-left hover:text-amber-400 transition-colors duration-200"
+                                        data-username="${player.username}">
+                            <span class="text-white font-medium">${player.username}</span>
+                        </button>
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="text-white">${player.totalLevel.toLocaleString()}</span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="text-white">${player.totalXp.toLocaleString()}</span>
+                    </td>`;
+                leaderboardBody.appendChild(row);
+            });
+            // re-attach click handlers
+            document.querySelectorAll('.player-link').forEach(link => {
+                link.addEventListener('click', e => {
+                    e.preventDefault();
+                    window.location.hash = encodeURIComponent(link.dataset.username);
+                });
+            });
         }
 
-        data.forEach((player, index) => {
-            const row = document.createElement('tr');
-            row.className = 'hover:bg-slate-700/30 transition-colors duration-200';
-
-            // Style for top 3 ranks
-            let rankClass = '';
-            if (index === 0) rankClass = 'rank-gold';
-            else if (index === 1) rankClass = 'rank-silver';
-            else if (index === 2) rankClass = 'rank-bronze';
-
-            row.innerHTML = `
-                <td class="px-4 py-3">
-                    <span class="text-white font-medium ${rankClass}">${player.rank || index + 1}</span>
-                </td>
-                <td class="px-4 py-3">
-                    <button class="player-link text-left hover:text-amber-400 transition-colors duration-200" data-username="${player.username}">
-                        <span class="text-white font-medium">${player.username}</span>
-                    </button>
-                </td>
-                <td class="px-4 py-3">
-                    <span class="text-white">${player.totalLevel.toLocaleString()}</span>
-                </td>
-                <td class="px-4 py-3">
-                    <span class="text-white">${player.totalXp.toLocaleString()}</span>
-                </td>
-            `;
-            leaderboardBody.appendChild(row);
-        });
-
-        // Add click handlers for player links
-        document.querySelectorAll('.player-link').forEach(link => {
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                const username = link.dataset.username;
-                window.location.hash = encodeURIComponent(username);
-            });
-        });
+        // update pagination UI
+        document.getElementById('prev-page').disabled = (currentPage === 1);
+        document.getElementById('next-page').disabled = (currentPage === totalPages);
+        document.getElementById('page-info').textContent = `Page ${currentPage} of ${totalPages}`;
 
         lucide.createIcons();
-    };
+    }
 
     /**
      * Renders the detailed user stats view
@@ -677,6 +692,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Hash change listener for routing
     window.addEventListener('hashchange', handleRouteChange);
+
+    // Pagination event listeners
+    document.getElementById('prev-page').addEventListener('click', () => {
+        if (currentPage > 1) {
+            currentPage--;
+            renderLeaderboard(cachedLeaderboardData);
+        }
+    });
+
+    document.getElementById('next-page').addEventListener('click', () => {
+        const maxPage = Math.ceil(cachedLeaderboardData.length / ITEMS_PER_PAGE);
+        if (currentPage < maxPage) {
+            currentPage++;
+            renderLeaderboard(cachedLeaderboardData);
+        }
+    });
 
     // =================================================================
     // INITIALIZATION
