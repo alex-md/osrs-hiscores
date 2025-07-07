@@ -197,3 +197,55 @@
     color: #8b5cf6;
     font-weight: 600;
 }
+
+/* Search bar visibility */
+.search-container.active {
+    display: block;
+    opacity: 1 !important;
+    transform: translateY(0) !important;
+}
+
+/* Search suggestions */
+.search-suggestion {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.search-suggestion:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.suggestion-name {
+    margin-left: 0.5rem;
+    font-weight: 500;
+}
+
+.suggestion-level {
+    margin-left: auto;
+    font-size: 0.75rem;
+    color: #9ca3af;
+}
+
+/* Toast notifications */
+.toast {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: rgba(15, 23, 42, 0.85);
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    border-left: 4px solid transparent;
+    backdrop-filter: blur(6px);
+}
+
+.toast-success { border-left-color: #16a34a; }
+.toast-error { border-left-color: #dc2626; }
+.toast-warning { border-left-color: #f97316; }
+.toast-info { border-left-color: #2563eb; }
+
+.toast-content { display: flex; align-items: center; gap: 0.5rem; }
+.toast-close { background: none; border: none; color: #cbd5e1; cursor: pointer; }
+.toast-close:hover { color: #fff; }

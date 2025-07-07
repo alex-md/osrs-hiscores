@@ -546,10 +546,11 @@ document.addEventListener('DOMContentLoaded', () => {
      * Handles search input and suggestions
      */
     const handleSearch = debounce(async (query) => {
-        if (!query.trim()) {
-            searchSuggestions.innerHTML = '';
-            return;
-        }
+       if (!query.trim()) {
+           searchSuggestions.innerHTML = '';
+            searchSuggestions.classList.add('hidden');
+           return;
+       }
 
         // Get users if not cached
         if (!cachedUsers) {
@@ -562,7 +563,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ).slice(0, 5);
 
         // Render suggestions
-        searchSuggestions.innerHTML = '';
+       searchSuggestions.innerHTML = '';
         if (filteredUsers.length > 0) {
             filteredUsers.forEach(username => {
                 const suggestion = document.createElement('div');
@@ -582,8 +583,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 searchSuggestions.appendChild(suggestion);
             });
             lucide.createIcons();
+            searchSuggestions.classList.remove('hidden');
         } else {
             searchSuggestions.innerHTML = '<div class="no-suggestions">No players found</div>';
+            searchSuggestions.classList.remove('hidden');
         }
     }, 300);
 
@@ -591,6 +594,7 @@ document.addEventListener('DOMContentLoaded', () => {
      * Shows the search interface
      */
     const showSearch = () => {
+        searchContainer.classList.remove('hidden', 'opacity-0', '-translate-y-2');
         searchContainer.classList.add('active');
         searchInput.focus();
     };
@@ -599,9 +603,11 @@ document.addEventListener('DOMContentLoaded', () => {
      * Hides the search interface
      */
     const hideSearch = () => {
+        searchContainer.classList.add('hidden', 'opacity-0', '-translate-y-2');
         searchContainer.classList.remove('active');
         searchInput.value = '';
         searchSuggestions.innerHTML = '';
+        searchSuggestions.classList.add('hidden');
     };
 
     // =================================================================
@@ -612,11 +618,10 @@ document.addEventListener('DOMContentLoaded', () => {
      * Toggles between light and dark themes
      */
     const toggleTheme = () => {
-        const currentTheme = document.documentElement.getAttribute('data-theme');
-        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        const isDark = document.documentElement.classList.contains('dark');
+        const newTheme = isDark ? 'light' : 'dark';
 
-        document.documentElement.setAttribute('data-theme', newTheme);
-        document.body.setAttribute('data-theme', newTheme);
+        document.documentElement.classList.toggle('dark', !isDark);
         localStorage.setItem('theme', newTheme);
 
         showToast(`Switched to ${newTheme} theme`, 'success', 2000);
