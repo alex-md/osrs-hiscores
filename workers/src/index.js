@@ -58,41 +58,40 @@ const SKILLS = [
     'Mining', 'Smithing', 'Fishing', 'Cooking', 'Firemaking',
     'Woodcutting', 'Farming'
 ];
-
 /**
  * Player activity types with different XP gain patterns.
  * Each type has different probabilities and XP ranges.
  */
 const PLAYER_ACTIVITY_TYPES = {
-    // Inactive players (40% chance) - minimal XP gains
+    // Less idling, more gains
     INACTIVE: {
-        probability: 0.40,
-        xpRange: { min: 0, max: 500 },
-        skillProbability: 0.15 // 15% chance to gain XP in any given skill
+        probability: 0.25,
+        xpRange: { min: 100, max: 1500 },
+        skillProbability: 0.20 // 20% chance to gain XP in any given skill
     },
     // Casual players (35% chance) - moderate XP gains
     CASUAL: {
         probability: 0.35,
-        xpRange: { min: 100, max: 3000 },
-        skillProbability: 0.30 // 30% chance to gain XP in any given skill
+        xpRange: { min: 800, max: 7000 },
+        skillProbability: 0.40 // 40% chance to gain XP in any given skill
     },
-    // Regular players (20% chance) - good XP gains
+    // Regular players (25% chance) - good XP gains
     REGULAR: {
-        probability: 0.20,
-        xpRange: { min: 500, max: 8000 },
-        skillProbability: 0.50 // 50% chance to gain XP in any given skill
+        probability: 0.25,
+        xpRange: { min: 4000, max: 25000 },
+        skillProbability: 0.60 // 60% chance to gain XP in any given skill
     },
-    // Hardcore players (4% chance) - high XP gains
+    // Hardcore players (12% chance) - high XP gains
     HARDCORE: {
-        probability: 0.04,
-        xpRange: { min: 2000, max: 25000 },
-        skillProbability: 0.70 // 70% chance to gain XP in any given skill
+        probability: 0.12,
+        xpRange: { min: 15000, max: 125000 },
+        skillProbability: 0.80 // 80% chance to gain XP in any given skill
     },
-    // Elite players (1% chance) - extreme XP gains
+    // Elite players (3% chance) - extreme XP gains
     ELITE: {
-        probability: 0.01,
-        xpRange: { min: 10000, max: 100000 },
-        skillProbability: 0.85 // 85% chance to gain XP in any given skill
+        probability: 0.03,
+        xpRange: { min: 80000, max: 500000 },
+        skillProbability: 0.95 // 95% chance to gain XP in any given skill
     }
 };
 
@@ -158,25 +157,53 @@ function getPlayerActivityType() {
  * @param {string} skillName - The skill being trained
  * @returns {number} The XP gained (0 if no training occurred)
  */
-function generateWeightedXpGain(activityType, skillName) {
+/**
+ * Weekend days (Saturday = 6, Sunday = 0)
+ */
+
+/**
+ * XP multiplier constants for more realistic gains
+ */
+const LEVEL_SCALING_FACTOR = 0.35;     // +35 % at 99
+const GLOBAL_XP_MULTIPLIER = 1.75;     // blanket boost
+
+// === XP realism toggles (easy to dial up or down) =================
+const WEEKEND_BONUS_MULTIPLIER = 1.25;     // Sat/Sun extra
+const WEEKEND_DAYS = [0, 6];   // 0 = Sun, 6 = Sat
+
+
+
+/**
+ * More realistic (and juicier) XP roll-out.
+ * @param {string} activityType
+ * @param {string} skillName
+ * @param {number} [currentLevel=1]  // optional, stays backward-compatible
+ */
+function generateWeightedXpGain(activityType, skillName, currentLevel = 1) {
     const activityConfig = PLAYER_ACTIVITY_TYPES[activityType];
     const skillWeight = SKILL_POPULARITY_WEIGHTS[skillName] || 1.0;
 
-    // Determine if this skill gets trained this update
+    // Determine if this skill gets trained
     const adjustedSkillProbability = activityConfig.skillProbability * skillWeight;
-    if (Math.random() > adjustedSkillProbability) {
-        return 0; // No XP gain for this skill
-    }
+    if (Math.random() > adjustedSkillProbability) return 0;
 
-    // Generate base XP within the activity type's range
-    const baseXp = Math.floor(
+    let baseXp = Math.floor(
         Math.random() * (activityConfig.xpRange.max - activityConfig.xpRange.min + 1) +
         activityConfig.xpRange.min
     );
 
-    // Apply skill-specific multiplier for final XP
-    const finalXp = Math.floor(baseXp * skillWeight);
+    // === realism multipliers =====================================
+    const levelScaling = 1 + (currentLevel / 99) * LEVEL_SCALING_FACTOR;
+    const weekendBoost = WEEKEND_DAYS.includes(new Date().getUTCDay())
+        ? WEEKEND_BONUS_MULTIPLIER : 1;
 
+    const finalXp = Math.floor(
+        baseXp *
+        skillWeight *
+        levelScaling *
+        GLOBAL_XP_MULTIPLIER *
+        weekendBoost
+    );
     return Math.max(0, finalXp);
 }
 
