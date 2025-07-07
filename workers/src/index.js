@@ -574,6 +574,45 @@ async function handleFetch(request, env) {
             return jsonResponse(rankedLeaderboard);
         }
 
+        const skillLbRegex = /^\/api\/leaderboard\/([^/]+)$/;
+        const skillLbMatch = path.match(skillLbRegex);
+        if (skillLbMatch) {
+            const requested = decodeURIComponent(skillLbMatch[1]);
+            const skillName = SKILLS.find(s => s.toLowerCase() === requested.toLowerCase());
+            if (!skillName) {
+                return jsonResponse({ error: 'Invalid skill' }, 400);
+            }
+
+            const kvList = await listUsers(env);
+            if (!kvList.keys || kvList.keys.length === 0) {
+                return jsonResponse([]);
+            }
+
+            const users = await Promise.all(kvList.keys.map(key => getUser(env, key.name)));
+
+            const rankings = users
+                .map(user => {
+                    if (!user || !user.skills) return null;
+                    const skill = user.skills[skillName];
+                    if (!skill) return null;
+                    return {
+                        username: user.username,
+                        level: skill.level,
+                        xp: skill.xp
+                    };
+                })
+                .filter(Boolean);
+
+            rankings.sort((a, b) => {
+                if (b.level !== a.level) return b.level - a.level;
+                return b.xp - a.xp;
+            });
+
+            const ranked = rankings.map((p, i) => ({ rank: i + 1, ...p }));
+
+            return jsonResponse(ranked);
+        }
+
         if (path === '/api/skill-rankings') {
             const kvList = await listUsers(env);
             if (!kvList.keys || kvList.keys.length === 0) {

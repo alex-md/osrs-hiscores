@@ -114,6 +114,17 @@ Get list of recently searched players.
 ### GET /api/mock
 Get mock hiscores data for testing.
 
+### GET /api/leaderboard/{skill}
+Retrieve leaderboard data for a specific skill. `{skill}` should match one of the game skills such as `Agility` or `Fishing`.
+
+**Response:**
+```json
+[
+  { "rank": 1, "username": "Player1", "level": 99, "xp": 13034431 },
+  { "rank": 2, "username": "Player2", "level": 98, "xp": 12000000 }
+]
+```
+
 ## Development
 
 ### Local Development

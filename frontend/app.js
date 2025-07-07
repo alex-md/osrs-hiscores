@@ -33,6 +33,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const homeView = document.getElementById('home-view');
     const leaderboardView = document.getElementById('leaderboard-view');
     const playerView = document.getElementById('player-view');
+    const skillView = document.getElementById('skill-view');
+    const skillNameHeading = document.getElementById('skill-name');
+    const skillHiscoresBody = document.getElementById('skill-hiscores-body');
+    const skillPrevPage = document.getElementById('skill-prev-page');
+    const skillNextPage = document.getElementById('skill-next-page');
+    const skillPageInfo = document.getElementById('skill-page-info');
+    const refreshSkillHiscores = document.getElementById('refresh-skill-hiscores');
+    const backFromSkillBtn = document.getElementById('back-from-skill-btn');
     const leaderboardBody = document.getElementById('leaderboard-body');
     const searchContainer = document.getElementById('search-container');
     const searchInput = document.getElementById('search-input');
@@ -54,6 +62,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let searchTimeout = null;
     let cachedUsers = null;
     let cachedRankings = null;
+    let cachedSkillHiscores = [];
+    let currentSkill = null;
+    let skillCurrentPage = 1;
 
     // =================================================================
     // UTILITY FUNCTIONS
@@ -157,6 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
         homeView.style.display = 'none';
         leaderboardView.style.display = 'none';
         playerView.style.display = 'none';
+        skillView.style.display = 'none';
 
         // Show the requested view
         currentView = viewName;
@@ -175,6 +187,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 break;
             case 'player':
                 playerView.style.display = 'block';
+                break;
+            case 'skill':
+                skillView.style.display = 'block';
                 break;
         }
     };
@@ -473,7 +488,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!skill) return;
 
             const row = document.createElement('tr');
-            row.className = 'hover:bg-slate-700/20 transition-colors duration-200';
+            row.className = 'hover:bg-slate-700/20 transition-colors duration-200 cursor-pointer';
+            row.dataset.skill = skillName;
 
             // Get the actual rank for this skill
             const actualRank = getUserSkillRank(user.username, skillName);
@@ -499,9 +515,89 @@ document.addEventListener('DOMContentLoaded', () => {
                 </td>
             `;
             skillsTableBody.appendChild(row);
+
+            row.addEventListener('click', () => {
+                showSkillHiscores(skillName);
+            });
         });
 
         lucide.createIcons();
+    };
+
+    /**
+     * Fetch skill-specific hiscores data
+     * @param {string} skill - Skill name
+     */
+    const fetchSkillHiscores = async (skill) => {
+        showView('loading');
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/leaderboard/${encodeURIComponent(skill)}`);
+            if (!response.ok) {
+                throw new Error('Failed to fetch skill hiscores');
+            }
+            const data = await response.json();
+            cachedSkillHiscores = data;
+            renderSkillHiscores(data);
+            showView('skill');
+        } catch (error) {
+            console.error('Error fetching skill hiscores:', error);
+            errorMessage.textContent = `Error loading skill hiscores: ${error.message}`;
+            showView('error');
+        }
+    };
+
+    /**
+     * Render skill hiscores table
+     * @param {Array} data
+     */
+    const renderSkillHiscores = (data) => {
+        const totalPages = Math.ceil(data.length / ITEMS_PER_PAGE);
+        if (skillCurrentPage > totalPages) skillCurrentPage = totalPages;
+        if (skillCurrentPage < 1) skillCurrentPage = 1;
+
+        const startIdx = (skillCurrentPage - 1) * ITEMS_PER_PAGE;
+        const pageData = data.slice(startIdx, startIdx + ITEMS_PER_PAGE);
+
+        skillHiscoresBody.innerHTML = '';
+
+        if (pageData.length === 0) {
+            skillHiscoresBody.innerHTML = `<tr><td colspan="4" class="px-4 py-8 text-center text-slate-400">No players to show</td></tr>`;
+        } else {
+            pageData.forEach(player => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-slate-700/30 transition-colors duration-200';
+                row.innerHTML = `
+                    <td class="px-4 py-3"><span class="text-white font-medium">${player.rank}</span></td>
+                    <td class="px-4 py-3">
+                        <button class="player-link text-left hover:text-amber-400 transition-colors duration-200" data-username="${player.username}">
+                            <span class="text-white font-medium">${player.username}</span>
+                        </button>
+                    </td>
+                    <td class="px-4 py-3"><span class="text-white">${player.level.toLocaleString()}</span></td>
+                    <td class="px-4 py-3"><span class="text-white">${player.xp.toLocaleString()}</span></td>`;
+                skillHiscoresBody.appendChild(row);
+            });
+
+            document.querySelectorAll('.player-link').forEach(link => {
+                link.addEventListener('click', e => {
+                    e.preventDefault();
+                    window.location.hash = encodeURIComponent(link.dataset.username);
+                });
+            });
+        }
+
+        skillPrevPage.disabled = (skillCurrentPage === 1);
+        skillNextPage.disabled = (skillCurrentPage === totalPages);
+        skillPageInfo.textContent = `Page ${skillCurrentPage} of ${totalPages}`;
+
+        lucide.createIcons();
+    };
+
+    const showSkillHiscores = (skill) => {
+        currentSkill = skill;
+        skillCurrentPage = 1;
+        skillNameHeading.textContent = skill;
+        fetchSkillHiscores(skill);
     };
 
     /**
@@ -692,6 +788,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    refreshSkillHiscores?.addEventListener('click', () => {
+        if (currentSkill) {
+            fetchSkillHiscores(currentSkill);
+        }
+    });
+
+    backFromSkillBtn?.addEventListener('click', () => {
+        showView('leaderboard');
+    });
+
     // Start search button
     startSearch?.addEventListener('click', showSearch);
 
@@ -711,6 +817,21 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentPage < maxPage) {
             currentPage++;
             renderLeaderboard(cachedLeaderboardData);
+        }
+    });
+
+    skillPrevPage.addEventListener('click', () => {
+        if (skillCurrentPage > 1) {
+            skillCurrentPage--;
+            renderSkillHiscores(cachedSkillHiscores);
+        }
+    });
+
+    skillNextPage.addEventListener('click', () => {
+        const maxPage = Math.ceil(cachedSkillHiscores.length / ITEMS_PER_PAGE);
+        if (skillCurrentPage < maxPage) {
+            skillCurrentPage++;
+            renderSkillHiscores(cachedSkillHiscores);
         }
     });
 
