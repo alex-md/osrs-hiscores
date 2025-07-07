@@ -574,6 +574,52 @@ async function handleFetch(request, env) {
             return jsonResponse(rankedLeaderboard);
         }
 
+        // Skill-specific leaderboard
+        const skillMatch = path.match(/^\/api\/skills\/([^/]+)$/);
+        if (skillMatch) {
+            const requested = decodeURIComponent(skillMatch[1]);
+            const skillName = SKILLS.find(
+                s => s.toLowerCase() === requested.toLowerCase()
+            );
+            if (!skillName) {
+                return jsonResponse({ error: 'Invalid skill' }, 400);
+            }
+
+            const kvList = await listUsers(env);
+            if (!kvList.keys || kvList.keys.length === 0) {
+                return jsonResponse([]);
+            }
+
+            const userPromises = kvList.keys.map(key => getUser(env, key.name));
+            const users = await Promise.all(userPromises);
+
+            const ranking = users
+                .map(user => {
+                    const skill = user?.skills?.[skillName];
+                    if (!skill) return null;
+                    return {
+                        username: user.username,
+                        level: skill.level,
+                        xp: skill.xp,
+                    };
+                })
+                .filter(Boolean);
+
+            ranking.sort((a, b) => {
+                if (b.level !== a.level) {
+                    return b.level - a.level;
+                }
+                return b.xp - a.xp;
+            });
+
+            const ranked = ranking.map((player, index) => ({
+                rank: index + 1,
+                ...player,
+            }));
+
+            return jsonResponse(ranked);
+        }
+
         if (path === '/api/skill-rankings') {
             const kvList = await listUsers(env);
             if (!kvList.keys || kvList.keys.length === 0) {

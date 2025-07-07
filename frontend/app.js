@@ -33,7 +33,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const homeView = document.getElementById('home-view');
     const leaderboardView = document.getElementById('leaderboard-view');
     const playerView = document.getElementById('player-view');
+    const skillView = document.getElementById('skill-view');
     const leaderboardBody = document.getElementById('leaderboard-body');
+    const skillHiscoresBody = document.getElementById('skill-hiscores-body');
     const searchContainer = document.getElementById('search-container');
     const searchInput = document.getElementById('search-input');
     const searchSuggestions = document.getElementById('search-suggestions');
@@ -44,9 +46,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const backBtn = document.getElementById('back-btn');
     const refreshLeaderboard = document.getElementById('refresh-leaderboard');
     const refreshPlayer = document.getElementById('refresh-player');
+    const refreshSkillHiscores = document.getElementById('refresh-skill-hiscores');
     const startSearch = document.getElementById('start-search');
     const lastUpdated = document.getElementById('last-updated');
     const toastContainer = document.getElementById('toast-container');
+    const skillNameHeading = document.getElementById('skill-name');
+    const backFromSkillBtn = document.getElementById('back-from-skill-btn');
+    const skillPrevPage = document.getElementById('skill-prev-page');
+    const skillNextPage = document.getElementById('skill-next-page');
+    const skillPageInfo = document.getElementById('skill-page-info');
 
     // State management
     let currentView = 'home';
@@ -54,6 +62,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let searchTimeout = null;
     let cachedUsers = null;
     let cachedRankings = null;
+    let cachedSkillData = [];
+    let currentSkillPage = 1;
+    let currentSkill = '';
 
     // =================================================================
     // UTILITY FUNCTIONS
@@ -157,6 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
         homeView.style.display = 'none';
         leaderboardView.style.display = 'none';
         playerView.style.display = 'none';
+        skillView.style.display = 'none';
 
         // Show the requested view
         currentView = viewName;
@@ -176,6 +188,9 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'player':
                 playerView.style.display = 'block';
                 break;
+            case 'skill':
+                skillView.style.display = 'block';
+                break;
         }
     };
 
@@ -184,7 +199,12 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     const handleRouteChange = () => {
         const hash = window.location.hash.substring(1);
-        if (hash) {
+        if (hash.startsWith('skill/')) {
+            const skill = decodeURIComponent(hash.split('/')[1] || '');
+            if (skill) {
+                fetchSkillLeaderboard(skill);
+            }
+        } else if (hash) {
             const username = decodeURIComponent(hash);
             fetchUserStats(username);
         } else {
@@ -337,6 +357,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    /**
+     * Fetches and displays a skill-specific leaderboard
+     * @param {string} skillName - Skill to fetch
+     */
+    const fetchSkillLeaderboard = async (skillName) => {
+        showView('loading');
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/skills/${encodeURIComponent(skillName)}`);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch skill hiscores: ${response.statusText}`);
+            }
+            const data = await response.json();
+            cachedSkillData = data;
+            currentSkillPage = 1;
+            currentSkill = skillName;
+            skillNameHeading.textContent = skillName;
+            renderSkillLeaderboard(data);
+            showView('skill');
+        } catch (error) {
+            console.error('Error fetching skill leaderboard:', error);
+            errorMessage.textContent = `Error loading skill hiscores: ${error.message}`;
+            showView('error');
+            showToast('Failed to load skill hiscores', 'error');
+        }
+    };
+
     // =================================================================
     // RENDERING FUNCTIONS
     // =================================================================
@@ -412,6 +458,72 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
+     * Renders skill-specific leaderboard table
+     * @param {Array} data - ranking data for the skill
+     */
+    function renderSkillLeaderboard(data) {
+        const totalPages = Math.ceil(data.length / ITEMS_PER_PAGE);
+        if (currentSkillPage > totalPages) currentSkillPage = totalPages;
+        if (currentSkillPage < 1) currentSkillPage = 1;
+
+        const startIdx = (currentSkillPage - 1) * ITEMS_PER_PAGE;
+        const pageData = data.slice(startIdx, startIdx + ITEMS_PER_PAGE);
+
+        skillHiscoresBody.innerHTML = '';
+
+        if (pageData.length === 0) {
+            skillHiscoresBody.innerHTML = `
+                <tr>
+                    <td colspan="4" class="px-4 py-8 text-center text-slate-400">
+                        <div class="flex flex-col items-center">
+                            <i data-lucide="users" class="w-12 h-12 mb-4 text-slate-500"></i>
+                            <p class="text-lg">No players to show</p>
+                        </div>
+                    </td>
+                </tr>`;
+        } else {
+            pageData.forEach(player => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-slate-700/30 transition-colors duration-200';
+                let rankClass = '';
+                if (player.rank === 1) rankClass = 'rank-gold';
+                else if (player.rank === 2) rankClass = 'rank-silver';
+                else if (player.rank === 3) rankClass = 'rank-bronze';
+
+                row.innerHTML = `
+                    <td class="px-4 py-3">
+                        <span class="text-white font-medium ${rankClass}">${player.rank}</span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <button class="player-link text-left hover:text-amber-400 transition-colors duration-200" data-username="${player.username}">
+                            <span class="text-white font-medium">${player.username}</span>
+                        </button>
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="text-white">${player.level}</span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="text-white">${player.xp.toLocaleString()}</span>
+                    </td>`;
+                skillHiscoresBody.appendChild(row);
+            });
+
+            document.querySelectorAll('.player-link').forEach(link => {
+                link.addEventListener('click', e => {
+                    e.preventDefault();
+                    window.location.hash = encodeURIComponent(link.dataset.username);
+                });
+            });
+        }
+
+        skillPrevPage.disabled = currentSkillPage === 1;
+        skillNextPage.disabled = currentSkillPage === totalPages;
+        skillPageInfo.textContent = `Page ${currentSkillPage} of ${totalPages}`;
+
+        lucide.createIcons();
+    }
+
+    /**
      * Renders the detailed user stats view
      * @param {object} user - User data object
      */
@@ -481,12 +593,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             row.innerHTML = `
                 <td class="px-4 py-3">
-                    <div class="flex items-center">
+                    <button class="skill-link flex items-center" data-skill="${skillName}">
                         <div class="w-6 h-6 mr-3 flex items-center justify-center">
                             <i data-lucide="${getSkillIcon(skillName)}" class="w-4 h-4 text-amber-400"></i>
                         </div>
                         <span class="text-white font-medium">${skillName}</span>
-                    </div>
+                    </button>
                 </td>
                 <td class="px-4 py-3">
                     <span class="text-slate-300">${displayRank}</span>
@@ -499,6 +611,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 </td>
             `;
             skillsTableBody.appendChild(row);
+        });
+
+        document.querySelectorAll('.skill-link').forEach(btn => {
+            btn.addEventListener('click', e => {
+                e.preventDefault();
+                const skill = btn.dataset.skill;
+                window.location.hash = `skill/${encodeURIComponent(skill)}`;
+            });
         });
 
         lucide.createIcons();
@@ -691,6 +811,15 @@ document.addEventListener('DOMContentLoaded', () => {
             fetchUserStats(currentPlayer.username);
         }
     });
+    refreshSkillHiscores?.addEventListener('click', () => {
+        if (currentSkill) {
+            fetchSkillLeaderboard(currentSkill);
+        }
+    });
+
+    backFromSkillBtn?.addEventListener('click', () => {
+        window.location.hash = '';
+    });
 
     // Start search button
     startSearch?.addEventListener('click', showSearch);
@@ -711,6 +840,22 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentPage < maxPage) {
             currentPage++;
             renderLeaderboard(cachedLeaderboardData);
+        }
+    });
+
+    // Skill hiscores pagination
+    skillPrevPage.addEventListener('click', () => {
+        if (currentSkillPage > 1) {
+            currentSkillPage--;
+            renderSkillLeaderboard(cachedSkillData);
+        }
+    });
+
+    skillNextPage.addEventListener('click', () => {
+        const maxPage = Math.ceil(cachedSkillData.length / ITEMS_PER_PAGE);
+        if (currentSkillPage < maxPage) {
+            currentSkillPage++;
+            renderSkillLeaderboard(cachedSkillData);
         }
     });
 
