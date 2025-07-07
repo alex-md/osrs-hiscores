@@ -11,6 +11,7 @@ A modern web application for looking up Old School RuneScape player statistics, 
 - 📱 **Responsive Design**: Works on desktop and mobile devices
 - 🔄 **Recent Searches**: Quick access to previously searched players
 - 🎯 **Mock Data**: Test functionality with sample data
+- 🏅 **Skill Leaderboards**: See rankings for individual skills
 
 ## Project Structure
 
@@ -113,6 +114,21 @@ Get list of recently searched players.
 
 ### GET /api/mock
 Get mock hiscores data for testing.
+
+### GET /api/skills/<skill>
+Get the hiscores ranking for a particular skill.
+
+**Response:**
+```json
+[
+  {
+    "rank": 1,
+    "username": "PlayerName",
+    "level": 99,
+    "xp": 200000000
+  }
+]
+```
 
 ## Development
 

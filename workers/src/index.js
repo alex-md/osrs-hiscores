@@ -574,8 +574,9 @@ async function handleFetch(request, env) {
             return jsonResponse(rankedLeaderboard);
         }
 
-        // Skill-specific leaderboard
-        const skillMatch = path.match(/^\/api\/skills\/([^/]+)$/);
+        // Skill-specific leaderboard (e.g. /api/skills/Attack)
+        // Allow optional trailing slash and case-insensitive skill names
+        const skillMatch = path.match(/^\/api\/skills\/([^/]+)\/?$/i);
         if (skillMatch) {
             const requested = decodeURIComponent(skillMatch[1]);
             const skillName = SKILLS.find(
