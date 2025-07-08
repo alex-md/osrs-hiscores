@@ -2,55 +2,15 @@
 
 /**
  * OSRS Hiscores Cloudflare Worker
- * 
+ *
  * This worker provides an API for OSRS hiscores data and includes a scheduled
  * cron job that updates player XP and creates new random users.
  */
 
 // =================================================================
-// KV HELPER FUNCTIONS
+// CONSTANTS & CONFIGURATION (TUNED)
 // =================================================================
 
-/**
- * Retrieves a user's data from the KV store.
- * @param {object} env - The worker environment containing the KV namespace.
- * @param {string} username - The username to look up.
- * @returns {Promise<object|null>} The user data object or null if not found.
- */
-async function getUser(env, username) {
-    if (!username) return null;
-    const key = username.toLowerCase();
-    return await env.HISCORES_KV.get(key, 'json');
-}
-
-/**
- * Saves a user's data to the KV store.
- * @param {object} env - The worker environment containing the KV namespace.
- * @param {string} username - The username to save the data under.
- * @param {object} data - The user data object to store.
- * @returns {Promise<void>}
- */
-async function putUser(env, username, data) {
-    const key = username.toLowerCase();
-    await env.HISCORES_KV.put(key, JSON.stringify(data));
-}
-
-/**
- * Lists all keys (usernames) currently in the KV store.
- * @param {object} env - The worker environment containing the KV namespace.
- * @returns {Promise<object>} The result of the KV list operation.
- */
-async function listUsers(env) {
-    return await env.HISCORES_KV.list();
-}
-
-// =================================================================
-// DATA GENERATION FUNCTIONS
-// =================================================================
-
-/**
- * List of all 23 skills in Old School RuneScape.
- */
 const SKILLS = [
     'Attack', 'Strength', 'Defence', 'Ranged', 'Prayer', 'Magic',
     'Runecrafting', 'Construction', 'Hitpoints', 'Agility', 'Herblore',
@@ -58,777 +18,458 @@ const SKILLS = [
     'Mining', 'Smithing', 'Fishing', 'Cooking', 'Firemaking',
     'Woodcutting', 'Farming'
 ];
-/**
- * Player activity types with different XP gain patterns.
- * Each type has different probabilities and XP ranges.
- */
+
+const COMBAT_SKILLS = ['Attack', 'Strength', 'Defence', 'Ranged'];
+const WEEKEND_DAYS = [0, 6]; // 0 = Sun, 6 = Sat
+
 const PLAYER_ACTIVITY_TYPES = {
-    // Less idling, more gains
-    INACTIVE: {
-        probability: 0.25,
-        xpRange: { min: 100, max: 1500 },
-        skillProbability: 0.20 // 20% chance to gain XP in any given skill
-    },
-    // Casual players (35% chance) - moderate XP gains
-    CASUAL: {
-        probability: 0.35,
-        xpRange: { min: 800, max: 7000 },
-        skillProbability: 0.40 // 40% chance to gain XP in any given skill
-    },
-    // Regular players (25% chance) - good XP gains
-    REGULAR: {
-        probability: 0.25,
-        xpRange: { min: 4000, max: 25000 },
-        skillProbability: 0.60 // 60% chance to gain XP in any given skill
-    },
-    // Hardcore players (12% chance) - high XP gains
-    HARDCORE: {
-        probability: 0.12,
-        xpRange: { min: 15000, max: 125000 },
-        skillProbability: 0.80 // 80% chance to gain XP in any given skill
-    },
-    // Elite players (3% chance) - extreme XP gains
-    ELITE: {
-        probability: 0.03,
-        xpRange: { min: 80000, max: 500000 },
-        skillProbability: 0.95 // 95% chance to gain XP in any given skill
-    }
+    // A larger pool of inactive/low-activity players makes the top players stand out more.
+    INACTIVE: { probability: 0.30, xpRange: { min: 0, max: 1000 }, skillProbability: 0.15 },
+    // The bulk of the player base. Wider XP range for more variability.
+    CASUAL: { probability: 0.40, xpRange: { min: 500, max: 15000 }, skillProbability: 0.40 },
+    // More serious players, but a smaller group.
+    REGULAR: { probability: 0.20, xpRange: { min: 10000, max: 80000 }, skillProbability: 0.65 },
+    // Rarer and more dedicated. The ceiling is significantly higher.
+    HARDCORE: { probability: 0.08, xpRange: { min: 50000, max: 400000 }, skillProbability: 0.85 },
+    // The 1% of players. Truly massive potential gains to create a competitive top-end.
+    ELITE: { probability: 0.02, xpRange: { min: 250000, max: 1200000 }, skillProbability: 0.95 }
 };
 
-/**
- * Skill popularity weights - some skills are trained more frequently than others.
- * Higher values mean more likely to be trained.
- */
 const SKILL_POPULARITY_WEIGHTS = {
-    // Combat skills (most popular)
-    'Attack': 1.2,
-    'Strength': 1.3,
-    'Defence': 1.1,
-    'Ranged': 1.25,
-    'Magic': 1.15,
-    'Hitpoints': 1.0, // Calculated separately
-    'Prayer': 0.6,
-    'Slayer': 1.1,
+    // Increased weights for combat skills to reflect their popularity and competitive nature.
+    'Attack': 1.3, 'Strength': 1.4, 'Defence': 1.15, 'Ranged': 1.3, 'Magic': 1.15,
+    'Slayer': 1.25, // Slayer is a very popular and competitive skill.
 
-    // Gathering skills (popular)
-    'Woodcutting': 1.0,
-    'Fishing': 0.95,
-    'Mining': 0.9,
-    'Hunter': 0.7,
-    'Farming': 0.8,
+    // Core non-combat skills
+    'Hitpoints': 1.0, 'Woodcutting': 1.0, 'Fishing': 0.95, 'Mining': 0.9,
+    'Hunter': 0.7, 'Farming': 0.8, 'Cooking': 0.85, 'Thieving': 0.5,
 
-    // Artisan skills (moderate popularity)
-    'Cooking': 0.85,
-    'Firemaking': 0.4,
-    'Smithing': 0.6,
-    'Crafting': 0.7,
-    'Fletching': 0.65,
+    // "Buyable" and utility skills, with some adjustments
+    'Prayer': 0.6, 'Smithing': 0.6, 'Crafting': 0.7, 'Fletching': 0.65, 'Herblore': 0.55,
 
-    // Specialist skills (less popular)
-    'Runecrafting': 0.3,
-    'Construction': 0.25,
-    'Agility': 0.35,
-    'Herblore': 0.5,
-    'Thieving': 0.45
+    // The notoriously slow/unpopular skills are now even more so, making high ranks in them more prestigious.
+    'Runecrafting': 0.2, 'Construction': 0.2, 'Agility': 0.3, 'Firemaking': 0.4,
 };
 
-/**
- * Determines a player's activity type based on weighted probabilities.
- * @returns {string} The activity type key
- */
-function getPlayerActivityType() {
-    const random = Math.random();
-    let cumulativeProbability = 0;
+// Increased to make high-level players pull away from the pack faster, rewarding dedication.
+const LEVEL_SCALING_FACTOR = 0.60;
 
-    for (const [activityType, config] of Object.entries(PLAYER_ACTIVITY_TYPES)) {
-        cumulativeProbability += config.probability;
-        if (random <= cumulativeProbability) {
-            return activityType;
-        }
-    }
+// A slight bump to make the hiscores move a bit faster overall.
+const GLOBAL_XP_MULTIPLIER = 2.0;
 
-    // Fallback to CASUAL if something goes wrong
-    return 'CASUAL';
-}
-
-/**
- * Generates weighted random XP gain for a player based on their activity type.
- * @param {string} activityType - The player's activity type
- * @param {string} skillName - The skill being trained
- * @returns {number} The XP gained (0 if no training occurred)
- */
-/**
- * Weekend days (Saturday = 6, Sunday = 0)
- */
-
-/**
- * XP multiplier constants for more realistic gains
- */
-const LEVEL_SCALING_FACTOR = 0.35;     // +35 % at 99
-const GLOBAL_XP_MULTIPLIER = 1.75;     // blanket boost
-
-// === XP realism toggles (easy to dial up or down) =================
-const WEEKEND_BONUS_MULTIPLIER = 1.25;     // Sat/Sun extra
-const WEEKEND_DAYS = [0, 6];   // 0 = Sun, 6 = Sat
-
-
-
-/**
- * More realistic (and juicier) XP roll-out.
- * @param {string} activityType
- * @param {string} skillName
- * @param {number} [currentLevel=1]  // optional, stays backward-compatible
- */
-function generateWeightedXpGain(activityType, skillName, currentLevel = 1) {
-    const activityConfig = PLAYER_ACTIVITY_TYPES[activityType];
-    const skillWeight = SKILL_POPULARITY_WEIGHTS[skillName] || 1.0;
-
-    // Determine if this skill gets trained
-    const adjustedSkillProbability = activityConfig.skillProbability * skillWeight;
-    if (Math.random() > adjustedSkillProbability) return 0;
-
-    let baseXp = Math.floor(
-        Math.random() * (activityConfig.xpRange.max - activityConfig.xpRange.min + 1) +
-        activityConfig.xpRange.min
-    );
-
-    // === realism multipliers =====================================
-    const levelScaling = 1 + (currentLevel / 99) * LEVEL_SCALING_FACTOR;
-    const weekendBoost = WEEKEND_DAYS.includes(new Date().getUTCDay())
-        ? WEEKEND_BONUS_MULTIPLIER : 1;
-
-    const finalXp = Math.floor(
-        baseXp *
-        skillWeight *
-        levelScaling *
-        GLOBAL_XP_MULTIPLIER *
-        weekendBoost
-    );
-    return Math.max(0, finalXp);
-}
-
-/**
- * Calculates statistics about XP gains for logging purposes.
- * @param {Object} xpGains - Object mapping skill names to XP gained
- * @returns {Object} Statistics about the XP gains
- */
-function calculateXpGainStats(xpGains) {
-    const gains = Object.values(xpGains).filter(xp => xp > 0);
-    if (gains.length === 0) {
-        return { totalXp: 0, skillsUpdated: 0, averageXp: 0, maxXp: 0 };
-    }
-
-    const totalXp = gains.reduce((sum, xp) => sum + xp, 0);
-    const maxXp = Math.max(...gains);
-    const averageXp = Math.floor(totalXp / gains.length);
-
-    return {
-        totalXp,
-        skillsUpdated: gains.length,
-        averageXp,
-        maxXp
-    };
-}
+// Increased significantly to make weekends feel like a major competitive event.
+const WEEKEND_BONUS_MULTIPLIER = 1.5;
 
 // =================================================================
-// START: USERNAME GENERATION REFACTOR
+// KV & RESPONSE HELPERS
 // =================================================================
 
+async function getUser(env, username) {
+    if (!username) return null;
+    return await env.HISCORES_KV.get(username.toLowerCase(), 'json');
+}
+
+async function putUser(env, username, data) {
+    await env.HISCORES_KV.put(username.toLowerCase(), JSON.stringify(data));
+}
+
+async function listUsers(env) {
+    return await env.HISCORES_KV.list();
+}
+
 /**
- * [MODIFIED] Fetches random words from a public API to create a username.
- * There is a 15% chance of fetching two words, and an 85% chance of fetching one.
- * @returns {Promise<string|null>} A username string if the API call is successful, otherwise null.
+ * Fetches all user objects from the KV store.
+ * @param {object} env - The worker environment.
+ * @returns {Promise<Array<object>>} A promise that resolves to an array of user objects.
  */
-async function generateUsernameFromAPI() {
-    // Decide whether to use one or two words (15% chance for two words)
-    const useTwoWords = Math.random() < 0.15;
-    const wordCount = useTwoWords ? 2 : 1;
-    const apiUrl = `https://random-word-api.herokuapp.com/word?number=${wordCount}`;
-
-    try {
-        const response = await fetch(apiUrl, {
-            headers: { 'User-Agent': 'osrs-hiscores-clone-worker/1.0' } // Good practice to set a user-agent
-        });
-
-        if (!response.ok) {
-            console.warn(`API call failed with status: ${response.status}`);
-            return null;
-        }
-
-        const words = await response.json();
-        if (!Array.isArray(words) || words.length !== wordCount) {
-            console.warn('API returned unexpected word format.');
-            return null;
-        }
-
-        // 70% chance to capitalize the first letter of each word
-        const shouldCapitalize = Math.random() < 0.7;
-        const processedWords = words.map(w => {
-            return shouldCapitalize ? w.charAt(0).toUpperCase() + w.slice(1) : w;
-        });
-
-        // 20% chance to add a random number (1-999)
-        const shouldAddNumber = Math.random() < 0.2;
-        const randomNumber = shouldAddNumber ? Math.floor(Math.random() * 999) + 1 : null;
-
-        let username;
-        if (useTwoWords) {
-            // Format: "WordOne_WordTwo"
-            username = `${processedWords[0]}_${processedWords[1]}`;
-        } else {
-            // Format: "Word"
-            username = processedWords[0];
-        }
-
-        // Add number at the beginning or end if needed
-        if (shouldAddNumber) {
-            const addAtBeginning = Math.random() < 0.5;
-            username = addAtBeginning ? `${randomNumber}${username}` : `${username}${randomNumber}`;
-        }
-
-        return username;
-
-    } catch (error) {
-        console.error('Error fetching from random word API:', error);
-        return null;
+async function getAllUsers(env) {
+    const kvList = await listUsers(env);
+    if (!kvList.keys || kvList.keys.length === 0) {
+        return [];
     }
+    const userPromises = kvList.keys.map(key => getUser(env, key.name));
+    const users = await Promise.all(userPromises);
+    return users.filter(Boolean); // Filter out any null/failed lookups
 }
 
-
-/**
- * Generates a random, OSRS-style username.
- * This function now acts as an orchestrator. It attempts to generate a username
- * from the API and falls back to the local generator if the API call fails.
- * Note: This does not guarantee uniqueness on its own. The caller must verify.
- * @returns {Promise<string>} A randomly generated username.
- */
-async function generateRandomUsername() {
-    const apiUsername = await generateUsernameFromAPI();
-    if (apiUsername) {
-        return apiUsername;
-    }
-
-    // Fallback if the API fails
-    console.warn('API username generation failed, falling back to local generator.');
-    return generateUsernameLocally();
-}
-
-// =================================================================
-// END: USERNAME GENERATION REFACTOR
-// =================================================================
-
-
-/**
- * Calculates the OSRS level for a given amount of XP.
- * The formula is a standard, well-known progression.
- * @param {number} xp - The total experience points in a skill.
- * @returns {number} The calculated level (1-99).
- */
-function xpToLevel(xp) {
-    if (xp < 0) return 1;
-    let points = 0;
-    let output = 0;
-    for (let lvl = 1; lvl <= 99; lvl++) {
-        points += Math.floor(lvl + 300 * Math.pow(2, lvl / 7));
-        output = Math.floor(points / 4);
-        if (output > xp) {
-            return lvl;
-        }
-    }
-    return 99;
-}
-
-/**
- * Calculates the XP required for a given level using the OSRS formula.
- * Formula: (1/8)(lvl)((lvl)-1) + (75*(2^(((lvl)-1)/7)-1)/(1-2^(-1/7))) + ((lvl)*-0.109)
- * @param {number} level - The level to calculate XP for (1-99).
- * @returns {number} The XP required for that level.
- */
-function levelToXp(level) {
-    if (level <= 1) return 0;
-
-    const part1 = (1 / 8) * level * (level - 1);
-    const part2 = (75 * (Math.pow(2, (level - 1) / 7) - 1)) / (1 - Math.pow(2, -1 / 7));
-    const part3 = level * -0.109;
-
-    return Math.floor(part1 + part2 + part3);
-}
-
-/**
- * Generates a new user object with randomized hiscores for all 23 skills.
- * XP is seeded to be somewhat realistic, favoring lower and mid-levels.
- * Uses weighted distribution to make some skills more likely to have higher XP.
- * Hitpoints is calculated based on combat skills (Attack, Strength, Defence, Ranged).
- * @param {string} username - The username for the new player.
- * @returns {object} A user object containing the username and a skills object.
- */
-function generateNewUser(username) {
-    const user = {
-        username: username,
-        skills: {},
-    };
-
-    // Determine new player type (affects starting XP ranges)
-    const playerType = Math.random();
-    let xpMultiplier, baseXpRange;
-
-    if (playerType < 0.60) {
-        // New/Low level player (60% chance)
-        baseXpRange = { min: 0, max: 5000 };
-        xpMultiplier = 1.0;
-    } else if (playerType < 0.85) {
-        // Medium level player (25% chance)
-        baseXpRange = { min: 1000, max: 25000 };
-        xpMultiplier = 1.5;
-    } else if (playerType < 0.95) {
-        // High level player (10% chance)
-        baseXpRange = { min: 5000, max: 100000 };
-        xpMultiplier = 2.0;
-    } else {
-        // Elite level player (5% chance)
-        baseXpRange = { min: 50000, max: 500000 };
-        xpMultiplier = 3.0;
-    }
-
-    // Generate random XP for all skills except Hitpoints
-    SKILLS.forEach(skill => {
-        if (skill !== 'Hitpoints') {
-            const skillWeight = SKILL_POPULARITY_WEIGHTS[skill] || 1.0;
-            const weightedRange = {
-                min: Math.floor(baseXpRange.min * skillWeight),
-                max: Math.floor(baseXpRange.max * skillWeight * xpMultiplier)
-            };
-
-            const randomXp = Math.floor(
-                Math.random() * (weightedRange.max - weightedRange.min + 1) + weightedRange.min
-            );
-
-            user.skills[skill] = {
-                xp: Math.max(0, randomXp),
-                level: xpToLevel(Math.max(0, randomXp)),
-            };
-        }
-    });
-
-    // Calculate Hitpoints based on combat skills
-    const combatSkills = ['Attack', 'Strength', 'Defence', 'Ranged'];
-    const totalCombatXp = combatSkills.reduce((sum, skill) => {
-        return sum + user.skills[skill].xp;
-    }, 0);
-
-    // Formula: Take total combat XP, divide by 4, multiply by 1.3, ensure minimum of 1154 XP (level 10)
-    const hitpointsXp = Math.max(1154, Math.floor((totalCombatXp / 4) * 1.3));
-
-    user.skills['Hitpoints'] = {
-        xp: hitpointsXp,
-        level: xpToLevel(hitpointsXp),
-    };
-
-    return user;
-}
-
-/**
- * Updates the Hitpoints skill for an existing user based on their combat skills.
- * Formula: Take total combat XP (Attack, Strength, Defence, Ranged), divide by 4, multiply by 1.3
- * @param {object} user - The user object to update.
- * @returns {boolean} True if Hitpoints was updated, false otherwise.
- */
-function updateHitpointsForUser(user) {
-    if (!user || !user.skills) return false;
-
-    const combatSkills = ['Attack', 'Strength', 'Defence', 'Ranged'];
-    const totalCombatXp = combatSkills.reduce((sum, skill) => {
-        return sum + (user.skills[skill]?.xp || 0);
-    }, 0);
-
-    // Formula: Take total combat XP, divide by 4, multiply by 1.3
-    const newHitpointsXp = Math.floor((totalCombatXp / 4) * 1.3);
-
-    // Only update if the new XP is different from current
-    if (user.skills['Hitpoints'] && user.skills['Hitpoints'].xp !== newHitpointsXp) {
-        user.skills['Hitpoints'].xp = newHitpointsXp;
-        user.skills['Hitpoints'].level = xpToLevel(newHitpointsXp);
-        return true;
-    }
-
-    return false;
-}
-
-// =================================================================
-// HANDLER FUNCTIONS
-// =================================================================
-
-/**
- * Creates a JSON response with appropriate headers.
- * @param {object | Array} data - The data to be sent as JSON.
- * @param {number} [status=200] - The HTTP status code.
- * @returns {Response}
- */
 function jsonResponse(data, status = 200) {
     const headers = {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*', // Allow cross-origin requests
+        'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, HEAD, POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
     };
     return new Response(JSON.stringify(data, null, 2), { status, headers });
 }
 
-/**
- * Handles OPTIONS requests for CORS preflight.
- * @returns {Response}
- */
 function handleOptions() {
-    const headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, HEAD, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
-    };
-    return new Response(null, { headers });
+    return new Response(null, {
+        headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, HEAD, POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type',
+        }
+    });
 }
 
-/**
- * Main fetch handler for routing API requests.
- * @param {Request} request - The incoming request.
- * @param {object} env - The worker environment.
- * @returns {Promise<Response>}
- */
-async function handleFetch(request, env) {
-    if (request.method === 'OPTIONS') {
-        return handleOptions();
+// =================================================================
+// USER & SKILL CALCULATION HELPERS
+// =================================================================
+
+function xpToLevel(xp) {
+    if (xp < 0) return 1;
+    let points = 0;
+    for (let lvl = 1; lvl <= 99; lvl++) {
+        points += Math.floor(lvl + 300 * Math.pow(2, lvl / 7));
+        if (Math.floor(points / 4) > xp) {
+            return lvl;
+        }
     }
+    return 99;
+}
 
-    const url = new URL(request.url);
-    const path = url.pathname;
+function calculateUserTotals(user) {
+    if (!user || !user.skills) return { totalXp: 0, totalLevel: 0 };
+    const totalXp = Object.values(user.skills).reduce((sum, skill) => sum + skill.xp, 0);
+    const totalLevel = Object.values(user.skills).reduce((sum, skill) => sum + skill.level, 0);
+    return { totalXp, totalLevel };
+}
 
-    // Using a more robust regex for usernames
-    const userDetailRegex = /^\/api\/users\/([^/]+)$/;
-    const userMatch = path.match(userDetailRegex);
+function updateHitpointsForUser(user) {
+    if (!user || !user.skills) return false;
+    const totalCombatXp = COMBAT_SKILLS.reduce((sum, skill) => sum + (user.skills[skill]?.xp || 0), 0);
+    const newHitpointsXp = Math.floor((totalCombatXp / 4) * 1.3);
+    if (user.skills['Hitpoints']?.xp !== newHitpointsXp) {
+        user.skills['Hitpoints'].xp = newHitpointsXp;
+        user.skills['Hitpoints'].level = xpToLevel(newHitpointsXp);
+        return true;
+    }
+    return false;
+}
 
+// =================================================================
+// USERNAME GENERATION HELPERS
+// =================================================================
+
+/**
+ * Generates a username from a local list of prefixes and suffixes as a fallback.
+ * @returns {string} A simple, locally generated username.
+ */
+
+async function generateUsernameFromAPI() {
+    const useTwoWords = Math.random() < 0.15;
+    const wordCount = useTwoWords ? 2 : 1;
+    const apiUrl = `https://random-word-api.herokuapp.com/word?number=${wordCount}`;
     try {
-        if (path === '/api/health') {
-            return jsonResponse({ status: 'ok', timestamp: new Date().toISOString() });
+        const response = await fetch(apiUrl, { headers: { 'User-Agent': 'osrs-hiscores-clone-worker/1.0' } });
+        if (!response.ok) return null;
+        const words = await response.json();
+        if (!Array.isArray(words) || words.length !== wordCount) return null;
+
+        const processedWords = words.map(w => (Math.random() < 0.7 ? w.charAt(0).toUpperCase() + w.slice(1) : w));
+        let username = useTwoWords ? `${processedWords[0]}_${processedWords[1]}` : processedWords[0];
+
+        if (Math.random() < 0.2) {
+            const randomNumber = Math.floor(Math.random() * 999) + 1;
+            username = Math.random() < 0.5 ? `${randomNumber}${username}` : `${username}${randomNumber}`;
         }
-
-        if (path === '/api/users') {
-            const kvList = await listUsers(env);
-            const usernames = kvList.keys.map(k => k.name);
-            return jsonResponse({ users: usernames });
-        }
-
-        if (userMatch && userMatch[1]) {
-            const username = decodeURIComponent(userMatch[1]);
-            const user = await getUser(env, username);
-            if (user) {
-                return jsonResponse(user);
-            } else {
-                return jsonResponse({ error: 'User not found' }, 404);
-            }
-        }
-
-        if (path === '/api/leaderboard') {
-            const kvList = await listUsers(env);
-            if (!kvList.keys || kvList.keys.length === 0) {
-                return jsonResponse([]);
-            }
-
-            const userPromises = kvList.keys.map(key => getUser(env, key.name));
-            const users = await Promise.all(userPromises);
-
-            const leaderboard = users
-                .map(user => {
-                    if (!user || !user.skills) return null;
-                    const totalXp = Object.values(user.skills).reduce((sum, skill) => sum + skill.xp, 0);
-                    const totalLevel = Object.values(user.skills).reduce((sum, skill) => sum + skill.level, 0);
-                    return {
-                        username: user.username,
-                        totalXp,
-                        totalLevel,
-                    };
-                })
-                .filter(Boolean);
-
-            // Sort by totalLevel first, then by totalXp as a tie-breaker
-            leaderboard.sort((a, b) => {
-                if (b.totalLevel !== a.totalLevel) {
-                    return b.totalLevel - a.totalLevel;
-                }
-                return b.totalXp - a.totalXp;
-            });
-
-            const rankedLeaderboard = leaderboard.map((player, index) => ({
-                rank: index + 1,
-                ...player,
-            }));
-
-            return jsonResponse(rankedLeaderboard);
-        }
-
-        if (path === '/api/skill-rankings') {
-            const kvList = await listUsers(env);
-            if (!kvList.keys || kvList.keys.length === 0) {
-                return jsonResponse({});
-            }
-
-            const userPromises = kvList.keys.map(key => getUser(env, key.name));
-            const users = await Promise.all(userPromises);
-
-            const skillRankings = {};
-
-            // Initialize skill rankings object
-            SKILLS.forEach(skillName => {
-                skillRankings[skillName] = [];
-            });
-
-            // Collect all users' skill data
-            users.forEach(user => {
-                if (!user || !user.skills) return;
-
-                SKILLS.forEach(skillName => {
-                    const skill = user.skills[skillName];
-                    if (skill) {
-                        skillRankings[skillName].push({
-                            username: user.username,
-                            level: skill.level,
-                            xp: skill.xp
-                        });
-                    }
-                });
-            });
-
-            // Sort each skill by level (desc) then by XP (desc) and assign ranks
-            Object.keys(skillRankings).forEach(skillName => {
-                skillRankings[skillName].sort((a, b) => {
-                    if (b.level !== a.level) {
-                        return b.level - a.level;
-                    }
-                    return b.xp - a.xp;
-                });
-
-                // Assign ranks
-                skillRankings[skillName] = skillRankings[skillName].map((player, index) => ({
-                    ...player,
-                    rank: index + 1
-                }));
-            });
-
-            // Also calculate total level rankings
-            const totalLevelRankings = users
-                .map(user => {
-                    if (!user || !user.skills) return null;
-                    const totalXp = Object.values(user.skills).reduce((sum, skill) => sum + skill.xp, 0);
-                    const totalLevel = Object.values(user.skills).reduce((sum, skill) => sum + skill.level, 0);
-                    return {
-                        username: user.username,
-                        totalXp,
-                        totalLevel,
-                    };
-                })
-                .filter(Boolean);
-
-            totalLevelRankings.sort((a, b) => {
-                if (b.totalLevel !== a.totalLevel) {
-                    return b.totalLevel - a.totalLevel;
-                }
-                return b.totalXp - a.totalXp;
-            });
-
-            const rankedTotalLevels = totalLevelRankings.map((player, index) => ({
-                ...player,
-                rank: index + 1
-            }));
-
-            return jsonResponse({
-                skills: skillRankings,
-                totalLevel: rankedTotalLevels
-            });
-        }
-
-        // Handle manual cron trigger
-        if (path === '/api/cron/trigger' && request.method === 'POST') {
-            try {
-                const result = await runScheduledUpdate(env);
-                return jsonResponse({
-                    message: 'Cron job executed successfully',
-                    result: result,
-                    timestamp: new Date().toISOString()
-                });
-            } catch (error) {
-                console.error('Manual cron trigger failed:', error);
-                return jsonResponse({
-                    error: 'Cron job failed',
-                    message: error.message,
-                    timestamp: new Date().toISOString()
-                }, 500);
-            }
-        }
-
-        // Handle cron status check
-        if (path === '/api/cron/status') {
-            return jsonResponse({
-                status: 'Cron service is running',
-                timestamp: new Date().toISOString(),
-                nextScheduledRun: 'Every hour (0 * * * *)'
-            });
-        }
-
-        return jsonResponse({ error: 'Not Found' }, 404);
-
+        return username;
     } catch (error) {
-        console.error('Error in handleFetch:', error);
-        return jsonResponse({ error: 'Internal Server Error', message: error.message }, 500);
+        console.error('Error fetching from random word API:', error);
+        return null;
     }
 }
 
+async function generateRandomUsername() {
+    const apiUsername = await generateUsernameFromAPI();
+    return apiUsername;
+}
+
+// =================================================================
+// NEW USER & XP GAIN HELPERS (TUNED)
+// =================================================================
+
 /**
- * Scheduled event handler for updating XP and creating new users.
- * @param {ScheduledController} controller - The scheduled controller object.
- * @param {object} env - The worker environment.
- * @param {ExecutionContext} ctx - The execution context.
+ * Generates a new user with a starting profile based on a randomly assigned player activity type.
+ * This creates a wider and more realistic spectrum of new accounts.
+ * @param {string} username - The username for the new player.
+ * @returns {object} A new user object.
  */
-async function handleScheduled(controller, env, ctx) {
-    console.log(`Cron triggered at: ${new Date(controller.scheduledTime)}`);
-    console.log(`Cron pattern: ${controller.cron}`);
-    ctx.waitUntil(runScheduledUpdate(env));
+function generateNewUser(username) {
+    const user = { username, skills: {} };
+
+    // Use the global player activity types to determine the starting profile.
+    // This creates a more realistic distribution of new player skill levels.
+    // 'INACTIVE' players will start as true beginners, while rare 'ELITE' players
+    // can start with a significant head start, like a "prodigy" or an experienced player's alt.
+    const activityType = getPlayerActivityType();
+    const startingProfile = PLAYER_ACTIVITY_TYPES[activityType];
+    const baseXpRange = startingProfile.xpRange;
+
+    // A small random talent multiplier to ensure two new players of the same type aren't identical.
+    const talentMultiplier = 0.75 + Math.random() * 0.75; // a value between 0.75 and 1.5
+
+    SKILLS.forEach(skill => {
+        if (skill !== 'Hitpoints') {
+            const skillWeight = SKILL_POPULARITY_WEIGHTS[skill] || 1.0;
+            const weightedMax = Math.floor(baseXpRange.max * skillWeight * talentMultiplier);
+            const weightedMin = Math.floor(baseXpRange.min * skillWeight);
+
+            // Only grant XP if a random chance, influenced by the profile's skill probability, passes.
+            // This prevents inactive players from starting with stats in every skill.
+            if (Math.random() < startingProfile.skillProbability) {
+                const randomXp = Math.floor(Math.random() * (weightedMax - weightedMin + 1) + weightedMin);
+                user.skills[skill] = { xp: Math.max(0, randomXp), level: xpToLevel(randomXp) };
+            } else {
+                user.skills[skill] = { xp: 0, level: 1 };
+            }
+        }
+    });
+
+    // Ensure Hitpoints is calculated correctly and has a base value.
+    const hitpointsXp = Math.max(1154, Math.floor((COMBAT_SKILLS.reduce((sum, s) => sum + (user.skills[s]?.xp || 0), 0) / 4) * 1.3));
+    user.skills['Hitpoints'] = { xp: hitpointsXp, level: xpToLevel(hitpointsXp) };
+
+    return user;
 }
 
 /**
- * Updates existing users' XP and creates new random users.
- * @param {object} env - The worker environment.
+ * Selects a player activity type based on the globally defined probabilities.
+ * No changes needed here, as its behavior is controlled by the PLAYER_ACTIVITY_TYPES constant.
+ * @returns {string} The key of the selected activity type (e.g., 'CASUAL', 'ELITE').
  */
+function getPlayerActivityType() {
+    const random = Math.random();
+    let cumulativeProbability = 0;
+    for (const [type, config] of Object.entries(PLAYER_ACTIVITY_TYPES)) {
+        cumulativeProbability += config.probability;
+        if (random <= cumulativeProbability) return type;
+    }
+    return 'CASUAL'; // Fallback
+}
+
+/**
+ * Generates a random amount of XP gain for a specific skill, factoring in multiple dynamic variables.
+ * @param {string} activityType - The player's activity level for this update.
+ * @param {string} skillName - The name of the skill gaining XP.
+ * @param {number} [currentLevel=1] - The current level of the skill, used for scaling.
+ * @returns {number} The amount of XP gained, can be 0.
+ */
+function generateWeightedXpGain(activityType, skillName, currentLevel = 1) {
+    const activityConfig = PLAYER_ACTIVITY_TYPES[activityType];
+    const skillWeight = SKILL_POPULARITY_WEIGHTS[skillName] || 1.0;
+
+    // Check if the player trains this skill at all during this session.
+    // A popular skill (high weight) is more likely to pass this check.
+    if (Math.random() > (activityConfig.skillProbability * skillWeight)) {
+        return 0;
+    }
+
+    // Introduce a random efficiency multiplier for the session.
+    // This simulates player focus, luck, or choice of training method.
+    // A value < 1.0 represents a distracted/inefficient session.
+    // A value > 1.0 represents a highly focused/efficient session.
+    const efficiencyMultiplier = 0.6 + Math.random() * 0.8; // Random value between 0.6 and 1.4
+
+    const baseXp = Math.floor(Math.random() * (activityConfig.xpRange.max - activityConfig.xpRange.min + 1) + activityConfig.xpRange.min);
+    const levelScaling = 1 + (currentLevel / 99) * LEVEL_SCALING_FACTOR;
+    const weekendBoost = WEEKEND_DAYS.includes(new Date().getUTCDay()) ? WEEKEND_BONUS_MULTIPLIER : 1;
+
+    // The final calculation now includes the new efficiency factor.
+    const finalXp = Math.floor(
+        baseXp *
+        efficiencyMultiplier *
+        skillWeight *
+        levelScaling *
+        GLOBAL_XP_MULTIPLIER *
+        weekendBoost
+    );
+
+    return Math.max(0, finalXp);
+}
+
+function calculateXpGainStats(xpGains) {
+    const gains = Object.values(xpGains).filter(xp => xp > 0);
+    if (gains.length === 0) return { totalXp: 0, skillsUpdated: 0, averageXp: 0, maxXp: 0 };
+    const totalXp = gains.reduce((sum, xp) => sum + xp, 0);
+    return { totalXp, skillsUpdated: gains.length, averageXp: Math.floor(totalXp / gains.length), maxXp: Math.max(...gains) };
+}
+
+// =================================================================
+// RANKING & LEADERBOARD HELPERS
+// =================================================================
+
+function sortPlayersByTotals(players) {
+    return players.sort((a, b) => b.totalLevel - a.totalLevel || b.totalXp - a.totalXp);
+}
+
+function sortPlayersBySkill(a, b) {
+    return b.level - a.level || b.xp - a.xp;
+}
+
+function generateTotalLevelLeaderboard(users) {
+    const leaderboardData = users.map(user => {
+        const { totalXp, totalLevel } = calculateUserTotals(user);
+        return { username: user.username, totalXp, totalLevel };
+    });
+    return sortPlayersByTotals(leaderboardData).map((player, index) => ({ rank: index + 1, ...player }));
+}
+
+function generateAllSkillRankings(users) {
+    const skillRankings = Object.fromEntries(SKILLS.map(skillName => [skillName, []]));
+    users.forEach(user => {
+        SKILLS.forEach(skillName => {
+            const skill = user.skills?.[skillName];
+            if (skill) {
+                skillRankings[skillName].push({ username: user.username, level: skill.level, xp: skill.xp });
+            }
+        });
+    });
+    Object.keys(skillRankings).forEach(skillName => {
+        const sortedPlayers = skillRankings[skillName].sort(sortPlayersBySkill);
+        skillRankings[skillName] = sortedPlayers.map((player, index) => ({ ...player, rank: index + 1 }));
+    });
+    return skillRankings;
+}
+
+// =================================================================
+// CRON JOB HELPERS
+// =================================================================
+
+function processUserUpdates(users) {
+    const updatePayloads = [];
+    const activityTypeCount = Object.fromEntries(Object.keys(PLAYER_ACTIVITY_TYPES).map(type => [type, 0]));
+
+    for (const user of users) {
+        const activityType = getPlayerActivityType();
+        activityTypeCount[activityType]++;
+        let hasChanges = false;
+        const xpGains = {};
+
+        SKILLS.forEach(skillName => {
+            if (skillName === 'Hitpoints') return;
+            const currentSkill = user.skills[skillName];
+            const xpGained = generateWeightedXpGain(activityType, skillName, currentSkill.level);
+            xpGains[skillName] = xpGained;
+            if (xpGained > 0 && currentSkill.xp < 200000000) {
+                currentSkill.xp = Math.min(200000000, currentSkill.xp + xpGained);
+                currentSkill.level = xpToLevel(currentSkill.xp);
+                hasChanges = true;
+            }
+        });
+
+        if (updateHitpointsForUser(user)) hasChanges = true;
+        if (hasChanges) {
+            updatePayloads.push({ username: user.username, data: user });
+            const stats = calculateXpGainStats(xpGains);
+            if (stats.totalXp > 0) {
+                console.log(`${user.username} (${activityType}): ${stats.totalXp} XP across ${stats.skillsUpdated} skills (avg: ${stats.averageXp}, max: ${stats.maxXp})`);
+            }
+        }
+    }
+    console.log('Activity type distribution:', activityTypeCount);
+    return updatePayloads;
+}
+
+async function createNewUsers(env, count) {
+    const newUserPayloads = [];
+    for (let i = 0; i < count; i++) {
+        let newUsername, isUnique = false, attempts = 0;
+        while (!isUnique && attempts < 10) {
+            newUsername = await generateRandomUsername();
+            if (newUsername && !(await getUser(env, newUsername))) isUnique = true;
+            attempts++;
+        }
+        if (isUnique) {
+            newUserPayloads.push({ username: newUsername, data: generateNewUser(newUsername) });
+        }
+    }
+    return newUserPayloads;
+}
+
 async function runScheduledUpdate(env) {
     try {
-        const kvList = await listUsers(env);
-        const updatePromises = [];
+        const users = await getAllUsers(env);
+        const userUpdatePayloads = processUserUpdates(users);
+        const newUserCount = Math.floor(Math.random() * 3) + 1;
+        const newUserPayloads = await createNewUsers(env, newUserCount);
+        const allPayloads = [...userUpdatePayloads, ...newUserPayloads];
 
-        if (kvList.keys && kvList.keys.length > 0) {
-            const userPromises = kvList.keys.map(key => getUser(env, key.name));
-            const users = await Promise.all(userPromises);
-
-            // Track activity type distribution for logging
-            const activityTypeCount = {};
-            Object.keys(PLAYER_ACTIVITY_TYPES).forEach(type => {
-                activityTypeCount[type] = 0;
-            });
-
-            for (const user of users) {
-                if (!user) continue;
-
-                // Determine this player's activity type for this update cycle
-                const activityType = getPlayerActivityType();
-                activityTypeCount[activityType]++;
-
-                let hasChanges = false;
-                const xpGains = {};
-
-                SKILLS.forEach(skillName => {
-                    // Skip Hitpoints - it will be calculated separately
-                    if (skillName === 'Hitpoints') return;
-
-                    const xpGained = generateWeightedXpGain(activityType, skillName);
-                    const currentSkill = user.skills[skillName];
-
-                    xpGains[skillName] = xpGained;
-
-                    if (xpGained > 0 && currentSkill.xp < 200000000) {
-                        const oldXp = currentSkill.xp;
-                        currentSkill.xp = Math.min(200000000, currentSkill.xp + xpGained);
-                        currentSkill.level = xpToLevel(currentSkill.xp);
-                        hasChanges = true;
-                    }
-                });
-
-                // Update Hitpoints based on combat skills
-                const hitpointsUpdated = updateHitpointsForUser(user);
-                if (hitpointsUpdated) {
-                    hasChanges = true;
-                }
-
-                if (hasChanges) {
-                    updatePromises.push(putUser(env, user.username, user));
-
-                    // Log update details for players with significant activity
-                    const stats = calculateXpGainStats(xpGains);
-                    if (stats.totalXp > 0) {
-                        console.log(`${user.username} (${activityType}): ${stats.totalXp} total XP across ${stats.skillsUpdated} skills (avg: ${stats.averageXp}, max: ${stats.maxXp})`);
-                    }
-                }
-            }
-
-            // Log activity type distribution
-            console.log('Activity type distribution:', activityTypeCount);
-        }
-
-        const newUserCount = Math.floor(Math.random() * 3) + 1; // Generate 1-3 new users
-        let createdUserCount = 0;
-        if (newUserCount > 0) {
-            for (let i = 0; i < newUserCount; i++) {
-                let newUsername;
-                let isUnique = false;
-                let attempts = 0;
-                while (!isUnique && attempts < 10) {
-                    // The username generator is now async, so we must await it.
-                    newUsername = await generateRandomUsername();
-                    const existingUser = await getUser(env, newUsername);
-                    if (!existingUser) {
-                        isUnique = true;
-                    }
-                    attempts++;
-                }
-
-                if (isUnique) {
-                    const newUser = generateNewUser(newUsername);
-                    updatePromises.push(putUser(env, newUsername, newUser));
-                    createdUserCount++;
-                }
-            }
-        }
-
-        if (updatePromises.length > 0) {
-            await Promise.all(updatePromises);
-            console.log(`Scheduled update complete. Updated ${updatePromises.length - createdUserCount} users and created ${createdUserCount} new users.`);
-            return {
+        if (allPayloads.length > 0) {
+            await Promise.all(allPayloads.map(p => putUser(env, p.username, p.data)));
+            const log = {
                 success: true,
-                updatedUsers: updatePromises.length - createdUserCount,
-                createdUsers: createdUserCount,
-                totalUpdates: updatePromises.length
+                updatedUsers: userUpdatePayloads.length,
+                createdUsers: newUserPayloads.length,
             };
+            console.log(`Scheduled update complete. Updated ${log.updatedUsers} users and created ${log.createdUsers} new users.`);
+            return log;
         } else {
-            console.log('No user XP was updated in this run.');
-            return {
-                success: true,
-                updatedUsers: 0,
-                createdUsers: 0,
-                totalUpdates: 0
-            };
+            console.log('No users were updated or created in this run.');
+            return { success: true, updatedUsers: 0, createdUsers: 0 };
         }
-
     } catch (error) {
         console.error('Failed to run scheduled update:', error);
         throw error;
     }
 }
 
+// =================================================================
+// ROUTER & HANDLERS
+// =================================================================
+
+async function handleFetch(request, env) {
+    if (request.method === 'OPTIONS') return handleOptions();
+    const { pathname } = new URL(request.url);
+    const userMatch = pathname.match(/^\/api\/users\/([^/]+)$/);
+
+    try {
+        if (pathname === '/api/health') {
+            return jsonResponse({ status: 'OK', timestamp: new Date().toISOString() });
+        }
+        if (pathname === '/api/skills') {
+            return jsonResponse({ skills: SKILLS });
+        }
+        if (pathname === '/api/users') {
+            const kvList = await listUsers(env);
+            return jsonResponse({ users: kvList.keys.map(k => k.name) });
+        }
+        if (userMatch?.[1]) {
+            const user = await getUser(env, decodeURIComponent(userMatch[1]));
+            return user ? jsonResponse(user) : jsonResponse({ error: 'User not found' }, 404);
+        }
+        if (pathname === '/api/leaderboard') {
+            const users = await getAllUsers(env);
+            return jsonResponse(generateTotalLevelLeaderboard(users));
+        }
+        if (pathname === '/api/skill-rankings') {
+            const users = await getAllUsers(env);
+            return jsonResponse({
+                skills: generateAllSkillRankings(users),
+                totalLevel: generateTotalLevelLeaderboard(users)
+            });
+        }
+        if (pathname === '/api/cron/trigger' && request.method === 'POST') {
+            const result = await runScheduledUpdate(env);
+            return jsonResponse({ message: 'Cron job executed successfully', result });
+        }
+        if (pathname === '/api/cron/status') {
+            return jsonResponse({ status: 'Cron service is running', nextScheduledRun: 'Every hour (0 * * * *)' });
+        }
+
+        return jsonResponse({ error: 'Not Found' }, 404);
+    } catch (error) {
+        console.error('Error in handleFetch:', error);
+        return jsonResponse({ error: 'Internal Server Error', message: error.message }, 500);
+    }
+}
+
 export default {
-    /**
-     * The fetch handler is the primary entry point for HTTP requests.
-     * @param {Request} request - The incoming request.
-     * @param {object} env - The worker's environment variables and bindings.
-     * @param {ExecutionContext} ctx - The execution context.
-     * @returns {Promise<Response>}
-     */
     async fetch(request, env, ctx) {
-        const url = new URL(request.url);
         return handleFetch(request, env);
     },
-
-    /**
-     * The scheduled handler is triggered by the cron schedule.
-     * @param {ScheduledController} controller - The scheduled controller object.
-     * @param {object} env - The worker's environment variables and bindings.
-     * @param {ExecutionContext} ctx - The execution context.
-     */
     async scheduled(controller, env, ctx) {
-        await handleScheduled(controller, env, ctx);
+        console.log(`Cron triggered at: ${new Date(controller.scheduledTime)} (${controller.cron})`);
+        ctx.waitUntil(runScheduledUpdate(env));
     },
 };

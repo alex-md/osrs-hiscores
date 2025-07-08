@@ -16,14 +16,29 @@ document.addEventListener('DOMContentLoaded', () => {
         return 'https://osrs-hiscores-clone.vs.workers.dev';
     })();
 
-    // All 23 OSRS skills in proper order
-    const SKILLS = [
+    // All 23 OSRS skills in proper order - fetched from API to avoid duplication
+    let SKILLS = [
         'Attack', 'Strength', 'Defence', 'Ranged', 'Prayer', 'Magic',
         'Runecrafting', 'Construction', 'Hitpoints', 'Agility', 'Herblore',
         'Thieving', 'Crafting', 'Fletching', 'Slayer', 'Hunter',
         'Mining', 'Smithing', 'Fishing', 'Cooking', 'Firemaking',
         'Woodcutting', 'Farming'
     ];
+
+    /**
+     * Fetches skills from API to sync with backend
+     */
+    const fetchSkills = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/skills`);
+            if (response.ok) {
+                const data = await response.json();
+                SKILLS = data.skills;
+            }
+        } catch (error) {
+            console.warn('Failed to fetch skills from API, using fallback:', error);
+        }
+    };
 
     // DOM Element References
     const mainContent = document.getElementById('main-content');
@@ -142,6 +157,145 @@ document.addEventListener('DOMContentLoaded', () => {
             timeoutId = setTimeout(() => func.apply(this, args), delay);
         };
     };
+
+    // =================================================================
+    // DOM & UI HELPER FUNCTIONS
+    // =================================================================
+
+    /**
+     * Handles API errors by displaying a generic error view and a toast.
+     * @param {Error} error - The caught error object.
+     * @param {string} logMessage - Message for console.error.
+     * @param {string} displayMessage - Message for the error view.
+     * @param {string} toastMessage - Message for the toast notification.
+     */
+    const handleApiError = (error, logMessage, displayMessage, toastMessage) => {
+        console.error(logMessage, error);
+        errorMessage.textContent = `${displayMessage}: ${error.message}`;
+        showView('error');
+        showToast(toastMessage, 'error');
+    };
+
+    /**
+     * Creates a table row element for the user skills table.
+     * @param {object} data - The data for the row.
+     * @param {string} data.icon - Lucide icon name.
+     * @param {string} data.name - Skill or 'Overall' name.
+     * @param {string|number} data.rank - The player's rank (pre-formatted).
+     * @param {number} data.level - The player's level.
+     * @param {number} data.xp - The player's experience points.
+     * @param {boolean} [data.isOverall=false] - Whether this is the 'Overall' row.
+     * @returns {HTMLTableRowElement} The created table row.
+     */
+    const createSkillRow = ({ icon, name, rank, level, xp, isOverall = false }) => {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-slate-700/20 transition-colors duration-200';
+
+        if (isOverall) {
+            row.classList.add('border-b', 'border-slate-600/50');
+            row.innerHTML = `
+                <td class="px-4 py-3">
+                    <div class="flex items-center">
+                        <div class="w-6 h-6 mr-3 flex items-center justify-center">
+                            <i data-lucide="${icon}" class="w-4 h-4 text-amber-400"></i>
+                        </div>
+                        <span class="text-white font-bold">${name}</span>
+                    </div>
+                </td>
+                <td class="px-4 py-3">
+                    <span class="text-slate-300 font-medium">${rank}</span>
+                </td>
+                <td class="px-4 py-3">
+                    <span class="text-white font-bold">${level.toLocaleString()}</span>
+                </td>
+                <td class="px-4 py-3">
+                    <span class="text-white font-bold">${xp.toLocaleString()}</span>
+                </td>
+            `;
+        } else {
+            row.innerHTML = `
+                <td class="px-4 py-3">
+                    <div class="flex items-center">
+                        <div class="w-6 h-6 mr-3 flex items-center justify-center">
+                            <i data-lucide="${icon}" class="w-4 h-4 text-amber-400"></i>
+                        </div>
+                        <span class="text-white font-medium">${name}</span>
+                    </div>
+                </td>
+                <td class="px-4 py-3">
+                    <span class="text-slate-300">${rank}</span>
+                </td>
+                <td class="px-4 py-3">
+                    <span class="text-white font-medium">${level}</span>
+                </td>
+                <td class="px-4 py-3">
+                    <span class="text-white">${xp.toLocaleString()}</span>
+                </td>
+            `;
+        }
+        return row;
+    };
+
+    /**
+     * Attaches click event listeners to elements that link to player pages.
+     * @param {string} [selector='.player-link'] - The CSS selector for the link elements.
+     */
+    const attachPlayerLinkListeners = (selector = '.player-link') => {
+        document.querySelectorAll(selector).forEach(link => {
+            link.addEventListener('click', e => {
+                e.preventDefault();
+                const username = link.dataset.username;
+                if (username) {
+                    window.location.hash = encodeURIComponent(username);
+                }
+            });
+        });
+    };
+
+    /**
+     * Creates a search suggestion element.
+     * @param {string} username - The username for the suggestion.
+     * @returns {HTMLDivElement} The suggestion element with event listener attached.
+     */
+    const createSuggestionElement = (username) => {
+        const suggestion = document.createElement('div');
+        suggestion.className = 'search-suggestion';
+        suggestion.innerHTML = `
+            <div class="suggestion-content">
+                <i data-lucide="user"></i>
+                <span class="suggestion-name">${username}</span>
+                <span class="suggestion-level">Click to view</span>
+            </div>
+        `;
+        suggestion.addEventListener('click', () => {
+            searchInput.value = username;
+            window.location.hash = encodeURIComponent(username);
+            hideSearch();
+        });
+        return suggestion;
+    };
+
+    /**
+     * Navigates to the home view by clearing the URL hash.
+     */
+    const navigateToHome = () => {
+        window.location.hash = '';
+    };
+
+    /**
+     * Changes the current leaderboard page.
+     * @param {number} direction - 1 for next, -1 for previous.
+     */
+    const changePage = (direction) => {
+        const maxPage = Math.ceil(cachedLeaderboardData.length / ITEMS_PER_PAGE);
+        const newPage = currentPage + direction;
+
+        if (newPage >= 1 && newPage <= maxPage) {
+            currentPage = newPage;
+            renderLeaderboard(cachedLeaderboardData);
+        }
+    };
+
 
     // =================================================================
     // VIEW MANAGEMENT
@@ -293,10 +447,12 @@ document.addEventListener('DOMContentLoaded', () => {
             // Refresh rankings when leaderboard is refreshed
             fetchSkillRankings();
         } catch (error) {
-            console.error('Error fetching leaderboard:', error);
-            errorMessage.textContent = `Error loading leaderboard: ${error.message}`;
-            showView('error');
-            showToast('Failed to load leaderboard', 'error');
+            handleApiError(
+                error,
+                'Error fetching leaderboard:',
+                'Error loading leaderboard',
+                'Failed to load leaderboard'
+            );
         }
     };
 
@@ -331,10 +487,12 @@ document.addEventListener('DOMContentLoaded', () => {
             await renderUserDetail(userData);
             showView('player');
         } catch (error) {
-            console.error('Error fetching user stats:', error);
-            errorMessage.textContent = `Error loading player data: ${error.message}`;
-            showView('error');
-            showToast(`Failed to load player: ${username}`, 'error');
+            handleApiError(
+                error,
+                'Error fetching user stats:',
+                'Error loading player data',
+                `Failed to load player: ${username}`
+            );
         }
     };
 
@@ -368,7 +526,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </td>
                 </tr>`;
         } else {
-            pageData.forEach((player, idx) => {
+            pageData.forEach((player) => {
                 const row = document.createElement('tr');
                 row.className = 'hover:bg-slate-700/30 transition-colors duration-200';
                 // highlight top-3 by absolute rank:
@@ -396,12 +554,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 leaderboardBody.appendChild(row);
             });
             // re-attach click handlers
-            document.querySelectorAll('.player-link').forEach(link => {
-                link.addEventListener('click', e => {
-                    e.preventDefault();
-                    window.location.hash = encodeURIComponent(link.dataset.username);
-                });
-            });
+            attachPlayerLinkListeners();
         }
 
         // update pagination UI
@@ -440,66 +593,34 @@ document.addEventListener('DOMContentLoaded', () => {
         skillsTableBody.innerHTML = '';
 
         // Add Overall row first
-        const overallRow = document.createElement('tr');
-        overallRow.className = 'hover:bg-slate-700/20 transition-colors duration-200 border-b border-slate-600/50';
-
-        // Get the actual overall rank
         const overallRank = getUserTotalRank(user.username);
         const displayOverallRank = overallRank === 'N/A' ? 'N/A' : overallRank.toLocaleString();
-
-        overallRow.innerHTML = `
-            <td class="px-4 py-3">
-                <div class="flex items-center">
-                    <div class="w-6 h-6 mr-3 flex items-center justify-center">
-                        <i data-lucide="trophy" class="w-4 h-4 text-amber-400"></i>
-                    </div>
-                    <span class="text-white font-bold">Overall</span>
-                </div>
-            </td>
-            <td class="px-4 py-3">
-                <span class="text-slate-300 font-medium">${displayOverallRank}</span>
-            </td>
-            <td class="px-4 py-3">
-                <span class="text-white font-bold">${totalLevel.toLocaleString()}</span>
-            </td>
-            <td class="px-4 py-3">
-                <span class="text-white font-bold">${totalXp.toLocaleString()}</span>
-            </td>
-        `;
+        const overallRow = createSkillRow({
+            icon: 'trophy',
+            name: 'Overall',
+            rank: displayOverallRank,
+            level: totalLevel,
+            xp: totalXp,
+            isOverall: true
+        });
         skillsTableBody.appendChild(overallRow);
 
         // Add individual skills
-        SKILLS.forEach((skillName, index) => {
+        SKILLS.forEach((skillName) => {
             const skill = user.skills[skillName];
             if (!skill) return;
 
-            const row = document.createElement('tr');
-            row.className = 'hover:bg-slate-700/20 transition-colors duration-200';
-
-            // Get the actual rank for this skill
             const actualRank = getUserSkillRank(user.username, skillName);
             const displayRank = actualRank === 'N/A' ? 'N/A' : actualRank.toLocaleString();
 
-            row.innerHTML = `
-                <td class="px-4 py-3">
-                    <div class="flex items-center">
-                        <div class="w-6 h-6 mr-3 flex items-center justify-center">
-                            <i data-lucide="${getSkillIcon(skillName)}" class="w-4 h-4 text-amber-400"></i>
-                        </div>
-                        <span class="text-white font-medium">${skillName}</span>
-                    </div>
-                </td>
-                <td class="px-4 py-3">
-                    <span class="text-slate-300">${displayRank}</span>
-                </td>
-                <td class="px-4 py-3">
-                    <span class="text-white font-medium">${skill.level}</span>
-                </td>
-                <td class="px-4 py-3">
-                    <span class="text-white">${skill.xp.toLocaleString()}</span>
-                </td>
-            `;
-            skillsTableBody.appendChild(row);
+            const skillRow = createSkillRow({
+                icon: getSkillIcon(skillName),
+                name: skillName,
+                rank: displayRank,
+                level: skill.level,
+                xp: skill.xp
+            });
+            skillsTableBody.appendChild(skillRow);
         });
 
         lucide.createIcons();
@@ -547,11 +668,11 @@ document.addEventListener('DOMContentLoaded', () => {
      * Handles search input and suggestions
      */
     const handleSearch = debounce(async (query) => {
-       if (!query.trim()) {
-           searchSuggestions.innerHTML = '';
+        if (!query.trim()) {
+            searchSuggestions.innerHTML = '';
             searchSuggestions.classList.add('hidden');
-           return;
-       }
+            return;
+        }
 
         // Get users if not cached
         if (!cachedUsers) {
@@ -564,23 +685,10 @@ document.addEventListener('DOMContentLoaded', () => {
         ).slice(0, 5);
 
         // Render suggestions
-       searchSuggestions.innerHTML = '';
+        searchSuggestions.innerHTML = '';
         if (filteredUsers.length > 0) {
             filteredUsers.forEach(username => {
-                const suggestion = document.createElement('div');
-                suggestion.className = 'search-suggestion';
-                suggestion.innerHTML = `
-                    <div class="suggestion-content">
-                        <i data-lucide="user"></i>
-                        <span class="suggestion-name">${username}</span>
-                        <span class="suggestion-level">Click to view</span>
-                    </div>
-                `;
-                suggestion.addEventListener('click', () => {
-                    searchInput.value = username;
-                    window.location.hash = encodeURIComponent(username);
-                    hideSearch();
-                });
+                const suggestion = createSuggestionElement(username);
                 searchSuggestions.appendChild(suggestion);
             });
             lucide.createIcons();
@@ -647,9 +755,10 @@ document.addEventListener('DOMContentLoaded', () => {
     searchClear?.addEventListener('click', () => {
         searchInput.value = '';
         searchSuggestions.innerHTML = '';
+        searchSuggestions.classList.add('hidden');
     });
 
-    // Search on enter
+    // Search on enter/escape
     searchInput?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             const query = e.target.value.trim();
@@ -670,14 +779,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Back button
-    backBtn?.addEventListener('click', () => {
-        window.location.hash = '';
-    });
+    backBtn?.addEventListener('click', navigateToHome);
 
     // Logo button (home navigation)
-    logoBtn?.addEventListener('click', () => {
-        window.location.hash = '';
-    });
+    logoBtn?.addEventListener('click', navigateToHome);
 
     // Retry button
     retryBtn?.addEventListener('click', () => {
@@ -698,27 +803,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Start search button
+    // Start search button on home page
     startSearch?.addEventListener('click', showSearch);
 
     // Hash change listener for routing
     window.addEventListener('hashchange', handleRouteChange);
 
     // Pagination event listeners
-    document.getElementById('prev-page').addEventListener('click', () => {
-        if (currentPage > 1) {
-            currentPage--;
-            renderLeaderboard(cachedLeaderboardData);
-        }
-    });
+    document.getElementById('prev-page').addEventListener('click', () => changePage(-1));
+    document.getElementById('next-page').addEventListener('click', () => changePage(1));
 
-    document.getElementById('next-page').addEventListener('click', () => {
-        const maxPage = Math.ceil(cachedLeaderboardData.length / ITEMS_PER_PAGE);
-        if (currentPage < maxPage) {
-            currentPage++;
-            renderLeaderboard(cachedLeaderboardData);
-        }
-    });
 
     // =================================================================
     // INITIALIZATION
@@ -745,11 +839,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update timestamp
         updateLastUpdated();
 
-        // Check if there's a hash in URL
+        // Check if there's a hash in URL to load a player directly
         handleRouteChange();
 
-        // Fetch users and rankings for search and accurate ranking display
+        // Fetch configuration, users and rankings for search and accurate ranking display
         await Promise.all([
+            fetchSkills(),
             fetchAllUsers(),
             fetchSkillRankings()
         ]);

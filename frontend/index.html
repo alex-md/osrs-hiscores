@@ -70,8 +70,9 @@
             <header class="sticky top-0 z-50 backdrop-blur-xl bg-slate-900/80 border-b border-slate-700/50">
                 <div class="container mx-auto px-4 sm:px-6 lg:px-8">
                     <div class="flex items-center justify-between h-16">
-                        <button class="flex items-center space-x-4 hover:opacity-80 transition-opacity duration-200 cursor-pointer" 
-                                id="logo-btn" title="Go to homepage">
+                        <button
+                            class="flex items-center space-x-4 hover:opacity-80 transition-opacity duration-200 cursor-pointer"
+                            id="logo-btn" title="Go to homepage">
                             <div
                                 class="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl shadow-lg">
                                 <i data-lucide="shield" class="w-5 h-5 text-white"></i>
@@ -128,12 +129,12 @@
             </header>
 
             <!-- Main Content Area -->
-            <main class="flex-1 container mx-auto px-4 sm:px-6 lg:px-8 py-8" id="main-content">
+            <main class="flex-1 container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8" id="main-content">
                 <!-- Loading State -->
                 <div class="loading-state flex items-center justify-center min-h-[60vh]" id="loading-state">
-                    <div class="text-center">
-                        <div class="relative mb-8">
-                            <div class="w-16 h-16 mx-auto">
+                    <div class="text-center max-w-sm mx-auto">
+                        <div class="relative mb-6">
+                            <div class="w-20 h-20 mx-auto">
                                 <div
                                     class="absolute inset-0 bg-gradient-to-r from-amber-400 to-orange-500 rounded-full animate-ping opacity-20">
                                 </div>
@@ -141,116 +142,190 @@
                                     class="absolute inset-0 bg-gradient-to-r from-amber-400 to-orange-500 rounded-full animate-pulse">
                                 </div>
                                 <div
-                                    class="relative w-16 h-16 bg-gradient-to-r from-amber-400 to-orange-500 rounded-full flex items-center justify-center">
-                                    <i data-lucide="loader" class="w-8 h-8 text-white animate-spin"></i>
+                                    class="relative w-20 h-20 bg-gradient-to-r from-amber-400 to-orange-500 rounded-full flex items-center justify-center shadow-2xl">
+                                    <i data-lucide="loader" class="w-10 h-10 text-white animate-spin"></i>
                                 </div>
                             </div>
                         </div>
-                        <h3 class="text-2xl font-bold text-white mb-2">Loading player data...</h3>
-                        <p class="text-slate-400">Fetching the latest statistics</p>
+                        <h3 class="text-2xl sm:text-3xl font-bold text-white mb-3">Loading player data...</h3>
+                        <p class="text-slate-400 text-lg">Fetching the latest statistics</p>
+                        <div class="mt-4 flex justify-center space-x-1">
+                            <div class="w-2 h-2 bg-amber-400 rounded-full animate-bounce"></div>
+                            <div class="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style="animation-delay: 0.1s">
+                            </div>
+                            <div class="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style="animation-delay: 0.2s">
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Error State -->
                 <div class="error-state flex items-center justify-center min-h-[60vh] hidden" id="error-state">
-                    <div class="text-center max-w-md mx-auto">
-                        <div class="w-16 h-16 mx-auto mb-6 bg-red-500/20 rounded-full flex items-center justify-center">
-                            <i data-lucide="alert-triangle" class="w-8 h-8 text-red-400"></i>
+                    <div class="text-center max-w-lg mx-auto px-6">
+                        <div
+                            class="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-red-500/20 to-red-600/20 rounded-full flex items-center justify-center border-2 border-red-500/30">
+                            <i data-lucide="alert-triangle" class="w-10 h-10 text-red-400"></i>
                         </div>
-                        <h3 class="text-2xl font-bold text-white mb-2">Something went wrong</h3>
-                        <p class="text-slate-400 mb-6" id="error-message">Unable to load player data</p>
-                        <button
-                            class="inline-flex items-center px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-medium rounded-xl transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-xl"
-                            id="retry-btn">
-                            <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i>
-                            Try Again
-                        </button>
+                        <h3 class="text-2xl sm:text-3xl font-bold text-white mb-3">Oops! Something went wrong</h3>
+                        <p class="text-slate-300 mb-6 text-lg leading-relaxed" id="error-message">Unable to load player
+                            data. Please check your connection and try again.</p>
+                        <div class="space-y-4">
+                            <button
+                                class="inline-flex items-center px-8 py-4 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-semibold rounded-xl transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-xl"
+                                id="retry-btn">
+                                <i data-lucide="refresh-cw" class="w-5 h-5 mr-3"></i>
+                                Try Again
+                            </button>
+                            <div class="text-sm text-slate-400">
+                                <p>If the problem persists, please try refreshing the page</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Welcome/Home View -->
                 <div class="home-view hidden" id="home-view">
-                    <div class="text-center max-w-4xl mx-auto">
-                        <div class="mb-12">
-                            <h2
-                                class="text-5xl sm:text-6xl font-bold mb-6 bg-gradient-to-r from-amber-400 via-orange-500 to-red-500 bg-clip-text text-transparent">
-                                Old School RuneScape Hiscores
-                            </h2>
-                            <p class="text-xl text-slate-300 mb-8 max-w-2xl mx-auto leading-relaxed">
-                                Search for any Old School RuneScape player to view their complete hiscores,
-                                skill levels, and rankings in a modern, beautiful interface.
-                            </p>
-                            <button
-                                class="inline-flex items-center px-8 py-4 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-semibold rounded-xl transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-xl text-lg"
-                                id="start-search">
-                                <i data-lucide="search" class="w-5 h-5 mr-3"></i>
-                                Search Players
-                            </button>
-                        </div>
-                    </div>
+                    <div class="text-center max-w-5xl mx-auto">
+                        <!-- Hero Section -->
+                        <div class="mb-16">
+                            <div class="mb-8">
+                                <h2
+                                    class="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6 bg-gradient-to-r from-amber-400 via-orange-500 to-red-500 bg-clip-text text-transparent leading-tight">
+                                    Old School RuneScape
+                                    <span class="block">Hiscores</span>
+                                </h2>
+                                <p class="text-lg sm:text-xl text-slate-300 mb-8 max-w-3xl mx-auto leading-relaxed">
+                                    Search for any Old School RuneScape player to view their complete hiscores,
+                                    skill levels, and rankings in a modern, beautiful interface.
+                                </p>
+                            </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
-                        <div
-                            class="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-6 hover:bg-slate-800/70 transition-all duration-300 hover:scale-105">
-                            <div
-                                class="w-12 h-12 bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl flex items-center justify-center mb-4">
-                                <i data-lucide="trending-up" class="w-6 h-6 text-white"></i>
+                            <!-- CTA Button -->
+                            <div class="mb-12">
+                                <button
+                                    class="inline-flex items-center px-10 py-5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-semibold rounded-2xl transition-all duration-300 hover:scale-105 shadow-2xl hover:shadow-amber-500/25 text-lg"
+                                    id="start-search">
+                                    <i data-lucide="search" class="w-6 h-6 mr-3"></i>
+                                    Start Searching Players
+                                    <i data-lucide="arrow-right" class="w-5 h-5 ml-3"></i>
+                                </button>
                             </div>
-                            <h3 class="text-xl font-semibold text-white mb-2">Real-time Data</h3>
-                            <p class="text-slate-400">Live player statistics fetched directly from OSRS hiscores</p>
+
+                            <!-- Quick Stats Highlight -->
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-2xl mx-auto mb-12">
+                                <div class="bg-slate-800/30 backdrop-blur-sm border border-slate-700/50 rounded-xl p-4">
+                                    <div class="text-2xl font-bold text-amber-400 mb-1">Real-time</div>
+                                    <div class="text-sm text-slate-400">Live Data</div>
+                                </div>
+                                <div class="bg-slate-800/30 backdrop-blur-sm border border-slate-700/50 rounded-xl p-4">
+                                    <div class="text-2xl font-bold text-orange-400 mb-1">Lightning</div>
+                                    <div class="text-sm text-slate-400">Fast Search</div>
+                                </div>
+                                <div class="bg-slate-800/30 backdrop-blur-sm border border-slate-700/50 rounded-xl p-4">
+                                    <div class="text-2xl font-bold text-red-400 mb-1">Mobile</div>
+                                    <div class="text-sm text-slate-400">Optimized</div>
+                                </div>
+                            </div>
                         </div>
-                        <div
-                            class="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-6 hover:bg-slate-800/70 transition-all duration-300 hover:scale-105">
+
+                        <!-- Feature Cards -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
                             <div
-                                class="w-12 h-12 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-xl flex items-center justify-center mb-4">
-                                <i data-lucide="zap" class="w-6 h-6 text-white"></i>
+                                class="bg-slate-800/40 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-8 hover:bg-slate-800/60 transition-all duration-300 hover:scale-105 hover:border-green-500/30 group">
+                                <div
+                                    class="w-16 h-16 bg-gradient-to-br from-green-400 to-emerald-500 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                                    <i data-lucide="trending-up" class="w-8 h-8 text-white"></i>
+                                </div>
+                                <h3 class="text-2xl font-semibold text-white mb-4">Real-time Data</h3>
+                                <p class="text-slate-400 leading-relaxed">Live player statistics fetched directly from
+                                    OSRS hiscores with automatic updates every hour</p>
                             </div>
-                            <h3 class="text-xl font-semibold text-white mb-2">Lightning Fast</h3>
-                            <p class="text-slate-400">Powered by Cloudflare Workers for instant responses</p>
-                        </div>
-                        <div
-                            class="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-6 hover:bg-slate-800/70 transition-all duration-300 hover:scale-105">
                             <div
-                                class="w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-500 rounded-xl flex items-center justify-center mb-4">
-                                <i data-lucide="smartphone" class="w-6 h-6 text-white"></i>
+                                class="bg-slate-800/40 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-8 hover:bg-slate-800/60 transition-all duration-300 hover:scale-105 hover:border-blue-500/30 group">
+                                <div
+                                    class="w-16 h-16 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                                    <i data-lucide="zap" class="w-8 h-8 text-white"></i>
+                                </div>
+                                <h3 class="text-2xl font-semibold text-white mb-4">Lightning Fast</h3>
+                                <p class="text-slate-400 leading-relaxed">Powered by Cloudflare Workers for instant
+                                    responses and seamless search experience</p>
                             </div>
-                            <h3 class="text-xl font-semibold text-white mb-2">Mobile Optimized</h3>
-                            <p class="text-slate-400">Perfect experience on any device, anywhere</p>
+                            <div
+                                class="bg-slate-800/40 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-8 hover:bg-slate-800/60 transition-all duration-300 hover:scale-105 hover:border-purple-500/30 group">
+                                <div
+                                    class="w-16 h-16 bg-gradient-to-br from-purple-400 to-pink-500 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                                    <i data-lucide="smartphone" class="w-8 h-8 text-white"></i>
+                                </div>
+                                <h3 class="text-2xl font-semibold text-white mb-4">Mobile Optimized</h3>
+                                <p class="text-slate-400 leading-relaxed">Perfect responsive experience on any device,
+                                    anywhere you want to check hiscores</p>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Leaderboard View -->
                 <div class="leaderboard-view hidden" id="leaderboard-view">
-                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
-                        <div>
-                            <h2 class="text-3xl font-bold text-white mb-2">Old School RuneScape Hiscores</h2>
-                            <p class="text-slate-400">Overall Experience - Default</p>
+                    <!-- Header Section -->
+                    <div
+                        class="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-8 space-y-4 lg:space-y-0">
+                        <div class="flex-1">
+                            <h2 class="text-3xl sm:text-4xl font-bold text-white mb-3">OSRS Hiscores</h2>
+                            <div class="flex flex-wrap items-center gap-4 text-slate-400">
+                                <div class="flex items-center">
+                                    <i data-lucide="trophy" class="w-4 h-4 mr-2"></i>
+                                    <span>Overall Experience Rankings</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <i data-lucide="users" class="w-4 h-4 mr-2"></i>
+                                    <span>Default View</span>
+                                </div>
+                            </div>
                         </div>
-                        <button
-                            class="mt-4 sm:mt-0 inline-flex items-center px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700/50 text-white rounded-xl transition-all duration-200 hover:scale-105"
-                            id="refresh-leaderboard">
-                            <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i>
-                            Refresh
-                        </button>
+                        <div class="flex flex-col sm:flex-row gap-3">
+                            <button
+                                class="inline-flex items-center px-6 py-3 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700/50 text-white rounded-xl transition-all duration-200 hover:scale-105 font-medium"
+                                id="refresh-leaderboard">
+                                <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i>
+                                Refresh Data
+                            </button>
+                        </div>
                     </div>
 
-                    <div class="bg-slate-800/30 backdrop-blur-sm border border-slate-700/50 rounded-lg overflow-hidden">
+                    <!-- Leaderboard Table -->
+                    <div
+                        class="bg-slate-800/30 backdrop-blur-sm border border-slate-700/50 rounded-2xl overflow-hidden shadow-2xl">
                         <div class="overflow-x-auto">
                             <table class="w-full osrs-hiscores-table" id="leaderboard-table">
-                                <thead class="bg-slate-700/50">
+                                <thead class="bg-slate-700/60">
                                     <tr class="border-b border-slate-600/50">
-                                        <th class="px-4 py-3 text-left text-amber-400 font-semibold">
-                                            Rank
+                                        <th
+                                            class="px-6 py-4 text-left text-amber-400 font-semibold text-sm uppercase tracking-wider">
+                                            <div class="flex items-center">
+                                                <i data-lucide="hash" class="w-4 h-4 mr-2"></i>
+                                                Rank
+                                            </div>
                                         </th>
-                                        <th class="px-4 py-3 text-left text-amber-400 font-semibold">
-                                            Name
+                                        <th
+                                            class="px-6 py-4 text-left text-amber-400 font-semibold text-sm uppercase tracking-wider">
+                                            <div class="flex items-center">
+                                                <i data-lucide="user" class="w-4 h-4 mr-2"></i>
+                                                Player Name
+                                            </div>
                                         </th>
-                                        <th class="px-4 py-3 text-left text-amber-400 font-semibold">
-                                            Level
+                                        <th
+                                            class="px-6 py-4 text-left text-amber-400 font-semibold text-sm uppercase tracking-wider">
+                                            <div class="flex items-center">
+                                                <i data-lucide="trending-up" class="w-4 h-4 mr-2"></i>
+                                                Total Level
+                                            </div>
                                         </th>
-                                        <th class="px-4 py-3 text-left text-amber-400 font-semibold">
-                                            XP
+                                        <th
+                                            class="px-6 py-4 text-left text-amber-400 font-semibold text-sm uppercase tracking-wider">
+                                            <div class="flex items-center">
+                                                <i data-lucide="zap" class="w-4 h-4 mr-2"></i>
+                                                Experience
+                                            </div>
                                         </th>
                                     </tr>
                                 </thead>
@@ -258,70 +333,148 @@
                                     <!-- Dynamic content -->
                                 </tbody>
                             </table>
-                            <!-- Pagination Controls (25 per page) -->
-                            <div id="pagination-controls"
-                                class="flex justify-between items-center p-4 bg-slate-800/30 border-t border-slate-700/50">
-                                <button id="prev-page"
-                                    class="px-4 py-2 bg-slate-700 rounded disabled:opacity-50">Previous</button>
-                                <span id="page-info" class="text-slate-300"></span>
-                                <button id="next-page"
-                                    class="px-4 py-2 bg-slate-700 rounded disabled:opacity-50">Next</button>
+                        </div>
+
+                        <!-- Enhanced Pagination -->
+                        <div id="pagination-controls"
+                            class="flex flex-col sm:flex-row justify-between items-center p-6 bg-slate-800/40 border-t border-slate-700/50 space-y-3 sm:space-y-0">
+                            <button id="prev-page"
+                                class="inline-flex items-center px-4 py-2 bg-slate-700/50 hover:bg-slate-600/50 text-white rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium">
+                                <i data-lucide="chevron-left" class="w-4 h-4 mr-2"></i>
+                                Previous
+                            </button>
+                            <div class="flex items-center space-x-4">
+                                <span id="page-info" class="text-slate-300 font-medium"></span>
+                                <div class="flex items-center text-sm text-slate-400">
+                                    <i data-lucide="list" class="w-4 h-4 mr-1"></i>
+                                    25 per page
+                                </div>
                             </div>
+                            <button id="next-page"
+                                class="inline-flex items-center px-4 py-2 bg-slate-700/50 hover:bg-slate-600/50 text-white rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium">
+                                Next
+                                <i data-lucide="chevron-right" class="w-4 h-4 ml-2"></i>
+                            </button>
                         </div>
                     </div>
                 </div>
 
                 <!-- Player Detail View -->
                 <div class="player-view hidden" id="player-view">
-                    <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between mb-8">
-                        <div class="flex-1">
-                            <button
-                                class="inline-flex items-center px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700/50 text-white rounded-xl transition-all duration-200 hover:scale-105 mb-4"
-                                id="back-btn">
-                                <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
-                                Back to Hiscores
-                            </button>
-                            <div class="bg-slate-800/30 backdrop-blur-sm border border-slate-700/50 rounded-lg p-6">
-                                <h2 class="text-3xl font-bold text-white mb-2" id="player-name">Player Name</h2>
-                                <p class="text-slate-400 mb-4">Personal Hiscores</p>
-                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4" id="player-stats-summary">
-                                    <div class="bg-slate-700/30 rounded-lg p-4 border border-slate-600/50">
-                                        <p class="text-amber-400 text-sm font-medium">Total Level</p>
-                                        <p class="text-2xl font-bold text-white" id="total-level">0</p>
+                    <!-- Navigation & Header -->
+                    <div class="mb-8">
+                        <button
+                            class="inline-flex items-center px-6 py-3 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700/50 text-white rounded-xl transition-all duration-200 hover:scale-105 mb-6 font-medium"
+                            id="back-btn">
+                            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+                            Back to Hiscores
+                        </button>
+                    </div>
+
+                    <!-- Player Info Card -->
+                    <div
+                        class="bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-8 mb-8 shadow-2xl">
+                        <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between">
+                            <div class="flex-1 mb-6 lg:mb-0">
+                                <!-- Player Header -->
+                                <div class="flex items-center mb-6">
+                                    <div
+                                        class="w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center mr-4 shadow-lg">
+                                        <i data-lucide="user" class="w-8 h-8 text-white"></i>
                                     </div>
-                                    <div class="bg-slate-700/30 rounded-lg p-4 border border-slate-600/50">
-                                        <p class="text-amber-400 text-sm font-medium">Total XP</p>
-                                        <p class="text-2xl font-bold text-white" id="total-xp">0</p>
+                                    <div>
+                                        <h2 class="text-3xl sm:text-4xl font-bold text-white mb-2" id="player-name">
+                                            Player Name</h2>
+                                        <p class="text-slate-400 text-lg">Personal Hiscores & Statistics</p>
                                     </div>
-                                    <div class="bg-slate-700/30 rounded-lg p-4 border border-slate-600/50">
-                                        <p class="text-amber-400 text-sm font-medium">Combat Level</p>
-                                        <p class="text-2xl font-bold text-white" id="combat-level">0</p>
+                                </div>
+
+                                <!-- Stats Summary -->
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-6" id="player-stats-summary">
+                                    <div
+                                        class="bg-slate-700/30 backdrop-blur-sm rounded-xl p-6 border border-slate-600/50 hover:border-amber-500/30 transition-colors duration-300">
+                                        <div class="flex items-center mb-3">
+                                            <i data-lucide="trending-up" class="w-5 h-5 text-amber-400 mr-2"></i>
+                                            <p class="text-amber-400 text-sm font-semibold uppercase tracking-wider">
+                                                Total Level</p>
+                                        </div>
+                                        <p class="text-3xl font-bold text-white" id="total-level">0</p>
+                                    </div>
+                                    <div
+                                        class="bg-slate-700/30 backdrop-blur-sm rounded-xl p-6 border border-slate-600/50 hover:border-orange-500/30 transition-colors duration-300">
+                                        <div class="flex items-center mb-3">
+                                            <i data-lucide="zap" class="w-5 h-5 text-orange-400 mr-2"></i>
+                                            <p class="text-orange-400 text-sm font-semibold uppercase tracking-wider">
+                                                Total XP</p>
+                                        </div>
+                                        <p class="text-3xl font-bold text-white" id="total-xp">0</p>
+                                    </div>
+                                    <div
+                                        class="bg-slate-700/30 backdrop-blur-sm rounded-xl p-6 border border-slate-600/50 hover:border-red-500/30 transition-colors duration-300">
+                                        <div class="flex items-center mb-3">
+                                            <i data-lucide="sword" class="w-5 h-5 text-red-400 mr-2"></i>
+                                            <p class="text-red-400 text-sm font-semibold uppercase tracking-wider">
+                                                Combat Level</p>
+                                        </div>
+                                        <p class="text-3xl font-bold text-white" id="combat-level">0</p>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                        <div class="mt-4 lg:mt-0 lg:ml-6">
-                            <button
-                                class="inline-flex items-center px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700/50 text-white rounded-xl transition-all duration-200 hover:scale-105"
-                                id="refresh-player">
-                                <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i>
-                                Refresh
-                            </button>
+
+                            <!-- Refresh Button -->
+                            <div class="lg:ml-8">
+                                <button
+                                    class="inline-flex items-center px-6 py-3 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700/50 text-white rounded-xl transition-all duration-200 hover:scale-105 font-medium"
+                                    id="refresh-player">
+                                    <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i>
+                                    Refresh Data
+                                </button>
+                            </div>
                         </div>
                     </div>
 
                     <!-- Skills Table -->
                     <div class="skills-container">
-                        <h3 class="text-2xl font-bold text-white mb-6">Skills</h3>
+                        <div class="flex items-center mb-6">
+                            <h3 class="text-2xl sm:text-3xl font-bold text-white">Skill Breakdown</h3>
+                            <div class="ml-4 px-3 py-1 bg-amber-500/20 text-amber-400 rounded-lg text-sm font-medium">
+                                23 Skills
+                            </div>
+                        </div>
+
                         <div
-                            class="bg-slate-800/30 backdrop-blur-sm border border-slate-700/50 rounded-lg overflow-hidden">
+                            class="bg-slate-800/30 backdrop-blur-sm border border-slate-700/50 rounded-2xl overflow-hidden shadow-2xl">
                             <table class="w-full osrs-skills-table">
-                                <thead class="bg-slate-700/50">
+                                <thead class="bg-slate-700/60">
                                     <tr class="border-b border-slate-600/50">
-                                        <th class="px-4 py-3 text-left text-amber-400 font-semibold">Skill</th>
-                                        <th class="px-4 py-3 text-left text-amber-400 font-semibold">Rank</th>
-                                        <th class="px-4 py-3 text-left text-amber-400 font-semibold">Level</th>
-                                        <th class="px-4 py-3 text-left text-amber-400 font-semibold">XP</th>
+                                        <th
+                                            class="px-6 py-4 text-left text-amber-400 font-semibold text-sm uppercase tracking-wider">
+                                            <div class="flex items-center">
+                                                <i data-lucide="target" class="w-4 h-4 mr-2"></i>
+                                                Skill
+                                            </div>
+                                        </th>
+                                        <th
+                                            class="px-6 py-4 text-left text-amber-400 font-semibold text-sm uppercase tracking-wider">
+                                            <div class="flex items-center">
+                                                <i data-lucide="hash" class="w-4 h-4 mr-2"></i>
+                                                Rank
+                                            </div>
+                                        </th>
+                                        <th
+                                            class="px-6 py-4 text-left text-amber-400 font-semibold text-sm uppercase tracking-wider">
+                                            <div class="flex items-center">
+                                                <i data-lucide="trending-up" class="w-4 h-4 mr-2"></i>
+                                                Level
+                                            </div>
+                                        </th>
+                                        <th
+                                            class="px-6 py-4 text-left text-amber-400 font-semibold text-sm uppercase tracking-wider">
+                                            <div class="flex items-center">
+                                                <i data-lucide="zap" class="w-4 h-4 mr-2"></i>
+                                                Experience
+                                            </div>
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody id="skills-table-body" class="divide-y divide-slate-700/30">
@@ -334,45 +487,80 @@
 
                 <!-- Skill Hiscores View -->
                 <div class="skill-view hidden" id="skill-view">
-                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
-                        <div class="flex-1">
-                            <button
-                                class="inline-flex items-center px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700/50 text-white rounded-xl transition-all duration-200 hover:scale-105 mb-4"
-                                id="back-from-skill-btn">
-                                <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
-                                Back to Hiscores
-                            </button>
-                            <div>
-                                <h2 class="text-3xl font-bold text-white mb-2">
-                                    <span id="skill-name">Skill</span> Hiscores
-                                </h2>
-                                <p class="text-slate-400">Skill-specific rankings</p>
-                            </div>
-                        </div>
+                    <!-- Navigation Header -->
+                    <div class="mb-8">
                         <button
-                            class="mt-4 sm:mt-0 inline-flex items-center px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700/50 text-white rounded-xl transition-all duration-200 hover:scale-105"
-                            id="refresh-skill-hiscores">
-                            <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i>
-                            Refresh
+                            class="inline-flex items-center px-6 py-3 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700/50 text-white rounded-xl transition-all duration-200 hover:scale-105 mb-6 font-medium"
+                            id="back-from-skill-btn">
+                            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+                            Back to Hiscores
                         </button>
                     </div>
 
-                    <div class="bg-slate-800/30 backdrop-blur-sm border border-slate-700/50 rounded-lg overflow-hidden">
+                    <!-- Skill Header -->
+                    <div
+                        class="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-8 space-y-4 lg:space-y-0">
+                        <div class="flex-1">
+                            <h2 class="text-3xl sm:text-4xl font-bold text-white mb-3">
+                                <span id="skill-name"
+                                    class="bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">Skill</span>
+                                <span class="text-white">Hiscores</span>
+                            </h2>
+                            <div class="flex flex-wrap items-center gap-4 text-slate-400">
+                                <div class="flex items-center">
+                                    <i data-lucide="target" class="w-4 h-4 mr-2"></i>
+                                    <span>Skill-specific rankings</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <i data-lucide="trending-up" class="w-4 h-4 mr-2"></i>
+                                    <span>Top performers</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex flex-col sm:flex-row gap-3">
+                            <button
+                                class="inline-flex items-center px-6 py-3 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700/50 text-white rounded-xl transition-all duration-200 hover:scale-105 font-medium"
+                                id="refresh-skill-hiscores">
+                                <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i>
+                                Refresh Data
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Skill Hiscores Table -->
+                    <div
+                        class="bg-slate-800/30 backdrop-blur-sm border border-slate-700/50 rounded-2xl overflow-hidden shadow-2xl">
                         <div class="overflow-x-auto">
                             <table class="w-full osrs-hiscores-table" id="skill-hiscores-table">
-                                <thead class="bg-slate-700/50">
+                                <thead class="bg-slate-700/60">
                                     <tr class="border-b border-slate-600/50">
-                                        <th class="px-4 py-3 text-left text-amber-400 font-semibold">
-                                            Rank
+                                        <th
+                                            class="px-6 py-4 text-left text-amber-400 font-semibold text-sm uppercase tracking-wider">
+                                            <div class="flex items-center">
+                                                <i data-lucide="hash" class="w-4 h-4 mr-2"></i>
+                                                Rank
+                                            </div>
                                         </th>
-                                        <th class="px-4 py-3 text-left text-amber-400 font-semibold">
-                                            Name
+                                        <th
+                                            class="px-6 py-4 text-left text-amber-400 font-semibold text-sm uppercase tracking-wider">
+                                            <div class="flex items-center">
+                                                <i data-lucide="user" class="w-4 h-4 mr-2"></i>
+                                                Player Name
+                                            </div>
                                         </th>
-                                        <th class="px-4 py-3 text-left text-amber-400 font-semibold">
-                                            Level
+                                        <th
+                                            class="px-6 py-4 text-left text-amber-400 font-semibold text-sm uppercase tracking-wider">
+                                            <div class="flex items-center">
+                                                <i data-lucide="trending-up" class="w-4 h-4 mr-2"></i>
+                                                Level
+                                            </div>
                                         </th>
-                                        <th class="px-4 py-3 text-left text-amber-400 font-semibold">
-                                            XP
+                                        <th
+                                            class="px-6 py-4 text-left text-amber-400 font-semibold text-sm uppercase tracking-wider">
+                                            <div class="flex items-center">
+                                                <i data-lucide="zap" class="w-4 h-4 mr-2"></i>
+                                                Experience
+                                            </div>
                                         </th>
                                     </tr>
                                 </thead>
@@ -380,35 +568,62 @@
                                     <!-- Dynamic content -->
                                 </tbody>
                             </table>
-                            <!-- Pagination Controls for skill hiscores -->
-                            <div id="skill-pagination-controls"
-                                class="flex justify-between items-center p-4 bg-slate-800/30 border-t border-slate-700/50">
-                                <button id="skill-prev-page"
-                                    class="px-4 py-2 bg-slate-700 rounded disabled:opacity-50">Previous</button>
-                                <span id="skill-page-info" class="text-slate-300"></span>
-                                <button id="skill-next-page"
-                                    class="px-4 py-2 bg-slate-700 rounded disabled:opacity-50">Next</button>
+                        </div>
+
+                        <!-- Enhanced Skill Pagination -->
+                        <div id="skill-pagination-controls"
+                            class="flex flex-col sm:flex-row justify-between items-center p-6 bg-slate-800/40 border-t border-slate-700/50 space-y-3 sm:space-y-0">
+                            <button id="skill-prev-page"
+                                class="inline-flex items-center px-4 py-2 bg-slate-700/50 hover:bg-slate-600/50 text-white rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium">
+                                <i data-lucide="chevron-left" class="w-4 h-4 mr-2"></i>
+                                Previous
+                            </button>
+                            <div class="flex items-center space-x-4">
+                                <span id="skill-page-info" class="text-slate-300 font-medium"></span>
+                                <div class="flex items-center text-sm text-slate-400">
+                                    <i data-lucide="list" class="w-4 h-4 mr-1"></i>
+                                    25 per page
+                                </div>
                             </div>
+                            <button id="skill-next-page"
+                                class="inline-flex items-center px-4 py-2 bg-slate-700/50 hover:bg-slate-600/50 text-white rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium">
+                                Next
+                                <i data-lucide="chevron-right" class="w-4 h-4 ml-2"></i>
+                            </button>
                         </div>
                     </div>
                 </div>
             </main>
 
-            <!-- Footer -->
-            <footer class="border-t border-slate-700/50 bg-slate-900/50 backdrop-blur-sm mt-auto">
+            <!-- Enhanced Footer -->
+            <footer
+                class="border-t border-slate-700/50 bg-gradient-to-r from-slate-900/50 to-slate-800/50 backdrop-blur-sm mt-auto">
                 <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                    <div class="flex flex-col md:flex-row md:justify-between md:items-center space-y-4 md:space-y-0">
+                    <div class="flex flex-col md:flex-row md:justify-between md:items-center space-y-6 md:space-y-0">
+                        <!-- Data Status -->
                         <div class="text-center md:text-left">
-                            <p class="text-slate-400">
-                                Data updates automatically every hour.
-                                <span class="text-amber-400 font-medium">
-                                    Last updated: <span id="last-updated">Loading...</span>
-                                </span>
-                            </p>
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-2 sm:space-y-0">
+                                <div class="flex items-center justify-center md:justify-start">
+                                    <div class="w-3 h-3 bg-green-400 rounded-full mr-3 animate-pulse"></div>
+                                    <p class="text-slate-300 font-medium">Live Data Connection</p>
+                                </div>
+                                <div class="flex items-center justify-center md:justify-start">
+                                    <i data-lucide="clock" class="w-4 h-4 mr-2 text-amber-400"></i>
+                                    <p class="text-slate-400">
+                                        Updates hourly • Last: <span id="last-updated"
+                                            class="text-amber-400 font-medium">Loading...</span>
+                                    </p>
+                                </div>
+                            </div>
                         </div>
-                        <div class="text-center md:text-right">
-                            <p class="text-slate-500 text-sm">
-                                Not affiliated with Jagex Ltd. OSRS is a trademark of Jagex Ltd.
+
+                        <!-- Legal & Credits -->
+                        <div class="text-center md:text-right space-y-1">
+                            <p class="text-slate-400 text-sm leading-relaxed">
+                                Built with ❤️ for the OSRS community
+                            </p>
+                            <p class="text-slate-500 text-xs">
+                                Not affiliated with Jagex Ltd. • OSRS is a trademark of Jagex Ltd.
                             </p>
                         </div>
                     </div>
