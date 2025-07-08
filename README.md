@@ -1,218 +1,123 @@
 # OSRS Hiscores Clone
 
-A modern web application for looking up Old School RuneScape player statistics, built with Cloudflare Workers and vanilla JavaScript.
+A modern, full-stack web application for looking up and displaying mock Old School RuneScape player statistics, built with a vanilla JavaScript frontend and a Cloudflare Workers backend. This project features a sophisticated data generation system to simulate a dynamic player base.
 
 ## Features
 
-- 🔍 **Player Search**: Look up any OSRS player's hiscores
-- 📊 **Complete Stats**: View all skills with ranks, levels, and experience
-- ⚡ **Fast Performance**: Powered by Cloudflare Workers edge computing
-- 💾 **Smart Caching**: KV storage for improved response times
-- 📱 **Responsive Design**: Works on desktop and mobile devices
-- 🔄 **Recent Searches**: Quick access to previously searched players
-- 🎯 **Mock Data**: Test functionality with sample data
+  - 📊 **Dynamic Leaderboard**: View a paginated leaderboard of all players, ranked by total level and experience.
+  - 👤 **Detailed Player Stats**: Look up any player to see their complete hiscores, including individual skill ranks, levels, and experience.
+  - 🔍 **Live Player Search**: Instantly search for players with debounced search and live suggestions.
+  - 🤖 **Sophisticated Mock Data**: The backend worker continuously generates and updates player data with realistic activity patterns, including different player types (e.g., Casual, Hardcore, Elite) and weighted XP gains.
+  - ⚡ **Edge Performance**: Powered by Cloudflare Workers for fast API responses and data storage with Cloudflare KV.
+  - 🎨 **Modern UI/UX**: A clean, responsive, and themeable (light/dark) interface built with Tailwind CSS and Lucide icons.
+  - 🔄 **Automatic Data Refresh**: A cron job runs every 15 minutes to simulate player progress and create new users, keeping the data fresh and dynamic.
+
+-----
 
 ## Project Structure
 
 ```
 osrs-hiscores/
-├── workers/
-│   ├── src/                # Worker source code
-│   │   ├── index.js        # Main entry (fetch & scheduled handlers)
-│   │   ├── dataGenerator.js# Data generation logic
-│   │   ├── kvHelper.js     # KV get/put helpers
-│   │   └── handlers.js     # HTTP & cron handlers
-│   ├── wrangler.toml       # Cloudflare configuration
-│   └── package.json        # Dev dependencies
-├── frontend/               # Static frontend files
-│   ├── index.html
-│   ├── styles.css
-│   └── app.js
-└── README.md               # This documentation
+├── .github/workflows/    # CI/CD workflows
+├── frontend/             # Static frontend files
+│   ├── index.html        # Main application page
+│   ├── styles.css        # Custom OSRS-themed styles
+│   └── app.js            # Frontend application logic
+├── workers/              # Cloudflare Worker backend
+│   ├── src/
+│   │   └── index.js      # Main worker entry point with all backend logic
+│   ├── wrangler.toml     # Cloudflare Worker configuration
+│   └── package.json
+└── README.md
 ```
 
-## Setup Instructions
+-----
+
+## Backend: Cloudflare Worker
+
+The backend is a single Cloudflare Worker (`workers/src/index.js`) that handles API requests, data generation, and scheduled updates.
+
+### API Endpoints
+
+  - `GET /api/leaderboard`: Returns a ranked list of all players by total level and XP.
+  - `GET /api/users/{username}`: Fetches the hiscores data for a specific player.
+  - `GET /api/users`: Returns a list of all player usernames.
+  - `GET /api/skill-rankings`: Provides detailed rankings for every individual skill.
+  - `GET /api/health`: A simple health check endpoint.
+  - `POST /api/cron/trigger`: Manually triggers the scheduled update task.
+
+### Data Generation & Simulation
+
+The worker uses a multi-layered system to create a realistic and dynamic set of player data:
+
+  - **Username Generation**: New usernames are created by fetching words from the `random-word-api.herokuapp.com` API, with a local fallback generator to ensure reliability.
+  - **Player Activity Types**: Each update cycle, existing players are assigned a random activity type (`INACTIVE`, `CASUAL`, `REGULAR`, `HARDCORE`, `ELITE`), which determines their potential XP gains.
+  - **Weighted XP Gains**: XP is distributed based on skill popularity, player activity level, and a weekend bonus multiplier, making the simulation more authentic.
+
+### Scheduled Updates
+
+A cron job is configured in `wrangler.toml` to run **every 15 minutes** (`*/15 * * * *`). On each run, it:
+
+1.  Updates the XP and levels for a portion of the existing user base.
+2.  Creates 1-3 new, unique players to grow the community.
+3.  Saves all changes to the `HISCORES_KV` Cloudflare KV namespace.
+
+-----
+
+## Frontend: Vanilla JavaScript App
+
+The frontend is a single-page application (`frontend/app.js`) that provides the user interface for viewing the hiscores data.
+
+### Features
+
+  - **View Routing**: Uses the URL hash (`#`) to navigate between the main leaderboard and individual player pages.
+  - **Data Caching**: Caches API responses (leaderboard, users, rankings) in memory to reduce redundant network requests and speed up navigation.
+  - **Dynamic Rendering**: All views are rendered dynamically based on the fetched API data.
+  - **Theming**: Supports both light and dark modes, with the user's preference saved to local storage.
+  - **Interactive Elements**: Includes a searchable leaderboard with pagination, player search with suggestions, and toast notifications for a better user experience.
+
+-----
+
+## Setup & Deployment
 
 ### Prerequisites
 
-- Node.js (v16 or higher)
-- npm or yarn
-- Cloudflare account
-- Wrangler CLI
+  - Node.js and npm
+  - A Cloudflare account
+  - Wrangler CLI installed and configured (`npx wrangler login`)
 
 ### Installation
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd osrs-hiscores
-   ```
+1.  **Clone the repository**.
+2.  **Install worker dependencies**:
+    ```bash
+    cd workers
+    npm install
+    ```
+3.  **Create KV Namespace**: Create a KV namespace for storing hiscores data. This is required for the worker to function.
+    ```bash
+    # Create production and preview namespaces
+    npx wrangler kv:namespace create "HISCORES_KV"
+    npx wrangler kv:namespace create "HISCORES_KV" --preview
+    ```
+4.  **Update `wrangler.toml`**: Add the generated `id` and `preview_id` from the previous step to your `wrangler.toml` file.
 
-2. **Install dependencies**
-   ```bash
-   cd workers
-   npm install
-   ```
+### Running Locally
 
-3. **Configure Wrangler**
-   ```bash
-   # Login to Cloudflare
-   npx wrangler login
-   
-   # Create KV namespace
-   npx wrangler kv:namespace create "HISCORES_KV"
-   npx wrangler kv:namespace create "HISCORES_KV" --preview
-   ```
+To run the backend worker locally for development:
 
-4. **Update wrangler.toml**
-   - Replace `your-kv-namespace-id` with the actual KV namespace ID
-   - Replace `your-preview-kv-namespace-id` with the preview namespace ID
-
-5. **Deploy to Cloudflare Workers**
-   ```bash
-   # Deploy to production
-   npx wrangler deploy
-   
-   # Or run locally for development
-   npx wrangler dev
-   ```
-
-## API Endpoints
-
-### GET /api/hiscores?username=PLAYER_NAME
-Fetch hiscores data for a specific player.
-
-**Response:**
-```json
-{
-  "username": "TestPlayer",
-  "last_updated": "2025-07-03T12:00:00.000Z",
-  "skills": {
-    "overall": {
-      "rank": 500000,
-      "level": 1500,
-      "experience": 50000000
-    },
-    "attack": {
-      "rank": 100000,
-      "level": 99,
-      "experience": 13034431
-    }
-    // ... other skills
-  }
-}
-```
-
-### GET /api/recent
-Get list of recently searched players.
-
-**Response:**
-```json
-["Player1", "Player2", "Player3"]
-```
-
-### GET /api/mock
-Get mock hiscores data for testing.
-
-## Development
-
-### Local Development
 ```bash
 cd workers
 npx wrangler dev
 ```
 
-This will start the worker locally at `http://localhost:8787`
+The worker will be available at `http://localhost:8787`. You can open the `frontend/index.html` file in your browser to interact with the local worker.
 
-### Testing
-- Use the `/api/mock` endpoint to test with sample data
-- Test the search functionality with real OSRS usernames
-- Verify caching is working by checking response times
+### Deployment
 
-### File Structure
+Deploy the worker to your Cloudflare account:
 
-- **`workers/src/index.js`**: Main worker entry point
-- **`workers/src/handlers.js`**: HTTP request and cron job handlers
-- **`workers/src/dataGenerator.js`**: Logic for fetching and parsing OSRS data
-- **`workers/src/kvHelper.js`**: KV storage utilities
-- **`frontend/`**: Static frontend files (HTML, CSS, JS)
-
-## Deployment
-
-### Production Deployment
 ```bash
 cd workers
 npx wrangler deploy
 ```
-
-### Environment Variables
-Configure in `wrangler.toml`:
-- `ENVIRONMENT`: Set to "production" or "development"
-
-### KV Namespace
-The worker uses Cloudflare KV for caching:
-- Hiscores data (TTL: 1 hour)
-- Recent searches (TTL: 24 hours)
-
-## Configuration
-
-### Cron Jobs
-The worker includes a cron trigger that runs every 6 hours:
-```
-crons = ["0 */6 * * *"]
-```
-
-Use this for:
-- Cleaning up old cache entries
-- Updating popular players
-- Maintenance tasks
-
-### CORS
-The API includes CORS headers to allow frontend access:
-```javascript
-'Access-Control-Allow-Origin': '*'
-'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
-'Access-Control-Allow-Headers': 'Content-Type'
-```
-
-## Frontend Usage
-
-The frontend provides a clean interface for:
-1. Searching players by username
-2. Viewing detailed skill statistics
-3. Accessing recent searches
-4. Loading mock data for testing
-
-## Data Source
-
-This application fetches data from the official OSRS Hiscores API:
-```
-https://secure.runescape.com/m=hiscore_oldschool/index_lite.ws?player=USERNAME
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## License
-
-MIT License - see LICENSE file for details
-
-## Disclaimer
-
-This project is not affiliated with Jagex Ltd. Old School RuneScape is a trademark of Jagex Ltd.
-
-## Support
-
-For issues and questions:
-1. Check the existing issues
-2. Create a new issue with detailed information
-3. Include error messages and steps to reproduce
-
----
-
-Built with ❤️ for the OSRS community
