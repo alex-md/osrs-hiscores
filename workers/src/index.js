@@ -261,47 +261,37 @@ async function generateUsernameFromAPI() {
             return null;
         }
 
-        const num = Math.floor(Math.random() * 999) + 1;
+        // 70% chance to capitalize the first letter of each word
+        const shouldCapitalize = Math.random() < 0.7;
+        const processedWords = words.map(w => {
+            return shouldCapitalize ? w.charAt(0).toUpperCase() + w.slice(1) : w;
+        });
 
-        // Capitalize the first letter of each word for style
-        const capitalizedWords = words.map(w => w.charAt(0).toUpperCase() + w.slice(1));
+        // 20% chance to add a random number (1-999)
+        const shouldAddNumber = Math.random() < 0.2;
+        const randomNumber = shouldAddNumber ? Math.floor(Math.random() * 999) + 1 : null;
 
+        let username;
         if (useTwoWords) {
             // Format: "WordOne_WordTwo"
-            return `${capitalizedWords[0]}_${capitalizedWords[1]}`;
+            username = `${processedWords[0]}_${processedWords[1]}`;
         } else {
             // Format: "Word"
-            return `${capitalizedWords[0]}`;
+            username = processedWords[0];
         }
+
+        // Add number at the beginning or end if needed
+        if (shouldAddNumber) {
+            const addAtBeginning = Math.random() < 0.5;
+            username = addAtBeginning ? `${randomNumber}${username}` : `${username}${randomNumber}`;
+        }
+
+        return username;
 
     } catch (error) {
         console.error('Error fetching from random word API:', error);
         return null;
     }
-}
-
-/**
- * Fallback local username generator. This is the original function,
- * renamed to serve as a reliable backup if the API fails.
- * @returns {string} A randomly generated username from a local, hardcoded list.
- */
-function generateUsernameLocally() {
-    const ADJECTIVES = [
-        'Brisk', 'Luminous', 'Gritty', 'Mellow', 'Jagged', 'Sleek', 'Timid', 'Radiant',
-        'Murky', 'Zesty', 'Brittle', 'Plush', 'Gaudy', 'Nimble', 'Rustic', 'Feeble',
-        'Vibrant', 'Hasty', 'Serene', 'Grimy', 'Quirky', 'Blunt', 'Lavish', 'Eerie',
-        'Crisp', 'Fuzzy', 'Dainty', 'Rugged', 'Glossy', 'Mellow'
-    ];
-    const NOUNS = [
-        'Lantern', 'Canyon', 'Whisper', 'Glacier', 'Compass', 'Meadow', 'Relic', 'Ember',
-        'Turret', 'Prism', 'Orchard', 'Talon', 'Scroll', 'Anchor', 'Forge', 'Ripple',
-        'Beacon', 'Thicket', 'Vault', 'Spindle', 'Chalice', 'Gust', 'Tapestry', 'Quarry',
-        'Bramble', 'Silo', 'Perch', 'Rune', 'Vessel', 'Grove'
-    ];
-    const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
-    const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
-    const num = Math.floor(Math.random() * 999) + 1;
-    return `${adj}_${noun}_${num}`;
 }
 
 
