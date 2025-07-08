@@ -42,6 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchToggle = document.getElementById('search-toggle');
     const retryBtn = document.getElementById('retry-btn');
     const backBtn = document.getElementById('back-btn');
+    const logoBtn = document.getElementById('logo-btn');
     const refreshLeaderboard = document.getElementById('refresh-leaderboard');
     const refreshPlayer = document.getElementById('refresh-player');
     const startSearch = document.getElementById('start-search');
@@ -670,6 +671,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Back button
     backBtn?.addEventListener('click', () => {
+        window.location.hash = '';
+    });
+
+    // Logo button (home navigation)
+    logoBtn?.addEventListener('click', () => {
         window.location.hash = '';
     });
 
