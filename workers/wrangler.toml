@@ -2,22 +2,15 @@ name = "osrs-hiscores-clone"
 main = "src/index.js"
 compatibility_date = "2023-10-30"
 
-# Cron Trigger to run the 'scheduled' handler every hour
+# Cron Trigger to run the 'scheduled' handler
 # See https://developers.cloudflare.com/workers/platform/triggers/cron-triggers/
-# Common patterns:
-# - "0 * * * *" = At minute 0 of every hour (every hour)
-# - "*/30 * * * *" = At every 30th minute (every 30 minutes)
-# - "0 */6 * * *" = At minute 0 of every 6th hour (every 6 hours)
-# - "0 0 * * *" = At 00:00 (every day)
-# - "0 9 * * mon-fri" = At 09:00 on weekdays
 [triggers]
-# run every 15 minutes
-crons = ["*/15 * * * *"]
+# FIX: Run more frequently to process users in smaller, faster batches.
+# This aligns with the new code logic to avoid hitting API request limits.
+# "*/5 * * * *" = At every 5th minute.
+crons = ["*/5 * * * *"]
 
-# KV Namespace binding. This is where the hiscore data will be stored.
-# IMPORTANT: You must create this namespace in your Cloudflare dashboard and get its ID.
-# Run: `wrangler kv:namespace create HISCORES_KV` to create it
-# Then replace the id below with the actual namespace ID from the command output
+# KV Namespace binding. This part does NOT need to change.
 [[kv_namespaces]]
 binding = "HISCORES_KV"
 id = "4d71578af7894ec8b339d49e0c951bee"

@@ -60,6 +60,13 @@ const GLOBAL_XP_MULTIPLIER = 2.0;
 // Increased significantly to make weekends feel like a major competitive event.
 const WEEKEND_BONUS_MULTIPLIER = 1.5;
 
+// BUG FIX: Tuned constants for frequent, smaller cron job runs to avoid platform limits.
+const MAX_USERS_PER_SCHEDULED_RUN = 100; // Max users to update in a single cron execution. (Lowered)
+const USERS_PER_BATCH = 50;              // How many users to fetch/save in a single KV operation batch.
+const BATCH_DELAY_MS = 100;              // Delay between batches to prevent rate limiting.
+const LEADERBOARD_CACHE_TTL_MINUTES = 30; // How often to regenerate the full leaderboard. (New)
+
+
 // =================================================================
 // KV & RESPONSE HELPERS
 // =================================================================
@@ -73,23 +80,60 @@ async function putUser(env, username, data) {
     await env.HISCORES_KV.put(username.toLowerCase(), JSON.stringify(data));
 }
 
+async function getCronState(env) {
+    const state = await env.HISCORES_KV.get('__cron_state__', 'json');
+    return state || { lastProcessedIndex: 0, totalUsers: 0 };
+}
+
+async function setCronState(env, state) {
+    await env.HISCORES_KV.put('__cron_state__', JSON.stringify(state));
+}
+
+async function getLeaderboards(env) {
+    const leaderboards = await env.HISCORES_KV.get('__leaderboards__', 'json');
+    return leaderboards || { totalLevel: [], skills: {}, lastUpdated: null };
+}
+
+async function setLeaderboards(env, leaderboards) {
+    await env.HISCORES_KV.put('__leaderboards__', JSON.stringify(leaderboards));
+}
+
 async function listUsers(env) {
-    return await env.HISCORES_KV.list();
+    // Filter out internal keys
+    const kvList = await env.HISCORES_KV.list();
+    kvList.keys = kvList.keys.filter(key => !key.name.startsWith('__'));
+    return kvList;
 }
 
 /**
- * Fetches all user objects from the KV store.
+ * Fetches all user objects from the KV store in batches to avoid rate limits.
  * @param {object} env - The worker environment.
+ * @param {number} batchSize - Maximum number of users to fetch in one batch.
  * @returns {Promise<Array<object>>} A promise that resolves to an array of user objects.
  */
-async function getAllUsers(env) {
+async function getAllUsers(env, batchSize = 100) {
     const kvList = await listUsers(env);
     if (!kvList.keys || kvList.keys.length === 0) {
         return [];
     }
-    const userPromises = kvList.keys.map(key => getUser(env, key.name));
-    const users = await Promise.all(userPromises);
-    return users.filter(Boolean); // Filter out any null/failed lookups
+
+    // Process users in smaller batches to avoid rate limits
+    const users = [];
+    const totalUsers = kvList.keys.length;
+
+    for (let i = 0; i < totalUsers; i += batchSize) {
+        const batch = kvList.keys.slice(i, i + batchSize);
+        const userPromises = batch.map(key => getUser(env, key.name));
+        const batchUsers = await Promise.all(userPromises);
+        users.push(...batchUsers.filter(Boolean));
+
+        // Add a small delay between batches to avoid overwhelming the system
+        if (i + batchSize < totalUsers) {
+            await new Promise(resolve => setTimeout(resolve, 50));
+        }
+    }
+
+    return users;
 }
 
 function jsonResponse(data, status = 200) {
@@ -152,16 +196,18 @@ function updateHitpointsForUser(user) {
 // =================================================================
 
 /**
- * Generates a username from a local list of prefixes and suffixes as a fallback.
- * @returns {string} A simple, locally generated username.
+ * Generates a username from a an api.
+ * @returns {string} A simple, generated username.
  */
-
 async function generateUsernameFromAPI() {
     const useTwoWords = Math.random() < 0.15;
     const wordCount = useTwoWords ? 2 : 1;
     const apiUrl = `https://random-word-api.herokuapp.com/word?number=${wordCount}`;
     try {
-        const response = await fetch(apiUrl, { headers: { 'User-Agent': 'osrs-hiscores-clone-worker/1.0' } });
+        const response = await fetch(apiUrl, {
+            headers: { 'User-Agent': 'osrs-hiscores-clone-worker/1.0' },
+            signal: AbortSignal.timeout(3000)
+        });
         if (!response.ok) return null;
         const words = await response.json();
         if (!Array.isArray(words) || words.length !== wordCount) return null;
@@ -189,34 +235,18 @@ async function generateRandomUsername() {
 // NEW USER & XP GAIN HELPERS (TUNED)
 // =================================================================
 
-/**
- * Generates a new user with a starting profile based on a randomly assigned player activity type.
- * This creates a wider and more realistic spectrum of new accounts.
- * @param {string} username - The username for the new player.
- * @returns {object} A new user object.
- */
 function generateNewUser(username) {
     const user = { username, skills: {} };
-
-    // Use the global player activity types to determine the starting profile.
-    // This creates a more realistic distribution of new player skill levels.
-    // 'INACTIVE' players will start as true beginners, while rare 'ELITE' players
-    // can start with a significant head start, like a "prodigy" or an experienced player's alt.
     const activityType = getPlayerActivityType();
     const startingProfile = PLAYER_ACTIVITY_TYPES[activityType];
     const baseXpRange = startingProfile.xpRange;
-
-    // A small random talent multiplier to ensure two new players of the same type aren't identical.
-    const talentMultiplier = 0.75 + Math.random() * 0.75; // a value between 0.75 and 1.5
+    const talentMultiplier = 0.75 + Math.random() * 0.75;
 
     SKILLS.forEach(skill => {
         if (skill !== 'Hitpoints') {
             const skillWeight = SKILL_POPULARITY_WEIGHTS[skill] || 1.0;
             const weightedMax = Math.floor(baseXpRange.max * skillWeight * talentMultiplier);
             const weightedMin = Math.floor(baseXpRange.min * skillWeight);
-
-            // Only grant XP if a random chance, influenced by the profile's skill probability, passes.
-            // This prevents inactive players from starting with stats in every skill.
             if (Math.random() < startingProfile.skillProbability) {
                 const randomXp = Math.floor(Math.random() * (weightedMax - weightedMin + 1) + weightedMin);
                 user.skills[skill] = { xp: Math.max(0, randomXp), level: xpToLevel(randomXp) };
@@ -226,18 +256,11 @@ function generateNewUser(username) {
         }
     });
 
-    // Ensure Hitpoints is calculated correctly and has a base value.
     const hitpointsXp = Math.max(1154, Math.floor((COMBAT_SKILLS.reduce((sum, s) => sum + (user.skills[s]?.xp || 0), 0) / 4) * 1.3));
     user.skills['Hitpoints'] = { xp: hitpointsXp, level: xpToLevel(hitpointsXp) };
-
     return user;
 }
 
-/**
- * Selects a player activity type based on the globally defined probabilities.
- * No changes needed here, as its behavior is controlled by the PLAYER_ACTIVITY_TYPES constant.
- * @returns {string} The key of the selected activity type (e.g., 'CASUAL', 'ELITE').
- */
 function getPlayerActivityType() {
     const random = Math.random();
     let cumulativeProbability = 0;
@@ -245,46 +268,24 @@ function getPlayerActivityType() {
         cumulativeProbability += config.probability;
         if (random <= cumulativeProbability) return type;
     }
-    return 'CASUAL'; // Fallback
+    return 'CASUAL';
 }
 
-/**
- * Generates a random amount of XP gain for a specific skill, factoring in multiple dynamic variables.
- * @param {string} activityType - The player's activity level for this update.
- * @param {string} skillName - The name of the skill gaining XP.
- * @param {number} [currentLevel=1] - The current level of the skill, used for scaling.
- * @returns {number} The amount of XP gained, can be 0.
- */
 function generateWeightedXpGain(activityType, skillName, currentLevel = 1) {
     const activityConfig = PLAYER_ACTIVITY_TYPES[activityType];
     const skillWeight = SKILL_POPULARITY_WEIGHTS[skillName] || 1.0;
+    const effectiveSkillProbability = Math.min(1, activityConfig.skillProbability * skillWeight);
 
-    // Check if the player trains this skill at all during this session.
-    // A popular skill (high weight) is more likely to pass this check.
-    if (Math.random() > (activityConfig.skillProbability * skillWeight)) {
+    if (Math.random() > effectiveSkillProbability) {
         return 0;
     }
 
-    // Introduce a random efficiency multiplier for the session.
-    // This simulates player focus, luck, or choice of training method.
-    // A value < 1.0 represents a distracted/inefficient session.
-    // A value > 1.0 represents a highly focused/efficient session.
-    const efficiencyMultiplier = 0.6 + Math.random() * 0.8; // Random value between 0.6 and 1.4
-
+    const efficiencyMultiplier = 0.6 + Math.random() * 0.8;
     const baseXp = Math.floor(Math.random() * (activityConfig.xpRange.max - activityConfig.xpRange.min + 1) + activityConfig.xpRange.min);
     const levelScaling = 1 + (currentLevel / 99) * LEVEL_SCALING_FACTOR;
     const weekendBoost = WEEKEND_DAYS.includes(new Date().getUTCDay()) ? WEEKEND_BONUS_MULTIPLIER : 1;
 
-    // The final calculation now includes the new efficiency factor.
-    const finalXp = Math.floor(
-        baseXp *
-        efficiencyMultiplier *
-        skillWeight *
-        levelScaling *
-        GLOBAL_XP_MULTIPLIER *
-        weekendBoost
-    );
-
+    const finalXp = Math.floor(baseXp * efficiencyMultiplier * skillWeight * levelScaling * GLOBAL_XP_MULTIPLIER * weekendBoost);
     return Math.max(0, finalXp);
 }
 
@@ -330,6 +331,35 @@ function generateAllSkillRankings(users) {
         skillRankings[skillName] = sortedPlayers.map((player, index) => ({ ...player, rank: index + 1 }));
     });
     return skillRankings;
+}
+
+// =================================================================
+// BATCH PROCESSING HELPERS
+// =================================================================
+
+async function processBatchOfUsers(env, userKeys) {
+    const updatePayloads = [];
+    for (let i = 0; i < userKeys.length; i += USERS_PER_BATCH) {
+        const subBatch = userKeys.slice(i, i + USERS_PER_BATCH);
+        const userPromises = subBatch.map(key => getUser(env, key.name));
+        const users = await Promise.all(userPromises);
+        const batchUpdates = processUserUpdates(users.filter(Boolean));
+        updatePayloads.push(...batchUpdates);
+        if (i + USERS_PER_BATCH < userKeys.length) {
+            await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+        }
+    }
+    return updatePayloads;
+}
+
+async function saveBatchUpdates(env, updatePayloads) {
+    for (let i = 0; i < updatePayloads.length; i += USERS_PER_BATCH) {
+        const batch = updatePayloads.slice(i, i + USERS_PER_BATCH);
+        await Promise.all(batch.map(payload => putUser(env, payload.username, payload.data)));
+        if (i + USERS_PER_BATCH < updatePayloads.length) {
+            await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+        }
+    }
 }
 
 // =================================================================
@@ -389,27 +419,81 @@ async function createNewUsers(env, count) {
 
 async function runScheduledUpdate(env) {
     try {
-        const users = await getAllUsers(env);
-        const userUpdatePayloads = processUserUpdates(users);
-
-        // Reduce from 1-3 to 0-1 new users per run to reduce API calls
-        const newUserCount = Math.floor(Math.random() * 2); // 0 or 1
-        const newUserPayloads = await createNewUsers(env, newUserCount);
-        const allPayloads = [...userUpdatePayloads, ...newUserPayloads];
-
-        if (allPayloads.length > 0) {
-            await Promise.all(allPayloads.map(p => putUser(env, p.username, p.data)));
-            const log = {
-                success: true,
-                updatedUsers: userUpdatePayloads.length,
-                createdUsers: newUserPayloads.length,
-            };
-            console.log(`Scheduled update complete. Updated ${log.updatedUsers} users and created ${log.createdUsers} new users.`);
-            return log;
-        } else {
-            console.log('No users were updated or created in this run.');
+        const kvList = await listUsers(env);
+        if (!kvList.keys || kvList.keys.length === 0) {
+            console.log('No users found to update');
             return { success: true, updatedUsers: 0, createdUsers: 0 };
         }
+
+        const cronState = await getCronState(env);
+        const totalUsers = kvList.keys.length;
+        let startIndex = cronState.lastProcessedIndex;
+
+        if (Math.abs(totalUsers - cronState.totalUsers) > 50) {
+            startIndex = 0;
+            console.log(`User count changed significantly (${cronState.totalUsers} -> ${totalUsers}), resetting index`);
+        }
+
+        // Process a smaller, manageable slice of users each run
+        const usersToProcess = Math.min(MAX_USERS_PER_SCHEDULED_RUN, totalUsers);
+        const selectedUserKeys = [];
+        for (let i = 0; i < usersToProcess; i++) {
+            const index = (startIndex + i) % totalUsers;
+            selectedUserKeys.push(kvList.keys[index]);
+        }
+
+        console.log(`Processing ${selectedUserKeys.length} users (indices ${startIndex} to ${(startIndex + usersToProcess - 1) % totalUsers}) out of ${totalUsers} total`);
+
+        const userUpdatePayloads = await processBatchOfUsers(env, selectedUserKeys);
+        const newUserCount = Math.random() < 0.2 ? 1 : 0;
+        const newUserPayloads = await createNewUsers(env, newUserCount);
+
+        const allPayloads = [...userUpdatePayloads, ...newUserPayloads];
+        if (allPayloads.length > 0) {
+            await saveBatchUpdates(env, allPayloads);
+        }
+
+        // FIX: Implement conditional, time-based leaderboard regeneration.
+        // This is the key change to prevent platform limit errors.
+        const leaderboards = await getLeaderboards(env);
+        const now = new Date();
+        const lastUpdated = leaderboards.lastUpdated ? new Date(leaderboards.lastUpdated) : null;
+        const shouldRegenerate = !lastUpdated || (now.getTime() - lastUpdated.getTime()) > LEADERBOARD_CACHE_TTL_MINUTES * 60 * 1000;
+
+        if (shouldRegenerate) {
+            console.log(`Leaderboard cache is stale (older than ${LEADERBOARD_CACHE_TTL_MINUTES} mins). Regenerating...`);
+            // This expensive operation now only runs periodically.
+            const allUsers = await getAllUsers(env);
+            const totalLevelLeaderboard = generateTotalLevelLeaderboard(allUsers);
+            const skillRankings = generateAllSkillRankings(allUsers);
+            await setLeaderboards(env, {
+                totalLevel: totalLevelLeaderboard,
+                skills: skillRankings,
+                lastUpdated: now.toISOString()
+            });
+            console.log('Leaderboards regenerated and cached.');
+        } else {
+            console.log('Skipping leaderboard regeneration, cache is fresh.');
+        }
+
+        const nextIndex = (startIndex + usersToProcess) % totalUsers;
+        await setCronState(env, {
+            lastProcessedIndex: nextIndex,
+            totalUsers: totalUsers
+        });
+
+        const log = {
+            success: true,
+            updatedUsers: userUpdatePayloads.length,
+            createdUsers: newUserPayloads.length,
+            nextStartIndex: nextIndex,
+            totalUsers: totalUsers,
+            leaderboardsRegenerated: shouldRegenerate
+        };
+
+        console.log(`Update complete: ${log.updatedUsers} users updated, ${log.createdUsers} users created. Next run starts at index ${log.nextStartIndex}`);
+        return log;
+
     } catch (error) {
         console.error('Failed to run scheduled update:', error);
         throw error;
@@ -441,22 +525,19 @@ async function handleFetch(request, env) {
             return user ? jsonResponse(user) : jsonResponse({ error: 'User not found' }, 404);
         }
         if (pathname === '/api/leaderboard') {
-            const users = await getAllUsers(env);
-            return jsonResponse(generateTotalLevelLeaderboard(users));
+            const { totalLevel } = await getLeaderboards(env);
+            return jsonResponse(totalLevel);
         }
         if (pathname === '/api/skill-rankings') {
-            const users = await getAllUsers(env);
-            return jsonResponse({
-                skills: generateAllSkillRankings(users),
-                totalLevel: generateTotalLevelLeaderboard(users)
-            });
+            const leaderboards = await getLeaderboards(env);
+            return jsonResponse(leaderboards);
         }
         if (pathname === '/api/cron/trigger' && request.method === 'POST') {
             const result = await runScheduledUpdate(env);
             return jsonResponse({ message: 'Cron job executed successfully', result });
         }
         if (pathname === '/api/cron/status') {
-            return jsonResponse({ status: 'Cron service is running', nextScheduledRun: 'Every hour (0 * * * *)' });
+            return jsonResponse({ status: 'Cron service is running', nextScheduledRun: 'Check wrangler.toml for schedule' });
         }
 
         return jsonResponse({ error: 'Not Found' }, 404);
