@@ -391,7 +391,9 @@ async function runScheduledUpdate(env) {
     try {
         const users = await getAllUsers(env);
         const userUpdatePayloads = processUserUpdates(users);
-        const newUserCount = Math.floor(Math.random() * 3) + 1;
+
+        // Reduce from 1-3 to 0-1 new users per run to reduce API calls
+        const newUserCount = Math.floor(Math.random() * 2); // 0 or 1
         const newUserPayloads = await createNewUsers(env, newUserCount);
         const allPayloads = [...userUpdatePayloads, ...newUserPayloads];
 
