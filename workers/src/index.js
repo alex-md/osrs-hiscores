@@ -236,8 +236,8 @@ async function generateRandomUsername() {
 // =================================================================
 
 function generateNewUser(username) {
-    const user = { username, skills: {} };
     const activityType = getPlayerActivityType();
+    const user = { username, activityType, skills: {} };
     const startingProfile = PLAYER_ACTIVITY_TYPES[activityType];
     const baseXpRange = startingProfile.xpRange;
     const talentMultiplier = 0.75 + Math.random() * 0.75;
@@ -269,6 +269,24 @@ function getPlayerActivityType() {
         if (random <= cumulativeProbability) return type;
     }
     return 'CASUAL';
+}
+
+/**
+ * Assigns activity types to legacy users who don't have one
+ * @param {Array} users - Array of user objects
+ * @returns {Array} Array of users who need to be updated
+ */
+function assignActivityTypesToLegacyUsers(users) {
+    const usersNeedingUpdate = [];
+
+    for (const user of users) {
+        if (!user.activityType) {
+            user.activityType = getPlayerActivityType();
+            usersNeedingUpdate.push(user);
+        }
+    }
+
+    return usersNeedingUpdate;
 }
 
 function generateWeightedXpGain(activityType, skillName, currentLevel = 1) {
@@ -371,9 +389,18 @@ function processUserUpdates(users) {
     const activityTypeCount = Object.fromEntries(Object.keys(PLAYER_ACTIVITY_TYPES).map(type => [type, 0]));
 
     for (const user of users) {
-        const activityType = getPlayerActivityType();
+        // Use the user's existing activity type, or assign one if they don't have one (for legacy users)
+        const activityType = user.activityType || getPlayerActivityType();
+
+        // If the user didn't have an activity type, assign one and mark for update
+        let needsActivityTypeUpdate = false;
+        if (!user.activityType) {
+            user.activityType = activityType;
+            needsActivityTypeUpdate = true;
+        }
+
         activityTypeCount[activityType]++;
-        let hasChanges = false;
+        let hasChanges = needsActivityTypeUpdate;
         const xpGains = {};
 
         SKILLS.forEach(skillName => {
@@ -538,6 +565,42 @@ async function handleFetch(request, env) {
         }
         if (pathname === '/api/cron/status') {
             return jsonResponse({ status: 'Cron service is running', nextScheduledRun: 'Check wrangler.toml for schedule' });
+        }
+        if (pathname === '/api/migrate-legacy-users' && request.method === 'POST') {
+            const allUsers = await getAllUsers(env);
+            const usersNeedingUpdate = assignActivityTypesToLegacyUsers(allUsers);
+
+            if (usersNeedingUpdate.length > 0) {
+                await saveBatchUpdates(env, usersNeedingUpdate.map(user => ({
+                    username: user.username,
+                    data: user
+                })));
+            }
+
+            return jsonResponse({
+                message: 'Legacy user migration completed',
+                usersUpdated: usersNeedingUpdate.length,
+                totalUsers: allUsers.length
+            });
+        }
+        if (pathname === '/api/activity-distribution') {
+            const allUsers = await getAllUsers(env);
+            const distribution = Object.fromEntries(Object.keys(PLAYER_ACTIVITY_TYPES).map(type => [type, 0]));
+            let usersWithoutActivityType = 0;
+
+            allUsers.forEach(user => {
+                if (user.activityType) {
+                    distribution[user.activityType]++;
+                } else {
+                    usersWithoutActivityType++;
+                }
+            });
+
+            return jsonResponse({
+                distribution,
+                usersWithoutActivityType,
+                totalUsers: allUsers.length
+            });
         }
 
         return jsonResponse({ error: 'Not Found' }, 404);
