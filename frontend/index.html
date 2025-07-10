@@ -278,17 +278,66 @@
                                 </div>
                                 <div class="flex items-center">
                                     <i data-lucide="users" class="w-4 h-4 mr-2"></i>
-                                    <span>Default View</span>
+                                    <span id="total-leaderboard-players">Loading players...</span>
                                 </div>
                             </div>
                         </div>
                         <div class="flex flex-col sm:flex-row gap-3">
+                            <button
+                                class="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white rounded-xl transition-all duration-200 hover:scale-105 font-medium"
+                                id="view-skill-hiscores">
+                                <i data-lucide="target" class="w-4 h-4 mr-2"></i>
+                                Skill Hiscores
+                            </button>
                             <button
                                 class="inline-flex items-center px-6 py-3 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700/50 text-white rounded-xl transition-all duration-200 hover:scale-105 font-medium"
                                 id="refresh-leaderboard">
                                 <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i>
                                 Refresh Data
                             </button>
+                            <button
+                                class="inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white rounded-xl transition-all duration-200 hover:scale-105 font-medium"
+                                id="export-leaderboard">
+                                <i data-lucide="download" class="w-4 h-4 mr-2"></i>
+                                Export Data
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Search & Filter Options -->
+                    <div class="flex flex-col sm:flex-row gap-4 mb-6">
+                        <div class="flex-1">
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <i data-lucide="search" class="w-4 h-4 text-slate-400"></i>
+                                </div>
+                                <input type="text"
+                                    class="block w-full pl-10 pr-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent placeholder-slate-400 text-white"
+                                    id="leaderboard-player-search" placeholder="Search players in leaderboard...">
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <select
+                                class="px-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
+                                id="total-level-filter">
+                                <option value="">All Levels</option>
+                                <option value="2000">2000+ Total</option>
+                                <option value="1800">1800+ Total</option>
+                                <option value="1600">1600+ Total</option>
+                                <option value="1400">1400+ Total</option>
+                                <option value="1200">1200+ Total</option>
+                                <option value="1000">1000+ Total</option>
+                            </select>
+                            <select
+                                class="px-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
+                                id="total-xp-filter">
+                                <option value="">All XP</option>
+                                <option value="1000000000">1B+ XP</option>
+                                <option value="500000000">500M+ XP</option>
+                                <option value="200000000">200M+ XP</option>
+                                <option value="100000000">100M+ XP</option>
+                                <option value="50000000">50M+ XP</option>
+                            </select>
                         </div>
                     </div>
 
@@ -301,30 +350,38 @@
                                     <tr class="border-b border-slate-600/50">
                                         <th
                                             class="px-6 py-4 text-left text-amber-400 font-semibold text-sm uppercase tracking-wider">
-                                            <div class="flex items-center">
+                                            <div class="flex items-center cursor-pointer hover:text-amber-300"
+                                                id="sort-leaderboard-rank">
                                                 <i data-lucide="hash" class="w-4 h-4 mr-2"></i>
                                                 Rank
+                                                <i data-lucide="arrow-up-down" class="w-3 h-3 ml-2 opacity-50"></i>
                                             </div>
                                         </th>
                                         <th
                                             class="px-6 py-4 text-left text-amber-400 font-semibold text-sm uppercase tracking-wider">
-                                            <div class="flex items-center">
+                                            <div class="flex items-center cursor-pointer hover:text-amber-300"
+                                                id="sort-leaderboard-player">
                                                 <i data-lucide="user" class="w-4 h-4 mr-2"></i>
                                                 Player Name
+                                                <i data-lucide="arrow-up-down" class="w-3 h-3 ml-2 opacity-50"></i>
                                             </div>
                                         </th>
                                         <th
                                             class="px-6 py-4 text-left text-amber-400 font-semibold text-sm uppercase tracking-wider">
-                                            <div class="flex items-center">
+                                            <div class="flex items-center cursor-pointer hover:text-amber-300"
+                                                id="sort-leaderboard-level">
                                                 <i data-lucide="trending-up" class="w-4 h-4 mr-2"></i>
                                                 Total Level
+                                                <i data-lucide="arrow-up-down" class="w-3 h-3 ml-2 opacity-50"></i>
                                             </div>
                                         </th>
                                         <th
                                             class="px-6 py-4 text-left text-amber-400 font-semibold text-sm uppercase tracking-wider">
-                                            <div class="flex items-center">
+                                            <div class="flex items-center cursor-pointer hover:text-amber-300"
+                                                id="sort-leaderboard-xp">
                                                 <i data-lucide="zap" class="w-4 h-4 mr-2"></i>
                                                 Experience
+                                                <i data-lucide="arrow-up-down" class="w-3 h-3 ml-2 opacity-50"></i>
                                             </div>
                                         </th>
                                     </tr>
@@ -347,7 +404,12 @@
                                 <span id="page-info" class="text-slate-300 font-medium"></span>
                                 <div class="flex items-center text-sm text-slate-400">
                                     <i data-lucide="list" class="w-4 h-4 mr-1"></i>
-                                    25 per page
+                                    <select id="leaderboard-items-per-page"
+                                        class="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-white">
+                                        <option value="25">25 per page</option>
+                                        <option value="50">50 per page</option>
+                                        <option value="100">100 per page</option>
+                                    </select>
                                 </div>
                             </div>
                             <button id="next-page"

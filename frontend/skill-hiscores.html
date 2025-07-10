@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="color-scheme" content="dark light">
+        <meta name="description" content="OSRS individual skill hiscores - View top players for specific skills">
+        <meta name="theme-color" content="#0F172A">
+        <title>Skill Hiscores | OSRS Player Statistics</title>
+
+        <!-- Tailwind CSS -->
+        <script src="https://cdn.tailwindcss.com"></script>
+
+        <!-- Modern font stack with variable weights -->
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+
+        <!-- Lucide icons for modern iconography -->
+        <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+        <!-- Tailwind Configuration -->
+        <script>
+            tailwind.config = {
+                darkMode: 'class',
+                theme: {
+                    extend: {
+                        fontFamily: {
+                            'sans': ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+                        },
+                        animation: {
+                            'spin-slow': 'spin 3s linear infinite',
+                            'pulse-slow': 'pulse 3s ease-in-out infinite',
+                            'bounce-gentle': 'bounce 2s infinite',
+                            'float': 'float 6s ease-in-out infinite',
+                            'glow': 'glow 2s ease-in-out infinite alternate',
+                        },
+                        keyframes: {
+                            float: {
+                                '0%, 100%': { transform: 'translateY(0px)' },
+                                '50%': { transform: 'translateY(-10px)' },
+                            },
+                            glow: {
+                                '0%': { boxShadow: '0 0 5px rgba(251, 191, 36, 0.3)' },
+                                '100%': { boxShadow: '0 0 20px rgba(251, 191, 36, 0.6)' },
+                            }
+                        },
+                        backdropBlur: {
+                            'xs': '2px',
+                        },
+                        colors: {
+                            'glass': 'rgba(255, 255, 255, 0.05)',
+                            'glass-border': 'rgba(255, 255, 255, 0.1)',
+                        }
+                    }
+                }
+            }
+        </script>
+
+        <!-- Theme management -->
+        <script>
+            // Immediate theme application to prevent flash
+            const theme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.classList.toggle('dark', theme === 'dark');
+        </script>
+
+        <!-- Custom styles -->
+        <link rel="stylesheet" href="styles.css">
+    </head>
+
+    <body
+        class="dark bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-white min-h-screen font-sans antialiased">
+
+        <!-- App Shell with modern layout -->
+        <div class="min-h-screen flex flex-col relative">
+            <!-- Navigation & Header -->
+            <header class="sticky top-0 z-50 backdrop-blur-xl bg-slate-900/80 border-b border-slate-700/50">
+                <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+                    <div class="flex items-center justify-between h-16">
+                        <button
+                            class="flex items-center space-x-4 hover:opacity-80 transition-opacity duration-200 cursor-pointer"
+                            id="logo-btn" title="Go to homepage">
+                            <div
+                                class="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl shadow-lg">
+                                <i data-lucide="shield" class="w-5 h-5 text-white"></i>
+                            </div>
+                            <div class="hidden sm:block">
+                                <h1
+                                    class="text-xl font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">
+                                    OSRS Hiscores</h1>
+                                <p class="text-sm text-slate-400">Skill-specific rankings</p>
+                            </div>
+                        </button>
+
+                        <nav class="flex items-center space-x-2">
+                            <button
+                                class="p-2 rounded-xl bg-slate-800/50 hover:bg-slate-700/50 transition-all duration-200 hover:scale-105"
+                                id="theme-toggle" title="Toggle theme">
+                                <i data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
+                                <i data-lucide="moon" class="w-5 h-5 block dark:hidden"></i>
+                            </button>
+                            <button
+                                class="p-2 rounded-xl bg-slate-800/50 hover:bg-slate-700/50 transition-all duration-200 hover:scale-105"
+                                id="search-toggle" title="Search players">
+                                <i data-lucide="search" class="w-5 h-5"></i>
+                            </button>
+                        </nav>
+                    </div>
+                </div>
+
+                <!-- Search Bar -->
+                <div class="search-container hidden opacity-0 transform -translate-y-2 transition-all duration-300"
+                    id="search-container">
+                    <div class="container mx-auto px-4 sm:px-6 lg:px-8 pb-4">
+                        <div class="relative max-w-2xl mx-auto">
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <i data-lucide="search" class="w-5 h-5 text-slate-400"></i>
+                                </div>
+                                <input type="text"
+                                    class="block w-full pl-10 pr-12 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent placeholder-slate-400 text-white backdrop-blur-sm"
+                                    id="search-input" placeholder="Search for an OSRS player..." autocomplete="off"
+                                    spellcheck="false">
+                                <button
+                                    class="absolute inset-y-0 right-0 pr-3 flex items-center opacity-0 transition-opacity duration-200"
+                                    id="search-clear" title="Clear search">
+                                    <i data-lucide="x" class="w-5 h-5 text-slate-400 hover:text-white"></i>
+                                </button>
+                            </div>
+                            <div class="absolute top-full left-0 right-0 mt-2 bg-slate-800/90 backdrop-blur-sm border border-slate-700/50 rounded-xl shadow-2xl hidden"
+                                id="search-suggestions">
+                                <!-- Dynamic suggestions -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Main Content Area -->
+            <main class="flex-1 container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8" id="main-content">
+                <!-- Loading State -->
+                <div class="loading-state flex items-center justify-center min-h-[60vh]" id="loading-state">
+                    <div class="text-center max-w-sm mx-auto">
+                        <div class="relative mb-6">
+                            <div class="w-20 h-20 mx-auto">
+                                <div
+                                    class="absolute inset-0 bg-gradient-to-r from-amber-400 to-orange-500 rounded-full animate-ping opacity-20">
+                                </div>
+                                <div
+                                    class="absolute inset-0 bg-gradient-to-r from-amber-400 to-orange-500 rounded-full animate-pulse">
+                                </div>
+                                <div
+                                    class="relative w-20 h-20 bg-gradient-to-r from-amber-400 to-orange-500 rounded-full flex items-center justify-center shadow-2xl">
+                                    <i data-lucide="loader" class="w-10 h-10 text-white animate-spin"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <h3 class="text-2xl sm:text-3xl font-bold text-white mb-3">Loading skill hiscores...</h3>
+                        <p class="text-slate-400 text-lg">Fetching the latest rankings</p>
+                        <div class="mt-4 flex justify-center space-x-1">
+                            <div class="w-2 h-2 bg-amber-400 rounded-full animate-bounce"></div>
+                            <div class="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style="animation-delay: 0.1s">
+                            </div>
+                            <div class="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style="animation-delay: 0.2s">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Error State -->
+                <div class="error-state flex items-center justify-center min-h-[60vh] hidden" id="error-state">
+                    <div class="text-center max-w-lg mx-auto px-6">
+                        <div
+                            class="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-red-500/20 to-red-600/20 rounded-full flex items-center justify-center border-2 border-red-500/30">
+                            <i data-lucide="alert-triangle" class="w-10 h-10 text-red-400"></i>
+                        </div>
+                        <h3 class="text-2xl sm:text-3xl font-bold text-white mb-3">Oops! Something went wrong</h3>
+                        <p class="text-slate-300 mb-6 text-lg leading-relaxed" id="error-message">Unable to load skill
+                            hiscores. Please check your connection and try again.</p>
+                        <div class="space-y-4">
+                            <button
+                                class="inline-flex items-center px-8 py-4 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-semibold rounded-xl transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-xl"
+                                id="retry-btn">
+                                <i data-lucide="refresh-cw" class="w-5 h-5 mr-3"></i>
+                                Try Again
+                            </button>
+                            <div class="text-sm text-slate-400">
+                                <p>If the problem persists, please try refreshing the page</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Skill Selection View -->
+                <div class="skill-selection-view hidden" id="skill-selection-view">
+                    <div class="max-w-7xl mx-auto">
+                        <!-- Header -->
+                        <div class="text-center mb-12">
+                            <h2
+                                class="text-4xl sm:text-5xl lg:text-6xl font-bold mb-4 bg-gradient-to-r from-amber-400 via-orange-500 to-red-500 bg-clip-text text-transparent leading-tight">
+                                Skill Hiscores
+                            </h2>
+                            <p class="text-lg text-slate-300 max-w-2xl mx-auto leading-relaxed">
+                                View top-performing players for each skill
+                            </p>
+                            
+                            <!-- Quick Actions as Pills -->
+                            <div class="flex flex-wrap justify-center gap-3 mt-6">
+                                <button
+                                    class="inline-flex items-center px-4 py-2 bg-slate-700/50 hover:bg-slate-600/50 border border-slate-600/50 text-slate-300 hover:text-white text-sm rounded-full transition-all duration-200 hover:scale-105"
+                                    id="view-overall-btn">
+                                    <i data-lucide="trophy" class="w-4 h-4 mr-2"></i>
+                                    Overall Hiscores
+                                </button>
+                                <button
+                                    class="inline-flex items-center px-4 py-2 bg-slate-700/50 hover:bg-slate-600/50 border border-slate-600/50 text-slate-300 hover:text-white text-sm rounded-full transition-all duration-200 hover:scale-105"
+                                    id="random-skill-btn">
+                                    <i data-lucide="shuffle" class="w-4 h-4 mr-2"></i>
+                                    Random Skill
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Skill Categories -->
+                        <div class="space-y-10">
+                            <!-- Combat Skills -->
+                            <div class="skill-category">
+                                <div class="flex items-center mb-6">
+                                    <div class="w-8 h-8 bg-gradient-to-br from-red-500 to-red-600 rounded-lg flex items-center justify-center mr-3">
+                                        <i data-lucide="swords" class="w-4 h-4 text-white"></i>
+                                    </div>
+                                    <h3 class="text-xl font-bold text-white">Combat Skills</h3>
+                                    <div class="flex-1 h-px bg-gradient-to-r from-red-500/30 to-transparent ml-4"></div>
+                                </div>
+                                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4" id="combat-skills">
+                                    <!-- Combat skill buttons will be added here -->
+                                </div>
+                            </div>
+
+                            <!-- Gathering Skills -->
+                            <div class="skill-category">
+                                <div class="flex items-center mb-6">
+                                    <div class="w-8 h-8 bg-gradient-to-br from-green-500 to-green-600 rounded-lg flex items-center justify-center mr-3">
+                                        <i data-lucide="pickaxe" class="w-4 h-4 text-white"></i>
+                                    </div>
+                                    <h3 class="text-xl font-bold text-white">Gathering Skills</h3>
+                                    <div class="flex-1 h-px bg-gradient-to-r from-green-500/30 to-transparent ml-4"></div>
+                                </div>
+                                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4" id="gathering-skills">
+                                    <!-- Gathering skill buttons will be added here -->
+                                </div>
+                            </div>
+
+                            <!-- Artisan Skills -->
+                            <div class="skill-category">
+                                <div class="flex items-center mb-6">
+                                    <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center mr-3">
+                                        <i data-lucide="hammer" class="w-4 h-4 text-white"></i>
+                                    </div>
+                                    <h3 class="text-xl font-bold text-white">Artisan Skills</h3>
+                                    <div class="flex-1 h-px bg-gradient-to-r from-blue-500/30 to-transparent ml-4"></div>
+                                </div>
+                                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4" id="artisan-skills">
+                                    <!-- Artisan skill buttons will be added here -->
+                                </div>
+                            </div>
+
+                            <!-- Support Skills -->
+                            <div class="skill-category">
+                                <div class="flex items-center mb-6">
+                                    <div class="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center mr-3">
+                                        <i data-lucide="sparkles" class="w-4 h-4 text-white"></i>
+                                    </div>
+                                    <h3 class="text-xl font-bold text-white">Support Skills</h3>
+                                    <div class="flex-1 h-px bg-gradient-to-r from-purple-500/30 to-transparent ml-4"></div>
+                                </div>
+                                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4" id="support-skills">
+                                    <!-- Support skill buttons will be added here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Individual Skill Hiscores View -->
+                <div class="skill-hiscores-view hidden" id="skill-hiscores-view">
+                    <!-- Navigation & Header -->
+                    <div class="mb-8">
+                        <button
+                            class="inline-flex items-center px-6 py-3 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700/50 text-white rounded-xl transition-all duration-200 hover:scale-105 mb-6 font-medium"
+                            id="back-to-skills-btn">
+                            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+                            Back to Skill Selection
+                        </button>
+                    </div>
+
+                    <!-- Skill Header -->
+                    <div
+                        class="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-8 space-y-4 lg:space-y-0">
+                        <div class="flex-1">
+                            <div class="flex items-center mb-4">
+                                <div class="w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center mr-4 shadow-lg animate-glow"
+                                    id="skill-icon-container">
+                                    <i data-lucide="target" class="w-8 h-8 text-white" id="skill-icon"></i>
+                                </div>
+                                <div>
+                                    <h2 class="text-3xl sm:text-4xl font-bold text-white mb-2">
+                                        <span id="current-skill-name"
+                                            class="bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">Skill</span>
+                                        <span class="text-white">Hiscores</span>
+                                    </h2>
+                                    <div class="flex flex-wrap items-center gap-4 text-slate-400">
+                                        <div class="flex items-center">
+                                            <i data-lucide="users" class="w-4 h-4 mr-2"></i>
+                                            <span id="total-players-count">Loading players...</span>
+                                        </div>
+                                        <div class="flex items-center">
+                                            <i data-lucide="trending-up" class="w-4 h-4 mr-2"></i>
+                                            <span>Top performers</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Skill Stats Overview -->
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6" id="skill-stats-overview">
+                                <div class="bg-slate-700/30 backdrop-blur-sm rounded-xl p-4 border border-slate-600/50">
+                                    <div class="flex items-center mb-2">
+                                        <i data-lucide="crown" class="w-4 h-4 text-amber-400 mr-2"></i>
+                                        <p class="text-amber-400 text-sm font-semibold uppercase tracking-wider">Top
+                                            Player</p>
+                                    </div>
+                                    <p class="text-lg font-bold text-white" id="top-player-name">Loading...</p>
+                                    <p class="text-sm text-slate-400" id="top-player-level">Level 0</p>
+                                </div>
+                                <div class="bg-slate-700/30 backdrop-blur-sm rounded-xl p-4 border border-slate-600/50">
+                                    <div class="flex items-center mb-2">
+                                        <i data-lucide="zap" class="w-4 h-4 text-orange-400 mr-2"></i>
+                                        <p class="text-orange-400 text-sm font-semibold uppercase tracking-wider">
+                                            Highest XP</p>
+                                    </div>
+                                    <p class="text-lg font-bold text-white" id="highest-xp">0</p>
+                                    <p class="text-sm text-slate-400" id="highest-xp-player">Player</p>
+                                </div>
+                                <div class="bg-slate-700/30 backdrop-blur-sm rounded-xl p-4 border border-slate-600/50">
+                                    <div class="flex items-center mb-2">
+                                        <i data-lucide="target" class="w-4 h-4 text-green-400 mr-2"></i>
+                                        <p class="text-green-400 text-sm font-semibold uppercase tracking-wider">Avg
+                                            Level</p>
+                                    </div>
+                                    <p class="text-lg font-bold text-white" id="average-level">0</p>
+                                    <p class="text-sm text-slate-400">Top 100 players</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col sm:flex-row gap-3">
+                            <button
+                                class="inline-flex items-center px-6 py-3 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700/50 text-white rounded-xl transition-all duration-200 hover:scale-105 font-medium"
+                                id="refresh-skill-data">
+                                <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i>
+                                Refresh Data
+                            </button>
+                            <button
+                                class="inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white rounded-xl transition-all duration-200 hover:scale-105 font-medium"
+                                id="export-skill-data">
+                                <i data-lucide="download" class="w-4 h-4 mr-2"></i>
+                                Export Data
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Search & Filter Options -->
+                    <div class="flex flex-col sm:flex-row gap-4 mb-6">
+                        <div class="flex-1">
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <i data-lucide="search" class="w-4 h-4 text-slate-400"></i>
+                                </div>
+                                <input type="text"
+                                    class="block w-full pl-10 pr-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent placeholder-slate-400 text-white"
+                                    id="skill-player-search" placeholder="Search players in this skill...">
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <select
+                                class="px-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
+                                id="level-filter">
+                                <option value="">All Levels</option>
+                                <option value="99">Level 99</option>
+                                <option value="90">Level 90+</option>
+                                <option value="80">Level 80+</option>
+                                <option value="70">Level 70+</option>
+                                <option value="60">Level 60+</option>
+                                <option value="50">Level 50+</option>
+                            </select>
+                            <select
+                                class="px-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent text-white"
+                                id="xp-filter">
+                                <option value="">All XP</option>
+                                <option value="200000000">200M XP</option>
+                                <option value="100000000">100M+ XP</option>
+                                <option value="50000000">50M+ XP</option>
+                                <option value="10000000">10M+ XP</option>
+                                <option value="1000000">1M+ XP</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Skill Hiscores Table -->
+                    <div
+                        class="bg-slate-800/30 backdrop-blur-sm border border-slate-700/50 rounded-2xl overflow-hidden shadow-2xl">
+                        <div class="overflow-x-auto">
+                            <table class="w-full osrs-hiscores-table" id="skill-hiscores-table">
+                                <thead class="bg-slate-700/60">
+                                    <tr class="border-b border-slate-600/50">
+                                        <th
+                                            class="px-6 py-4 text-left text-amber-400 font-semibold text-sm uppercase tracking-wider">
+                                            <div class="flex items-center cursor-pointer hover:text-amber-300"
+                                                id="sort-rank">
+                                                <i data-lucide="hash" class="w-4 h-4 mr-2"></i>
+                                                Rank
+                                                <i data-lucide="arrow-up-down" class="w-3 h-3 ml-2 opacity-50"></i>
+                                            </div>
+                                        </th>
+                                        <th
+                                            class="px-6 py-4 text-left text-amber-400 font-semibold text-sm uppercase tracking-wider">
+                                            <div class="flex items-center cursor-pointer hover:text-amber-300"
+                                                id="sort-player">
+                                                <i data-lucide="user" class="w-4 h-4 mr-2"></i>
+                                                Player Name
+                                                <i data-lucide="arrow-up-down" class="w-3 h-3 ml-2 opacity-50"></i>
+                                            </div>
+                                        </th>
+                                        <th
+                                            class="px-6 py-4 text-left text-amber-400 font-semibold text-sm uppercase tracking-wider">
+                                            <div class="flex items-center cursor-pointer hover:text-amber-300"
+                                                id="sort-level">
+                                                <i data-lucide="trending-up" class="w-4 h-4 mr-2"></i>
+                                                Level
+                                                <i data-lucide="arrow-up-down" class="w-3 h-3 ml-2 opacity-50"></i>
+                                            </div>
+                                        </th>
+                                        <th
+                                            class="px-6 py-4 text-left text-amber-400 font-semibold text-sm uppercase tracking-wider">
+                                            <div class="flex items-center cursor-pointer hover:text-amber-300"
+                                                id="sort-xp">
+                                                <i data-lucide="zap" class="w-4 h-4 mr-2"></i>
+                                                Experience
+                                                <i data-lucide="arrow-up-down" class="w-3 h-3 ml-2 opacity-50"></i>
+                                            </div>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody id="skill-hiscores-body" class="divide-y divide-slate-700/30">
+                                    <!-- Dynamic content -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Enhanced Pagination -->
+                        <div id="skill-pagination-controls"
+                            class="flex flex-col sm:flex-row justify-between items-center p-6 bg-slate-800/40 border-t border-slate-700/50 space-y-3 sm:space-y-0">
+                            <button id="skill-prev-page"
+                                class="inline-flex items-center px-4 py-2 bg-slate-700/50 hover:bg-slate-600/50 text-white rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium">
+                                <i data-lucide="chevron-left" class="w-4 h-4 mr-2"></i>
+                                Previous
+                            </button>
+                            <div class="flex items-center space-x-4">
+                                <span id="skill-page-info" class="text-slate-300 font-medium"></span>
+                                <div class="flex items-center text-sm text-slate-400">
+                                    <i data-lucide="list" class="w-4 h-4 mr-1"></i>
+                                    <select id="items-per-page"
+                                        class="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-white">
+                                        <option value="25">25 per page</option>
+                                        <option value="50">50 per page</option>
+                                        <option value="100">100 per page</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button id="skill-next-page"
+                                class="inline-flex items-center px-4 py-2 bg-slate-700/50 hover:bg-slate-600/50 text-white rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium">
+                                Next
+                                <i data-lucide="chevron-right" class="w-4 h-4 ml-2"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <!-- Enhanced Footer -->
+            <footer
+                class="border-t border-slate-700/50 bg-gradient-to-r from-slate-900/50 to-slate-800/50 backdrop-blur-sm mt-auto">
+                <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    <div class="flex flex-col md:flex-row md:justify-between md:items-center space-y-6 md:space-y-0">
+                        <!-- Data Status -->
+                        <div class="text-center md:text-left">
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-2 sm:space-y-0">
+                                <div class="flex items-center justify-center md:justify-start">
+                                    <div class="w-3 h-3 bg-green-400 rounded-full mr-3 animate-pulse"></div>
+                                    <p class="text-slate-300 font-medium">Live Data Connection</p>
+                                </div>
+                                <div class="flex items-center justify-center md:justify-start">
+                                    <i data-lucide="clock" class="w-4 h-4 mr-2 text-amber-400"></i>
+                                    <p class="text-slate-400">
+                                        Updates hourly • Last: <span id="last-updated"
+                                            class="text-amber-400 font-medium">Loading...</span>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Legal & Credits -->
+                        <div class="text-center md:text-right space-y-1">
+                            <p class="text-slate-400 text-sm leading-relaxed">
+                                Built with ❤️ for the OSRS community
+                            </p>
+                            <p class="text-slate-500 text-xs">
+                                Not affiliated with Jagex Ltd. • OSRS is a trademark of Jagex Ltd.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </footer>
+        </div>
+
+        <!-- Toast Notifications -->
+        <div class="fixed top-4 right-4 z-50 space-y-2" id="toast-container"></div>
+
+        <script src="skill-hiscores.js"></script>
+        <script>
+            // Initialize Lucide icons
+            lucide.createIcons();
+        </script>
+    </body>
+
+</html>

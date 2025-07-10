@@ -1,8 +1,14 @@
 // frontend/app.js
 
 document.addEventListener('DOMContentLoaded', () => {
-    const ITEMS_PER_PAGE = 25;
+    const ITEMS_PER_PAGE_DEFAULT = 25;
     let currentPage = 1;
+    let itemsPerPage = ITEMS_PER_PAGE_DEFAULT;
+    let currentLeaderboardSortField = 'rank';
+    let currentLeaderboardSortDirection = 'asc';
+    let filteredLeaderboardData = [];
+    let allLeaderboardData = [];
+
     // Auto-detect API URL based on environment
     const API_BASE_URL = (() => {
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
@@ -26,6 +32,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchInput = document.getElementById('search-input');
     const searchSuggestions = document.getElementById('search-suggestions');
     const searchClear = document.getElementById('search-clear');
+    const leaderboardPlayerSearch = document.getElementById('leaderboard-player-search');
+    const totalLevelFilter = document.getElementById('total-level-filter');
+    const totalXpFilter = document.getElementById('total-xp-filter');
+    const leaderboardItemsPerPage = document.getElementById('leaderboard-items-per-page');
+    const totalLeaderboardPlayers = document.getElementById('total-leaderboard-players');
+    const exportLeaderboard = document.getElementById('export-leaderboard');
+    const viewSkillHiscores = document.getElementById('view-skill-hiscores');
     const themeToggle = document.getElementById('theme-toggle');
     const searchToggle = document.getElementById('search-toggle');
     const retryBtn = document.getElementById('retry-btn');
@@ -79,8 +92,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const formatNumber = (num) => {
-        if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-        if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
         return num.toLocaleString();
     };
 
@@ -108,11 +119,17 @@ document.addEventListener('DOMContentLoaded', () => {
         row.className = 'hover:bg-slate-700/20 transition-colors duration-200';
         const fontWeightClass = isOverall ? 'font-bold' : 'font-medium';
         if (isOverall) row.classList.add('border-b', 'border-slate-600/50');
+
+        // Make skill names clickable (except for Overall)
+        const skillNameElement = isOverall
+            ? `<span class="text-white ${fontWeightClass}">${name}</span>`
+            : `<button class="skill-link text-white ${fontWeightClass} hover:text-amber-400 transition-colors duration-200 text-left" data-skill="${name}" title="View ${name} hiscores">${name}</button>`;
+
         row.innerHTML = `
             <td class="px-4 py-3">
                 <div class="flex items-center">
                     <div class="w-6 h-6 mr-3 flex items-center justify-center"><i data-lucide="${icon}" class="w-4 h-4 text-amber-400"></i></div>
-                    <span class="text-white ${fontWeightClass}">${name}</span>
+                    ${skillNameElement}
                 </div>
             </td>
             <td class="px-4 py-3"><span class="text-slate-300 ${fontWeightClass}">${rank}</span></td>
@@ -127,6 +144,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 const username = link.dataset.username;
                 if (username) window.location.hash = encodeURIComponent(username);
+            });
+        });
+    };
+
+    const attachSkillLinkListeners = (selector = '.skill-link') => {
+        document.querySelectorAll(selector).forEach(link => {
+            link.addEventListener('click', e => {
+                e.preventDefault();
+                const skillName = link.dataset.skill;
+                if (skillName) {
+                    // Open skill hiscores page in a new tab
+                    window.open(`skill-hiscores.html#${encodeURIComponent(skillName)}`, '_blank');
+                }
             });
         });
     };
@@ -151,7 +181,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const navigateToHome = () => { window.location.hash = ''; };
 
     const changePage = (direction) => {
-        const maxPage = Math.ceil(cachedLeaderboardData.length / ITEMS_PER_PAGE);
+        const maxPage = Math.ceil(filteredLeaderboardData.length / itemsPerPage);
         const newPage = currentPage + direction;
         if (newPage >= 1 && newPage <= maxPage) {
             currentPage = newPage;
@@ -179,6 +209,131 @@ document.addEventListener('DOMContentLoaded', () => {
             showView('leaderboard');
             renderLeaderboard();
         }
+    };
+
+    // =================================================================
+    // SORTING & FILTERING FUNCTIONS
+    // =================================================================
+
+    const applyLeaderboardFiltersAndSort = () => {
+        let filtered = [...allLeaderboardData];
+
+        // Apply search filter
+        const searchTerm = leaderboardPlayerSearch?.value.toLowerCase().trim();
+        if (searchTerm) {
+            filtered = filtered.filter(player =>
+                player.username.toLowerCase().includes(searchTerm)
+            );
+        }
+
+        // Apply total level filter
+        const levelFilterValue = totalLevelFilter?.value;
+        if (levelFilterValue) {
+            const minLevel = parseInt(levelFilterValue);
+            filtered = filtered.filter(player => player.totalLevel >= minLevel);
+        }
+
+        // Apply total XP filter
+        const xpFilterValue = totalXpFilter?.value;
+        if (xpFilterValue) {
+            const minXp = parseInt(xpFilterValue);
+            filtered = filtered.filter(player => player.totalXp >= minXp);
+        }
+
+        // Apply sorting
+        filtered.sort((a, b) => {
+            let aValue, bValue;
+            switch (currentLeaderboardSortField) {
+                case 'rank':
+                    aValue = a.rank;
+                    bValue = b.rank;
+                    break;
+                case 'player':
+                    aValue = a.username.toLowerCase();
+                    bValue = b.username.toLowerCase();
+                    break;
+                case 'level':
+                    aValue = a.totalLevel;
+                    bValue = b.totalLevel;
+                    break;
+                case 'xp':
+                    aValue = a.totalXp;
+                    bValue = b.totalXp;
+                    break;
+                default:
+                    aValue = a.rank;
+                    bValue = b.rank;
+            }
+
+            if (currentLeaderboardSortDirection === 'asc') {
+                return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+            } else {
+                return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+            }
+        });
+
+        filteredLeaderboardData = filtered;
+        currentPage = 1; // Reset to first page when filters change
+        renderLeaderboard();
+    };
+
+    const setLeaderboardSortField = (field) => {
+        if (currentLeaderboardSortField === field) {
+            currentLeaderboardSortDirection = currentLeaderboardSortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentLeaderboardSortField = field;
+            currentLeaderboardSortDirection = field === 'rank' ? 'asc' : 'desc'; // Default to desc for most fields except rank
+        }
+        applyLeaderboardFiltersAndSort();
+        updateLeaderboardSortIndicators();
+    };
+
+    const updateLeaderboardSortIndicators = () => {
+        // Reset all sort indicators
+        document.querySelectorAll('[id^="sort-leaderboard-"] i[data-lucide="arrow-up-down"], [id^="sort-leaderboard-"] i[data-lucide="arrow-up"], [id^="sort-leaderboard-"] i[data-lucide="arrow-down"]').forEach(icon => {
+            icon.setAttribute('data-lucide', 'arrow-up-down');
+            icon.className = 'w-3 h-3 ml-2 opacity-50';
+        });
+
+        // Set active sort indicator
+        const activeSortElement = document.getElementById(`sort-leaderboard-${currentLeaderboardSortField}`);
+        if (activeSortElement) {
+            const icon = activeSortElement.querySelector('i[data-lucide="arrow-up-down"]');
+            if (icon) {
+                icon.setAttribute('data-lucide', currentLeaderboardSortDirection === 'asc' ? 'arrow-up' : 'arrow-down');
+                icon.className = 'w-3 h-3 ml-2 opacity-100 text-amber-400';
+            }
+        }
+        lucide.createIcons();
+    };
+
+    const exportLeaderboardData = () => {
+        if (!filteredLeaderboardData.length) {
+            showToast('No data to export', 'warning');
+            return;
+        }
+
+        const csvContent = [
+            ['Rank', 'Player Name', 'Total Level', 'Total Experience'].join(','),
+            ...filteredLeaderboardData.map(player => [
+                player.rank,
+                player.username,
+                player.totalLevel,
+                player.totalXp
+            ].join(','))
+        ].join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `osrs-overall-hiscores.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+
+        showToast('Overall hiscores exported successfully!', 'success');
     };
 
     // =================================================================
@@ -227,8 +382,14 @@ document.addEventListener('DOMContentLoaded', () => {
         showView('loading');
         try {
             await fetchAndCacheRankings();
-            renderLeaderboard();
+            allLeaderboardData = [...cachedLeaderboardData];
+            applyLeaderboardFiltersAndSort();
             showView('leaderboard');
+
+            // Update total players count
+            if (totalLeaderboardPlayers) {
+                totalLeaderboardPlayers.textContent = `${allLeaderboardData.length.toLocaleString()} players tracked`;
+            }
         } catch (error) {
             // Error is already handled by fetchAndCacheRankings
             console.log("Stopping leaderboard render due to fetch error.");
@@ -265,16 +426,16 @@ document.addEventListener('DOMContentLoaded', () => {
      * FIX: No longer needs data passed in; it uses the global cache.
      */
     function renderLeaderboard() {
-        const totalPages = Math.ceil(cachedLeaderboardData.length / ITEMS_PER_PAGE);
+        const totalPages = Math.ceil(filteredLeaderboardData.length / itemsPerPage);
         if (currentPage > totalPages) currentPage = totalPages;
         if (currentPage < 1) currentPage = 1;
 
-        const startIdx = (currentPage - 1) * ITEMS_PER_PAGE;
-        const pageData = cachedLeaderboardData.slice(startIdx, startIdx + ITEMS_PER_PAGE);
+        const startIdx = (currentPage - 1) * itemsPerPage;
+        const pageData = filteredLeaderboardData.slice(startIdx, startIdx + itemsPerPage);
         leaderboardBody.innerHTML = '';
 
         if (pageData.length === 0) {
-            leaderboardBody.innerHTML = `<tr><td colspan="4" class="px-4 py-8 text-center text-slate-400">No players found.</td></tr>`;
+            leaderboardBody.innerHTML = `<tr><td colspan="4" class="px-6 py-8 text-center text-slate-400">No players found matching your criteria.</td></tr>`;
         } else {
             pageData.forEach((player) => {
                 const row = document.createElement('tr');
@@ -285,24 +446,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 else if (player.rank === 3) rankClass = 'rank-bronze';
 
                 row.innerHTML = `
-                    <td class="px-4 py-3"><span class="font-medium ${rankClass}">${player.rank}</span></td>
-                    <td class="px-4 py-3">
+                    <td class="px-6 py-3"><span class="font-medium ${rankClass}">${player.rank.toLocaleString()}</span></td>
+                    <td class="px-6 py-3">
                         <button class="player-link text-left hover:text-amber-400 transition-colors duration-200" data-username="${player.username}">
                             <span class="font-medium">${player.username}</span>
                         </button>
                     </td>
-                    <td class="px-4 py-3"><span>${player.totalLevel.toLocaleString()}</span></td>
-                    <td class="px-4 py-3"><span>${player.totalXp.toLocaleString()}</span></td>`;
+                    <td class="px-6 py-3"><span class="font-medium">${player.totalLevel.toLocaleString()}</span></td>
+                    <td class="px-6 py-3"><span class="font-medium">${formatNumber(player.totalXp)}</span></td>`;
                 leaderboardBody.appendChild(row);
             });
             attachPlayerLinkListeners();
         }
 
-        document.getElementById('prev-page').disabled = (currentPage === 1);
-        document.getElementById('next-page').disabled = (currentPage >= totalPages);
-        document.getElementById('page-info').textContent = `Page ${currentPage} of ${totalPages || 1}`;
+        updateLeaderboardPaginationControls(totalPages);
         lucide.createIcons();
     }
+
+    const updateLeaderboardPaginationControls = (totalPages) => {
+        document.getElementById('prev-page').disabled = (currentPage === 1);
+        document.getElementById('next-page').disabled = (currentPage >= totalPages);
+        document.getElementById('page-info').textContent = `Page ${currentPage} of ${totalPages || 1} (${filteredLeaderboardData.length.toLocaleString()} players)`;
+    };
 
     const renderUserDetail = async (user) => {
         document.getElementById('player-name').textContent = user.username;
@@ -323,6 +488,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const skillRow = createSkillRow({ icon: getSkillIcon(skillName), name: skillName, rank: getUserSkillRank(user.username, skillName), level: skill.level, xp: skill.xp });
             skillsTableBody.appendChild(skillRow);
         });
+        attachSkillLinkListeners(); // Attach click listeners to skill names
         lucide.createIcons();
     };
 
@@ -394,6 +560,24 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('prev-page').addEventListener('click', () => changePage(-1));
     document.getElementById('next-page').addEventListener('click', () => changePage(1));
 
+    // Enhanced leaderboard functionality
+    leaderboardPlayerSearch?.addEventListener('input', debounce(() => applyLeaderboardFiltersAndSort(), 300));
+    totalLevelFilter?.addEventListener('change', () => applyLeaderboardFiltersAndSort());
+    totalXpFilter?.addEventListener('change', () => applyLeaderboardFiltersAndSort());
+    leaderboardItemsPerPage?.addEventListener('change', (e) => {
+        itemsPerPage = parseInt(e.target.value);
+        currentPage = 1;
+        renderLeaderboard();
+    });
+    exportLeaderboard?.addEventListener('click', exportLeaderboardData);
+    viewSkillHiscores?.addEventListener('click', () => window.open('skill-hiscores.html', '_self'));
+
+    // Leaderboard sorting
+    document.getElementById('sort-leaderboard-rank')?.addEventListener('click', () => setLeaderboardSortField('rank'));
+    document.getElementById('sort-leaderboard-player')?.addEventListener('click', () => setLeaderboardSortField('player'));
+    document.getElementById('sort-leaderboard-level')?.addEventListener('click', () => setLeaderboardSortField('level'));
+    document.getElementById('sort-leaderboard-xp')?.addEventListener('click', () => setLeaderboardSortField('xp'));
+
     // =================================================================
     // INITIALIZATION
     // =================================================================
@@ -428,7 +612,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         await fetchSkills(); // Fetch skill list first
         try {
-            await fetchAndCacheRankings(); // Then get all data
+            await fetchAndCacheRankings();
+            allLeaderboardData = [...cachedLeaderboardData];
+            applyLeaderboardFiltersAndSort();
             handleRouteChange(); // Finally, render the correct view based on the URL
         } catch (error) {
             // Error already handled, init stops here.

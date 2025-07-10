@@ -7,8 +7,8 @@ compatibility_date = "2023-10-30"
 [triggers]
 # FIX: Run more frequently to process users in smaller, faster batches.
 # This aligns with the new code logic to avoid hitting API request limits.
-# "*/5 * * * *" = At every 5th minute.
-crons = ["*/5 * * * *"]
+# "*/10 * * * *" = At every 10th minute.
+crons = ["*/10 * * * *"]
 
 # KV Namespace binding. This part does NOT need to change.
 [[kv_namespaces]]

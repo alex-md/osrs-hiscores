@@ -6,6 +6,7 @@ A modern, full-stack web application for looking up and displaying mock Old Scho
 
   - 📊 **Dynamic Leaderboard**: View a paginated leaderboard of all players, ranked by total level and experience.
   - 👤 **Detailed Player Stats**: Look up any player to see their complete hiscores, including individual skill ranks, levels, and experience.
+  - 🎯 **Individual Skill Hiscores**: Dedicated skill-specific leaderboards with advanced filtering, sorting, and export functionality.
   - 🔍 **Live Player Search**: Instantly search for players with debounced search and live suggestions.
   - 🤖 **Sophisticated Mock Data**: The backend worker continuously generates and updates player data with realistic activity patterns, including different player types (e.g., Casual, Hardcore, Elite) and weighted XP gains.
   - ⚡ **Edge Performance**: Powered by Cloudflare Workers for fast API responses and data storage with Cloudflare KV.
@@ -21,6 +22,8 @@ osrs-hiscores/
 ├── .github/workflows/    # CI/CD workflows
 ├── frontend/             # Static frontend files
 │   ├── index.html        # Main application page
+│   ├── skill-hiscores.html  # Individual skill hiscores page
+│   ├── skill-hiscores.js    # Skill hiscores application logic
 │   ├── styles.css        # Custom OSRS-themed styles
 │   └── app.js            # Frontend application logic
 ├── workers/              # Cloudflare Worker backend
@@ -66,15 +69,27 @@ A cron job is configured in `wrangler.toml` to run **every 15 minutes** (`*/15 *
 
 ## Frontend: Vanilla JavaScript App
 
-The frontend is a single-page application (`frontend/app.js`) that provides the user interface for viewing the hiscores data.
+The frontend consists of two main pages:
 
-### Features
+### Main Application (`frontend/index.html` + `app.js`)
+The primary single-page application that provides the user interface for viewing overall hiscores and player details.
 
-  - **View Routing**: Uses the URL hash (`#`) to navigate between the main leaderboard and individual player pages.
+### Skill Hiscores (`frontend/skill-hiscores.html` + `skill-hiscores.js`)
+A dedicated page for viewing individual skill leaderboards with advanced features:
+- **Skill Selection Grid**: Visual grid of all skills with color-coded icons
+- **Advanced Filtering**: Filter by level ranges, XP thresholds, and player names
+- **Sortable Columns**: Click column headers to sort by rank, player name, level, or XP
+- **Pagination Controls**: Configurable items per page (25/50/100)
+- **Export Functionality**: Download skill rankings as CSV files
+- **Skill Statistics**: View top player, highest XP, and average level for each skill
+
+### Shared Features
+
+  - **View Routing**: Uses the URL hash (`#`) to navigate between views and maintain state.
   - **Data Caching**: Caches API responses (leaderboard, users, rankings) in memory to reduce redundant network requests and speed up navigation.
   - **Dynamic Rendering**: All views are rendered dynamically based on the fetched API data.
   - **Theming**: Supports both light and dark modes, with the user's preference saved to local storage.
-  - **Interactive Elements**: Includes a searchable leaderboard with pagination, player search with suggestions, and toast notifications for a better user experience.
+  - **Interactive Elements**: Includes searchable interfaces, toast notifications, and cross-page navigation for a seamless user experience.
 
 -----
 

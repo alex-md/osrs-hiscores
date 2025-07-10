@@ -55,7 +55,7 @@ const SKILL_POPULARITY_WEIGHTS = {
 const LEVEL_SCALING_FACTOR = 0.60;
 
 // A slight bump to make the hiscores move a bit faster overall.
-const GLOBAL_XP_MULTIPLIER = 2.0;
+const GLOBAL_XP_MULTIPLIER = 1.1;
 
 // Increased significantly to make weekends feel like a major competitive event.
 const WEEKEND_BONUS_MULTIPLIER = 1.5;
@@ -480,8 +480,7 @@ async function runScheduledUpdate(env) {
             await saveBatchUpdates(env, allPayloads);
         }
 
-        // FIX: Implement conditional, time-based leaderboard regeneration.
-        // This is the key change to prevent platform limit errors.
+        // Conditional, time-based leaderboard regeneration
         const leaderboards = await getLeaderboards(env);
         const now = new Date();
         const lastUpdated = leaderboards.lastUpdated ? new Date(leaderboards.lastUpdated) : null;
@@ -489,7 +488,7 @@ async function runScheduledUpdate(env) {
 
         if (shouldRegenerate) {
             console.log(`Leaderboard cache is stale (older than ${LEADERBOARD_CACHE_TTL_MINUTES} mins). Regenerating...`);
-            // This expensive operation now only runs periodically.
+            // Expensive operation now only runs periodically
             const allUsers = await getAllUsers(env);
             const totalLevelLeaderboard = generateTotalLevelLeaderboard(allUsers);
             const skillRankings = generateAllSkillRankings(allUsers);
@@ -526,6 +525,7 @@ async function runScheduledUpdate(env) {
         throw error;
     }
 }
+
 
 // =================================================================
 // ROUTER & HANDLERS
