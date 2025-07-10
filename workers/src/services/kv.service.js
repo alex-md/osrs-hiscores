@@ -35,21 +35,44 @@ export class KVService {
         return kvList.keys.filter(key => !key.name.startsWith('__'));
     }
 
-    async getAllUsers(batchSize = 100) {
+    async getAllUsers(batchSize = 100, maxUsers = null) {
         const userKeys = await this.listUserKeys();
         if (!userKeys || userKeys.length === 0) return [];
 
+        // Limit the number of users to process if maxUsers is specified
+        const keysToProcess = maxUsers ? userKeys.slice(0, maxUsers) : userKeys;
         const users = [];
-        for (let i = 0; i < userKeys.length; i += batchSize) {
-            const batchKeys = userKeys.slice(i, i + batchSize);
+
+        for (let i = 0; i < keysToProcess.length; i += batchSize) {
+            const batchKeys = keysToProcess.slice(i, i + batchSize);
             const userPromises = batchKeys.map(key => this.getUser(key.name));
             const batchUsers = await Promise.all(userPromises);
             users.push(...batchUsers.filter(Boolean));
-            if (i + batchSize < userKeys.length) {
+
+            // Add delay between batches to prevent overwhelming the KV store
+            if (i + batchSize < keysToProcess.length) {
                 await new Promise(resolve => setTimeout(resolve, 50));
             }
         }
         return users;
+    }
+
+    // New method for streaming user processing without loading all into memory
+    async *streamAllUsers(batchSize = 50) {
+        const userKeys = await this.listUserKeys();
+        if (!userKeys || userKeys.length === 0) return;
+
+        for (let i = 0; i < userKeys.length; i += batchSize) {
+            const batchKeys = userKeys.slice(i, i + batchSize);
+            const userPromises = batchKeys.map(key => this.getUser(key.name));
+            const batchUsers = await Promise.all(userPromises);
+            yield batchUsers.filter(Boolean);
+
+            // Add delay between batches
+            if (i + batchSize < userKeys.length) {
+                await new Promise(resolve => setTimeout(resolve, 50));
+            }
+        }
     }
 
     async saveBatchUpdates(updatePayloads, batchSize = 50, delay = 100) {

@@ -13,6 +13,3 @@ crons = ["*/10 * * * *"]
 [[kv_namespaces]]
 binding = "HISCORES_KV"
 id = "4d71578af7894ec8b339d49e0c951bee"
-
-[placement]
-mode = "smart"

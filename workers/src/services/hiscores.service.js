@@ -77,14 +77,36 @@ export class HiscoresService {
 
     async createNewUsers(count) {
         const payloads = [];
+        const usedUsernames = new Set();
+
         for (let i = 0; i < count; i++) {
             let username, isUnique = false, attempts = 0;
             while (!isUnique && attempts < 10) {
-                const response = await fetch('https://random-word-api.herokuapp.com/word', { signal: AbortSignal.timeout(3000) });
-                if (response.ok) {
-                    const [word] = await response.json();
-                    username = word.charAt(0).toUpperCase() + word.slice(1) + (Math.random() < 0.2 ? Math.floor(Math.random() * 999) : '');
-                    if (!(await this.kv.getUser(username))) isUnique = true;
+                try {
+                    const response = await fetch('https://random-word-api.herokuapp.com/word', { signal: AbortSignal.timeout(3000) });
+                    if (response.ok) {
+                        const [word] = await response.json();
+                        const baseUsername = word.charAt(0).toUpperCase() + word.slice(1);
+                        const suffix = Math.random() < 0.2 ? Math.floor(Math.random() * 999) : '';
+                        username = baseUsername + suffix;
+
+                        // Check both local set and KV store to prevent race conditions
+                        if (!usedUsernames.has(username.toLowerCase()) && !(await this.kv.getUser(username))) {
+                            usedUsernames.add(username.toLowerCase());
+                            isUnique = true;
+                        }
+                    }
+                } catch (error) {
+                    console.warn(`Failed to fetch random word (attempt ${attempts + 1}):`, error.message);
+                    // Fallback to timestamp-based username if API fails
+                    if (attempts >= 5) {
+                        const timestamp = Date.now().toString(36);
+                        username = `User${timestamp}`;
+                        if (!usedUsernames.has(username.toLowerCase()) && !(await this.kv.getUser(username))) {
+                            usedUsernames.add(username.toLowerCase());
+                            isUnique = true;
+                        }
+                    }
                 }
                 attempts++;
             }
@@ -134,12 +156,7 @@ export class HiscoresService {
 
         if (shouldRegenerate) {
             console.log("Regenerating leaderboards...");
-            const allUsers = await this.kv.getAllUsers();
-            await this.kv.setLeaderboards({
-                totalLevel: this.generateTotalLevelLeaderboard(allUsers),
-                skills: this.generateAllSkillRankings(allUsers),
-                lastUpdated: now.toISOString(),
-            });
+            await this.regenerateLeaderboardsEfficiently();
         }
 
         // Update cron state
@@ -236,5 +253,53 @@ export class HiscoresService {
             xp += Math.floor(i + 300 * Math.pow(2, i / 7));
         }
         return Math.floor(xp / 4);
+    }
+
+    // --- Memory-Efficient Leaderboard Generation ---
+    async regenerateLeaderboardsEfficiently() {
+        const totalLevelData = [];
+        const skillRankings = Object.fromEntries(config.SKILLS.map(skill => [skill, []]));
+
+        // Process users in batches to avoid memory issues
+        for await (const userBatch of this.kv.streamAllUsers(50)) {
+            // Process total level data
+            userBatch.forEach(user => {
+                const totals = this.calculateUserTotals(user);
+                totalLevelData.push({
+                    username: user.username,
+                    ...totals
+                });
+
+                // Process skill rankings
+                config.SKILLS.forEach(skillName => {
+                    const skill = user.skills?.[skillName];
+                    if (skill) {
+                        skillRankings[skillName].push({
+                            username: user.username,
+                            ...skill
+                        });
+                    }
+                });
+            });
+        }
+
+        // Sort and rank total level leaderboard
+        const totalLevelLeaderboard = totalLevelData
+            .sort((a, b) => b.totalLevel - a.totalLevel || b.totalXp - a.totalXp)
+            .map((p, i) => ({ ...p, rank: i + 1 }));
+
+        // Sort and rank skill leaderboards
+        Object.keys(skillRankings).forEach(skillName => {
+            skillRankings[skillName]
+                .sort((a, b) => b.level - a.level || b.xp - a.xp)
+                .forEach((p, i) => p.rank = i + 1);
+        });
+
+        // Save the leaderboards
+        await this.kv.setLeaderboards({
+            totalLevel: totalLevelLeaderboard,
+            skills: skillRankings,
+            lastUpdated: new Date().toISOString(),
+        });
     }
 }

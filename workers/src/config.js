@@ -1,7 +1,7 @@
 // src/config.js
 
 export const SKILLS = ['Attack', 'Strength', 'Defence', 'Ranged', 'Prayer', 'Magic', 'Runecrafting', 'Construction', 'Hitpoints', 'Agility', 'Herblore', 'Thieving', 'Crafting', 'Fletching', 'Slayer', 'Hunter', 'Mining', 'Smithing', 'Fishing', 'Cooking', 'Firemaking', 'Woodcutting', 'Farming'];
-export const COMBAT_SKILLS = ['Attack', 'Strength', 'Defence', 'Ranged'];
+export const COMBAT_SKILLS = ['Attack', 'Strength', 'Defence', 'Ranged', 'Prayer', 'Magic', 'Hitpoints'];
 export const WEEKEND_DAYS = [0, 6]; // 0 = Sun, 6 = Sat
 
 export const PLAYER_ACTIVITY_TYPES = {
@@ -20,8 +20,8 @@ export const SKILL_POPULARITY_WEIGHTS = {
 };
 
 export const LEVEL_SCALING_FACTOR = 0.60;
-export const GLOBAL_XP_MULTIPLIER = 1.1;
-export const WEEKEND_BONUS_MULTIPLIER = 1.5;
+export const GLOBAL_XP_MULTIPLIER = 1.4;
+export const WEEKEND_BONUS_MULTIPLIER = 1.9;
 
 // Cron Job Execution Tuning
 export const MAX_USERS_PER_SCHEDULED_RUN = 100;

@@ -20,6 +20,7 @@ export class Router {
                 const leaderboards = await this.service.kv.getLeaderboards();
                 return jsonResponse(leaderboards);
             }
+            // Invoke-RestMethod -Uri "https://osrs-hiscores-clone.vs.workers.dev/api/cron/trigger" -Method POST
             if (pathname === '/api/cron/trigger' && request.method === 'POST') {
                 await this.service.runScheduledUpdate();
                 return jsonResponse({ message: 'Cron job executed successfully' });
