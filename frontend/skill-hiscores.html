@@ -661,7 +661,9 @@
         <!-- Toast Notifications -->
         <div class="fixed top-4 right-4 z-50 space-y-2" id="toast-container"></div>
 
-        <script src="skill-hiscores.js"></script>
+        <!-- Add this before your page-specific script -->
+        <script src="shared.js"></script>
+        <script src="skill-hiscores.js" defer></script>
         <script>
             // Initialize Lucide icons
             lucide.createIcons();

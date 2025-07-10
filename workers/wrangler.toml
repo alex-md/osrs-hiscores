@@ -5,7 +5,6 @@ compatibility_date = "2023-10-30"
 # Cron Trigger to run the 'scheduled' handler
 # See https://developers.cloudflare.com/workers/platform/triggers/cron-triggers/
 [triggers]
-# FIX: Run more frequently to process users in smaller, faster batches.
 # This aligns with the new code logic to avoid hitting API request limits.
 # "*/10 * * * *" = At every 10th minute.
 crons = ["*/10 * * * *"]
@@ -14,3 +13,6 @@ crons = ["*/10 * * * *"]
 [[kv_namespaces]]
 binding = "HISCORES_KV"
 id = "4d71578af7894ec8b339d49e0c951bee"
+
+[placement]
+mode = "smart"
