@@ -39,16 +39,37 @@ document.addEventListener('DOMContentLoaded', () => {
     const highestXp = document.getElementById('highest-xp');
     const highestXpPlayer = document.getElementById('highest-xp-player');
     const averageLevel = document.getElementById('average-level');
+
+    // Old search elements (still needed for compatibility)
     const searchContainer = document.getElementById('search-container');
     const searchInput = document.getElementById('search-input');
     const searchSuggestions = document.getElementById('search-suggestions');
     const searchClear = document.getElementById('search-clear');
+
+    // New navbar search elements
+    const searchModal = document.getElementById('search-modal');
+    const searchOverlay = document.getElementById('search-overlay');
+    const modalSearchInput = document.getElementById('modal-search-input');
+    const modalSearchSuggestions = document.getElementById('modal-search-suggestions');
+    const closeSearchModal = document.getElementById('close-search-modal');
+    const quickSearchInput = document.getElementById('quick-search-input');
+    const searchPlayerBtn = document.getElementById('search-player-btn');
+    const mobileSearchBtn = document.getElementById('mobile-search-btn');
+    const mobileSearchInput = document.getElementById('mobile-search-input');
+
+    // Mobile menu elements
+    const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
+    const mobileMenu = document.getElementById('mobile-menu');
+
+    // Navigation elements
+    const navLinks = document.querySelectorAll('.nav-link');
+    const mobileNavLinks = document.querySelectorAll('.mobile-nav-link');
+
     const skillPlayerSearch = document.getElementById('skill-player-search');
     const levelFilter = document.getElementById('level-filter');
     const xpFilter = document.getElementById('xp-filter');
     const itemsPerPageSelect = document.getElementById('items-per-page');
     const themeToggle = document.getElementById('theme-toggle');
-    const searchToggle = document.getElementById('search-toggle');
     const retryBtn = document.getElementById('retry-btn');
     const backToSkillsBtn = document.getElementById('back-to-skills-btn');
     const logoBtn = document.getElementById('logo-btn');
@@ -594,19 +615,238 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // =================================================================
+    // ENHANCED NAVBAR FUNCTIONALITY
+    // =================================================================
+
+    // Enhanced search functionality for the new modal
+    const showSearchModal = () => {
+        searchModal?.classList.remove('hidden');
+        modalSearchInput?.focus();
+        setTimeout(() => {
+            const modalContent = searchModal?.querySelector('.bg-slate-900\\/95');
+            modalContent?.classList.add('search-modal-content', 'active');
+        }, 10);
+    };
+
+    const hideSearchModal = () => {
+        const modalContent = searchModal?.querySelector('.bg-slate-900\\/95');
+        modalContent?.classList.remove('active');
+        setTimeout(() => {
+            searchModal?.classList.add('hidden');
+            if (modalSearchInput) modalSearchInput.value = '';
+            modalSearchSuggestions?.classList.add('hidden');
+        }, 300);
+    };
+
+    // Handle quick search functionality
+    const handleQuickSearch = (value) => {
+        if (value.trim().length >= 2) {
+            // Redirect to main hiscores page with search query
+            window.open(`index.html#${encodeURIComponent(value)}`, '_self');
+        }
+    };
+
+    // Handle mobile search functionality
+    const handleMobileSearch = (value) => {
+        if (value.trim().length >= 2) {
+            // Redirect to main hiscores page with search query
+            window.open(`index.html#${encodeURIComponent(value)}`, '_self');
+        }
+    };
+
+    // Enhanced search handler for modal
+    const handleModalSearch = (value) => {
+        if (value.trim().length >= 2) {
+            debouncedModalSearch(value);
+        } else {
+            modalSearchSuggestions?.classList.add('hidden');
+        }
+    };
+
+    // Debounced modal search
+    const debouncedModalSearch = debounce(async (query) => {
+        if (!query.trim()) {
+            modalSearchSuggestions?.classList.add('hidden');
+            return;
+        }
+
+        try {
+            modalSearchSuggestions.innerHTML = `
+                <div class="search-loading">
+                    <div class="search-loading-dot"></div>
+                    <div class="search-loading-dot"></div>
+                    <div class="search-loading-dot"></div>
+                    <span class="ml-2 text-slate-400">Searching players...</span>
+                </div>
+            `;
+            modalSearchSuggestions?.classList.remove('hidden');
+
+            // Search functionality - redirect to main page for player search
+            const searchResult = `
+                <div class="search-result-item cursor-pointer" onclick="window.open('index.html#${encodeURIComponent(query)}', '_self')">
+                    <div class="search-result-name">Search for "${query}"</div>
+                    <div class="search-result-details">
+                        <span>Click to view player stats</span>
+                    </div>
+                </div>
+            `;
+
+            modalSearchSuggestions.innerHTML = searchResult;
+            modalSearchSuggestions?.classList.remove('hidden');
+        } catch (error) {
+            console.error('Search error:', error);
+            modalSearchSuggestions.innerHTML = '<div class="search-no-results">Search temporarily unavailable</div>';
+            modalSearchSuggestions?.classList.remove('hidden');
+        }
+    }, 300);
+
+    // Mobile menu toggle functionality
+    const toggleMobileMenu = () => {
+        if (!mobileMenu) return;
+
+        const isHidden = mobileMenu.classList.contains('hidden');
+        if (isHidden) {
+            mobileMenu.classList.remove('hidden');
+            setTimeout(() => mobileMenu.classList.add('active'), 10);
+        } else {
+            mobileMenu.classList.remove('active');
+            setTimeout(() => mobileMenu.classList.add('hidden'), 300);
+        }
+    };
+
+    // Navigation functionality
+    const setActiveNavLink = (currentPage) => {
+        navLinks.forEach(link => {
+            link.classList.remove('active', 'text-white', 'bg-amber-500/20', 'border', 'border-amber-500/30');
+            link.classList.add('text-slate-300');
+        });
+
+        mobileNavLinks.forEach(link => {
+            link.classList.remove('text-white', 'bg-amber-500/20', 'border-l-4', 'border-amber-500');
+            link.classList.add('text-slate-300');
+        });
+
+        const activeNav = document.querySelector(`.nav-link[data-page="${currentPage}"]`);
+        const activeMobileNav = document.querySelector(`.mobile-nav-link[data-page="${currentPage}"]`);
+
+        if (activeNav) {
+            activeNav.classList.add('active', 'text-white', 'bg-amber-500/20', 'border', 'border-amber-500/30');
+            activeNav.classList.remove('text-slate-300');
+        }
+
+        if (activeMobileNav) {
+            activeMobileNav.classList.add('text-white', 'bg-amber-500/20', 'border-l-4', 'border-amber-500');
+            activeMobileNav.classList.remove('text-slate-300');
+        }
+    };
+
+    // Set the skills page as active on load
+    setActiveNavLink('skills');
+
+    // =================================================================
     // EVENT LISTENERS
     // =================================================================
 
-    // Theme and search
+    // Theme toggle
     themeToggle?.addEventListener('click', toggleTheme);
-    searchToggle?.addEventListener('click', showSearch);
+
+    // New navbar search functionality
+    searchPlayerBtn?.addEventListener('click', showSearchModal);
+    mobileSearchBtn?.addEventListener('click', showSearchModal);
+    closeSearchModal?.addEventListener('click', hideSearchModal);
+    searchOverlay?.addEventListener('click', hideSearchModal);
+
+    // Modal search input
+    modalSearchInput?.addEventListener('input', (e) => handleModalSearch(e.target.value));
+    modalSearchInput?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            const query = e.target.value.trim();
+            if (query) {
+                window.open(`index.html#${encodeURIComponent(query)}`, '_self');
+            }
+        } else if (e.key === 'Escape') {
+            hideSearchModal();
+        }
+    });
+
+    // Quick search input (desktop)
+    quickSearchInput?.addEventListener('input', (e) => handleQuickSearch(e.target.value));
+    quickSearchInput?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            const query = e.target.value.trim();
+            if (query) {
+                window.open(`index.html#${encodeURIComponent(query)}`, '_self');
+            }
+        }
+    });
+
+    // Mobile search input
+    mobileSearchInput?.addEventListener('input', (e) => handleMobileSearch(e.target.value));
+    mobileSearchInput?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            const query = e.target.value.trim();
+            if (query) {
+                window.open(`index.html#${encodeURIComponent(query)}`, '_self');
+            }
+        }
+    });
+
+    // Mobile menu toggle
+    mobileMenuToggle?.addEventListener('click', toggleMobileMenu);
+
+    // Navigation links
+    navLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+            const page = link.dataset.page;
+            if (page === 'home') {
+                e.preventDefault();
+                window.open('index.html', '_self');
+            } else if (page === 'leaderboard') {
+                e.preventDefault();
+                window.open('index.html#leaderboard', '_self');
+            }
+            // For skill hiscores page, we're already here
+        });
+    });
+
+    mobileNavLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+            const page = link.dataset.page;
+            if (page === 'home') {
+                e.preventDefault();
+                window.open('index.html', '_self');
+            } else if (page === 'leaderboard') {
+                e.preventDefault();
+                window.open('index.html#leaderboard', '_self');
+            }
+            // Close mobile menu for any navigation
+            setTimeout(() => toggleMobileMenu(), 100);
+        });
+    });
+
+    // Legacy search event listeners (maintained for compatibility)
     searchInput?.addEventListener('input', (e) => handleSearch(e.target.value));
-    searchClear?.addEventListener('click', () => { searchInput.value = ''; searchSuggestions.classList.add('hidden'); });
+    searchClear?.addEventListener('click', () => {
+        if (searchInput) searchInput.value = '';
+        searchSuggestions?.classList.add('hidden');
+    });
     searchInput?.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') hideSearch();
     });
+
+    // Close search when clicking outside
     document.addEventListener('click', (e) => {
-        if (!searchContainer.contains(e.target) && !searchToggle.contains(e.target)) hideSearch();
+        // Close legacy search
+        if (searchContainer && !searchContainer.contains(e.target)) {
+            hideSearch();
+        }
+
+        // Close mobile menu when clicking outside
+        if (mobileMenu && !mobileMenu.contains(e.target) && !mobileMenuToggle?.contains(e.target)) {
+            if (!mobileMenu.classList.contains('hidden')) {
+                toggleMobileMenu();
+            }
+        }
     });
 
     // Navigation

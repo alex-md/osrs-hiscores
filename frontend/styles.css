@@ -516,11 +516,11 @@
         padding: 1rem;
         margin-bottom: 1.5rem;
     }
-    
+
     .skill-category h3 {
         font-size: 1.125rem;
     }
-    
+
     .skill-button {
         min-height: 70px;
     }
@@ -530,14 +530,396 @@
     .skill-category {
         padding: 0.75rem;
     }
-    
+
     .skill-button {
         min-height: 60px;
         padding: 0.75rem;
     }
-    
+
     .skill-button .w-12 {
         width: 2.5rem;
         height: 2.5rem;
+    }
+}
+
+/* ========================================
+   ENHANCED NAVBAR STYLES
+   ======================================== */
+
+/* Navigation Link Styling */
+.nav-link {
+    position: relative;
+    overflow: hidden;
+    border-radius: 0.75rem;
+}
+
+.nav-link::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(251, 191, 36, 0.1), transparent);
+    transition: left 0.3s ease;
+}
+
+.nav-link:hover::before {
+    left: 100%;
+}
+
+.nav-link.active {
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(251, 191, 36, 0.05));
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    color: #fbbf24 !important;
+}
+
+/* Mobile Navigation */
+.mobile-nav-link {
+    border-radius: 0.5rem;
+    margin: 0 0.5rem;
+}
+
+.mobile-nav-link:hover {
+    background: linear-gradient(90deg, rgba(51, 65, 85, 0.3), rgba(71, 85, 105, 0.2));
+    transform: translateX(4px);
+}
+
+/* Enhanced Logo Styling */
+.logo-enhanced {
+    position: relative;
+}
+
+.logo-enhanced::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(45deg, #fbbf24, #f59e0b, #d97706, #fbbf24);
+    border-radius: 1rem;
+    opacity: 0;
+    z-index: -1;
+    animation: logoGlow 3s linear infinite;
+    background-size: 400% 400%;
+}
+
+.logo-enhanced:hover::before {
+    opacity: 0.3;
+}
+
+@keyframes logoGlow {
+
+    0%,
+    100% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+}
+
+/* Status Indicator */
+.status-indicator {
+    position: relative;
+}
+
+.status-indicator::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 8px;
+    height: 8px;
+    background: linear-gradient(45deg, #10b981, #16a34a);
+    border-radius: 50%;
+    border: 2px solid #0f172a;
+    animation: statusPulse 2s ease-in-out infinite;
+}
+
+@keyframes statusPulse {
+
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.5;
+        transform: scale(1.2);
+    }
+}
+
+/* Search Modal Enhancements */
+.search-modal-backdrop {
+    backdrop-filter: blur(8px);
+    background: rgba(0, 0, 0, 0.7);
+}
+
+.search-modal-content {
+    transform: translateY(-20px);
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.search-modal-content.active {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+/* Quick Search Input */
+.quick-search-input {
+    transition: all 0.3s ease;
+    width: 18rem;
+}
+
+.quick-search-input:focus {
+    width: 20rem;
+    box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.5), 0 0 20px rgba(251, 191, 36, 0.1);
+}
+
+/* Mobile Menu Animation */
+.mobile-menu {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.mobile-menu.active {
+    max-height: 400px;
+}
+
+/* Icon Hover Effects */
+.nav-icon {
+    transition: all 0.2s ease;
+}
+
+.nav-icon:hover {
+    transform: scale(1.1);
+    filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.3));
+}
+
+/* Enhanced Button Styling */
+.nav-button {
+    position: relative;
+    background: linear-gradient(135deg, rgba(51, 65, 85, 0.5), rgba(71, 85, 105, 0.3));
+    border: 1px solid rgba(51, 65, 85, 0.3);
+    backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
+}
+
+.nav-button:hover {
+    background: linear-gradient(135deg, rgba(71, 85, 105, 0.6), rgba(51, 65, 85, 0.4));
+    border-color: rgba(251, 191, 36, 0.3);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.nav-button:active {
+    transform: translateY(0);
+}
+
+/* ========================================
+   FINAL RESPONSIVE NAVBAR ENHANCEMENTS
+   ======================================== */
+
+/* Enhanced navbar height and spacing */
+.enhanced-navbar {
+    height: 5rem;
+    /* 80px */
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+}
+
+/* Logo animations */
+@keyframes logoFloat {
+
+    0%,
+    100% {
+        transform: translateY(0px);
+    }
+
+    50% {
+        transform: translateY(-2px);
+    }
+}
+
+.logo-enhanced:hover .logo-icon {
+    animation: logoFloat 2s ease-in-out infinite;
+}
+
+/* Active navigation state */
+.nav-link.active {
+    position: relative;
+}
+
+.nav-link.active::after {
+    content: '';
+    position: absolute;
+    bottom: -0.5rem;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #fbbf24, #f59e0b);
+    border-radius: 1px;
+}
+
+/* Mobile navigation improvements */
+@media (max-width: 768px) {
+    .enhanced-navbar {
+        height: 4.5rem;
+        /* 72px on mobile */
+    }
+
+    .mobile-menu {
+        backdrop-filter: blur(20px);
+        border-top: 1px solid rgba(51, 65, 85, 0.3);
+    }
+
+    .mobile-nav-link {
+        font-size: 1rem;
+        font-weight: 500;
+    }
+
+    .mobile-nav-link:active {
+        background: linear-gradient(90deg, rgba(251, 191, 36, 0.2), rgba(251, 191, 36, 0.1));
+        transform: scale(0.98);
+    }
+}
+
+/* Search modal responsive behavior */
+@media (max-width: 640px) {
+    .search-modal .max-w-3xl {
+        max-width: calc(100vw - 2rem);
+        margin: 1rem;
+    }
+
+    .search-modal-content {
+        border-radius: 1rem;
+    }
+}
+
+/* Quick search input responsive behavior */
+@media (max-width: 1280px) {
+    .quick-search-input {
+        width: 16rem;
+    }
+}
+
+@media (max-width: 1024px) {
+    .quick-search-input {
+        display: none;
+    }
+}
+
+/* Enhanced focus states */
+.nav-link:focus-visible,
+.mobile-nav-link:focus-visible {
+    outline: 2px solid #fbbf24;
+    outline-offset: 2px;
+    border-radius: 0.5rem;
+}
+
+/* Smooth transitions for all interactive elements */
+.nav-link,
+.mobile-nav-link,
+.nav-button,
+.search-modal {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Status indicator animation */
+@keyframes statusPulse {
+
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.5;
+        transform: scale(1.2);
+    }
+}
+
+.status-indicator {
+    animation: statusPulse 2s ease-in-out infinite;
+}
+
+/* Enhanced backdrop blur support */
+@supports (backdrop-filter: blur(12px)) {
+    .enhanced-navbar {
+        backdrop-filter: blur(12px);
+        background: rgba(15, 23, 42, 0.85);
+    }
+
+    .mobile-menu {
+        backdrop-filter: blur(16px);
+        background: rgba(15, 23, 42, 0.95);
+    }
+
+    .search-modal-backdrop {
+        backdrop-filter: blur(8px);
+    }
+}
+
+/* Fallback for browsers without backdrop-filter */
+@supports not (backdrop-filter: blur(12px)) {
+    .enhanced-navbar {
+        background: rgba(15, 23, 42, 0.95);
+    }
+
+    .mobile-menu {
+        background: rgba(15, 23, 42, 0.98);
+    }
+}
+
+/* Print styles */
+@media print {
+
+    .enhanced-navbar,
+    .mobile-menu,
+    .search-modal {
+        display: none !important;
+    }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .nav-link {
+        border: 1px solid transparent;
+    }
+
+    .nav-link:hover,
+    .nav-link.active {
+        border-color: #fbbf24;
+        background: rgba(251, 191, 36, 0.2);
+    }
+
+    .mobile-nav-link:hover {
+        border-left: 4px solid #fbbf24;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+
+    .nav-link,
+    .mobile-nav-link,
+    .logo-enhanced,
+    .nav-button,
+    .search-modal,
+    .status-indicator {
+        animation: none !important;
+        transition: none !important;
+    }
+
+    .nav-link:hover,
+    .mobile-nav-link:hover {
+        transform: none !important;
     }
 }

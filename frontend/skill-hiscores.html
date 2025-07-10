@@ -77,60 +77,182 @@
             <!-- Navigation & Header -->
             <header class="sticky top-0 z-50 backdrop-blur-xl bg-slate-900/80 border-b border-slate-700/50">
                 <div class="container mx-auto px-4 sm:px-6 lg:px-8">
-                    <div class="flex items-center justify-between h-16">
-                        <button
-                            class="flex items-center space-x-4 hover:opacity-80 transition-opacity duration-200 cursor-pointer"
-                            id="logo-btn" title="Go to homepage">
-                            <div
-                                class="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl shadow-lg">
-                                <i data-lucide="shield" class="w-5 h-5 text-white"></i>
-                            </div>
-                            <div class="hidden sm:block">
-                                <h1
-                                    class="text-xl font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">
-                                    OSRS Hiscores</h1>
-                                <p class="text-sm text-slate-400">Skill-specific rankings</p>
-                            </div>
-                        </button>
-
-                        <nav class="flex items-center space-x-2">
+                    <div class="flex items-center justify-between h-20">
+                        <!-- Enhanced Logo Section -->
+                        <div class="flex items-center">
                             <button
-                                class="p-2 rounded-xl bg-slate-800/50 hover:bg-slate-700/50 transition-all duration-200 hover:scale-105"
-                                id="theme-toggle" title="Toggle theme">
-                                <i data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
-                                <i data-lucide="moon" class="w-5 h-5 block dark:hidden"></i>
+                                class="group flex items-center space-x-4 hover:scale-105 transition-all duration-300 cursor-pointer relative"
+                                id="logo-btn" title="Go to homepage">
+                                <div class="relative">
+                                    <div
+                                        class="flex items-center justify-center w-14 h-14 bg-gradient-to-br from-amber-400 via-orange-500 to-red-500 rounded-2xl shadow-xl group-hover:shadow-amber-500/25 transition-all duration-300 relative overflow-hidden">
+                                        <div
+                                            class="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                        </div>
+                                        <i data-lucide="shield"
+                                            class="w-7 h-7 text-white relative z-10 group-hover:rotate-12 transition-transform duration-300"></i>
+                                    </div>
+                                    <div
+                                        class="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-slate-900 animate-pulse">
+                                    </div>
+                                </div>
+                                <div class="hidden lg:block">
+                                    <h1
+                                        class="text-2xl font-bold bg-gradient-to-r from-amber-400 via-orange-500 to-red-500 bg-clip-text text-transparent group-hover:from-amber-300 group-hover:via-orange-400 group-hover:to-red-400 transition-all duration-300">
+                                        OSRS Hiscores
+                                    </h1>
+                                    <p
+                                        class="text-sm text-slate-400 group-hover:text-slate-300 transition-colors duration-300">
+                                        Skill-specific rankings
+                                    </p>
+                                </div>
                             </button>
+                        </div>
+
+                        <!-- Enhanced Navigation Menu -->
+                        <nav class="hidden md:flex items-center space-x-1">
+                            <a href="index.html"
+                                class="nav-link group flex items-center px-4 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/50 transition-all duration-200 font-medium"
+                                data-page="home">
+                                <i data-lucide="home"
+                                    class="w-4 h-4 mr-2 group-hover:scale-110 transition-transform duration-200"></i>
+                                Home
+                            </a>
+                            <a href="index.html#leaderboard"
+                                class="nav-link group flex items-center px-4 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/50 transition-all duration-200 font-medium"
+                                data-page="leaderboard">
+                                <i data-lucide="trophy"
+                                    class="w-4 h-4 mr-2 group-hover:scale-110 transition-transform duration-200"></i>
+                                Leaderboards
+                            </a>
+                            <a href="skill-hiscores.html"
+                                class="nav-link group flex items-center px-4 py-2 rounded-xl text-white bg-amber-500/20 border border-amber-500/30 transition-all duration-200 font-medium"
+                                data-page="skills">
+                                <i data-lucide="target"
+                                    class="w-4 h-4 mr-2 group-hover:scale-110 transition-transform duration-200"></i>
+                                Skill Hiscores
+                            </a>
                             <button
-                                class="p-2 rounded-xl bg-slate-800/50 hover:bg-slate-700/50 transition-all duration-200 hover:scale-105"
-                                id="search-toggle" title="Search players">
-                                <i data-lucide="search" class="w-5 h-5"></i>
+                                class="nav-link group flex items-center px-4 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/50 transition-all duration-200 font-medium"
+                                id="search-player-btn">
+                                <i data-lucide="search"
+                                    class="w-4 h-4 mr-2 group-hover:scale-110 transition-transform duration-200"></i>
+                                Search Player
                             </button>
                         </nav>
+
+                        <!-- Right Side Actions -->
+                        <div class="flex items-center space-x-2">
+                            <!-- Player Search (on larger screens) -->
+                            <div class="hidden xl:flex relative">
+                                <div class="relative">
+                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <i data-lucide="search" class="w-4 h-4 text-slate-400"></i>
+                                    </div>
+                                    <input type="text"
+                                        class="w-72 pl-10 pr-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent placeholder-slate-400 text-white text-sm"
+                                        id="quick-search-input" placeholder="Quick player search..." autocomplete="off">
+                                </div>
+                            </div>
+
+                            <!-- Theme Toggle -->
+                            <button
+                                class="p-3 rounded-xl bg-slate-800/50 hover:bg-slate-700/50 transition-all duration-200 hover:scale-105 group"
+                                id="theme-toggle" title="Toggle theme">
+                                <i data-lucide="sun"
+                                    class="w-5 h-5 hidden dark:block group-hover:rotate-12 transition-transform duration-200"></i>
+                                <i data-lucide="moon"
+                                    class="w-5 h-5 block dark:hidden group-hover:-rotate-12 transition-transform duration-200"></i>
+                            </button>
+
+                            <!-- Mobile Menu Toggle -->
+                            <button
+                                class="md:hidden p-3 rounded-xl bg-slate-800/50 hover:bg-slate-700/50 transition-all duration-200 hover:scale-105"
+                                id="mobile-menu-toggle" title="Menu">
+                                <i data-lucide="menu" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Mobile Navigation Menu -->
+                    <div class="md:hidden border-t border-slate-700/50 bg-slate-900/95 backdrop-blur-sm hidden"
+                        id="mobile-menu">
+                        <div class="py-4 space-y-2">
+                            <a href="index.html"
+                                class="mobile-nav-link flex items-center px-4 py-3 text-slate-300 hover:text-white hover:bg-slate-800/50 transition-all duration-200"
+                                data-page="home">
+                                <i data-lucide="home" class="w-4 h-4 mr-3"></i>
+                                Home
+                            </a>
+                            <a href="index.html#leaderboard"
+                                class="mobile-nav-link flex items-center px-4 py-3 text-slate-300 hover:text-white hover:bg-slate-800/50 transition-all duration-200"
+                                data-page="leaderboard">
+                                <i data-lucide="trophy" class="w-4 h-4 mr-3"></i>
+                                Leaderboards
+                            </a>
+                            <a href="skill-hiscores.html"
+                                class="mobile-nav-link flex items-center px-4 py-3 text-white bg-amber-500/20 border-l-4 border-amber-500 transition-all duration-200"
+                                data-page="skills">
+                                <i data-lucide="target" class="w-4 h-4 mr-3"></i>
+                                Skill Hiscores
+                            </a>
+                            <button
+                                class="mobile-nav-link flex items-center w-full px-4 py-3 text-slate-300 hover:text-white hover:bg-slate-800/50 transition-all duration-200"
+                                id="mobile-search-btn">
+                                <i data-lucide="search" class="w-4 h-4 mr-3"></i>
+                                Search Player
+                            </button>
+                            <!-- Mobile Search Bar -->
+                            <div class="px-4 py-2">
+                                <div class="relative">
+                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <i data-lucide="search" class="w-4 h-4 text-slate-400"></i>
+                                    </div>
+                                    <input type="text"
+                                        class="w-full pl-10 pr-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent placeholder-slate-400 text-white"
+                                        id="mobile-search-input" placeholder="Search for a player..."
+                                        autocomplete="off">
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Search Bar -->
-                <div class="search-container hidden opacity-0 transform -translate-y-2 transition-all duration-300"
-                    id="search-container">
-                    <div class="container mx-auto px-4 sm:px-6 lg:px-8 pb-4">
-                        <div class="relative max-w-2xl mx-auto">
-                            <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <i data-lucide="search" class="w-5 h-5 text-slate-400"></i>
+                <!-- Enhanced Search Modal (replaces the old search container) -->
+                <div class="fixed inset-0 z-50 hidden" id="search-modal">
+                    <div class="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity" id="search-overlay">
+                    </div>
+                    <div class="fixed inset-x-0 top-0 z-50 p-4 sm:p-6">
+                        <div class="mx-auto max-w-3xl">
+                            <div
+                                class="bg-slate-900/95 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden">
+                                <div class="p-6">
+                                    <div class="flex items-center justify-between mb-6">
+                                        <h3 class="text-xl font-semibold text-white">Search OSRS Players</h3>
+                                        <button
+                                            class="p-2 text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-lg transition-colors"
+                                            id="close-search-modal">
+                                            <i data-lucide="x" class="w-5 h-5"></i>
+                                        </button>
+                                    </div>
+                                    <div class="relative">
+                                        <div
+                                            class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                            <i data-lucide="search" class="w-5 h-5 text-slate-400"></i>
+                                        </div>
+                                        <input type="text"
+                                            class="w-full pl-12 pr-4 py-4 bg-slate-800/50 border border-slate-700/50 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent placeholder-slate-400 text-white text-lg"
+                                            id="modal-search-input" placeholder="Enter player name..."
+                                            autocomplete="off" spellcheck="false">
+                                    </div>
+                                    <div class="mt-4 text-sm text-slate-400">
+                                        <p>💡 Tip: Search is case-sensitive and matches exact usernames</p>
+                                    </div>
                                 </div>
-                                <input type="text"
-                                    class="block w-full pl-10 pr-12 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent placeholder-slate-400 text-white backdrop-blur-sm"
-                                    id="search-input" placeholder="Search for an OSRS player..." autocomplete="off"
-                                    spellcheck="false">
-                                <button
-                                    class="absolute inset-y-0 right-0 pr-3 flex items-center opacity-0 transition-opacity duration-200"
-                                    id="search-clear" title="Clear search">
-                                    <i data-lucide="x" class="w-5 h-5 text-slate-400 hover:text-white"></i>
-                                </button>
-                            </div>
-                            <div class="absolute top-full left-0 right-0 mt-2 bg-slate-800/90 backdrop-blur-sm border border-slate-700/50 rounded-xl shadow-2xl hidden"
-                                id="search-suggestions">
-                                <!-- Dynamic suggestions -->
+                                <div class="bg-slate-800/50 border-t border-slate-700/50 max-h-96 overflow-y-auto hidden"
+                                    id="modal-search-suggestions">
+                                    <!-- Dynamic suggestions will appear here -->
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -204,7 +326,7 @@
                             <p class="text-lg text-slate-300 max-w-2xl mx-auto leading-relaxed">
                                 View top-performing players for each skill
                             </p>
-                            
+
                             <!-- Quick Actions as Pills -->
                             <div class="flex flex-wrap justify-center gap-3 mt-6">
                                 <button
@@ -227,13 +349,15 @@
                             <!-- Combat Skills -->
                             <div class="skill-category">
                                 <div class="flex items-center mb-6">
-                                    <div class="w-8 h-8 bg-gradient-to-br from-red-500 to-red-600 rounded-lg flex items-center justify-center mr-3">
+                                    <div
+                                        class="w-8 h-8 bg-gradient-to-br from-red-500 to-red-600 rounded-lg flex items-center justify-center mr-3">
                                         <i data-lucide="swords" class="w-4 h-4 text-white"></i>
                                     </div>
                                     <h3 class="text-xl font-bold text-white">Combat Skills</h3>
                                     <div class="flex-1 h-px bg-gradient-to-r from-red-500/30 to-transparent ml-4"></div>
                                 </div>
-                                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4" id="combat-skills">
+                                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"
+                                    id="combat-skills">
                                     <!-- Combat skill buttons will be added here -->
                                 </div>
                             </div>
@@ -241,13 +365,16 @@
                             <!-- Gathering Skills -->
                             <div class="skill-category">
                                 <div class="flex items-center mb-6">
-                                    <div class="w-8 h-8 bg-gradient-to-br from-green-500 to-green-600 rounded-lg flex items-center justify-center mr-3">
+                                    <div
+                                        class="w-8 h-8 bg-gradient-to-br from-green-500 to-green-600 rounded-lg flex items-center justify-center mr-3">
                                         <i data-lucide="pickaxe" class="w-4 h-4 text-white"></i>
                                     </div>
                                     <h3 class="text-xl font-bold text-white">Gathering Skills</h3>
-                                    <div class="flex-1 h-px bg-gradient-to-r from-green-500/30 to-transparent ml-4"></div>
+                                    <div class="flex-1 h-px bg-gradient-to-r from-green-500/30 to-transparent ml-4">
+                                    </div>
                                 </div>
-                                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4" id="gathering-skills">
+                                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"
+                                    id="gathering-skills">
                                     <!-- Gathering skill buttons will be added here -->
                                 </div>
                             </div>
@@ -255,13 +382,16 @@
                             <!-- Artisan Skills -->
                             <div class="skill-category">
                                 <div class="flex items-center mb-6">
-                                    <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center mr-3">
+                                    <div
+                                        class="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center mr-3">
                                         <i data-lucide="hammer" class="w-4 h-4 text-white"></i>
                                     </div>
                                     <h3 class="text-xl font-bold text-white">Artisan Skills</h3>
-                                    <div class="flex-1 h-px bg-gradient-to-r from-blue-500/30 to-transparent ml-4"></div>
+                                    <div class="flex-1 h-px bg-gradient-to-r from-blue-500/30 to-transparent ml-4">
+                                    </div>
                                 </div>
-                                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4" id="artisan-skills">
+                                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"
+                                    id="artisan-skills">
                                     <!-- Artisan skill buttons will be added here -->
                                 </div>
                             </div>
@@ -269,13 +399,16 @@
                             <!-- Support Skills -->
                             <div class="skill-category">
                                 <div class="flex items-center mb-6">
-                                    <div class="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center mr-3">
+                                    <div
+                                        class="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center mr-3">
                                         <i data-lucide="sparkles" class="w-4 h-4 text-white"></i>
                                     </div>
                                     <h3 class="text-xl font-bold text-white">Support Skills</h3>
-                                    <div class="flex-1 h-px bg-gradient-to-r from-purple-500/30 to-transparent ml-4"></div>
+                                    <div class="flex-1 h-px bg-gradient-to-r from-purple-500/30 to-transparent ml-4">
+                                    </div>
                                 </div>
-                                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4" id="support-skills">
+                                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"
+                                    id="support-skills">
                                     <!-- Support skill buttons will be added here -->
                                 </div>
                             </div>

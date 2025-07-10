@@ -24,14 +24,35 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadingState = document.getElementById('loading-state');
     const errorState = document.getElementById('error-state');
     const errorMessage = document.getElementById('error-message');
-    const homeView = document.getElementById('home-view');
     const leaderboardView = document.getElementById('leaderboard-view');
     const playerView = document.getElementById('player-view');
     const leaderboardBody = document.getElementById('leaderboard-body');
+
+    // Old search elements (still needed for compatibility)
     const searchContainer = document.getElementById('search-container');
     const searchInput = document.getElementById('search-input');
     const searchSuggestions = document.getElementById('search-suggestions');
     const searchClear = document.getElementById('search-clear');
+
+    // New navbar search elements
+    const searchModal = document.getElementById('search-modal');
+    const searchOverlay = document.getElementById('search-overlay');
+    const modalSearchInput = document.getElementById('modal-search-input');
+    const modalSearchSuggestions = document.getElementById('modal-search-suggestions');
+    const closeSearchModal = document.getElementById('close-search-modal');
+    const quickSearchInput = document.getElementById('quick-search-input');
+    const searchPlayerBtn = document.getElementById('search-player-btn');
+    const mobileSearchBtn = document.getElementById('mobile-search-btn');
+    const mobileSearchInput = document.getElementById('mobile-search-input');
+
+    // Mobile menu elements
+    const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
+    const mobileMenu = document.getElementById('mobile-menu');
+
+    // Navigation elements
+    const navLinks = document.querySelectorAll('.nav-link');
+    const mobileNavLinks = document.querySelectorAll('.mobile-nav-link');
+
     const leaderboardPlayerSearch = document.getElementById('leaderboard-player-search');
     const totalLevelFilter = document.getElementById('total-level-filter');
     const totalXpFilter = document.getElementById('total-xp-filter');
@@ -40,7 +61,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const exportLeaderboard = document.getElementById('export-leaderboard');
     const viewSkillHiscores = document.getElementById('view-skill-hiscores');
     const themeToggle = document.getElementById('theme-toggle');
-    const searchToggle = document.getElementById('search-toggle');
     const retryBtn = document.getElementById('retry-btn');
     const backBtn = document.getElementById('back-btn');
     const logoBtn = document.getElementById('logo-btn');
@@ -51,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const toastContainer = document.getElementById('toast-container');
 
     // State management
-    let currentView = 'home';
+    let currentView = 'leaderboard';
     let currentPlayer = null;
     let cachedUsers = [];
     let cachedRankings = null;
@@ -178,7 +198,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return suggestion;
     };
 
-    const navigateToHome = () => { window.location.hash = ''; };
+    const navigateToHome = () => {
+        window.location.hash = '';
+        setActiveNavLink('leaderboard');
+    };
 
     const changePage = (direction) => {
         const maxPage = Math.ceil(filteredLeaderboardData.length / itemsPerPage);
@@ -194,9 +217,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // =================================================================
 
     const showView = (viewName) => {
-        [loadingState, errorState, homeView, leaderboardView, playerView].forEach(v => v.style.display = 'none');
+        [loadingState, errorState, leaderboardView, playerView].forEach(v => v.style.display = 'none');
         currentView = viewName;
-        const viewMap = { loading: loadingState, error: errorState, home: homeView, leaderboard: leaderboardView, player: playerView };
+        const viewMap = { loading: loadingState, error: errorState, leaderboard: leaderboardView, player: playerView };
         if (viewMap[viewName]) viewMap[viewName].style.display = 'block';
     };
 
@@ -205,9 +228,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (hash) {
             const username = decodeURIComponent(hash);
             fetchUserStats(username);
+            setActiveNavLink('player');
         } else {
             showView('leaderboard');
             renderLeaderboard();
+            setActiveNavLink('leaderboard');
         }
     };
 
@@ -517,15 +542,139 @@ document.addEventListener('DOMContentLoaded', () => {
         searchSuggestions.classList.remove('hidden');
     }, 300);
 
+    // Enhanced search functionality for the new modal
+    const showSearchModal = () => {
+        searchModal.classList.remove('hidden');
+        modalSearchInput.focus();
+        setTimeout(() => {
+            searchModal.querySelector('.bg-slate-900\\/95').classList.add('search-modal-content', 'active');
+        }, 10);
+    };
+
+    const hideSearchModal = () => {
+        searchModal.querySelector('.bg-slate-900\\/95').classList.remove('active');
+        setTimeout(() => {
+            searchModal.classList.add('hidden');
+            modalSearchInput.value = '';
+            modalSearchSuggestions.classList.add('hidden');
+        }, 300);
+    };
+
+    // Handle quick search functionality
+    const handleQuickSearch = (value) => {
+        if (value.trim().length >= 2) {
+            debouncedSearch(value, quickSearchInput);
+        }
+    };
+
+    // Handle mobile search functionality
+    const handleMobileSearch = (value) => {
+        if (value.trim().length >= 2) {
+            debouncedSearch(value, mobileSearchInput);
+        }
+    };
+
+    // Enhanced search handler that works with multiple inputs
+    const handleModalSearch = (value) => {
+        if (value.trim().length >= 2) {
+            debouncedModalSearch(value);
+        } else {
+            modalSearchSuggestions.classList.add('hidden');
+        }
+    };
+
+    // Debounced modal search
+    const debouncedModalSearch = debounce(async (query) => {
+        if (!query.trim()) {
+            modalSearchSuggestions.classList.add('hidden');
+            return;
+        }
+
+        try {
+            const results = cachedUsers.filter(user =>
+                user.toLowerCase().includes(query.toLowerCase())
+            ).slice(0, 10);
+
+            if (results.length > 0) {
+                modalSearchSuggestions.innerHTML = results.map(username => `
+                    <div class="search-result-item" data-username="${username}">
+                        <div class="search-result-name">${username}</div>
+                        <div class="search-result-details">
+                            <span>Click to view stats</span>
+                        </div>
+                    </div>
+                `).join('');
+
+                modalSearchSuggestions.querySelectorAll('.search-result-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        const username = item.dataset.username;
+                        window.location.hash = encodeURIComponent(username);
+                        hideSearchModal();
+                    });
+                });
+            } else {
+                modalSearchSuggestions.innerHTML = '<div class="search-no-results">No players found matching your search</div>';
+            }
+            modalSearchSuggestions.classList.remove('hidden');
+        } catch (error) {
+            console.error('Search error:', error);
+            modalSearchSuggestions.innerHTML = '<div class="search-no-results">Search temporarily unavailable</div>';
+            modalSearchSuggestions.classList.remove('hidden');
+        }
+    }, 300);
+
+    // Mobile menu toggle functionality
+    const toggleMobileMenu = () => {
+        const isHidden = mobileMenu.classList.contains('hidden');
+        if (isHidden) {
+            mobileMenu.classList.remove('hidden');
+            setTimeout(() => mobileMenu.classList.add('active'), 10);
+        } else {
+            mobileMenu.classList.remove('active');
+            setTimeout(() => mobileMenu.classList.add('hidden'), 300);
+        }
+    };
+
+    // Navigation functionality
+    const setActiveNavLink = (currentPage) => {
+        navLinks.forEach(link => {
+            link.classList.remove('active', 'text-white', 'bg-amber-500/20', 'border', 'border-amber-500/30');
+            link.classList.add('text-slate-300');
+        });
+
+        mobileNavLinks.forEach(link => {
+            link.classList.remove('text-white', 'bg-amber-500/20', 'border-l-4', 'border-amber-500');
+            link.classList.add('text-slate-300');
+        });
+
+        const activeNav = document.querySelector(`.nav-link[data-page="${currentPage}"]`);
+        const activeMobileNav = document.querySelector(`.mobile-nav-link[data-page="${currentPage}"]`);
+
+        if (activeNav) {
+            activeNav.classList.add('active', 'text-white', 'bg-amber-500/20', 'border', 'border-amber-500/30');
+            activeNav.classList.remove('text-slate-300');
+        }
+
+        if (activeMobileNav) {
+            activeMobileNav.classList.add('text-white', 'bg-amber-500/20', 'border-l-4', 'border-amber-500');
+            activeMobileNav.classList.remove('text-slate-300');
+        }
+    };
+
+    // Legacy search functions (maintained for compatibility)
     const showSearch = () => {
-        searchContainer.classList.remove('hidden', 'opacity-0', '-translate-y-2');
-        searchInput.focus();
+        if (searchContainer) {
+            searchContainer.classList.remove('hidden', 'opacity-0', '-translate-y-2');
+            searchInput?.focus();
+        }
     };
 
     const hideSearch = () => {
-        searchContainer.classList.add('hidden', 'opacity-0', '-translate-y-2');
-        searchInput.value = '';
-        searchSuggestions.classList.add('hidden');
+        if (searchContainer) {
+            searchContainer.classList.add('hidden', 'opacity-0', '-translate-y-2');
+            if (searchInput) searchInput.value = '';
+            searchSuggestions?.classList.add('hidden');
+        }
     };
 
     const toggleTheme = () => {
@@ -537,25 +686,124 @@ document.addEventListener('DOMContentLoaded', () => {
     // EVENT LISTENERS
     // =================================================================
 
+    // Theme toggle
     themeToggle?.addEventListener('click', toggleTheme);
-    searchToggle?.addEventListener('click', showSearch);
+
+    // New navbar search functionality
+    searchPlayerBtn?.addEventListener('click', showSearchModal);
+    mobileSearchBtn?.addEventListener('click', showSearchModal);
+    closeSearchModal?.addEventListener('click', hideSearchModal);
+    searchOverlay?.addEventListener('click', hideSearchModal);
+
+    // Modal search input
+    modalSearchInput?.addEventListener('input', (e) => handleModalSearch(e.target.value));
+    modalSearchInput?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            const query = e.target.value.trim();
+            if (query) {
+                window.location.hash = encodeURIComponent(query);
+                hideSearchModal();
+            }
+        } else if (e.key === 'Escape') {
+            hideSearchModal();
+        }
+    });
+
+    // Quick search input (desktop)
+    quickSearchInput?.addEventListener('input', (e) => handleQuickSearch(e.target.value));
+    quickSearchInput?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            const query = e.target.value.trim();
+            if (query) {
+                window.location.hash = encodeURIComponent(query);
+                e.target.value = '';
+            }
+        }
+    });
+
+    // Mobile search input
+    mobileSearchInput?.addEventListener('input', (e) => handleMobileSearch(e.target.value));
+    mobileSearchInput?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            const query = e.target.value.trim();
+            if (query) {
+                window.location.hash = encodeURIComponent(query);
+                e.target.value = '';
+                toggleMobileMenu(); // Close mobile menu after search
+            }
+        }
+    });
+
+    // Mobile menu toggle
+    mobileMenuToggle?.addEventListener('click', toggleMobileMenu);
+
+    // Navigation links
+    navLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+            const page = link.dataset.page;
+            if (page === 'leaderboard') {
+                e.preventDefault();
+                navigateToHome(); // Home is now the leaderboard
+            }
+            // For external links like skill-hiscores.html, let default behavior occur
+        });
+    });
+
+    mobileNavLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+            const page = link.dataset.page;
+            if (page === 'leaderboard') {
+                e.preventDefault();
+                navigateToHome(); // Home is now the leaderboard
+                toggleMobileMenu();
+            }
+            // For external links, let default behavior occur but close menu
+            setTimeout(() => toggleMobileMenu(), 100);
+        });
+    });
+
+    // Legacy search event listeners (maintained for compatibility)
     searchInput?.addEventListener('input', (e) => handleSearch(e.target.value));
-    searchClear?.addEventListener('click', () => { searchInput.value = ''; searchSuggestions.classList.add('hidden'); });
+    searchClear?.addEventListener('click', () => {
+        if (searchInput) searchInput.value = '';
+        searchSuggestions?.classList.add('hidden');
+    });
     searchInput?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             const query = e.target.value.trim();
-            if (query) { window.location.hash = encodeURIComponent(query); hideSearch(); }
-        } else if (e.key === 'Escape') hideSearch();
+            if (query) {
+                window.location.hash = encodeURIComponent(query);
+                hideSearch();
+            }
+        } else if (e.key === 'Escape') {
+            hideSearch();
+        }
     });
+
+    // Close search when clicking outside
     document.addEventListener('click', (e) => {
-        if (!searchContainer.contains(e.target) && !searchToggle.contains(e.target)) hideSearch();
+        // Close legacy search
+        if (searchContainer && !searchContainer.contains(e.target)) {
+            hideSearch();
+        }
+
+        // Close mobile menu when clicking outside
+        if (mobileMenu && !mobileMenu.contains(e.target) && !mobileMenuToggle?.contains(e.target)) {
+            if (!mobileMenu.classList.contains('hidden')) {
+                toggleMobileMenu();
+            }
+        }
     });
+
+    // Navigation buttons
     backBtn?.addEventListener('click', navigateToHome);
     logoBtn?.addEventListener('click', navigateToHome);
-    retryBtn?.addEventListener('click', () => { currentView === 'player' ? fetchUserStats(currentPlayer.username) : fetchLeaderboard(); });
+    retryBtn?.addEventListener('click', () => {
+        currentView === 'player' ? fetchUserStats(currentPlayer.username) : fetchLeaderboard();
+    });
     refreshLeaderboard?.addEventListener('click', fetchLeaderboard);
     refreshPlayer?.addEventListener('click', () => { if (currentPlayer) fetchUserStats(currentPlayer.username); });
-    startSearch?.addEventListener('click', showSearch);
+    startSearch?.addEventListener('click', showSearchModal);
     window.addEventListener('hashchange', handleRouteChange);
     document.getElementById('prev-page').addEventListener('click', () => changePage(-1));
     document.getElementById('next-page').addEventListener('click', () => changePage(1));
