@@ -49,37 +49,27 @@ export class Router {
             if (userMatch?.[1]) {
                 const user = await this.service.kv.getUser(decodeURIComponent(userMatch[1]));
                 return user ? jsonResponse(user) : jsonResponse({ error: 'User not found' }, 404);
-            }
-
-            // Avatar endpoints
+            }            // Avatar endpoints
             const avatarMatch = pathname.match(/^\/api\/avatars\/([^/]+)$/);
             if (avatarMatch?.[1]) {
                 const username = decodeURIComponent(avatarMatch[1]);
-                const user = await this.service.kv.getUser(username);
-
-                if (!user) {
-                    return jsonResponse({ error: 'User not found' }, 404);
-                }
-
-                // If user doesn't have avatar config, generate it
-                if (!user.avatar) {
-                    user.avatar = this.service.avatarService.getAvatarConfig(username);
-                    // Save the updated user data
-                    await this.service.kv.setUser(username, user);
-                }
-
-                return jsonResponse(user.avatar);
+                const avatarConfig = this.service.avatarService.getAvatarConfig(username);
+                return jsonResponse(avatarConfig);
             }
 
             const avatarSvgMatch = pathname.match(/^\/api\/avatars\/([^/]+)\/svg$/);
             if (avatarSvgMatch?.[1]) {
                 const username = decodeURIComponent(avatarSvgMatch[1]);
-                const user = await this.service.kv.getUser(username);
-
-                if (!user) {
-                    // Generate avatar for non-existent users too (for preview purposes)
-                    const config = this.service.avatarService.getAvatarConfig(username);
-                    const svg = this.service.avatarService.generateAvatarSVG(config);
+                const avatarUrl = this.service.avatarService.getAvatarUrl(username, 64);
+                
+                // Proxy the request to DiceBear to avoid CORS issues
+                try {
+                    const response = await fetch(avatarUrl);
+                    if (!response.ok) {
+                        throw new Error(`Avatar service returned ${response.status}`);
+                    }
+                    
+                    const svg = await response.text();
                     return new Response(svg, {
                         headers: {
                             'Content-Type': 'image/svg+xml',
@@ -87,22 +77,23 @@ export class Router {
                             'Access-Control-Allow-Origin': '*'
                         }
                     });
+                } catch (error) {
+                    // Return a simple fallback SVG if the service fails
+                    const fallbackSvg = `<svg width="64" height="64" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="64" height="64" fill="#5d4c38"/>
+                        <circle cx="32" cy="20" r="12" fill="#c5b394"/>
+                        <rect x="26" y="35" width="12" height="20" fill="#3a2d1d"/>
+                        <text x="32" y="55" text-anchor="middle" fill="#ffb700" font-size="8">${username.charAt(0).toUpperCase()}</text>
+                    </svg>`;
+                    
+                    return new Response(fallbackSvg, {
+                        headers: {
+                            'Content-Type': 'image/svg+xml',
+                            'Cache-Control': 'public, max-age=3600', // Cache fallback for 1 hour
+                            'Access-Control-Allow-Origin': '*'
+                        }
+                    });
                 }
-
-                // Ensure user has avatar config
-                if (!user.avatar) {
-                    user.avatar = this.service.avatarService.getAvatarConfig(username);
-                    await this.service.kv.setUser(username, user);
-                }
-
-                const svg = this.service.avatarService.generateAvatarSVG(user.avatar);
-                return new Response(svg, {
-                    headers: {
-                        'Content-Type': 'image/svg+xml',
-                        'Cache-Control': 'public, max-age=86400', // Cache for 24 hours
-                        'Access-Control-Allow-Origin': '*'
-                    }
-                });
             }
 
             return jsonResponse({ error: 'Not Found' }, 404);

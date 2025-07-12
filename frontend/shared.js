@@ -209,35 +209,81 @@ window.HiscoresApp = (() => {
                 activeSortElement.classList.add(sortDirection === 'asc' ? 'sorted-asc' : 'sorted-desc');
             }
         }
-    };
-
-    // --- AVATAR SERVICE ---
+    };    // --- AVATAR SERVICE ---
     const AvatarService = {
         getAvatarUrl: (username) => {
             return `${API_BASE_URL}/api/avatars/${encodeURIComponent(username)}/svg`;
         },
-
+        
+        // Get direct DiceBear URL for faster loading (bypassing our proxy)
+        getDirectAvatarUrl: (username, size = 64) => {
+            const seed = encodeURIComponent(username);
+            // Use pixel-art style by default for OSRS feel, with username hash for variety
+            const styles = ['pixel-art', 'adventurer', 'avataaars', 'bottts', 'fun-emoji'];
+            let hash = 0;
+            for (let i = 0; i < username.length; i++) {
+                hash = ((hash << 5) - hash) + username.charCodeAt(i);
+                hash = hash & hash;
+            }
+            const styleIndex = Math.abs(hash) % styles.length;
+            const style = styles[styleIndex];
+            
+            return `https://api.dicebear.com/7.x/${style}/svg?seed=${seed}&size=${size}`;
+        },
+        
         loadAvatar: (username, imgElement, fallbackSrc = null) => {
             if (!imgElement || !username) return;
-
-            const avatarUrl = AvatarService.getAvatarUrl(username);
-
-            imgElement.onload = () => {
-                imgElement.style.display = 'block';
-            };
-
-            imgElement.onerror = () => {
-                if (fallbackSrc) {
-                    imgElement.src = fallbackSrc;
+            
+            // Try direct DiceBear URL first for better performance
+            const directUrl = AvatarService.getDirectAvatarUrl(username);
+            const proxyUrl = AvatarService.getAvatarUrl(username);
+            
+            let attempts = 0;
+            const maxAttempts = 2;
+            
+            const tryLoadAvatar = (url) => {
+                imgElement.onload = () => {
                     imgElement.style.display = 'block';
-                } else {
-                    imgElement.style.display = 'none';
-                }
+                };
+                
+                imgElement.onerror = () => {
+                    attempts++;
+                    if (attempts === 1) {
+                        // Try proxy URL if direct fails
+                        tryLoadAvatar(proxyUrl);
+                    } else if (attempts < maxAttempts && fallbackSrc) {
+                        // Try fallback if provided
+                        imgElement.src = fallbackSrc;
+                        imgElement.style.display = 'block';
+                    } else {
+                        // Create a simple text-based avatar as last resort
+                        const canvas = document.createElement('canvas');
+                        canvas.width = 64;
+                        canvas.height = 64;
+                        const ctx = canvas.getContext('2d');
+                        
+                        // Background
+                        ctx.fillStyle = '#5d4c38';
+                        ctx.fillRect(0, 0, 64, 64);
+                        
+                        // Initial
+                        ctx.fillStyle = '#ffb700';
+                        ctx.font = 'bold 24px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(username.charAt(0).toUpperCase(), 32, 32);
+                        
+                        imgElement.src = canvas.toDataURL();
+                        imgElement.style.display = 'block';
+                    }
+                };
+                
+                imgElement.src = url;
             };
-
-            imgElement.src = avatarUrl;
+            
+            tryLoadAvatar(directUrl);
         },
-
+        
         createAvatarImg: (username, className = '', size = 32) => {
             const img = document.createElement('img');
             img.className = className;
@@ -245,7 +291,7 @@ window.HiscoresApp = (() => {
             img.style.height = `${size}px`;
             img.alt = `${username}'s avatar`;
             img.title = username;
-
+            
             AvatarService.loadAvatar(username, img);
             return img;
         }

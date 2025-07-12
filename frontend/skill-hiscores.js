@@ -138,15 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return `<tr class="border-t-2 border-osrs-brown/50 hover:bg-osrs-parchment-dark">
                     <td class="px-4 py-2"><span class="font-medium ${rankClass}">${player.rank.toLocaleString()}</span></td>
                     <td class="px-4 py-2">
-                        <div class="flex items-center">
-                            <div class="w-6 h-6 mr-2 bg-black/20 border border-black/50 rounded-sm overflow-hidden flex-shrink-0">
-                                <img src="${HiscoresApp.AvatarService.getAvatarUrl(player.username)}" 
-                                     alt="${player.username}'s avatar" 
-                                     class="w-full h-full object-cover"
-                                     onerror="this.style.display='none'">
-                            </div>
-                            <button class="player-link font-medium hover:text-blue-700 underline" data-username="${player.username}">${player.username}</button>
-                        </div>
+                        <button class="player-link font-medium hover:text-blue-700 underline" data-username="${player.username}">${player.username}</button>
                     </td>
                     <td class="px-4 py-2 font-medium">${player.level.toLocaleString()}</td>
                     <td class="px-4 py-2 font-medium">${HiscoresApp.formatNumber(player.xp)}</td>
