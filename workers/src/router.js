@@ -16,6 +16,25 @@ export class Router {
         try {
             if (pathname === '/api/health') return jsonResponse({ status: 'OK' });
             if (pathname === '/api/skills') return jsonResponse({ skills: config.SKILLS });
+            if (pathname === '/api/status') {
+                const status = {
+                    status: 'OK',
+                    restApiEnabled: this.service.kv.hasRestApi,
+                    bulkOperationsSupported: this.service.kv.hasRestApi,
+                    features: {
+                        bulkGet: this.service.kv.hasRestApi,
+                        bulkPut: this.service.kv.hasRestApi,
+                        metadata: this.service.kv.hasRestApi,
+                        ttl: this.service.kv.hasRestApi
+                    },
+                    config: {
+                        bulkGetBatchSize: config.REST_API_CONFIG.BULK_GET_BATCH_SIZE,
+                        bulkPutBatchSize: config.REST_API_CONFIG.BULK_PUT_BATCH_SIZE,
+                        leaderboardTtl: config.REST_API_CONFIG.LEADERBOARD_TTL_SECONDS
+                    }
+                };
+                return jsonResponse(status);
+            }
             if (pathname === '/api/skill-rankings') {
                 const leaderboards = await this.service.kv.getLeaderboards();
                 return jsonResponse(leaderboards);

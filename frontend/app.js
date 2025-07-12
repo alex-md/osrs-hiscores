@@ -126,10 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
         attachPlayerLinkListeners();
     };
 
-    // OSRS Combat Level Formula:
-    // C = ⌊0.25(D + H + ⌊P/2⌋) + 0.325·max{A+S, ⌊R/2⌋ + R, ⌊M/2⌋ + M}⌋
-    // where A=Attack, S=Strength, D=Defence, H=Hitpoints, R=Ranged, M=Magic, P=Prayer
-    // ⌊x⌋ means "round down" (Math.floor)
+
     const calculateCombatLevel = (skills) => {
         const s = (name) => skills[name]?.level || (name === 'Hitpoints' ? 10 : 1);
 

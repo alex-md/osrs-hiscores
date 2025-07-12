@@ -136,33 +136,3 @@ Deploy the worker to your Cloudflare account:
 cd workers
 npx wrangler deploy
 ```
-
-
-In OSRS the combat level $C$ is given by:
-
-$$
-C \;=\;\Big\lfloor\;0.25\bigl(D + H + \lfloor P/2\rfloor\bigr)\;+\;\max\bigl\{\,0.325(A+S),\;0.325\bigl(\lfloor R/2\rfloor+R\bigr),\;0.325\bigl(\lfloor M/2\rfloor+M\bigr)\bigr\}\;\Big\rfloor
-$$
-
-where
-
-* $A$=Attack, $S$=Strength, $D$=Defence, $H$=Hitpoints,
-* $R$=Ranged, $M$=Magic, $P$=Prayer, and $\lfloor x\rfloor$ is “round down.”
-
-If you ignore the final flooring (i.e. treat it as an equality), multiply both sides by 4 and solve for $H$:
-
-$$
-\begin{aligned}
-C &\approx 0.25\,(D + H + \lfloor P/2\rfloor)\;+\;0.325\,K \\[6pt]
-4\,C &\approx (D + H + \lfloor P/2\rfloor)\;+\;1.3\,K \\[4pt]
-\boxed{H \;\approx\; 4\,C \;-\; D \;-\;\lfloor P/2\rfloor \;-\;1.3\,K}
-\end{aligned}
-$$
-
-where
-
-$$
-K \;=\;\max\bigl\{\,A+S,\;\lfloor R/2\rfloor+R,\;\lfloor M/2\rfloor+M\bigr\}.
-$$
-
-So, given your overall combat level $C$ and your other six combat stats, you can plug them in to get your Hitpoints level $H$.

@@ -66,7 +66,7 @@ export class HiscoresService {
             const xp = Math.random() < profile.skillProbability
                 ? Math.floor(Math.random() * (profile.xpRange.max * weight * talent - profile.xpRange.min * weight) + profile.xpRange.min * weight)
                 : 0;
-            user.skills[skill] = { xp: Math.max(0, xp), level: xpToLevel(xp) };
+            user.skills[skill] = { xp: Math.min(200000000, Math.max(0, xp)), level: xpToLevel(xp) };
         });
 
         const combatXp = config.COMBAT_SKILLS.reduce((sum, s) => sum + (user.skills[s]?.xp || 0), 0);
@@ -111,7 +111,19 @@ export class HiscoresService {
                 attempts++;
             }
             if (isUnique) {
-                payloads.push({ username, data: this.generateNewUser(username) });
+                const userData = this.generateNewUser(username);
+                const payload = { username, data: userData };
+
+                // Add creation metadata if REST API is available
+                if (this.kv.hasRestApi) {
+                    payload.metadata = {
+                        created: new Date().toISOString(),
+                        source: 'auto_generated',
+                        activityType: userData.activityType
+                    };
+                }
+
+                payloads.push(payload);
             }
         }
         return payloads;
@@ -145,7 +157,7 @@ export class HiscoresService {
         // Save all changes
         const allPayloads = [...updatePayloads, ...newUserPayloads];
         if (allPayloads.length > 0) {
-            await this.kv.saveBatchUpdates(allPayloads, config.USERS_PER_BATCH, config.BATCH_DELAY_MS);
+            await this.saveBatchUpdatesOptimized(allPayloads);
         }
 
         // Conditionally regenerate leaderboards
@@ -208,38 +220,25 @@ export class HiscoresService {
     }
 
     updateHitpoints(user) {
-        // Get combat skill levels
-        const attack = user.skills['Attack']?.level || 1;
-        const strength = user.skills['Strength']?.level || 1;
-        const defence = user.skills['Defence']?.level || 1;
-        const ranged = user.skills['Ranged']?.level || 1;
-        const magic = user.skills['Magic']?.level || 1;
-        const prayer = user.skills['Prayer']?.level || 1;
-
-        // Calculate combat level using OSRS formula
-        const base = 0.25 * (defence + (user.skills['Hitpoints']?.level || 10) + Math.floor(prayer / 2));
-        const melee = 0.325 * (attack + strength);
-        const rangedStyle = 0.325 * (Math.floor(ranged / 2) + ranged);
-        const magicStyle = 0.325 * (Math.floor(magic / 2) + magic);
-        const combatLevel = Math.floor(base + Math.max(melee, rangedStyle, magicStyle));
-
-        // Calculate required Hitpoints level using derived formula:
-        // H ≈ 4C - D - floor(P/2) - 1.3K
-        // where K = max{A+S, floor(R/2)+R, floor(M/2)+M}
-        const K = Math.max(
-            attack + strength,
-            Math.floor(ranged / 2) + ranged,
-            Math.floor(magic / 2) + magic
+        // 1) sum up all combat‐skill XP
+        const combatXp = config.COMBAT_SKILLS.reduce(
+            (sum, s) => sum + (user.skills[s]?.xp || 0),
+            0
         );
 
-        const requiredHpLevel = Math.max(10, Math.round(4 * combatLevel - defence - Math.floor(prayer / 2) - 1.3 * K));
-        const currentHpLevel = user.skills['Hitpoints']?.level || 10;
+        // 2) recalc HP XP exactly like in new‐user generator
+        //    level 10 XP is this.levelToXp(10), so we mirror that
+        const minHpXp = this.levelToXp(10);
+        const newHpXp = Math.min(200000000, Math.max(
+            minHpXp,
+            Math.floor((combatXp / 4) * 1.3)
+        ));
 
-        if (currentHpLevel !== requiredHpLevel) {
-            // Convert level back to XP (approximate, since we need consistent XP values)
-            const newHpXp = this.levelToXp(requiredHpLevel);
-            user.skills['Hitpoints'].xp = newHpXp;
-            user.skills['Hitpoints'].level = requiredHpLevel;
+        // 3) only update if it actually changed
+        const currHp = user.skills['Hitpoints'] || { xp: 0 };
+        if (currHp.xp !== newHpXp) {
+            currHp.xp = newHpXp;
+            currHp.level = xpToLevel(newHpXp);
             return true;
         }
         return false;
@@ -254,6 +253,8 @@ export class HiscoresService {
         }
         return Math.floor(xp / 4);
     }
+
+
 
     // --- Memory-Efficient Leaderboard Generation ---
     async regenerateLeaderboardsEfficiently() {
@@ -295,11 +296,32 @@ export class HiscoresService {
                 .forEach((p, i) => p.rank = i + 1);
         });
 
-        // Save the leaderboards
-        await this.kv.setLeaderboards({
+        // Save the leaderboards with TTL if REST API is available
+        const leaderboardData = {
             totalLevel: totalLevelLeaderboard,
             skills: skillRankings,
             lastUpdated: new Date().toISOString(),
-        });
+        };
+
+        // Use enhanced TTL functionality if available, otherwise fallback to regular save
+        if (this.kv.hasRestApi) {
+            await this.kv.setLeaderboardsWithTTL(leaderboardData, config.REST_API_CONFIG.LEADERBOARD_TTL_SECONDS);
+        } else {
+            await this.kv.setLeaderboards(leaderboardData);
+        }
+    }
+
+    // Enhanced batch processing using bulk operations
+    async saveBatchUpdatesOptimized(updatePayloads) {
+        // The KVService will automatically determine whether to use bulk operations
+        // based on payload size and REST API availability
+        return this.kv.saveBatchUpdates(updatePayloads);
+    }
+
+    // Enhanced user fetching with bulk operations
+    async getAllUsersOptimized(maxUsers = null) {
+        // The KVService will automatically determine whether to use bulk operations
+        // based on user count and REST API availability
+        return this.kv.getAllUsers(100, maxUsers);
     }
 }
