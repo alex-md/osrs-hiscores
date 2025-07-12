@@ -18,9 +18,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const playerView = document.getElementById('player-view');
     const leaderboardBody = document.getElementById('leaderboard-body');
     const leaderboardPlayerSearch = document.getElementById('leaderboard-player-search');
-    const totalLevelFilter = document.getElementById('total-level-filter');
-    const totalXpFilter = document.getElementById('total-xp-filter');
-    const leaderboardItemsPerPage = document.getElementById('leaderboard-items-per-page');
+    const totalLevelFilter = null; // Remove filters for simplified UI
+    const totalXpFilter = null;
+    const leaderboardItemsPerPage = null; // Simplified UI, no items per page selection
 
     // --- VIEW MANAGEMENT ---
     const showView = (viewName) => {
@@ -80,14 +80,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- RENDERING & UI LOGIC ---
     const applyLeaderboardFiltersAndSort = () => {
-        const searchTerm = leaderboardPlayerSearch?.value.toLowerCase().trim();
-        const minLevel = parseInt(totalLevelFilter?.value) || 0;
-        const minXp = parseInt(totalXpFilter?.value) || 0;
+        const searchTerm = leaderboardPlayerSearch?.value.toLowerCase().trim() || '';
 
         let filtered = allLeaderboardData.filter(p =>
-            p.username.toLowerCase().includes(searchTerm) &&
-            p.totalLevel >= minLevel &&
-            p.totalXp >= minXp
+            p.username.toLowerCase().includes(searchTerm)
         );
 
         const sortKeyMap = { 'rank': 'rank', 'player': 'username', 'level': 'totalLevel', 'xp': 'totalXp' };
@@ -105,17 +101,28 @@ document.addEventListener('DOMContentLoaded', () => {
         const pageData = filteredLeaderboardData.slice(startIdx, startIdx + itemsPerPage);
 
         leaderboardBody.innerHTML = pageData.length === 0
-            ? `<tr><td colspan="4" class="px-6 py-8 text-center text-slate-400">No players found.</td></tr>`
+            ? `<tr><td colspan="4" class="px-4 py-8 text-center text-osrs-brown">No players found.</td></tr>`
             : pageData.map(player => {
                 let rankClass = '';
-                if (player.rank === 1) rankClass = 'rank-gold';
-                else if (player.rank === 2) rankClass = 'rank-silver';
-                else if (player.rank === 3) rankClass = 'rank-bronze';
-                return `<tr class="hover:bg-slate-700/30">
-                    <td class="px-6 py-3"><span class="font-medium ${rankClass}">${player.rank.toLocaleString()}</span></td>
-                    <td class="px-6 py-3"><button class="player-link font-medium hover:text-amber-400" data-username="${player.username}">${player.username}</button></td>
-                    <td class="px-6 py-3 font-medium">${player.totalLevel.toLocaleString()}</td>
-                    <td class="px-6 py-3 font-medium">${HiscoresApp.formatNumber(player.totalXp)}</td>
+                if (player.rank === 1) rankClass = 'text-yellow-600 font-bold';
+                else if (player.rank === 2) rankClass = 'text-gray-500 font-bold';
+                else if (player.rank === 3) rankClass = 'text-yellow-700 font-bold';
+
+                return `<tr class="border-t-2 border-osrs-brown/50 hover:bg-osrs-parchment-dark">
+                    <td class="px-4 py-2"><span class="font-medium ${rankClass}">${player.rank.toLocaleString()}</span></td>
+                    <td class="px-4 py-2">
+                        <div class="flex items-center">
+                            <div class="w-8 h-8 mr-3 bg-black/20 border border-black/50 rounded-sm overflow-hidden flex-shrink-0">
+                                <img src="${HiscoresApp.AvatarService.getAvatarUrl(player.username)}" 
+                                     alt="${player.username}'s avatar" 
+                                     class="w-full h-full object-cover"
+                                     onerror="this.style.display='none'">
+                            </div>
+                            <button class="player-link font-medium hover:text-blue-700 underline" data-username="${player.username}">${player.username}</button>
+                        </div>
+                    </td>
+                    <td class="px-4 py-2 font-medium">${player.totalLevel.toLocaleString()}</td>
+                    <td class="px-4 py-2 font-medium">${HiscoresApp.formatNumber(player.totalXp)}</td>
                 </tr>`;
             }).join('');
 
@@ -143,6 +150,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const renderUserDetail = (user) => {
         document.getElementById('player-name').textContent = user.username;
+
+        // Load player avatar
+        const avatarImg = document.getElementById('player-avatar');
+        if (avatarImg) {
+            HiscoresApp.AvatarService.loadAvatar(user.username, avatarImg);
+        }
+
         const totalLevel = Object.values(user.skills).reduce((sum, skill) => sum + skill.level, 0);
         const totalXp = Object.values(user.skills).reduce((sum, skill) => sum + skill.xp, 0);
         const rankings = HiscoresApp.state.cachedRankings;
@@ -154,27 +168,41 @@ document.addEventListener('DOMContentLoaded', () => {
         const skillsTableBody = document.getElementById('skills-table-body');
         const overallRank = rankings?.totalLevel?.find(p => p.username === user.username)?.rank.toLocaleString() || 'N/A';
 
-        const rows = [{ icon: 'trophy', name: 'Overall', rank: overallRank, level: totalLevel, xp: totalXp, isOverall: true }]
-            .concat(HiscoresApp.state.skills.map(skillName => {
-                const skill = user.skills[skillName];
-                if (!skill) return null;
-                const rank = rankings?.skills?.[skillName]?.find(p => p.username === user.username)?.rank.toLocaleString() || 'N/A';
-                return { icon: HiscoresApp.getSkillIcon(skillName), name: skillName, rank, ...skill };
-            }).filter(Boolean));
+        const skillsWithIcons = HiscoresApp.state.skills.map(skillName => {
+            const skill = user.skills[skillName];
+            if (!skill) return null;
+            const rank = rankings?.skills?.[skillName]?.find(p => p.username === user.username)?.rank.toLocaleString() || 'N/A';
+
+            // Get skill icon URL from OSRS wiki
+            const iconUrl = `https://oldschool.runescape.wiki/images/${skillName}_icon.png`;
+
+            return { iconUrl, name: skillName, rank, ...skill };
+        }).filter(Boolean);
+
+        const rows = [{
+            iconUrl: 'https://oldschool.runescape.wiki/images/Overall_icon.png',
+            name: 'Overall',
+            rank: overallRank,
+            level: totalLevel,
+            xp: totalXp,
+            isOverall: true
+        }].concat(skillsWithIcons);
 
         skillsTableBody.innerHTML = rows.map(s => `
-            <tr class="hover:bg-slate-700/20 ${s.isOverall ? 'border-b border-slate-600/50' : ''}">
-                <td class="px-4 py-3"><div class="flex items-center">
-                    <i data-lucide="${s.icon}" class="w-4 h-4 mr-3 text-amber-400"></i>
-                    ${s.isOverall ? `<span class="font-bold text-white">${s.name}</span>` : `<button class="skill-link font-medium text-white hover:text-amber-400" data-skill="${s.name}">${s.name}</button>`}
+            <tr class="border-t-2 border-osrs-brown/50 hover:bg-osrs-parchment-dark ${s.isOverall ? 'border-b-4 border-osrs-brown-dark' : ''}">
+                <td class="px-4 py-2"><div class="flex items-center">
+                    <img src="${s.iconUrl}" alt="${s.name}" class="w-5 h-5 mr-3" onerror="this.style.display='none'">
+                    ${s.isOverall ?
+                `<span class="font-bold text-osrs-text-dark">${s.name}</span>` :
+                `<button class="skill-link font-medium text-osrs-text-dark hover:text-blue-700 underline" data-skill="${s.name}">${s.name}</button>`
+            }
                 </div></td>
-                <td class="px-4 py-3 font-medium text-slate-300">${s.rank}</td>
-                <td class="px-4 py-3 font-bold text-white">${s.level.toLocaleString()}</td>
-                <td class="px-4 py-3 font-bold text-white">${s.xp.toLocaleString()}</td>
+                <td class="px-4 py-2 font-medium">${s.rank}</td>
+                <td class="px-4 py-2 font-bold">${s.level.toLocaleString()}</td>
+                <td class="px-4 py-2 font-bold">${s.xp.toLocaleString()}</td>
             </tr>`).join('');
 
         attachSkillLinkListeners();
-        lucide.createIcons();
     };
 
     const attachPlayerLinkListeners = () => document.querySelectorAll('.player-link').forEach(link => {
@@ -231,24 +259,25 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('prev-page').addEventListener('click', () => { currentPage--; renderLeaderboard(); });
         document.getElementById('next-page').addEventListener('click', () => { currentPage++; renderLeaderboard(); });
         leaderboardPlayerSearch?.addEventListener('input', HiscoresApp.debounce(applyLeaderboardFiltersAndSort, 300));
-        [totalLevelFilter, totalXpFilter].forEach(el => el?.addEventListener('change', applyLeaderboardFiltersAndSort));
-        leaderboardItemsPerPage?.addEventListener('change', (e) => { itemsPerPage = parseInt(e.target.value); applyLeaderboardFiltersAndSort(); });
-        exportLeaderboard?.addEventListener('click', exportLeaderboardData);
 
-        // Sorting
+        // Sorting - simplify the sort button IDs to match the HTML
         ['rank', 'player', 'level', 'xp'].forEach(field => {
-            document.getElementById(`sort-leaderboard-${field}`)?.addEventListener('click', () => {
-                if (currentLeaderboardSortField === field) {
-                    currentLeaderboardSortDirection = currentLeaderboardSortDirection === 'asc' ? 'desc' : 'asc';
-                } else {
-                    currentLeaderboardSortField = field;
-                    currentLeaderboardSortDirection = field === 'rank' ? 'asc' : 'desc';
-                }
-                applyLeaderboardFiltersAndSort();
-                HiscoresApp.Sorter.updateIndicators('sort-leaderboard-', currentLeaderboardSortField, currentLeaderboardSortDirection);
-            });
+            const sortId = `sort-${field}`;
+            const sortElement = document.getElementById(sortId);
+            if (sortElement) {
+                sortElement.addEventListener('click', () => {
+                    if (currentLeaderboardSortField === field) {
+                        currentLeaderboardSortDirection = currentLeaderboardSortDirection === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        currentLeaderboardSortField = field;
+                        currentLeaderboardSortDirection = field === 'rank' ? 'asc' : 'desc';
+                    }
+                    applyLeaderboardFiltersAndSort();
+                    HiscoresApp.Sorter.updateIndicators('sort-', currentLeaderboardSortField, currentLeaderboardSortDirection);
+                });
+            }
         });
-        HiscoresApp.Sorter.updateIndicators('sort-leaderboard-', currentLeaderboardSortField, currentLeaderboardSortDirection);
+        HiscoresApp.Sorter.updateIndicators('sort-', currentLeaderboardSortField, currentLeaderboardSortDirection);
 
         // Nav Links
         document.querySelectorAll('.nav-link[data-page="leaderboard"], .mobile-nav-link[data-page="leaderboard"]').forEach(link => {

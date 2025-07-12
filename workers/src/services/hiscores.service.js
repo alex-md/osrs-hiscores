@@ -2,10 +2,12 @@
 
 import * as config from '../config.js';
 import { xpToLevel } from '../utils.js';
+import { AvatarService } from './avatar.service.js';
 
 export class HiscoresService {
     constructor(kvService) {
         this.kv = kvService;
+        this.avatarService = new AvatarService();
     }
 
     // --- User Calculation Helpers ---
@@ -59,6 +61,9 @@ export class HiscoresService {
         const user = { username, activityType, skills: {} };
         const profile = config.PLAYER_ACTIVITY_TYPES[activityType];
         const talent = 0.75 + Math.random() * 0.75;
+
+        // Generate avatar configuration
+        user.avatar = this.avatarService.getAvatarConfig(username);
 
         config.SKILLS.forEach(skill => {
             if (skill === 'Hitpoints') return;
@@ -185,6 +190,12 @@ export class HiscoresService {
         for (const user of users) {
             let hasChanges = !user.activityType;
             user.activityType = user.activityType || this.getPlayerActivityType();
+
+            // Ensure user has avatar configuration
+            if (!user.avatar) {
+                user.avatar = this.avatarService.getAvatarConfig(user.username);
+                hasChanges = true;
+            }
 
             config.SKILLS.forEach(skillName => {
                 if (skillName === 'Hitpoints') return;

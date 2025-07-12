@@ -59,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const SKILL_CATEGORIES = { combat: ['Attack', 'Strength', 'Defence', 'Ranged', 'Prayer', 'Magic', 'Hitpoints'], gathering: ['Mining', 'Fishing', 'Woodcutting', 'Farming', 'Hunter'], artisan: ['Smithing', 'Cooking', 'Fletching', 'Crafting', 'Firemaking', 'Herblore'], support: ['Runecrafting', 'Construction', 'Agility', 'Thieving', 'Slayer'] };
-    const getSkillColor = (skillName) => { const map = { 'Attack': 'from-red-400 to-red-600', 'Strength': 'from-green-400 to-green-600', 'Defence': 'from-blue-400 to-blue-600', 'Ranged': 'from-emerald-400 to-emerald-600', 'Prayer': 'from-yellow-400 to-yellow-600', 'Magic': 'from-purple-400 to-purple-600', 'Runecrafting': 'from-indigo-400 to-indigo-600', 'Construction': 'from-orange-400 to-orange-600', 'Hitpoints': 'from-pink-400 to-pink-600', 'Agility': 'from-cyan-400 to-cyan-600', 'Herblore': 'from-lime-400 to-lime-600', 'Thieving': 'from-violet-400 to-violet-600', 'Crafting': 'from-rose-400 to-rose-600', 'Fletching': 'from-teal-400 to-teal-600', 'Slayer': 'from-red-500 to-red-700', 'Hunter': 'from-amber-400 to-amber-600', 'Mining': 'from-gray-400 to-gray-600', 'Smithing': 'from-orange-500 to-orange-700', 'Fishing': 'from-sky-400 to-sky-600', 'Cooking': 'from-red-400 to-pink-600', 'Firemaking': 'from-orange-400 to-red-600', 'Woodcutting': 'from-green-500 to-green-700', 'Farming': 'from-green-400 to-lime-600' }; return map[skillName] || 'from-amber-400 to-orange-500'; };
+
 
     const renderSkillGrid = () => {
         Object.entries(SKILL_CATEGORIES).forEach(([category, skills]) => {
@@ -68,31 +68,40 @@ document.addEventListener('DOMContentLoaded', () => {
             container.innerHTML = skills
                 .filter(skill => HiscoresApp.state.skills.includes(skill))
                 .map(skill => `
-                    <button class="skill-button" data-skill="${skill}">
-                        <div class="w-12 h-12 bg-gradient-to-br ${getSkillColor(skill)} rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-300 shadow-lg">
-                            <i data-lucide="${HiscoresApp.getSkillIcon(skill)}" class="w-6 h-6 text-white"></i>
-                        </div>
-                        <span class="text-white font-medium text-sm group-hover:text-amber-300">${skill}</span>
+                    <button class="osrs-button" data-skill="${skill}">
+                        <span class="text-osrs-text-light font-medium text-sm group-hover:text-osrs-gold">${skill}</span>
                     </button>`).join('');
-            container.querySelectorAll('.skill-button').forEach(btn =>
+            container.querySelectorAll('.osrs-button').forEach(btn =>
                 btn.addEventListener('click', () => window.location.hash = encodeURIComponent(btn.dataset.skill))
             );
         });
-        lucide.createIcons();
     };
 
     const updateSkillHeader = (skillName, data) => {
         document.getElementById('current-skill-name').textContent = skillName;
-        document.getElementById('skill-icon').setAttribute('data-lucide', HiscoresApp.getSkillIcon(skillName));
-        document.getElementById('skill-icon-container').className = `w-16 h-16 bg-gradient-to-br ${getSkillColor(skillName)} rounded-2xl flex items-center justify-center mr-4 shadow-lg animate-glow`;
         document.getElementById('total-players-count').textContent = `${data.length.toLocaleString()} players tracked`;
 
         if (data.length > 0) {
             const topPlayer = data[0];
-            document.getElementById('top-player-name').textContent = topPlayer.username;
-            document.getElementById('top-player-level').textContent = `Level ${topPlayer.level} (${HiscoresApp.formatNumber(topPlayer.xp)} XP)`;
+            const topPlayerEl = document.getElementById('top-player-name');
+            const topPlayerLevelEl = document.getElementById('top-player-level');
+            const highestXpEl = document.getElementById('highest-xp');
+            const highestXpPlayerEl = document.getElementById('highest-xp-player');
+            const avgLevelEl = document.getElementById('average-level');
+
+            if (topPlayerEl) topPlayerEl.textContent = topPlayer.username;
+            if (topPlayerLevelEl) topPlayerLevelEl.textContent = `Level ${topPlayer.level}`;
+
+            // Find highest XP
+            const highestXpPlayer = data.reduce((max, player) => player.xp > max.xp ? player : max, data[0]);
+            if (highestXpEl) highestXpEl.textContent = HiscoresApp.formatNumber(highestXpPlayer.xp);
+            if (highestXpPlayerEl) highestXpPlayerEl.textContent = highestXpPlayer.username;
+
+            // Calculate average level of top 100
+            const top100 = data.slice(0, 100);
+            const avgLevel = Math.round(top100.reduce((sum, p) => sum + p.level, 0) / top100.length);
+            if (avgLevelEl) avgLevelEl.textContent = avgLevel;
         }
-        lucide.createIcons();
     };
 
     const applyFiltersAndSort = () => {
@@ -119,17 +128,28 @@ document.addEventListener('DOMContentLoaded', () => {
         const pageData = filteredData.slice(startIdx, startIdx + itemsPerPage);
 
         skillHiscoresBody.innerHTML = pageData.length === 0
-            ? `<tr><td colspan="4" class="px-6 py-8 text-center text-slate-400">No players found.</td></tr>`
+            ? `<tr><td colspan="4" class="px-4 py-8 text-center text-osrs-brown">No players found.</td></tr>`
             : pageData.map(player => {
                 let rankClass = '';
-                if (player.rank === 1) rankClass = 'rank-gold';
-                else if (player.rank === 2) rankClass = 'rank-silver';
-                else if (player.rank === 3) rankClass = 'rank-bronze';
-                return `<tr class="hover:bg-slate-700/30">
-                    <td class="px-6 py-3"><span class="font-medium ${rankClass}">${player.rank.toLocaleString()}</span></td>
-                    <td class="px-6 py-3"><button class="player-link font-medium hover:text-amber-400" data-username="${player.username}">${player.username}</button></td>
-                    <td class="px-6 py-3 font-medium">${player.level.toLocaleString()}</td>
-                    <td class="px-6 py-3 font-medium">${HiscoresApp.formatNumber(player.xp)}</td>
+                if (player.rank === 1) rankClass = 'text-yellow-600 font-bold';
+                else if (player.rank === 2) rankClass = 'text-gray-500 font-bold';
+                else if (player.rank === 3) rankClass = 'text-yellow-700 font-bold';
+
+                return `<tr class="border-t-2 border-osrs-brown/50 hover:bg-osrs-parchment-dark">
+                    <td class="px-4 py-2"><span class="font-medium ${rankClass}">${player.rank.toLocaleString()}</span></td>
+                    <td class="px-4 py-2">
+                        <div class="flex items-center">
+                            <div class="w-6 h-6 mr-2 bg-black/20 border border-black/50 rounded-sm overflow-hidden flex-shrink-0">
+                                <img src="${HiscoresApp.AvatarService.getAvatarUrl(player.username)}" 
+                                     alt="${player.username}'s avatar" 
+                                     class="w-full h-full object-cover"
+                                     onerror="this.style.display='none'">
+                            </div>
+                            <button class="player-link font-medium hover:text-blue-700 underline" data-username="${player.username}">${player.username}</button>
+                        </div>
+                    </td>
+                    <td class="px-4 py-2 font-medium">${player.level.toLocaleString()}</td>
+                    <td class="px-4 py-2 font-medium">${HiscoresApp.formatNumber(player.xp)}</td>
                 </tr>`;
             }).join('');
 
@@ -164,7 +184,6 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('hashchange', handleRouteChange);
         document.getElementById('back-to-skills-btn')?.addEventListener('click', () => window.location.hash = '');
         document.getElementById('retry-btn')?.addEventListener('click', () => location.reload());
-        document.getElementById('refresh-skill-data')?.addEventListener('click', () => { if (currentSkill) loadSkillHiscores(currentSkill); });
 
         // Filtering & Pagination
         skillPlayerSearch?.addEventListener('input', HiscoresApp.debounce(applyFiltersAndSort, 300));

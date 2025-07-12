@@ -13,7 +13,7 @@ window.HiscoresApp = (() => {
         'https://osrs-hiscores-clone.vs.workers.dev' :
         'https://osrs-hiscores-clone.vs.workers.dev';
 
-    const SKILL_ICON_MAP = { 'Attack': 'sword', 'Strength': 'dumbbell', 'Defence': 'shield', 'Ranged': 'bow', 'Prayer': 'sparkles', 'Magic': 'wand', 'Runecrafting': 'zap', 'Construction': 'hammer', 'Hitpoints': 'heart', 'Agility': 'wind', 'Herblore': 'flask-conical', 'Thieving': 'key', 'Crafting': 'scissors', 'Fletching': 'target', 'Slayer': 'skull', 'Hunter': 'crosshair', 'Mining': 'pickaxe', 'Smithing': 'anvil', 'Fishing': 'fish', 'Cooking': 'chef-hat', 'Firemaking': 'flame', 'Woodcutting': 'axe', 'Farming': 'sprout' };
+
 
     // --- UTILITIES ---
     const formatNumber = (num) => num.toLocaleString();
@@ -24,7 +24,7 @@ window.HiscoresApp = (() => {
             timeoutId = setTimeout(() => func.apply(this, args), delay);
         };
     };
-    const getSkillIcon = (skillName) => SKILL_ICON_MAP[skillName] || 'circle';
+
 
     // --- UI HELPERS ---
     const showToast = (message, type = 'info', duration = 4000) => {
@@ -32,14 +32,12 @@ window.HiscoresApp = (() => {
         if (!toastContainer) return;
         const toast = document.createElement('div');
         toast.className = `toast toast-${type}`;
-        const icon = type === 'error' ? 'alert-circle' : type === 'success' ? 'check-circle' : type === 'warning' ? 'alert-triangle' : 'info';
         toast.innerHTML = `
             <div class="toast-content">
-                <i data-lucide="${icon}"></i><span>${message}</span>
+                <span>${message}</span>
             </div>
-            <button class="toast-close"><i data-lucide="x"></i></button>`;
+            <button class="toast-close">X</button>`;
         toastContainer.appendChild(toast);
-        lucide.createIcons();
         setTimeout(() => toast.remove(), duration);
         toast.querySelector('.toast-close').addEventListener('click', () => toast.remove());
     };
@@ -52,8 +50,7 @@ window.HiscoresApp = (() => {
         const roundedMinutes = Math.floor(minutes / 10) * 10;
         date.setMinutes(roundedMinutes, 0, 0);
         const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        lastUpdatedEl.innerHTML = `<i data-lucide="clock" class="w-3 h-3 mr-1.5"></i> Hiscores updated at ${timeString}`;
-        lucide.createIcons();
+        lastUpdatedEl.innerHTML = `Hiscores updated at ${timeString}`;
     };
 
     const handleApiError = (error, logMessage, displayMessage, toastMessage) => {
@@ -99,57 +96,41 @@ window.HiscoresApp = (() => {
     // --- UI MODULES ---
     const Theme = {
         init: () => {
-            if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                document.documentElement.classList.add('dark');
-            }
-            document.getElementById('theme-toggle')?.addEventListener('click', Theme.toggle);
+            // Always use dark theme for this project
+            document.documentElement.classList.add('dark');
         },
         toggle: () => {
-            const isDark = document.documentElement.classList.toggle('dark');
-            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            // No-op for now since we only support dark theme
         },
     };
 
     const MobileMenu = {
         init: () => {
             const toggleBtn = document.getElementById('mobile-menu-toggle');
-            toggleBtn?.addEventListener('click', MobileMenu.toggle);
-            document.addEventListener('click', (e) => {
-                const menu = document.getElementById('mobile-menu');
-                if (menu && !menu.contains(e.target) && !toggleBtn?.contains(e.target) && !menu.classList.contains('hidden')) {
-                    MobileMenu.toggle();
-                }
-            });
+            const menu = document.getElementById('mobile-menu');
+
+            if (toggleBtn && menu) {
+                toggleBtn.addEventListener('click', MobileMenu.toggle);
+                // Close menu when clicking outside
+                document.addEventListener('click', (e) => {
+                    if (!menu.contains(e.target) && !toggleBtn.contains(e.target) && !menu.classList.contains('hidden')) {
+                        MobileMenu.toggle();
+                    }
+                });
+            }
         },
         toggle: () => {
             const menu = document.getElementById('mobile-menu');
-            if (!menu) return;
-            const isHidden = menu.classList.contains('hidden');
-            if (isHidden) {
-                menu.classList.remove('hidden');
-                setTimeout(() => menu.classList.add('active'), 10);
-            } else {
-                menu.classList.remove('active');
-                setTimeout(() => menu.classList.add('hidden'), 300);
+            if (menu) {
+                menu.classList.toggle('hidden');
             }
         },
     };
 
     const Navigation = {
         setActive: (currentPage) => {
-            document.querySelectorAll('.nav-link, .mobile-nav-link').forEach(link => {
-                link.classList.remove('active', 'text-white', 'bg-amber-500/20', 'border', 'border-amber-500/30', 'border-l-4', 'border-amber-500');
-                link.classList.add('text-slate-300');
-                if (link.dataset.page === currentPage) {
-                    link.classList.add('active', 'text-white');
-                    link.classList.remove('text-slate-300');
-                    if (link.classList.contains('nav-link')) {
-                        link.classList.add('bg-amber-500/20', 'border', 'border-amber-500/30');
-                    } else { // mobile-nav-link
-                        link.classList.add('bg-amber-500/20', 'border-l-4', 'border-amber-500');
-                    }
-                }
-            });
+            // Simple navigation management - could be expanded later
+            console.log(`Active page: ${currentPage}`);
         },
     };
 
@@ -161,79 +142,48 @@ window.HiscoresApp = (() => {
             const overlay = document.getElementById('search-overlay');
             const closeBtn = document.getElementById('close-search-modal');
             const modalInput = document.getElementById('modal-search-input');
-            const modalSuggestions = document.getElementById('modal-search-suggestions');
-            const quickSearchInput = document.getElementById('quick-search-input');
-            const mobileSearchInput = document.getElementById('mobile-search-input');
 
             const showModal = () => {
-                modal?.classList.remove('hidden');
-                modalInput?.focus();
-                setTimeout(() => modal?.querySelector('.bg-slate-900\\/95')?.classList.add('active'), 10);
+                if (modal) {
+                    modal.classList.remove('hidden');
+                    if (modalInput) modalInput.focus();
+                }
             };
 
             const hideModal = () => {
-                modal?.querySelector('.bg-slate-900\\/95')?.classList.remove('active');
-                setTimeout(() => {
-                    modal?.classList.add('hidden');
+                if (modal) {
+                    modal.classList.add('hidden');
                     if (modalInput) modalInput.value = '';
-                    if (modalSuggestions) modalSuggestions.classList.add('hidden');
-                }, 300);
+                }
             };
             Search.hideModal = hideModal;
 
-            document.getElementById('search-player-btn')?.addEventListener('click', showModal);
-            document.getElementById('mobile-search-btn')?.addEventListener('click', showModal);
-            closeBtn?.addEventListener('click', hideModal);
-            overlay?.addEventListener('click', hideModal);
+            // Basic search functionality
+            const searchBtns = [
+                document.getElementById('search-player-btn'),
+                document.getElementById('mobile-search-btn')
+            ];
 
-            const handleEnter = (e, callback) => {
-                if (e.key === 'Enter') {
-                    const query = e.target.value.trim();
-                    if (query) {
-                        callback(query);
-                        e.target.value = '';
+            searchBtns.forEach(btn => {
+                if (btn) btn.addEventListener('click', showModal);
+            });
+
+            if (closeBtn) closeBtn.addEventListener('click', hideModal);
+            if (overlay) overlay.addEventListener('click', hideModal);
+
+            if (modalInput) {
+                modalInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') {
+                        hideModal();
+                    } else if (e.key === 'Enter') {
+                        const query = e.target.value.trim();
+                        if (query && onPlayerSelect) {
+                            onPlayerSelect(query);
+                            hideModal();
+                        }
                     }
-                }
-            };
-
-            quickSearchInput?.addEventListener('keydown', (e) => handleEnter(e, onQuickSearch));
-            mobileSearchInput?.addEventListener('keydown', (e) => {
-                handleEnter(e, (query) => {
-                    onQuickSearch(query);
-                    MobileMenu.toggle();
                 });
-            });
-
-            const debouncedModalSearch = debounce((query) => {
-                if (!query.trim()) {
-                    modalSuggestions.classList.add('hidden');
-                    return;
-                }
-                const results = state.cachedUsers.filter(u => u.toLowerCase().includes(query.toLowerCase())).slice(0, 10);
-                if (results.length > 0) {
-                    modalSuggestions.innerHTML = results.map(username => `
-                        <div class="search-result-item" data-username="${username}">
-                            <div class="search-result-name">${username}</div>
-                            <span class="text-xs text-slate-400">Click to view stats</span>
-                        </div>`).join('');
-
-                    modalSuggestions.querySelectorAll('.search-result-item').forEach(item => {
-                        item.addEventListener('click', () => onPlayerSelect(item.dataset.username));
-                    });
-                } else {
-                    modalSuggestions.innerHTML = '<div class="search-no-results">No players found matching your search</div>';
-                }
-                modalSuggestions.classList.remove('hidden');
-            }, 300);
-
-            modalInput?.addEventListener('input', (e) => debouncedModalSearch(e.target.value));
-            modalInput?.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape') hideModal();
-                else if (e.key === 'Enter') {
-                    const query = e.target.value.trim();
-                    if (query) onPlayerSelect(query);
-                }
-            });
+            }
         },
         hideModal: () => { }, // Placeholder, will be defined in init
     };
@@ -251,19 +201,53 @@ window.HiscoresApp = (() => {
             });
         },
         updateIndicators: (prefix, sortField, sortDirection) => {
-            document.querySelectorAll(`[id^="${prefix}"] i`).forEach(icon => {
-                icon.setAttribute('data-lucide', 'arrow-up-down');
-                icon.className = 'w-3 h-3 ml-2 opacity-50';
+            document.querySelectorAll(`[id^="${prefix}"]`).forEach(el => {
+                el.classList.remove('sorted-asc', 'sorted-desc');
             });
             const activeSortElement = document.getElementById(`${prefix}${sortField}`);
             if (activeSortElement) {
-                const icon = activeSortElement.querySelector('i');
-                if (icon) {
-                    icon.setAttribute('data-lucide', sortDirection === 'asc' ? 'arrow-up' : 'arrow-down');
-                    icon.className = 'w-3 h-3 ml-2 opacity-100 text-amber-400';
-                }
+                activeSortElement.classList.add(sortDirection === 'asc' ? 'sorted-asc' : 'sorted-desc');
             }
-            lucide.createIcons();
+        }
+    };
+
+    // --- AVATAR SERVICE ---
+    const AvatarService = {
+        getAvatarUrl: (username) => {
+            return `${API_BASE_URL}/api/avatars/${encodeURIComponent(username)}/svg`;
+        },
+
+        loadAvatar: (username, imgElement, fallbackSrc = null) => {
+            if (!imgElement || !username) return;
+
+            const avatarUrl = AvatarService.getAvatarUrl(username);
+
+            imgElement.onload = () => {
+                imgElement.style.display = 'block';
+            };
+
+            imgElement.onerror = () => {
+                if (fallbackSrc) {
+                    imgElement.src = fallbackSrc;
+                    imgElement.style.display = 'block';
+                } else {
+                    imgElement.style.display = 'none';
+                }
+            };
+
+            imgElement.src = avatarUrl;
+        },
+
+        createAvatarImg: (username, className = '', size = 32) => {
+            const img = document.createElement('img');
+            img.className = className;
+            img.style.width = `${size}px`;
+            img.style.height = `${size}px`;
+            img.alt = `${username}'s avatar`;
+            img.title = username;
+
+            AvatarService.loadAvatar(username, img);
+            return img;
         }
     };
 
@@ -272,9 +256,9 @@ window.HiscoresApp = (() => {
         API_BASE_URL,
         formatNumber,
         debounce,
-        getSkillIcon,
         showToast,
         ApiService,
+        AvatarService,
         Theme,
         MobileMenu,
         Navigation,
