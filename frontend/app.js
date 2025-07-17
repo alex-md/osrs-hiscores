@@ -162,7 +162,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const createdDate = new Date(user.createdAt);
             const now = new Date();
             const daysDiff = Math.floor((now - createdDate) / (1000 * 60 * 60 * 24));
-            
+
             let accountAgeText;
             if (daysDiff === 0) {
                 accountAgeText = 'Today';
