@@ -46,30 +46,59 @@ export class HiscoresService {
     }
 
     // --- User Update & Creation Logic ---
-    getPlayerActivityType() {
+    getPlayerPlayStyle() {
+        const weights = config.calculatePlayStyleWeights();
         const rand = Math.random();
         let cumulative = 0;
-        for (const [type, details] of Object.entries(config.PLAYER_ACTIVITY_TYPES)) {
-            cumulative += details.probability;
-            if (rand <= cumulative) return type;
+
+        for (const [style, probability] of Object.entries(weights)) {
+            cumulative += probability;
+            if (rand <= cumulative) return style;
         }
         return 'CASUAL'; // Fallback
     }
 
     generateNewUser(username) {
-        const activityType = this.getPlayerActivityType();
-        const user = { username, activityType, skills: {} };
-        const profile = config.PLAYER_ACTIVITY_TYPES[activityType];
-        const talent = 0.75 + Math.random() * 0.75;
+        const playStyle = this.getPlayerPlayStyle();
+        const user = {
+            username,
+            playStyle, // Use playStyle instead of activityType for clarity
+            activityType: playStyle, // Keep for backward compatibility
+            skills: {},
+            createdAt: new Date().toISOString()
+        };
+
+        const profile = config.PLAYER_PLAY_STYLES[playStyle];
+        const talent = 0.75 + Math.random() * 0.75; // Individual talent modifier
 
         // Generate avatar configuration
         user.avatar = this.avatarService.getAvatarConfig(username);
 
+        // Handle specialist players differently
+        if (playStyle === 'SPECIALIST') {
+            user.specialistType = config.getSpecialistFocus(username);
+            user.specialistSkills = config.SPECIALIST_SKILL_FOCUS[user.specialistType];
+        }
+
         config.SKILLS.forEach(skill => {
             if (skill === 'Hitpoints') return;
-            const weight = config.SKILL_POPULARITY_WEIGHTS[skill] || 1.0;
-            const xp = Math.random() < profile.skillProbability
-                ? Math.floor(Math.random() * (profile.xpRange.max * weight * talent - profile.xpRange.min * weight) + profile.xpRange.min * weight)
+
+            let skillWeight = config.SKILL_POPULARITY_WEIGHTS[skill] || 1.0;
+            let skillProbability = profile.skillProbability;
+
+            // Specialist handling - boost focus skills, reduce others
+            if (playStyle === 'SPECIALIST' && user.specialistSkills) {
+                if (user.specialistSkills.includes(skill)) {
+                    skillWeight *= 3.0; // 3x weight for specialist skills
+                    skillProbability = 0.95; // Almost always train specialist skills
+                } else {
+                    skillWeight *= 0.3; // Reduce non-specialist skills
+                    skillProbability *= 0.2; // Much lower chance to train
+                }
+            }
+
+            const xp = Math.random() < skillProbability
+                ? Math.floor(Math.random() * (profile.xpRange.max * skillWeight * talent - profile.xpRange.min * skillWeight) + profile.xpRange.min * skillWeight)
                 : 0;
             user.skills[skill] = { xp: Math.min(200000000, Math.max(0, xp)), level: xpToLevel(xp) };
         });
@@ -124,7 +153,8 @@ export class HiscoresService {
                     payload.metadata = {
                         created: new Date().toISOString(),
                         source: 'auto_generated',
-                        activityType: userData.activityType
+                        playStyle: userData.playStyle,
+                        specialistType: userData.specialistType || null
                     };
                 }
 
@@ -188,8 +218,24 @@ export class HiscoresService {
     processUserUpdates(users) {
         const updatePayloads = [];
         for (const user of users) {
-            let hasChanges = !user.activityType;
-            user.activityType = user.activityType || this.getPlayerActivityType();
+            let hasChanges = false;
+
+            // Ensure user has a persistent play style (migrate old users)
+            if (!user.playStyle && user.activityType) {
+                user.playStyle = user.activityType; // Migrate old format
+                hasChanges = true;
+            } else if (!user.playStyle) {
+                user.playStyle = this.getPlayerPlayStyle(); // Assign new play style
+                user.activityType = user.playStyle; // Keep for compatibility
+                hasChanges = true;
+            }
+
+            // Ensure specialist users have their focus defined
+            if (user.playStyle === 'SPECIALIST' && !user.specialistType) {
+                user.specialistType = config.getSpecialistFocus(user.username);
+                user.specialistSkills = config.SPECIALIST_SKILL_FOCUS[user.specialistType];
+                hasChanges = true;
+            }
 
             // Ensure user has avatar configuration
             if (!user.avatar) {
@@ -197,10 +243,16 @@ export class HiscoresService {
                 hasChanges = true;
             }
 
+            // Add creation timestamp if missing
+            if (!user.createdAt) {
+                user.createdAt = new Date().toISOString();
+                hasChanges = true;
+            }
+
             config.SKILLS.forEach(skillName => {
                 if (skillName === 'Hitpoints') return;
                 const skill = user.skills[skillName];
-                const xpGained = this.generateWeightedXpGain(user.activityType, skillName, skill.level);
+                const xpGained = this.generateWeightedXpGain(user.playStyle, skillName, skill.level, user);
                 if (xpGained > 0 && skill.xp < 200000000) {
                     skill.xp = Math.min(200000000, skill.xp + xpGained);
                     skill.level = xpToLevel(skill.xp);
@@ -217,17 +269,30 @@ export class HiscoresService {
         return updatePayloads;
     }
 
-    generateWeightedXpGain(activityType, skillName, currentLevel = 1) {
-        const activity = config.PLAYER_ACTIVITY_TYPES[activityType];
-        const weight = config.SKILL_POPULARITY_WEIGHTS[skillName] || 1.0;
-        if (Math.random() > activity.skillProbability * weight) return 0;
+    generateWeightedXpGain(playStyle, skillName, currentLevel = 1, user = null) {
+        const activity = config.PLAYER_PLAY_STYLES[playStyle];
+        let skillWeight = config.SKILL_POPULARITY_WEIGHTS[skillName] || 1.0;
+        let skillProbability = activity.skillProbability;
+
+        // Handle specialists - they focus heavily on their chosen skills
+        if (playStyle === 'SPECIALIST' && user && user.specialistSkills) {
+            if (user.specialistSkills.includes(skillName)) {
+                skillWeight *= 2.5; // 2.5x weight for specialist skills
+                skillProbability = Math.min(0.98, skillProbability * 2.5); // Much higher chance
+            } else {
+                skillWeight *= 0.4; // Reduce non-specialist skills
+                skillProbability *= 0.3; // Much lower chance to train
+            }
+        }
+
+        if (Math.random() > skillProbability * skillWeight) return 0;
 
         const efficiency = 0.6 + Math.random() * 0.8;
         const baseXp = Math.floor(Math.random() * (activity.xpRange.max - activity.xpRange.min + 1) + activity.xpRange.min);
         const levelScaling = 1 + (currentLevel / 99) * config.LEVEL_SCALING_FACTOR;
         const weekendBoost = config.WEEKEND_DAYS.includes(new Date().getUTCDay()) ? config.WEEKEND_BONUS_MULTIPLIER : 1;
 
-        return Math.floor(baseXp * efficiency * weight * levelScaling * config.GLOBAL_XP_MULTIPLIER * weekendBoost);
+        return Math.floor(baseXp * efficiency * skillWeight * levelScaling * config.GLOBAL_XP_MULTIPLIER * weekendBoost);
     }
 
     updateHitpoints(user) {
@@ -263,6 +328,29 @@ export class HiscoresService {
             xp += Math.floor(i + 300 * Math.pow(2, i / 7));
         }
         return Math.floor(xp / 4);
+    }
+
+    // Debug method to analyze play style distribution
+    async getPlayStyleDistribution() {
+        const users = await this.getAllUsersOptimized(1000); // Sample first 1000 users
+        const distribution = {};
+        const specialistTypes = {};
+
+        users.forEach(user => {
+            const style = user.playStyle || user.activityType || 'UNKNOWN';
+            distribution[style] = (distribution[style] || 0) + 1;
+
+            if (style === 'SPECIALIST' && user.specialistType) {
+                specialistTypes[user.specialistType] = (specialistTypes[user.specialistType] || 0) + 1;
+            }
+        });
+
+        return {
+            totalUsers: users.length,
+            distribution,
+            specialistTypes,
+            currentWeights: config.calculatePlayStyleWeights()
+        };
     }
 
 

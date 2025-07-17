@@ -157,6 +157,33 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('total-xp').textContent = HiscoresApp.formatNumber(totalXp);
         document.getElementById('combat-level').textContent = calculateCombatLevel(user.skills);
 
+        // Display account creation date if available
+        if (user.createdAt) {
+            const createdDate = new Date(user.createdAt);
+            const now = new Date();
+            const daysDiff = Math.floor((now - createdDate) / (1000 * 60 * 60 * 24));
+            
+            let accountAgeText;
+            if (daysDiff === 0) {
+                accountAgeText = 'Today';
+            } else if (daysDiff === 1) {
+                accountAgeText = '1 day ago';
+            } else if (daysDiff < 30) {
+                accountAgeText = `${daysDiff} days ago`;
+            } else if (daysDiff < 365) {
+                const months = Math.floor(daysDiff / 30);
+                accountAgeText = months === 1 ? '1 month ago' : `${months} months ago`;
+            } else {
+                const years = Math.floor(daysDiff / 365);
+                accountAgeText = years === 1 ? '1 year ago' : `${years} years ago`;
+            }
+
+            const accountCreationElement = document.getElementById('account-creation');
+            if (accountCreationElement) {
+                accountCreationElement.textContent = accountAgeText;
+            }
+        }
+
         const skillsTableBody = document.getElementById('skills-table-body');
         const overallRank = rankings?.totalLevel?.find(p => p.username === user.username)?.rank.toLocaleString() || 'N/A';
 

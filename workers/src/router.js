@@ -39,6 +39,10 @@ export class Router {
                 const leaderboards = await this.service.kv.getLeaderboards();
                 return jsonResponse(leaderboards);
             }
+            if (pathname === '/api/play-style-distribution') {
+                const distribution = await this.service.getPlayStyleDistribution();
+                return jsonResponse(distribution);
+            }
             // Invoke-RestMethod -Uri "https://osrs-hiscores-clone.vs.workers.dev/api/cron/trigger" -Method POST
             if (pathname === '/api/cron/trigger' && request.method === 'POST') {
                 await this.service.runScheduledUpdate();
@@ -61,14 +65,14 @@ export class Router {
             if (avatarSvgMatch?.[1]) {
                 const username = decodeURIComponent(avatarSvgMatch[1]);
                 const avatarUrl = this.service.avatarService.getAvatarUrl(username, 64);
-                
+
                 // Proxy the request to DiceBear to avoid CORS issues
                 try {
                     const response = await fetch(avatarUrl);
                     if (!response.ok) {
                         throw new Error(`Avatar service returned ${response.status}`);
                     }
-                    
+
                     const svg = await response.text();
                     return new Response(svg, {
                         headers: {
@@ -85,7 +89,7 @@ export class Router {
                         <rect x="26" y="35" width="12" height="20" fill="#3a2d1d"/>
                         <text x="32" y="55" text-anchor="middle" fill="#ffb700" font-size="8">${username.charAt(0).toUpperCase()}</text>
                     </svg>`;
-                    
+
                     return new Response(fallbackSvg, {
                         headers: {
                             'Content-Type': 'image/svg+xml',

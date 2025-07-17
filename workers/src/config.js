@@ -28,25 +28,179 @@ export const SKILLS = [
 export const COMBAT_SKILLS = ['Attack', 'Strength', 'Defence', 'Ranged', 'Prayer', 'Magic', 'Hitpoints'];
 export const WEEKEND_DAYS = [0, 6]; // 0 = Sun, 6 = Sat
 
-export const PLAYER_ACTIVITY_TYPES = {
-    INACTIVE: { probability: 0.30, xpRange: { min: 0, max: 1000 }, skillProbability: 0.15 },
-    NEWBIE: { probability: 0.25, xpRange: { min: 1000, max: 5000 }, skillProbability: 0.25 },
-    CASUAL: { probability: 0.40, xpRange: { min: 500, max: 15000 }, skillProbability: 0.40 },
-    REGULAR: { probability: 0.20, xpRange: { min: 10000, max: 80000 }, skillProbability: 0.65 },
-    SEMI_PRO: { probability: 0.10, xpRange: { min: 20000, max: 200000 }, skillProbability: 0.75 },
-    PRO: { probability: 0.05, xpRange: { min: 20000, max: 300000 }, skillProbability: 0.75 },
-    HARDCORE: { probability: 0.08, xpRange: { min: 50000, max: 400000 }, skillProbability: 0.85 },
-    VETERAN: { probability: 0.04, xpRange: { min: 100000, max: 600000 }, skillProbability: 0.90 },
-    ELITE: { probability: 0.02, xpRange: { min: 250000, max: 1200000 }, skillProbability: 0.95 },
-    LEGEND: { probability: 0.01, xpRange: { min: 500000, max: 2000000 }, skillProbability: 0.98 },
+// Player Play Style Configuration - Persistent once assigned
+export const PLAYER_PLAY_STYLES = {
+    // Ultra Casual - Very light players (15%)
+    ULTRA_CASUAL: {
+        baseWeight: 15,
+        xpRange: { min: 50, max: 2000 },
+        skillProbability: 0.15,
+        description: "Logs in occasionally, very light progression"
+    },
+
+    // Casual - Regular casual players (25%)
+    CASUAL: {
+        baseWeight: 25,
+        xpRange: { min: 500, max: 8000 },
+        skillProbability: 0.35,
+        description: "Casual players with moderate engagement"
+    },
+
+    // Moderate - Consistent players (20%)
+    MODERATE: {
+        baseWeight: 20,
+        xpRange: { min: 3000, max: 18000 },
+        skillProbability: 0.55,
+        description: "Regular players with steady progression"
+    },
+
+    // Focused - Goal-oriented players (12%)
+    FOCUSED: {
+        baseWeight: 12,
+        xpRange: { min: 8000, max: 35000 },
+        skillProbability: 0.75,
+        description: "Players focused on specific goals"
+    },
+
+    // Active - Dedicated players (10%)
+    ACTIVE: {
+        baseWeight: 10,
+        xpRange: { min: 15000, max: 50000 },
+        skillProbability: 0.85,
+        description: "Very active with consistent play sessions"
+    },
+
+    // Enthusiast - Highly engaged players (8%)
+    ENTHUSIAST: {
+        baseWeight: 8,
+        xpRange: { min: 25000, max: 75000 },
+        skillProbability: 0.9,
+        description: "Enthusiasts who play regularly and efficiently"
+    },
+
+    // Hardcore - Very dedicated players (5%)
+    HARDCORE: {
+        baseWeight: 5,
+        xpRange: { min: 40000, max: 120000 },
+        skillProbability: 0.95,
+        description: "Hardcore players with intensive sessions"
+    },
+
+    // Elite - Top tier players (3%)
+    ELITE: {
+        baseWeight: 3,
+        xpRange: { min: 80000, max: 200000 },
+        skillProbability: 0.98,
+        description: "Elite players with maximum efficiency"
+    },
+
+    // Specialist - Skill specialists (1.5%)
+    SPECIALIST: {
+        baseWeight: 1.5,
+        xpRange: { min: 20000, max: 150000 },
+        skillProbability: 0.4, // Lower overall, but will focus heavily on specific skills
+        description: "Players who specialize in specific skills"
+    },
+
+    // No-Lifer - Extreme players (0.5%)
+    NO_LIFER: {
+        baseWeight: 0.5,
+        xpRange: { min: 150000, max: 500000 },
+        skillProbability: 0.99,
+        description: "Players with extreme dedication and playtime"
+    }
 };
 
+// Dynamic weight calculation for more realistic distribution
+export function calculatePlayStyleWeights() {
+    const now = new Date();
+    const dayOfWeek = now.getUTCDay(); // 0 = Sunday, 6 = Saturday
+    const hour = now.getUTCHours();
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const isPeakHours = hour >= 18 && hour <= 23; // 6 PM to 11 PM UTC
+
+    const weights = {};
+    let totalWeight = 0;
+
+    Object.entries(PLAYER_PLAY_STYLES).forEach(([style, config]) => {
+        let weight = config.baseWeight;
+
+        // Weekend adjustments - more active players on weekends
+        if (isWeekend) {
+            if (['ACTIVE', 'ENTHUSIAST', 'HARDCORE', 'ELITE'].includes(style)) {
+                weight *= 1.3;
+            } else if (['ULTRA_CASUAL', 'CASUAL'].includes(style)) {
+                weight *= 0.8;
+            }
+        }
+
+        // Peak hours adjustments
+        if (isPeakHours) {
+            if (['MODERATE', 'FOCUSED', 'ACTIVE'].includes(style)) {
+                weight *= 1.2;
+            }
+        }
+
+        // Random variance to add unpredictability (±20%)
+        const variance = 0.8 + Math.random() * 0.4;
+        weight *= variance;
+
+        weights[style] = weight;
+        totalWeight += weight;
+    });
+
+    // Normalize to probabilities
+    Object.keys(weights).forEach(style => {
+        weights[style] = weights[style] / totalWeight;
+    });
+
+    return weights;
+}
+
+// Legacy compatibility - map old PLAYER_ACTIVITY_TYPES to new system
+export const PLAYER_ACTIVITY_TYPES = PLAYER_PLAY_STYLES;
+
 export const SKILL_POPULARITY_WEIGHTS = {
-    'Attack': 1.3, 'Strength': 1.4, 'Defence': 1.15, 'Ranged': 1.3, 'Magic': 1.15, 'Slayer': 1.25,
-    'Hitpoints': 1.0, 'Woodcutting': 1.0, 'Fishing': 0.95, 'Mining': 0.9, 'Hunter': 0.7, 'Farming': 0.8, 'Cooking': 0.85, 'Thieving': 0.5,
-    'Prayer': 0.6, 'Smithing': 0.6, 'Crafting': 0.7, 'Fletching': 0.65, 'Herblore': 0.55,
-    'Runecrafting': 0.2, 'Construction': 0.2, 'Agility': 0.3, 'Firemaking': 0.4,
+    // Combat skills - Most popular overall
+    'Attack': 1.4, 'Strength': 1.5, 'Defence': 1.2, 'Ranged': 1.4, 'Magic': 1.2, 'Slayer': 1.3,
+    'Hitpoints': 1.0, // Calculated automatically
+
+    // Gathering skills - Moderately popular
+    'Woodcutting': 1.1, 'Fishing': 1.0, 'Mining': 0.95, 'Hunter': 0.75,
+
+    // Production skills - Variable popularity
+    'Cooking': 0.9, 'Smithing': 0.65, 'Crafting': 0.75, 'Fletching': 0.7, 'Herblore': 0.6,
+
+    // Support skills - Lower popularity but essential
+    'Prayer': 0.65, 'Farming': 0.85,
+
+    // High-effort skills - Least popular
+    'Runecrafting': 0.25, 'Construction': 0.3, 'Agility': 0.35, 'Thieving': 0.55, 'Firemaking': 0.45,
 };
+
+// Specialist skill preferences - used when playStyle is SPECIALIST
+export const SPECIALIST_SKILL_FOCUS = {
+    'Combat Specialist': ['Attack', 'Strength', 'Defence', 'Ranged', 'Magic', 'Slayer'],
+    'Skiller Specialist': ['Woodcutting', 'Fishing', 'Mining', 'Hunter', 'Farming'],
+    'Artisan Specialist': ['Cooking', 'Smithing', 'Crafting', 'Fletching', 'Herblore', 'Construction'],
+    'Efficiency Specialist': ['Runecrafting', 'Agility', 'Thieving', 'Prayer'],
+    'Gatherer Specialist': ['Woodcutting', 'Fishing', 'Mining', 'Hunter'],
+    'Producer Specialist': ['Cooking', 'Smithing', 'Crafting', 'Fletching'],
+    'Elite Specialist': ['Runecrafting', 'Construction', 'Agility'], // Most challenging skills
+};
+
+// Function to get specialist focus for a user
+export function getSpecialistFocus(username) {
+    // Use username hash to consistently assign specialist type
+    const hash = username.split('').reduce((a, b) => {
+        a = ((a << 5) - a) + b.charCodeAt(0);
+        return a & a;
+    }, 0);
+
+    const specialistTypes = Object.keys(SPECIALIST_SKILL_FOCUS);
+    const index = Math.abs(hash) % specialistTypes.length;
+    return specialistTypes[index];
+}
 
 export const LEVEL_SCALING_FACTOR = 0.60;
 export const GLOBAL_XP_MULTIPLIER = 1.4;
