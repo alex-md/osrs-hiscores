@@ -45,10 +45,27 @@ export class Router {
                 return jsonResponse({ message: 'Cron job executed successfully' });
             }
 
+            // Migration endpoint for hitpoints formula update
+            // Invoke-RestMethod -Uri "https://osrs-hiscores-clone.vs.workers.dev/api/migrate/hitpoints" -Method POST
+            if (pathname === '/api/migrate/hitpoints' && request.method === 'POST') {
+                const result = await this.service.migrateAllUsersHitpoints();
+                return jsonResponse(result);
+            }
+
             const userMatch = pathname.match(/^\/api\/users\/([^/]+)$/);
             if (userMatch?.[1]) {
                 const user = await this.service.kv.getUser(decodeURIComponent(userMatch[1]));
                 return user ? jsonResponse(user) : jsonResponse({ error: 'User not found' }, 404);
+            }
+
+            // Check hitpoints migration status for a specific user
+            const migrationCheckMatch = pathname.match(/^\/api\/users\/([^/]+)\/hitpoints-check$/);
+            if (migrationCheckMatch?.[1]) {
+                const user = await this.service.kv.getUser(decodeURIComponent(migrationCheckMatch[1]));
+                if (!user) return jsonResponse({ error: 'User not found' }, 404);
+
+                const migrationInfo = this.service.checkUserHitpointsMigration(user);
+                return jsonResponse(migrationInfo);
             }            // Avatar endpoints
             const avatarMatch = pathname.match(/^\/api\/avatars\/([^/]+)$/);
             if (avatarMatch?.[1]) {
@@ -61,14 +78,14 @@ export class Router {
             if (avatarSvgMatch?.[1]) {
                 const username = decodeURIComponent(avatarSvgMatch[1]);
                 const avatarUrl = this.service.avatarService.getAvatarUrl(username, 64);
-                
+
                 // Proxy the request to DiceBear to avoid CORS issues
                 try {
                     const response = await fetch(avatarUrl);
                     if (!response.ok) {
                         throw new Error(`Avatar service returned ${response.status}`);
                     }
-                    
+
                     const svg = await response.text();
                     return new Response(svg, {
                         headers: {
@@ -85,7 +102,7 @@ export class Router {
                         <rect x="26" y="35" width="12" height="20" fill="#3a2d1d"/>
                         <text x="32" y="55" text-anchor="middle" fill="#ffb700" font-size="8">${username.charAt(0).toUpperCase()}</text>
                     </svg>`;
-                    
+
                     return new Response(fallbackSvg, {
                         headers: {
                             'Content-Type': 'image/svg+xml',

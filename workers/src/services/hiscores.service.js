@@ -74,8 +74,8 @@ export class HiscoresService {
             user.skills[skill] = { xp: Math.min(200000000, Math.max(0, xp)), level: xpToLevel(xp) };
         });
 
-        const combatXp = config.COMBAT_SKILLS.reduce((sum, s) => sum + (user.skills[s]?.xp || 0), 0);
-        const hpXp = Math.max(1154, Math.floor((combatXp / 4) * 1.3));
+        const combatXp = config.NON_HP_COMBAT_SKILLS.reduce((sum, s) => sum + (user.skills[s]?.xp || 0), 0);
+        const hpXp = Math.max(1154, Math.floor(combatXp / 3));
         user.skills['Hitpoints'] = { xp: hpXp, level: xpToLevel(hpXp) };
         return user;
     }
@@ -227,22 +227,23 @@ export class HiscoresService {
         const levelScaling = 1 + (currentLevel / 99) * config.LEVEL_SCALING_FACTOR;
         const weekendBoost = config.WEEKEND_DAYS.includes(new Date().getUTCDay()) ? config.WEEKEND_BONUS_MULTIPLIER : 1;
 
-        return Math.floor(baseXp * efficiency * weight * levelScaling * config.GLOBAL_XP_MULTIPLIER * weekendBoost);
+        const xpGain = Math.floor(baseXp * efficiency * weight * levelScaling * config.GLOBAL_XP_MULTIPLIER * weekendBoost);
+        return Math.pow(xpGain, 3);
     }
 
     updateHitpoints(user) {
-        // 1) sum up all combat‐skill XP
-        const combatXp = config.COMBAT_SKILLS.reduce(
+        // 1) sum up all non-HP combat skill XP
+        const combatXp = config.NON_HP_COMBAT_SKILLS.reduce(
             (sum, s) => sum + (user.skills[s]?.xp || 0),
             0
         );
 
-        // 2) recalc HP XP exactly like in new‐user generator
+        // 2) recalc HP XP: HP gets 1/3 the rate of other combat XP
         //    level 10 XP is this.levelToXp(10), so we mirror that
         const minHpXp = this.levelToXp(10);
         const newHpXp = Math.min(200000000, Math.max(
             minHpXp,
-            Math.floor((combatXp / 4) * 1.3)
+            Math.floor(combatXp / 3)
         ));
 
         // 3) only update if it actually changed
@@ -334,5 +335,95 @@ export class HiscoresService {
         // The KVService will automatically determine whether to use bulk operations
         // based on user count and REST API availability
         return this.kv.getAllUsers(100, maxUsers);
+    }
+
+    // --- Migration Methods ---
+
+    /**
+     * Migrates all existing users to use the new hitpoints calculation formula
+     * This should be run once after deploying the new formula
+     */
+    async migrateAllUsersHitpoints() {
+        console.log('Starting hitpoints migration for all users...');
+
+        let totalProcessed = 0;
+        let totalMigrated = 0;
+        const batchSize = 50;
+        const migrationPayloads = [];
+
+        // Process users in batches to avoid memory issues
+        for await (const userBatch of this.kv.streamAllUsers(batchSize)) {
+            for (const user of userBatch) {
+                totalProcessed++;
+
+                // Store the old HP values for comparison
+                const oldHpXp = user.skills['Hitpoints']?.xp || 0;
+                const oldHpLevel = user.skills['Hitpoints']?.level || 10;
+
+                // Apply the new hitpoints calculation
+                const wasUpdated = this.updateHitpoints(user);
+
+                if (wasUpdated) {
+                    totalMigrated++;
+                    const newHpXp = user.skills['Hitpoints'].xp;
+                    const newHpLevel = user.skills['Hitpoints'].level;
+
+                    console.log(`Migrated ${user.username}: HP ${oldHpLevel} (${oldHpXp} XP) -> ${newHpLevel} (${newHpXp} XP)`);
+
+                    migrationPayloads.push({
+                        username: user.username,
+                        data: user
+                    });
+                }
+
+                // Process in smaller batches to avoid overwhelming the system
+                if (migrationPayloads.length >= 25) {
+                    await this.saveBatchUpdatesOptimized(migrationPayloads);
+                    migrationPayloads.length = 0; // Clear the array
+                }
+            }
+        }
+
+        // Save any remaining updates
+        if (migrationPayloads.length > 0) {
+            await this.saveBatchUpdatesOptimized(migrationPayloads);
+        }
+
+        // After migration, regenerate leaderboards to reflect the changes
+        console.log('Regenerating leaderboards after migration...');
+        await this.regenerateLeaderboardsEfficiently();
+
+        const result = {
+            totalProcessed,
+            totalMigrated,
+            migrationComplete: true,
+            timestamp: new Date().toISOString()
+        };
+
+        console.log(`Hitpoints migration complete: ${totalMigrated}/${totalProcessed} users updated`);
+        return result;
+    }
+
+    /**
+     * Checks if a specific user needs hitpoints migration
+     * Useful for spot-checking or debugging
+     */
+    checkUserHitpointsMigration(user) {
+        const currentHpXp = user.skills['Hitpoints']?.xp || 0;
+
+        // Calculate what the HP XP should be with the new formula
+        const combatXp = config.NON_HP_COMBAT_SKILLS.reduce(
+            (sum, s) => sum + (user.skills[s]?.xp || 0),
+            0
+        );
+        const expectedHpXp = Math.max(this.levelToXp(10), Math.floor(combatXp / 3));
+
+        return {
+            username: user.username,
+            currentHpXp,
+            expectedHpXp,
+            needsMigration: currentHpXp !== expectedHpXp,
+            difference: expectedHpXp - currentHpXp
+        };
     }
 }

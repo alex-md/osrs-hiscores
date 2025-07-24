@@ -26,6 +26,7 @@ export const SKILLS = [
     'Construction',
 ];
 export const COMBAT_SKILLS = ['Attack', 'Strength', 'Defence', 'Ranged', 'Prayer', 'Magic', 'Hitpoints'];
+export const NON_HP_COMBAT_SKILLS = ['Attack', 'Strength', 'Defence', 'Ranged', 'Prayer', 'Magic'];
 export const WEEKEND_DAYS = [0, 6]; // 0 = Sun, 6 = Sat
 
 export const PLAYER_ACTIVITY_TYPES = {
@@ -48,15 +49,15 @@ export const SKILL_POPULARITY_WEIGHTS = {
     'Runecrafting': 0.2, 'Construction': 0.2, 'Agility': 0.3, 'Firemaking': 0.4,
 };
 
-export const LEVEL_SCALING_FACTOR = 0.60;
+export const LEVEL_SCALING_FACTOR = 0.60; // 
 export const GLOBAL_XP_MULTIPLIER = 1.4;
 export const WEEKEND_BONUS_MULTIPLIER = 1.9;
 
 // Cron Job Execution Tuning
-export const MAX_USERS_PER_SCHEDULED_RUN = 100;
-export const USERS_PER_BATCH = 25;
-export const BATCH_DELAY_MS = 1000; // Delay between batches to prevent overwhelming the KV store
-export const LEADERBOARD_CACHE_TTL_MINUTES = 20;
+export const MAX_USERS_PER_SCHEDULED_RUN = 50; // Maximum number of users processed in a single scheduled run
+export const USERS_PER_BATCH = 10; // Number of users processed in each batch to balance performance and memory usage
+export const BATCH_DELAY_MS = 5000; // Delay between batches to prevent overwhelming the KV store
+export const LEADERBOARD_CACHE_TTL_MINUTES = 20; // Cache TTL for leaderboard data to reduce load on the KV store (in plain english: every 20 minutes, the leaderboard data is refreshed)
 
 // REST API Configuration
 export const REST_API_CONFIG = {

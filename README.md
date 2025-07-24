@@ -48,6 +48,8 @@ The backend is a single Cloudflare Worker (`workers/src/index.js`) that handles 
   - `GET /api/skill-rankings`: Provides detailed rankings for every individual skill.
   - `GET /api/health`: A simple health check endpoint.
   - `POST /api/cron/trigger`: Manually triggers the scheduled update task.
+  - `POST /api/migrate/hitpoints`: Migrates all users to the new hitpoints calculation formula.
+  - `GET /api/users/{username}/hitpoints-check`: Checks if a specific user needs hitpoints migration.
 
 ### Data Generation & Simulation
 
@@ -135,4 +137,42 @@ Deploy the worker to your Cloudflare account:
 ```bash
 cd workers
 npx wrangler deploy
+```
+
+### Hitpoints Formula Migration
+
+This project includes a new hitpoints calculation formula where hitpoints XP is calculated as 1/3 of all non-hitpoints combat XP (Attack, Strength, Defence, Ranged, Prayer, Magic).
+
+#### Running the Migration
+
+After deploying the updated code, you need to migrate existing users to use the new formula:
+
+**Option 1: Use the PowerShell script (Windows)**
+```powershell
+.\migrate_hitpoints.ps1
+```
+
+**Option 2: Use the Bash script (Linux/Mac)**
+```bash
+chmod +x migrate_hitpoints.sh
+./migrate_hitpoints.sh
+```
+
+**Option 3: Manual API call**
+```bash
+curl -X POST "https://your-worker-url.workers.dev/api/migrate/hitpoints"
+```
+
+#### Migration Details
+
+- The migration processes all users in batches to avoid timeouts
+- Only users whose hitpoints don't match the new formula will be updated
+- Leaderboards are automatically regenerated after migration
+- See `MIGRATION_GUIDE.md` for detailed instructions and troubleshooting
+
+#### Verification
+
+Check if a specific user needs migration:
+```bash
+curl -X GET "https://your-worker-url.workers.dev/api/users/{username}/hitpoints-check"
 ```
