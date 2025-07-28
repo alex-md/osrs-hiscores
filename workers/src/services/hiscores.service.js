@@ -220,7 +220,12 @@ export class HiscoresService {
             config.SKILLS.forEach(skillName => {
                 if (skillName === 'Hitpoints') return;
                 const skill = user.skills[skillName];
-                const xpGained = this.generateWeightedXpGain(user, skillName, skill.level, worldEvent);
+                const xpGained = this.generateWeightedXpGain(
+                    user.archetype,
+                    skillName,
+                    skill.level,
+                    worldEvent
+                );
                 if (xpGained > 0 && skill.xp < 200000000) {
                     skill.xp = Math.min(200000000, skill.xp + xpGained);
                     skill.level = xpToLevel(skill.xp);
@@ -237,39 +242,31 @@ export class HiscoresService {
         return updatePayloads;
     }
 
-    generateWeightedXpGain(user, skillName, currentLevel = 1, worldEvent) {
-        let archetype = config.PLAYER_ARCHETYPES[user.archetype];
-        if (user.status === 'burnout') {
-            archetype = config.PLAYER_ARCHETYPES['BURNOUT'];
-        }
-
-        const focusWeights = config.SKILL_FOCUS_WEIGHTS[archetype.focus] || {};
-        const popularityWeight = config.SKILL_POPULARITY_WEIGHTS[skillName] || 1.0;
-        const finalWeight = focusWeights[skillName] !== undefined ? focusWeights[skillName] : popularityWeight;
-
-        if (Math.random() > archetype.skillProbability * finalWeight) return 0;
+    generateWeightedXpGain(archetype, skillName, currentLevel = 1, worldEvent) {
+        const archetypeProfile = config.PLAYER_ARCHETYPES[archetype];
+        const weight = config.SKILL_POPULARITY_WEIGHTS[skillName] || 1.0;
+        if (Math.random() > archetypeProfile.skillProbability * weight) return 0;
 
         const efficiency = 0.6 + Math.random() * 0.8;
-        const baseXp = Math.floor(Math.random() * (archetype.xpRange.max - archetype.xpRange.min + 1) + archetype.xpRange.min);
+        const baseXp = Math.floor(
+            Math.random() * (archetypeProfile.xpRange.max - archetypeProfile.xpRange.min + 1)
+            + archetypeProfile.xpRange.min
+        );
         const levelScaling = 1 + (currentLevel / 99) * config.LEVEL_SCALING_FACTOR;
+        const weekendBoost = config.WEEKEND_DAYS.includes(new Date().getUTCDay())
+            ? config.WEEKEND_BONUS_MULTIPLIER
+            : 1;
 
-        let eventMultiplier = 1.0;
-        if (worldEvent) {
-            const eventDetails = config.WORLD_EVENTS[worldEvent.type];
-            if (eventDetails.skill === 'all') {
-                eventMultiplier = eventDetails.multiplier;
-            } else if (eventDetails.skill === 'combat' && config.COMBAT_SKILLS.includes(skillName)) {
-                eventMultiplier = eventDetails.multiplier;
-            } else if (eventDetails.skill === 'wildy' && (skillName === 'Slayer' || skillName === 'Thieving')) {
-                eventMultiplier = eventDetails.multiplier;
-            } else if (eventDetails.skill === skillName) {
-                eventMultiplier = eventDetails.multiplier;
-            }
-        }
+        // original cubic burst
+        const rawGain = Math.floor(
+            baseXp * efficiency * weight * levelScaling * config.GLOBAL_XP_MULTIPLIER * weekendBoost
+        );
+        const cubed = Math.pow(rawGain, 3);
 
-        const xpGain = Math.floor(baseXp * efficiency * finalWeight * levelScaling * config.GLOBAL_XP_MULTIPLIER * eventMultiplier);
-        return Math.pow(xpGain, 3);
+        // scale it back by 5×
+        return Math.floor(cubed / 5);
     }
+
 
     updateHitpoints(user) {
         // 1) sum up all non-HP combat skill XP
