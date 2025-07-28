@@ -58,6 +58,15 @@ export class Router {
                 });
             }
 
+            if (pathname === '/api/users/new-users' && request.method === 'POST') {
+                const newUserPayloads = await this.service.createNewUsers(10);
+                await this.service.saveBatchUpdatesOptimized(newUserPayloads);
+                return jsonResponse({
+                    message: 'Successfully generated 10 new users',
+                    users: newUserPayloads.map(p => p.username)
+                });
+            }
+
             // Migration endpoint for hitpoints formula update
             // Invoke-RestMethod -Uri "https://osrs-hiscores-clone.vs.workers.dev/api/migrate/hitpoints" -Method POST
             if (pathname === '/api/migrate/hitpoints' && request.method === 'POST') {
