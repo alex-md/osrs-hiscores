@@ -39,6 +39,10 @@ export class Router {
                 const leaderboards = await this.service.kv.getLeaderboards();
                 return jsonResponse(leaderboards);
             }
+            if (pathname === '/api/events') {
+                const event = await this.service.kv.getWorldEvent();
+                return jsonResponse(event || { message: 'No active world event.' });
+            }
             // Invoke-RestMethod -Uri "https://osrs-hiscores-clone.vs.workers.dev/api/cron/trigger" -Method POST
             if (pathname === '/api/cron/trigger' && request.method === 'POST') {
                 await this.service.runScheduledUpdate();

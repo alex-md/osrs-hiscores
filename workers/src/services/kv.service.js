@@ -40,6 +40,14 @@ export class KVService {
         return this.kv.put('__leaderboards__', JSON.stringify(leaderboards));
     }
 
+    async getWorldEvent() {
+        return (await this.kv.get('__world_event__', 'json')) || null;
+    }
+
+    async setWorldEvent(event) {
+        return this.kv.put('__world_event__', JSON.stringify(event));
+    }
+
     async listUserKeys() {
         const kvList = await this.kv.list();
         return kvList.keys.filter(key => !key.name.startsWith('__'));

@@ -46,10 +46,10 @@ export class HiscoresService {
     }
 
     // --- User Update & Creation Logic ---
-    getPlayerActivityType() {
+    getPlayerArchetype() {
         const rand = Math.random();
         let cumulative = 0;
-        for (const [type, details] of Object.entries(config.PLAYER_ACTIVITY_TYPES)) {
+        for (const [type, details] of Object.entries(config.PLAYER_ARCHETYPES)) {
             cumulative += details.probability;
             if (rand <= cumulative) return type;
         }
@@ -57,9 +57,9 @@ export class HiscoresService {
     }
 
     generateNewUser(username) {
-        const activityType = this.getPlayerActivityType();
-        const user = { username, activityType, skills: {} };
-        const profile = config.PLAYER_ACTIVITY_TYPES[activityType];
+        const archetype = this.getPlayerArchetype();
+        const user = { username, archetype, skills: {}, status: 'active' };
+        const profile = config.PLAYER_ARCHETYPES[archetype];
         const talent = 0.75 + Math.random() * 0.75;
 
         // Generate avatar configuration
@@ -67,9 +67,12 @@ export class HiscoresService {
 
         config.SKILLS.forEach(skill => {
             if (skill === 'Hitpoints') return;
-            const weight = config.SKILL_POPULARITY_WEIGHTS[skill] || 1.0;
+            const focusWeights = config.SKILL_FOCUS_WEIGHTS[profile.focus] || {};
+            const popularityWeight = config.SKILL_POPULARITY_WEIGHTS[skill] || 1.0;
+            const finalWeight = focusWeights[skill] !== undefined ? focusWeights[skill] : popularityWeight;
+
             const xp = Math.random() < profile.skillProbability
-                ? Math.floor(Math.random() * (profile.xpRange.max * weight * talent - profile.xpRange.min * weight) + profile.xpRange.min * weight)
+                ? Math.floor(Math.random() * (profile.xpRange.max * finalWeight * talent - profile.xpRange.min * finalWeight) + profile.xpRange.min * finalWeight)
                 : 0;
             user.skills[skill] = { xp: Math.min(200000000, Math.max(0, xp)), level: xpToLevel(xp) };
         });
@@ -124,7 +127,7 @@ export class HiscoresService {
                     payload.metadata = {
                         created: new Date().toISOString(),
                         source: 'auto_generated',
-                        activityType: userData.activityType
+                        archetype: userData.archetype
                     };
                 }
 
@@ -137,6 +140,8 @@ export class HiscoresService {
     // --- Scheduled Update (Cron) Logic ---
     async runScheduledUpdate() {
         console.log(`Starting scheduled update...`);
+        await this.manageWorldEvents();
+
         const userKeys = await this.kv.listUserKeys();
         if (userKeys.length === 0) return { message: "No users found." };
 
@@ -155,7 +160,8 @@ export class HiscoresService {
         const users = await Promise.all(selectedUserKeys.map(key => this.kv.getUser(key.name))).then(u => u.filter(Boolean));
 
         // Process updates
-        const updatePayloads = this.processUserUpdates(users);
+        const worldEvent = await this.kv.getWorldEvent();
+        const updatePayloads = this.processUserUpdates(users, worldEvent);
         const newUserCount = Math.random() < 0.2 ? 1 : 0;
         const newUserPayloads = await this.createNewUsers(newUserCount);
 
@@ -185,11 +191,11 @@ export class HiscoresService {
         console.log(`Update complete. Updated: ${updatePayloads.length}, Created: ${newUserPayloads.length}, Leaderboards: ${shouldRegenerate ? ' regenerated' : 'fresh'}`);
     }
 
-    processUserUpdates(users) {
+    processUserUpdates(users, worldEvent) {
         const updatePayloads = [];
         for (const user of users) {
-            let hasChanges = !user.activityType;
-            user.activityType = user.activityType || this.getPlayerActivityType();
+            let hasChanges = !user.archetype;
+            user.archetype = user.archetype || this.getPlayerArchetype();
 
             // Ensure user has avatar configuration
             if (!user.avatar) {
@@ -197,10 +203,24 @@ export class HiscoresService {
                 hasChanges = true;
             }
 
+            // Handle burnout status
+            if (user.status === 'burnout') {
+                if (Math.random() < 0.2) { // 20% chance to recover from burnout
+                    user.status = 'active';
+                    user.archetype = 'CASUAL'; // Reset to casual after burnout
+                    hasChanges = true;
+                }
+            } else if (user.archetype === 'ELITE' || user.archetype === 'LEGEND') {
+                if (Math.random() < 0.02) { // 2% chance for top players to burnout
+                    user.status = 'burnout';
+                    hasChanges = true;
+                }
+            }
+
             config.SKILLS.forEach(skillName => {
                 if (skillName === 'Hitpoints') return;
                 const skill = user.skills[skillName];
-                const xpGained = this.generateWeightedXpGain(user.activityType, skillName, skill.level);
+                const xpGained = this.generateWeightedXpGain(user, skillName, skill.level, worldEvent);
                 if (xpGained > 0 && skill.xp < 200000000) {
                     skill.xp = Math.min(200000000, skill.xp + xpGained);
                     skill.level = xpToLevel(skill.xp);
@@ -217,17 +237,37 @@ export class HiscoresService {
         return updatePayloads;
     }
 
-    generateWeightedXpGain(activityType, skillName, currentLevel = 1) {
-        const activity = config.PLAYER_ACTIVITY_TYPES[activityType];
-        const weight = config.SKILL_POPULARITY_WEIGHTS[skillName] || 1.0;
-        if (Math.random() > activity.skillProbability * weight) return 0;
+    generateWeightedXpGain(user, skillName, currentLevel = 1, worldEvent) {
+        const archetype = config.PLAYER_ARCHETYPES[user.archetype];
+        if (user.status === 'burnout') {
+            archetype = config.PLAYER_ARCHETYPES['BURNOUT'];
+        }
+
+        const focusWeights = config.SKILL_FOCUS_WEIGHTS[archetype.focus] || {};
+        const popularityWeight = config.SKILL_POPULARITY_WEIGHTS[skillName] || 1.0;
+        const finalWeight = focusWeights[skillName] !== undefined ? focusWeights[skillName] : popularityWeight;
+
+        if (Math.random() > archetype.skillProbability * finalWeight) return 0;
 
         const efficiency = 0.6 + Math.random() * 0.8;
-        const baseXp = Math.floor(Math.random() * (activity.xpRange.max - activity.xpRange.min + 1) + activity.xpRange.min);
+        const baseXp = Math.floor(Math.random() * (archetype.xpRange.max - archetype.xpRange.min + 1) + archetype.xpRange.min);
         const levelScaling = 1 + (currentLevel / 99) * config.LEVEL_SCALING_FACTOR;
-        const weekendBoost = config.WEEKEND_DAYS.includes(new Date().getUTCDay()) ? config.WEEKEND_BONUS_MULTIPLIER : 1;
 
-        const xpGain = Math.floor(baseXp * efficiency * weight * levelScaling * config.GLOBAL_XP_MULTIPLIER * weekendBoost);
+        let eventMultiplier = 1.0;
+        if (worldEvent) {
+            const eventDetails = config.WORLD_EVENTS[worldEvent.type];
+            if (eventDetails.skill === 'all') {
+                eventMultiplier = eventDetails.multiplier;
+            } else if (eventDetails.skill === 'combat' && config.COMBAT_SKILLS.includes(skillName)) {
+                eventMultiplier = eventDetails.multiplier;
+            } else if (eventDetails.skill === 'wildy' && (skillName === 'Slayer' || skillName === 'Thieving')) {
+                eventMultiplier = eventDetails.multiplier;
+            } else if (eventDetails.skill === skillName) {
+                eventMultiplier = eventDetails.multiplier;
+            }
+        }
+
+        const xpGain = Math.floor(baseXp * efficiency * finalWeight * levelScaling * config.GLOBAL_XP_MULTIPLIER * eventMultiplier);
         return Math.pow(xpGain, 3);
     }
 
@@ -264,6 +304,35 @@ export class HiscoresService {
             xp += Math.floor(i + 300 * Math.pow(2, i / 7));
         }
         return Math.floor(xp / 4);
+    }
+
+    async manageWorldEvents() {
+        const currentEvent = await this.kv.getWorldEvent();
+        const now = new Date();
+
+        if (currentEvent && new Date(currentEvent.expires) > now) {
+            return; // Event is still active
+        }
+
+        const eventKeys = Object.keys(config.WORLD_EVENTS);
+        const eventType = eventKeys[Math.floor(Math.random() * eventKeys.length)];
+        const eventDetails = config.WORLD_EVENTS[eventType];
+
+        let skill = eventDetails.skill;
+        if (eventType === 'SKILL_OF_THE_WEEK') {
+            skill = config.SKILLS[Math.floor(Math.random() * config.SKILLS.length)];
+        }
+
+        const newEvent = {
+            type: eventType,
+            message: typeof eventDetails.message === 'function' ? eventDetails.message(skill) : eventDetails.message,
+            skill: skill,
+            started: now.toISOString(),
+            expires: new Date(now.getTime() + eventDetails.durationHours * 60 * 60 * 1000).toISOString()
+        };
+
+        await this.kv.setWorldEvent(newEvent);
+        console.log(`New world event started: ${newEvent.type} - ${newEvent.message}`);
     }
 
 
