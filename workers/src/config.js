@@ -13,21 +13,21 @@ export const WEEKEND_DAYS = [0, 6]; // 0 = Sun, 6 = Sat
 // Defines player behavior, XP potential, and specialization.
 export const PLAYER_ARCHETYPES = {
     // Balanced players
-    NEWBIE:      { probability: 0.15, xpRange: { min: 1000,    max: 8000    }, skillProbability: 0.30, focus: 'BALANCED' },
-    CASUAL:      { probability: 0.25, xpRange: { min: 500,     max: 20000   }, skillProbability: 0.45, focus: 'BALANCED' },
-    REGULAR:     { probability: 0.20, xpRange: { min: 10000,   max: 90000   }, skillProbability: 0.70, focus: 'BALANCED' },
-    DEDICATED:   { probability: 0.10, xpRange: { min: 30000,   max: 300000  }, skillProbability: 0.80, focus: 'BALANCED' },
-    HARDCORE:    { probability: 0.08, xpRange: { min: 60000,   max: 600000  }, skillProbability: 0.88, focus: 'BALANCED' },
-    ELITE:       { probability: 0.04, xpRange: { min: 300000,  max: 1800000 }, skillProbability: 0.95, focus: 'BALANCED' },
-    LEGEND:      { probability: 0.02, xpRange: { min: 600000,  max: 3000000 }, skillProbability: 0.98, focus: 'BALANCED' },
-    
+    NEWBIE: { probability: 0.15, xpRange: { min: 100, max: 800 }, skillProbability: 0.30, focus: 'BALANCED' },
+    CASUAL: { probability: 0.25, xpRange: { min: 50, max: 1500 }, skillProbability: 0.45, focus: 'BALANCED' },
+    REGULAR: { probability: 0.20, xpRange: { min: 300, max: 3500 }, skillProbability: 0.70, focus: 'BALANCED' },
+    DEDICATED: { probability: 0.10, xpRange: { min: 800, max: 8000 }, skillProbability: 0.80, focus: 'BALANCED' },
+    HARDCORE: { probability: 0.08, xpRange: { min: 1500, max: 12000 }, skillProbability: 0.88, focus: 'BALANCED' },
+    ELITE: { probability: 0.04, xpRange: { min: 3000, max: 18000 }, skillProbability: 0.95, focus: 'BALANCED' },
+    LEGEND: { probability: 0.02, xpRange: { min: 5000, max: 25000 }, skillProbability: 0.98, focus: 'BALANCED' },
+
     // Specialized players
-    SKILLER:     { probability: 0.05, xpRange: { min: 20000,   max: 200000  }, skillProbability: 0.85, focus: 'SKILLING' },
-    PVP_ACCOUNT: { probability: 0.05, xpRange: { min: 25000,   max: 250000  }, skillProbability: 0.85, focus: 'PVP' },
+    SKILLER: { probability: 0.05, xpRange: { min: 1000, max: 10000 }, skillProbability: 0.85, focus: 'SKILLING' },
+    PVP_ACCOUNT: { probability: 0.05, xpRange: { min: 1200, max: 12000 }, skillProbability: 0.85, focus: 'PVP' },
 
     // Temporary states
-    INACTIVE:    { probability: 0.05, xpRange: { min: 0,       max: 500     }, skillProbability: 0.10, focus: 'NONE' },
-    BURNOUT:     { probability: 0.01, xpRange: { min: 100,     max: 2000    }, skillProbability: 0.15, focus: 'NONE' },
+    INACTIVE: { probability: 0.05, xpRange: { min: 0, max: 500 }, skillProbability: 0.10, focus: 'NONE' },
+    BURNOUT: { probability: 0.01, xpRange: { min: 100, max: 2000 }, skillProbability: 0.15, focus: 'NONE' },
 };
 
 // Weights to direct XP gains for specialized player archetypes.
@@ -86,6 +86,7 @@ export const WORLD_EVENTS = {
 
 export const LEVEL_SCALING_FACTOR = 0.65; // Increased slightly for more impact at higher levels
 export const GLOBAL_XP_MULTIPLIER = 1.6; // Increased for fiercer competition
+export const WEEKEND_BONUS_MULTIPLIER = 1.2; // 20% bonus XP on weekends
 
 // Cron Job Execution Tuning
 export const MAX_USERS_PER_SCHEDULED_RUN = 50;
