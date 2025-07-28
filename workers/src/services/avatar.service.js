@@ -1,4 +1,4 @@
-"""// src/services/avatar.service.js
+
 
 /**
  * Service for generating persistent avatars using DiceBear API

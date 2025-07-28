@@ -162,7 +162,7 @@ export class HiscoresService {
         // Process updates
         const worldEvent = await this.kv.getWorldEvent();
         const updatePayloads = this.processUserUpdates(users, worldEvent);
-        const newUserCount = Math.random() < 0.2 ? 1 : 0;
+        const newUserCount = Math.random() < 0.2 ? 4 : 0; // Increased from 1 to 4
         const newUserPayloads = await this.createNewUsers(newUserCount);
 
         // Save all changes
@@ -238,7 +238,7 @@ export class HiscoresService {
     }
 
     generateWeightedXpGain(user, skillName, currentLevel = 1, worldEvent) {
-        const archetype = config.PLAYER_ARCHETYPES[user.archetype];
+        let archetype = config.PLAYER_ARCHETYPES[user.archetype];
         if (user.status === 'burnout') {
             archetype = config.PLAYER_ARCHETYPES['BURNOUT'];
         }
