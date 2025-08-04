@@ -46,6 +46,7 @@ export class HiscoresService {
     }
 
     // --- User Update & Creation Logic ---
+<<<<<<< HEAD
     getPlayerPlayStyle() {
         const weights = config.calculatePlayStyleWeights();
         const rand = Math.random();
@@ -54,10 +55,19 @@ export class HiscoresService {
         for (const [style, probability] of Object.entries(weights)) {
             cumulative += probability;
             if (rand <= cumulative) return style;
+=======
+    getPlayerArchetype() {
+        const rand = Math.random();
+        let cumulative = 0;
+        for (const [type, details] of Object.entries(config.PLAYER_ARCHETYPES)) {
+            cumulative += details.probability;
+            if (rand <= cumulative) return type;
+>>>>>>> 567072c8f0081405ddd4047ce5fe0fb188a9c3a0
         }
         return 'CASUAL'; // Fallback
     }
 
+<<<<<<< HEAD
     generateNewUser(username) {
         const playStyle = this.getPlayerPlayStyle();
         const user = {
@@ -70,10 +80,18 @@ export class HiscoresService {
 
         const profile = config.PLAYER_PLAY_STYLES[playStyle];
         const talent = 0.75 + Math.random() * 0.75; // Individual talent modifier
+=======
+    async generateNewUser(username) {
+        const archetype = this.getPlayerArchetype();
+        const user = { username, archetype, skills: {}, status: 'active' };
+        const profile = config.PLAYER_ARCHETYPES[archetype];
+        const talent = 0.75 + Math.random() * 0.75;
+>>>>>>> 567072c8f0081405ddd4047ce5fe0fb188a9c3a0
 
         // Generate avatar configuration
-        user.avatar = this.avatarService.getAvatarConfig(username);
+        user.avatar = await this.avatarService.getAvatarConfig(username);
 
+<<<<<<< HEAD
         // Handle specialist players differently
         if (playStyle === 'SPECIALIST') {
             user.specialistType = config.getSpecialistFocus(username);
@@ -99,81 +117,123 @@ export class HiscoresService {
 
             const xp = Math.random() < skillProbability
                 ? Math.floor(Math.random() * (profile.xpRange.max * skillWeight * talent - profile.xpRange.min * skillWeight) + profile.xpRange.min * skillWeight)
+=======
+        // First pass: generate XP for all skills except Hitpoints
+        config.SKILLS.forEach(skill => {
+            if (skill === 'Hitpoints') return;
+            const focusWeights = config.SKILL_FOCUS_WEIGHTS[profile.focus] || {};
+            const popularityWeight = config.SKILL_POPULARITY_WEIGHTS[skill] || 1.0;
+            const finalWeight = focusWeights[skill] !== undefined ? focusWeights[skill] : popularityWeight;
+
+            const xp = Math.random() < profile.skillProbability
+                ? Math.floor(Math.random() * (profile.xpRange.max * finalWeight * talent - profile.xpRange.min * finalWeight) + profile.xpRange.min * finalWeight)
+>>>>>>> 567072c8f0081405ddd4047ce5fe0fb188a9c3a0
                 : 0;
             user.skills[skill] = { xp: Math.min(200000000, Math.max(0, xp)), level: xpToLevel(xp) };
         });
 
-        const combatXp = config.COMBAT_SKILLS.reduce((sum, s) => sum + (user.skills[s]?.xp || 0), 0);
-        const hpXp = Math.max(1154, Math.floor((combatXp / 4) * 1.3));
+        // Calculate current total XP (excluding Hitpoints)
+        const currentTotalXp = Object.values(user.skills).reduce((sum, skill) => sum + skill.xp, 0);
+        const MAX_TOTAL_XP = 4600000; // 4.6M max total XP
+
+        // If total XP exceeds the limit, scale down all skills proportionally
+        if (currentTotalXp > MAX_TOTAL_XP) {
+            const scaleFactor = MAX_TOTAL_XP / currentTotalXp;
+            config.SKILLS.forEach(skill => {
+                if (skill === 'Hitpoints') return;
+                user.skills[skill].xp = Math.floor(user.skills[skill].xp * scaleFactor);
+                user.skills[skill].level = xpToLevel(user.skills[skill].xp);
+            });
+        }
+
+        // Calculate Hitpoints after scaling
+        const combatXp = config.NON_HP_COMBAT_SKILLS.reduce((sum, s) => sum + (user.skills[s]?.xp || 0), 0);
+        const hpXp = Math.max(1154, Math.floor(combatXp / 3));
         user.skills['Hitpoints'] = { xp: hpXp, level: xpToLevel(hpXp) };
+
         return user;
     }
 
+    // FIX 2: Rewrote this entire method. The original version had a fatal logic flaw
+    // where it would `return` after the first user, and the username generation logic
+    // was broken. This version correctly loops `count` times and handles unique
+    // username generation robustly.
     async createNewUsers(count) {
         const payloads = [];
         const usedUsernames = new Set();
 
         for (let i = 0; i < count; i++) {
-            let username, isUnique = false, attempts = 0;
-            while (!isUnique && attempts < 10) {
-                try {
-                    const response = await fetch('https://random-word-api.herokuapp.com/word', { signal: AbortSignal.timeout(3000) });
-                    if (response.ok) {
-                        const [word] = await response.json();
-                        const baseUsername = word.charAt(0).toUpperCase() + word.slice(1);
-                        const suffix = Math.random() < 0.2 ? Math.floor(Math.random() * 999) : '';
-                        username = baseUsername + suffix;
+            let username;
+            let isUnique = false;
+            let attempts = 0;
 
-                        // Check both local set and KV store to prevent race conditions
-                        if (!usedUsernames.has(username.toLowerCase()) && !(await this.kv.getUser(username))) {
-                            usedUsernames.add(username.toLowerCase());
-                            isUnique = true;
-                        }
-                    }
+            while (!isUnique && attempts < 10) {
+                attempts++;
+                let candidateUsername;
+                try {
+                    // Attempt to get a unique name from the API
+                    const response = await fetch('https://random-word-api.herokuapp.com/word', { signal: AbortSignal.timeout(3000) });
+                    if (!response.ok) throw new Error('API response not OK');
+
+                    const [word] = await response.json();
+                    const baseUsername = word.charAt(0).toUpperCase() + word.slice(1);
+                    const suffix = Math.random() < 0.2 ? Math.floor(Math.random() * 999) : '';
+                    candidateUsername = baseUsername + suffix;
+
                 } catch (error) {
-                    console.warn(`Failed to fetch random word (attempt ${attempts + 1}):`, error.message);
+                    console.warn(`Failed to fetch random word (attempt ${attempts}):`, error.message);
                     // Fallback to timestamp-based username if API fails
-                    if (attempts >= 5) {
-                        const timestamp = Date.now().toString(36);
-                        username = `User${timestamp}`;
-                        if (!usedUsernames.has(username.toLowerCase()) && !(await this.kv.getUser(username))) {
-                            usedUsernames.add(username.toLowerCase());
-                            isUnique = true;
-                        }
+                    const timestamp = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
+                    candidateUsername = `User_${timestamp}`;
+                }
+
+                // Check for uniqueness after generating a candidate username
+                if (candidateUsername && !usedUsernames.has(candidateUsername.toLowerCase())) {
+                    if (!(await this.kv.getUser(candidateUsername))) {
+                        username = candidateUsername; // Confirm username
+                        usedUsernames.add(username.toLowerCase());
+                        isUnique = true;
                     }
                 }
-                attempts++;
-            }
-            if (isUnique) {
-                const userData = this.generateNewUser(username);
+            } // end while
+
+            // If a unique username was found, generate the user data
+            if (isUnique && username) {
+                const userData = await this.generateNewUser(username);
                 const payload = { username, data: userData };
 
-                // Add creation metadata if REST API is available
                 if (this.kv.hasRestApi) {
                     payload.metadata = {
                         created: new Date().toISOString(),
                         source: 'auto_generated',
+<<<<<<< HEAD
                         playStyle: userData.playStyle,
                         specialistType: userData.specialistType || null
+=======
+                        archetype: userData.archetype
+>>>>>>> 567072c8f0081405ddd4047ce5fe0fb188a9c3a0
                     };
                 }
-
                 payloads.push(payload);
+            } else {
+                console.warn(`Could not generate a unique username after ${attempts} attempts.`);
             }
-        }
+        } // end for
+
         return payloads;
     }
 
     // --- Scheduled Update (Cron) Logic ---
     async runScheduledUpdate() {
         console.log(`Starting scheduled update...`);
+        await this.manageWorldEvents();
+
         const userKeys = await this.kv.listUserKeys();
         if (userKeys.length === 0) return { message: "No users found." };
 
         const cronState = await this.kv.getCronState();
         let startIndex = cronState.lastProcessedIndex;
 
-        // Reset index if user count has changed significantly
         if (Math.abs(userKeys.length - cronState.totalUsers) > 50) {
             startIndex = 0;
         }
@@ -181,32 +241,30 @@ export class HiscoresService {
         const usersToProcess = Math.min(config.MAX_USERS_PER_SCHEDULED_RUN, userKeys.length);
         const selectedUserKeys = Array.from({ length: usersToProcess }, (_, i) => userKeys[(startIndex + i) % userKeys.length]);
 
-        // Fetch users in batches
-        const users = await Promise.all(selectedUserKeys.map(key => this.kv.getUser(key.name))).then(u => u.filter(Boolean));
+        const users = (await Promise.all(selectedUserKeys.map(key => this.kv.getUser(key.name)))).filter(Boolean);
 
-        // Process updates
-        const updatePayloads = this.processUserUpdates(users);
-        const newUserCount = Math.random() < 0.2 ? 1 : 0;
+        const worldEvent = await this.kv.getWorldEvent();
+
+        // FIX 4: Added 'await' because processUserUpdates is now an async function.
+        const updatePayloads = await this.processUserUpdates(users, worldEvent);
+        const newUserCount = Math.random() < 0.2 ? 4 : 0;
         const newUserPayloads = await this.createNewUsers(newUserCount);
 
-        // Save all changes
         const allPayloads = [...updatePayloads, ...newUserPayloads];
         if (allPayloads.length > 0) {
             await this.saveBatchUpdatesOptimized(allPayloads);
         }
 
-        // Conditionally regenerate leaderboards
         const leaderboards = await this.kv.getLeaderboards();
         const now = new Date();
         const lastUpdated = leaderboards.lastUpdated ? new Date(leaderboards.lastUpdated) : null;
-        const shouldRegenerate = !lastUpdated || (now - lastUpdated) > config.LEADERBOARD_CACHE_TTL_MINUTES * 60 * 1000;
+        const shouldRegenerate = !lastUpdated || (now.getTime() - lastUpdated.getTime()) > config.LEADERBOARD_CACHE_TTL_MINUTES * 60 * 1000;
 
         if (shouldRegenerate) {
             console.log("Regenerating leaderboards...");
             await this.regenerateLeaderboardsEfficiently();
         }
 
-        // Update cron state
         await this.kv.setCronState({
             lastProcessedIndex: (startIndex + usersToProcess) % userKeys.length,
             totalUsers: userKeys.length,
@@ -215,10 +273,12 @@ export class HiscoresService {
         console.log(`Update complete. Updated: ${updatePayloads.length}, Created: ${newUserPayloads.length}, Leaderboards: ${shouldRegenerate ? ' regenerated' : 'fresh'}`);
     }
 
-    processUserUpdates(users) {
+    // FIX 3: Made this method 'async' to handle the 'await' for getAvatarConfig.
+    async processUserUpdates(users, worldEvent) {
         const updatePayloads = [];
         for (const user of users) {
             let hasChanges = false;
+<<<<<<< HEAD
 
             // Ensure user has a persistent play style (migrate old users)
             if (!user.playStyle && user.activityType) {
@@ -236,13 +296,15 @@ export class HiscoresService {
                 user.specialistSkills = config.SPECIALIST_SKILL_FOCUS[user.specialistType];
                 hasChanges = true;
             }
+=======
+>>>>>>> 567072c8f0081405ddd4047ce5fe0fb188a9c3a0
 
-            // Ensure user has avatar configuration
-            if (!user.avatar) {
-                user.avatar = this.avatarService.getAvatarConfig(user.username);
+            if (!user.archetype) {
+                user.archetype = this.getPlayerArchetype();
                 hasChanges = true;
             }
 
+<<<<<<< HEAD
             // Add creation timestamp if missing
             if (!user.createdAt) {
                 user.createdAt = new Date().toISOString();
@@ -253,6 +315,31 @@ export class HiscoresService {
                 if (skillName === 'Hitpoints') return;
                 const skill = user.skills[skillName];
                 const xpGained = this.generateWeightedXpGain(user.playStyle, skillName, skill.level, user);
+=======
+            if (!user.avatar) {
+                // FIX 3: Added 'await' here. Otherwise, user.avatar would be a Promise, not the config object.
+                user.avatar = await this.avatarService.getAvatarConfig(user.username);
+                hasChanges = true;
+            }
+
+            if (user.status === 'burnout') {
+                if (Math.random() < 0.2) {
+                    user.status = 'active';
+                    user.archetype = 'CASUAL';
+                    hasChanges = true;
+                }
+            } else if (user.archetype === 'ELITE' || user.archetype === 'LEGEND') {
+                if (Math.random() < 0.02) {
+                    user.status = 'burnout';
+                    hasChanges = true;
+                }
+            }
+
+            config.SKILLS.forEach(skillName => {
+                if (skillName === 'Hitpoints') return;
+                const skill = user.skills[skillName];
+                const xpGained = this.generateWeightedXpGain(user.archetype, skillName, skill.level, worldEvent);
+>>>>>>> 567072c8f0081405ddd4047ce5fe0fb188a9c3a0
                 if (xpGained > 0 && skill.xp < 200000000) {
                     skill.xp = Math.min(200000000, skill.xp + xpGained);
                     skill.level = xpToLevel(skill.xp);
@@ -269,6 +356,7 @@ export class HiscoresService {
         return updatePayloads;
     }
 
+<<<<<<< HEAD
     generateWeightedXpGain(playStyle, skillName, currentLevel = 1, user = null) {
         const activity = config.PLAYER_PLAY_STYLES[playStyle];
         let skillWeight = config.SKILL_POPULARITY_WEIGHTS[skillName] || 1.0;
@@ -286,41 +374,49 @@ export class HiscoresService {
         }
 
         if (Math.random() > skillProbability * skillWeight) return 0;
+=======
+    generateWeightedXpGain(archetype, skillName, currentLevel = 1, worldEvent) {
+        const archetypeProfile = config.PLAYER_ARCHETYPES[archetype];
+        const weight = config.SKILL_POPULARITY_WEIGHTS[skillName] || 1.0;
+        if (Math.random() > archetypeProfile.skillProbability * weight) return 0;
+>>>>>>> 567072c8f0081405ddd4047ce5fe0fb188a9c3a0
 
         const efficiency = 0.6 + Math.random() * 0.8;
-        const baseXp = Math.floor(Math.random() * (activity.xpRange.max - activity.xpRange.min + 1) + activity.xpRange.min);
+        const baseXp = Math.floor(
+            Math.random() * (archetypeProfile.xpRange.max - archetypeProfile.xpRange.min + 1)
+            + archetypeProfile.xpRange.min
+        );
         const levelScaling = 1 + (currentLevel / 99) * config.LEVEL_SCALING_FACTOR;
-        const weekendBoost = config.WEEKEND_DAYS.includes(new Date().getUTCDay()) ? config.WEEKEND_BONUS_MULTIPLIER : 1;
+        const weekendBoost = config.WEEKEND_DAYS.includes(new Date().getUTCDay())
+            ? config.WEEKEND_BONUS_MULTIPLIER
+            : 1;
 
+<<<<<<< HEAD
         return Math.floor(baseXp * efficiency * skillWeight * levelScaling * config.GLOBAL_XP_MULTIPLIER * weekendBoost);
+=======
+        const rawGain = Math.floor(
+            baseXp * efficiency * weight * levelScaling * config.GLOBAL_XP_MULTIPLIER * weekendBoost
+        );
+
+        return Math.floor(rawGain * 0.1);
+>>>>>>> 567072c8f0081405ddd4047ce5fe0fb188a9c3a0
     }
 
     updateHitpoints(user) {
-        // 1) sum up all combat‐skill XP
-        const combatXp = config.COMBAT_SKILLS.reduce(
-            (sum, s) => sum + (user.skills[s]?.xp || 0),
-            0
-        );
-
-        // 2) recalc HP XP exactly like in new‐user generator
-        //    level 10 XP is this.levelToXp(10), so we mirror that
+        const combatXp = config.NON_HP_COMBAT_SKILLS.reduce((sum, s) => sum + (user.skills[s]?.xp || 0), 0);
         const minHpXp = this.levelToXp(10);
-        const newHpXp = Math.min(200000000, Math.max(
-            minHpXp,
-            Math.floor((combatXp / 4) * 1.3)
-        ));
-
-        // 3) only update if it actually changed
+        const newHpXp = Math.min(200000000, Math.max(minHpXp, Math.floor(combatXp / 3)));
         const currHp = user.skills['Hitpoints'] || { xp: 0 };
         if (currHp.xp !== newHpXp) {
-            currHp.xp = newHpXp;
-            currHp.level = xpToLevel(newHpXp);
+            user.skills['Hitpoints'] = {
+                xp: newHpXp,
+                level: xpToLevel(newHpXp)
+            };
             return true;
         }
         return false;
     }
 
-    // Helper method to convert level to XP (inverse of xpToLevel)
     levelToXp(level) {
         if (level <= 1) return 0;
         let xp = 0;
@@ -330,6 +426,7 @@ export class HiscoresService {
         return Math.floor(xp / 4);
     }
 
+<<<<<<< HEAD
     // Debug method to analyze play style distribution
     async getPlayStyleDistribution() {
         const users = await this.getAllUsersOptimized(1000); // Sample first 1000 users
@@ -353,56 +450,72 @@ export class HiscoresService {
         };
     }
 
+=======
+    async manageWorldEvents() {
+        const currentEvent = await this.kv.getWorldEvent();
+        const now = new Date();
+>>>>>>> 567072c8f0081405ddd4047ce5fe0fb188a9c3a0
 
+        if (currentEvent && new Date(currentEvent.expires) > now) {
+            return;
+        }
+
+        const eventKeys = Object.keys(config.WORLD_EVENTS);
+        const eventType = eventKeys[Math.floor(Math.random() * eventKeys.length)];
+        const eventDetails = config.WORLD_EVENTS[eventType];
+
+        let skill = eventDetails.skill;
+        if (eventType === 'SKILL_OF_THE_WEEK') {
+            skill = config.SKILLS[Math.floor(Math.random() * config.SKILLS.length)];
+        }
+
+        const newEvent = {
+            type: eventType,
+            message: typeof eventDetails.message === 'function' ? eventDetails.message(skill) : eventDetails.message,
+            skill: skill,
+            started: now.toISOString(),
+            expires: new Date(now.getTime() + eventDetails.durationHours * 60 * 60 * 1000).toISOString()
+        };
+
+        await this.kv.setWorldEvent(newEvent);
+        console.log(`New world event started: ${newEvent.type} - ${newEvent.message}`);
+    }
 
     // --- Memory-Efficient Leaderboard Generation ---
     async regenerateLeaderboardsEfficiently() {
         const totalLevelData = [];
         const skillRankings = Object.fromEntries(config.SKILLS.map(skill => [skill, []]));
 
-        // Process users in batches to avoid memory issues
         for await (const userBatch of this.kv.streamAllUsers(50)) {
-            // Process total level data
             userBatch.forEach(user => {
                 const totals = this.calculateUserTotals(user);
-                totalLevelData.push({
-                    username: user.username,
-                    ...totals
-                });
+                totalLevelData.push({ username: user.username, ...totals });
 
-                // Process skill rankings
                 config.SKILLS.forEach(skillName => {
                     const skill = user.skills?.[skillName];
                     if (skill) {
-                        skillRankings[skillName].push({
-                            username: user.username,
-                            ...skill
-                        });
+                        skillRankings[skillName].push({ username: user.username, ...skill });
                     }
                 });
             });
         }
 
-        // Sort and rank total level leaderboard
         const totalLevelLeaderboard = totalLevelData
             .sort((a, b) => b.totalLevel - a.totalLevel || b.totalXp - a.totalXp)
             .map((p, i) => ({ ...p, rank: i + 1 }));
 
-        // Sort and rank skill leaderboards
         Object.keys(skillRankings).forEach(skillName => {
             skillRankings[skillName]
                 .sort((a, b) => b.level - a.level || b.xp - a.xp)
                 .forEach((p, i) => p.rank = i + 1);
         });
 
-        // Save the leaderboards with TTL if REST API is available
         const leaderboardData = {
             totalLevel: totalLevelLeaderboard,
             skills: skillRankings,
             lastUpdated: new Date().toISOString(),
         };
 
-        // Use enhanced TTL functionality if available, otherwise fallback to regular save
         if (this.kv.hasRestApi) {
             await this.kv.setLeaderboardsWithTTL(leaderboardData, config.REST_API_CONFIG.LEADERBOARD_TTL_SECONDS);
         } else {
@@ -410,17 +523,85 @@ export class HiscoresService {
         }
     }
 
-    // Enhanced batch processing using bulk operations
     async saveBatchUpdatesOptimized(updatePayloads) {
-        // The KVService will automatically determine whether to use bulk operations
-        // based on payload size and REST API availability
         return this.kv.saveBatchUpdates(updatePayloads);
     }
 
-    // Enhanced user fetching with bulk operations
-    async getAllUsersOptimized(maxUsers = null) {
-        // The KVService will automatically determine whether to use bulk operations
-        // based on user count and REST API availability
-        return this.kv.getAllUsers(100, maxUsers);
+    // --- Migration Methods ---
+    // FIX 5: Removed duplicated method definitions and orphaned comments from this section.
+    /**
+     * Migrates all existing users to use the new hitpoints calculation formula.
+     * This method is idempotent; users already migrated will not be changed.
+     */
+    async migrateAllUsersHitpoints() {
+        console.log('Starting hitpoints migration for all users...');
+
+        let totalProcessed = 0;
+        let totalMigrated = 0;
+        const batchSize = 50;
+        const migrationPayloads = [];
+
+        for await (const userBatch of this.kv.streamAllUsers(batchSize)) {
+            for (const user of userBatch) {
+                totalProcessed++;
+
+                const oldHpXp = user.skills['Hitpoints']?.xp || 0;
+                const oldHpLevel = user.skills['Hitpoints']?.level || 10;
+
+                const wasUpdated = this.updateHitpoints(user);
+
+                if (wasUpdated) {
+                    totalMigrated++;
+                    const newHpXp = user.skills['Hitpoints'].xp;
+                    const newHpLevel = user.skills['Hitpoints'].level;
+
+                    console.log(`Migrated ${user.username}: HP ${oldHpLevel} (${oldHpXp} XP) -> ${newHpLevel} (${newHpXp} XP)`);
+
+                    migrationPayloads.push({
+                        username: user.username,
+                        data: user
+                    });
+                }
+
+                if (migrationPayloads.length >= 25) {
+                    await this.saveBatchUpdatesOptimized(migrationPayloads);
+                    migrationPayloads.length = 0;
+                }
+            }
+        }
+
+        if (migrationPayloads.length > 0) {
+            await this.saveBatchUpdatesOptimized(migrationPayloads);
+        }
+
+        console.log('Regenerating leaderboards after migration...');
+        await this.regenerateLeaderboardsEfficiently();
+
+        const result = {
+            totalProcessed,
+            totalMigrated,
+            migrationComplete: true,
+            timestamp: new Date().toISOString()
+        };
+
+        console.log(`Hitpoints migration complete: ${totalMigrated}/${totalProcessed} users updated`);
+        return result;
+    }
+
+    /**
+     * Checks if a specific user needs hitpoints migration
+     */
+    checkUserHitpointsMigration(user) {
+        const currentHpXp = user.skills['Hitpoints']?.xp || 0;
+        const combatXp = config.NON_HP_COMBAT_SKILLS.reduce((sum, s) => sum + (user.skills[s]?.xp || 0), 0);
+        const expectedHpXp = Math.max(this.levelToXp(10), Math.floor(combatXp / 3));
+
+        return {
+            username: user.username,
+            currentHpXp,
+            expectedHpXp,
+            needsMigration: currentHpXp !== expectedHpXp,
+            difference: expectedHpXp - currentHpXp
+        };
     }
 }

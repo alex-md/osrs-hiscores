@@ -39,9 +39,15 @@ export class Router {
                 const leaderboards = await this.service.kv.getLeaderboards();
                 return jsonResponse(leaderboards);
             }
+<<<<<<< HEAD
             if (pathname === '/api/play-style-distribution') {
                 const distribution = await this.service.getPlayStyleDistribution();
                 return jsonResponse(distribution);
+=======
+            if (pathname === '/api/events') {
+                const event = await this.service.kv.getWorldEvent();
+                return jsonResponse(event || { message: 'No active world event.' });
+>>>>>>> 567072c8f0081405ddd4047ce5fe0fb188a9c3a0
             }
             // Invoke-RestMethod -Uri "https://osrs-hiscores-clone.vs.workers.dev/api/cron/trigger" -Method POST
             if (pathname === '/api/cron/trigger' && request.method === 'POST') {
@@ -49,10 +55,45 @@ export class Router {
                 return jsonResponse({ message: 'Cron job executed successfully' });
             }
 
+            if (pathname === '/api/users/generate' && request.method === 'POST') {
+                const newUserPayloads = await this.service.createNewUsers(10);
+                await this.service.saveBatchUpdatesOptimized(newUserPayloads);
+                return jsonResponse({
+                    message: 'Successfully generated 10 new users',
+                    users: newUserPayloads.map(p => p.username)
+                });
+            }
+
+            if (pathname === '/api/users/new-users' && request.method === 'POST') {
+                const newUserPayloads = await this.service.createNewUsers(10);
+                await this.service.saveBatchUpdatesOptimized(newUserPayloads);
+                return jsonResponse({
+                    message: 'Successfully generated 10 new users',
+                    users: newUserPayloads.map(p => p.username)
+                });
+            }
+
+            // Migration endpoint for hitpoints formula update
+            // Invoke-RestMethod -Uri "https://osrs-hiscores-clone.vs.workers.dev/api/migrate/hitpoints" -Method POST
+            if (pathname === '/api/migrate/hitpoints' && request.method === 'POST') {
+                const result = await this.service.migrateAllUsersHitpoints();
+                return jsonResponse(result);
+            }
+
             const userMatch = pathname.match(/^\/api\/users\/([^/]+)$/);
             if (userMatch?.[1]) {
                 const user = await this.service.kv.getUser(decodeURIComponent(userMatch[1]));
                 return user ? jsonResponse(user) : jsonResponse({ error: 'User not found' }, 404);
+            }
+
+            // Check hitpoints migration status for a specific user
+            const migrationCheckMatch = pathname.match(/^\/api\/users\/([^/]+)\/hitpoints-check$/);
+            if (migrationCheckMatch?.[1]) {
+                const user = await this.service.kv.getUser(decodeURIComponent(migrationCheckMatch[1]));
+                if (!user) return jsonResponse({ error: 'User not found' }, 404);
+
+                const migrationInfo = this.service.checkUserHitpointsMigration(user);
+                return jsonResponse(migrationInfo);
             }            // Avatar endpoints
             const avatarMatch = pathname.match(/^\/api\/avatars\/([^/]+)$/);
             if (avatarMatch?.[1]) {

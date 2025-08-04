@@ -1,30 +1,23 @@
-// src/services/avatar.service.js
+
 
 /**
  * Service for generating persistent avatars using DiceBear API
  */
 export class AvatarService {
     constructor() {
-        // Available avatar styles from DiceBear that work well for gaming
+        // Expanded list of avatar styles from DiceBear for more variety
         this.avatarStyles = [
-            'adventurer',      // Fantasy/RPG style
-            'adventurer-neutral', // Gender-neutral fantasy
-            'avataaars',       // Popular cartoon style
-            'big-ears',        // Cute cartoon style
-            'bottts',          // Robot style (for fun variety)
-            'fun-emoji',       // Emoji style
-            'lorelei',         // Modern cartoon
-            'micah',           // Simple geometric
-            'miniavs',         // Minimal style
-            'personas',        // Professional looking
-            'pixel-art',       // Retro pixel art (perfect for OSRS!)
+            'adventurer', 'adventurer-neutral', 'avataaars', 'big-ears', 'big-smile',
+            'bottts', 'croodles', 'fun-emoji', 'icons', 'identicon', 'initials',
+            'lorelei', 'micah', 'miniavs', 'open-peeps', 'personas', 'pixel-art',
+            'pixel-art-neutral', 'shapes', 'thumbs'
         ];
         
         // Default to pixel-art for that OSRS retro feel
         this.defaultStyle = 'pixel-art';
         
         // Backup styles if primary fails
-        this.fallbackStyles = ['adventurer', 'avataaars', 'bottts'];
+        this.fallbackStyles = ['adventurer', 'avataaars', 'bottts', 'initials'];
     }
 
     /**
@@ -60,17 +53,14 @@ export class AvatarService {
         const urls = [];
         
         // Primary URL with selected style
-        urls.push(`https://api.dicebear.com/7.x/${primaryStyle}/svg?seed=${seed}&size=${size}`);
+        urls.push(`https://api.dicebear.com/8.x/${primaryStyle}/svg?seed=${seed}&size=${size}`);
         
         // Fallback URLs with different styles
         this.fallbackStyles.forEach(style => {
             if (style !== primaryStyle) {
-                urls.push(`https://api.dicebear.com/7.x/${style}/svg?seed=${seed}&size=${size}`);
+                urls.push(`https://api.dicebear.com/8.x/${style}/svg?seed=${seed}&size=${size}`);
             }
         });
-        
-        // Ultimate fallback with initials style
-        urls.push(`https://api.dicebear.com/7.x/initials/svg?seed=${seed}&size=${size}`);
         
         return urls;
     }
@@ -112,3 +102,4 @@ export class AvatarService {
         return this.getAvatarUrl(username);
     }
 }
+""
