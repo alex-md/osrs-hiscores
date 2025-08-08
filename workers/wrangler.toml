@@ -9,3 +9,7 @@ crons = ["*/15 * * * *"]
 [[kv_namespaces]]
 binding = "HISCORES_KV"
 id = "884ba8e6b3484b0eb148b1e847c7a29a"
+
+[vars]
+# Set this to a strong secret (or via `wrangler secret put ADMIN_TOKEN`) to enable /api/seed endpoint
+ADMIN_TOKEN = "secretseed"

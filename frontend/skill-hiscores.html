@@ -1,65 +1,72 @@
 <!DOCTYPE html>
 <html lang="en" class="h-full" data-theme="light" data-api-base="">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Skill Hiscores • OSRS Clone</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="styles.css" />
-  <script defer src="https://unpkg.com/lucide@latest"></script>
-  <script defer src="skill-hiscores.js"></script>
-</head>
-<body class="h-full bg-surface text-foreground">
-  <div class="min-h-full flex flex-col">
-    <header class="p-4 border-b border-border flex flex-wrap items-center gap-4 justify-between bg-layer">
-      <div class="flex items-center gap-2">
-        <a href="index.html" class="text-sm underline text-muted">← Back</a>
-        <h1 class="font-semibold">Skill Hiscores</h1>
-      </div>
-      <div class="flex items-center gap-2 flex-wrap">
-        <select id="skillSelect" class="px-2 py-1 rounded bg-input border border-border text-sm"></select>
-        <input id="filterName" placeholder="Player" class="px-2 py-1 rounded bg-input border border-border text-sm" />
-        <input id="filterMinLvl" type="number" min="1" max="99" placeholder="Min Lvl" class="w-20 px-2 py-1 rounded bg-input border border-border text-sm" />
-        <input id="filterMaxLvl" type="number" min="1" max="99" placeholder="Max Lvl" class="w-20 px-2 py-1 rounded bg-input border border-border text-sm" />
-        <button id="exportCsv" class="btn">CSV</button>
-        <button id="themeToggle" class="icon-button" title="Toggle Theme"></button>
-      </div>
-    </header>
-    <main class="flex-1 p-4 flex flex-col gap-4">
-      <div id="skillStats" class="text-xs text-muted"></div>
-      <div class="overflow-auto border border-border rounded bg-layer">
-        <table class="min-w-full text-sm" id="skillTable">
-          <thead class="bg-layer2 text-xs uppercase tracking-wide">
-            <tr>
-              <th data-sort="rank" class="sortable w-16">Rank</th>
-              <th data-sort="username" class="sortable text-left">Player</th>
-              <th data-sort="level" class="sortable w-24">Level</th>
-              <th data-sort="xp" class="sortable w-48">XP</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <div class="flex items-center gap-4 text-xs flex-wrap">
-        <div class="flex items-center gap-2">
-          <button id="prevPage" class="btn-sm">Prev</button>
-          <button id="nextPage" class="btn-sm">Next</button>
+
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Skill Hiscores • OSRS Clone</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link rel="stylesheet" href="styles.css" />
+        <script defer src="https://unpkg.com/lucide@latest"></script>
+        <script defer src="skill-hiscores.js"></script>
+    </head>
+
+    <body class="h-full bg-surface text-foreground">
+        <div class="min-h-full flex flex-col">
+            <header class="p-4 border-b border-border flex flex-wrap items-center gap-4 justify-between bg-layer">
+                <div class="flex items-center gap-2">
+                    <a href="index.html" class="text-sm underline text-muted">← Back</a>
+                    <h1 class="font-semibold">Skill Hiscores</h1>
+                </div>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <select id="skillSelect" class="px-2 py-1 rounded bg-input border border-border text-sm"></select>
+                    <input id="filterName" placeholder="Player"
+                        class="px-2 py-1 rounded bg-input border border-border text-sm" />
+                    <input id="filterMinLvl" type="number" min="1" max="99" placeholder="Min Lvl"
+                        class="w-20 px-2 py-1 rounded bg-input border border-border text-sm" />
+                    <input id="filterMaxLvl" type="number" min="1" max="99" placeholder="Max Lvl"
+                        class="w-20 px-2 py-1 rounded bg-input border border-border text-sm" />
+                    <button id="exportCsv" class="btn">CSV</button>
+                    <button id="themeToggle" class="icon-button" title="Toggle Theme"></button>
+                </div>
+            </header>
+            <main class="flex-1 p-4 flex flex-col gap-4">
+                <div id="skillStats" class="text-xs text-muted"></div>
+                <div class="overflow-auto border border-border rounded bg-layer">
+                    <table class="min-w-full text-sm" id="skillTable">
+                        <thead class="bg-layer2 text-xs uppercase tracking-wide">
+                            <tr>
+                                <th data-sort="rank" class="sortable w-16">Rank</th>
+                                <th data-sort="username" class="sortable text-left">Player</th>
+                                <th data-sort="level" class="sortable w-24">Level</th>
+                                <th data-sort="xp" class="sortable w-48">XP</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="flex items-center gap-4 text-xs flex-wrap">
+                    <div class="flex items-center gap-2">
+                        <button id="prevPage" class="btn-sm">Prev</button>
+                        <button id="nextPage" class="btn-sm">Next</button>
+                    </div>
+                    <div>
+                        Page <span id="pageNum">1</span> / <span id="pageTotal">1</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label>Per Page</label>
+                        <select id="perPage" class="px-1 py-0.5 rounded bg-input border border-border text-xs">
+                            <option>25</option>
+                            <option>50</option>
+                            <option>100</option>
+                        </select>
+                    </div>
+                </div>
+            </main>
+            <footer class="p-4 text-xs text-muted text-center border-t border-border bg-layer">Mock data • Cloudflare
+                Workers</footer>
         </div>
-        <div>
-          Page <span id="pageNum">1</span> / <span id="pageTotal">1</span>
-        </div>
-        <div class="flex items-center gap-2">
-          <label>Per Page</label>
-            <select id="perPage" class="px-1 py-0.5 rounded bg-input border border-border text-xs">
-              <option>25</option>
-              <option>50</option>
-              <option>100</option>
-            </select>
-        </div>
-      </div>
-    </main>
-    <footer class="p-4 text-xs text-muted text-center border-t border-border bg-layer">Mock data • Cloudflare Workers</footer>
-  </div>
-  <div id="toastContainer" class="fixed top-4 right-4 flex flex-col gap-2 z-50"></div>
-</body>
+        <div id="toastContainer" class="fixed top-4 right-4 flex flex-col gap-2 z-50"></div>
+    </body>
+
 </html>

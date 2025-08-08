@@ -1,29 +1,38 @@
 <!DOCTYPE html>
 <html lang="en" class="h-full" data-theme="light" data-api-base="">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OSRS Hiscores Clone</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="styles.css" />
-  <script defer src="https://unpkg.com/lucide@latest"></script>
-  <script defer src="app.js"></script>
-</head>
-<body class="h-full bg-surface text-foreground transition-colors">
-  <div id="app" class="min-h-full flex flex-col">
-    <header class="p-4 border-b border-border flex items-center justify-between gap-4 bg-layer">
-      <h1 class="text-xl font-bold flex items-center gap-2"><span class="text-accent">OSRS</span> Hiscores</h1>
-      <div class="flex items-center gap-3 relative">
-        <div class="relative">
-          <input id="playerSearch" type="text" placeholder="Search player..." class="px-3 py-1 rounded bg-input border border-border focus:outline-none focus:ring-2 focus:ring-accent/60 text-sm" aria-label="Search player" autocomplete="off" />
-          <div id="searchSuggest" class="absolute mt-1 w-full bg-layer border border-border rounded shadow hidden max-h-64 overflow-auto text-sm z-20"></div>
+
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>OSRS Hiscores Clone</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link rel="stylesheet" href="styles.css" />
+        <script defer src="https://unpkg.com/lucide@latest"></script>
+        <script defer src="app.js"></script>
+    </head>
+
+    <body class="h-full bg-surface text-foreground transition-colors">
+        <div id="app" class="min-h-full flex flex-col">
+            <header class="p-4 border-b border-border flex items-center justify-between gap-4 bg-layer">
+                <h1 class="text-xl font-bold flex items-center gap-2"><span class="text-accent">OSRS</span> Hiscores
+                </h1>
+                <div class="flex items-center gap-3 relative">
+                    <div class="relative">
+                        <input id="playerSearch" type="text" placeholder="Search player..."
+                            class="px-3 py-1 rounded bg-input border border-border focus:outline-none focus:ring-2 focus:ring-accent/60 text-sm"
+                            aria-label="Search player" autocomplete="off" />
+                        <div id="searchSuggest"
+                            class="absolute mt-1 w-full bg-layer border border-border rounded shadow hidden max-h-64 overflow-auto text-sm z-20">
+                        </div>
+                    </div>
+                    <button id="themeToggle" class="icon-button" title="Toggle Theme"></button>
+                </div>
+            </header>
+            <main class="flex-1 p-4 flex flex-col gap-6" id="viewRoot"></main>
+            <footer class="p-4 text-xs text-muted text-center border-t border-border bg-layer">Mock data • Cloudflare
+                Workers • <a href="skill-hiscores.html" class="underline">Skill Hiscores</a></footer>
         </div>
-        <button id="themeToggle" class="icon-button" title="Toggle Theme"></button>
-      </div>
-    </header>
-    <main class="flex-1 p-4 flex flex-col gap-6" id="viewRoot"></main>
-    <footer class="p-4 text-xs text-muted text-center border-t border-border bg-layer">Mock data • Cloudflare Workers • <a href="skill-hiscores.html" class="underline">Skill Hiscores</a></footer>
-  </div>
-  <div id="toastContainer" class="fixed top-4 right-4 flex flex-col gap-2 z-50"></div>
-</body>
+        <div id="toastContainer" class="fixed top-4 right-4 flex flex-col gap-2 z-50"></div>
+    </body>
+
 </html>
