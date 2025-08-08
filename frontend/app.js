@@ -1,9 +1,4 @@
 // Frontend main application logic for OSRS Hiscores clone
-// Allow override via data attribute, query param (?api=), or persisted localStorage
-const __queryApi = new URLSearchParams(location.search).get('api');
-if (__queryApi) localStorage.setItem('apiBaseOverride', __queryApi);
-let API_BASE = (localStorage.getItem('apiBaseOverride') || document.documentElement.getAttribute('data-api-base') || location.origin).replace(/\/$/, '');
-function setApiBase(newBase) { if (!newBase) return; API_BASE = newBase.replace(/\/$/, ''); localStorage.setItem('apiBaseOverride', API_BASE); toast('API base set to ' + API_BASE + ' – reloading'); setTimeout(() => location.reload(), 400); }
 const LEADERBOARD_LIMIT = 500; // configurable cap for initial view
 const cache = { leaderboard: null, users: null, skillRankings: null, usersFetchedAt: 0 };
 const SKILLS = ['attack', 'defence', 'strength', 'hitpoints', 'ranged', 'prayer', 'magic', 'cooking', 'woodcutting', 'fletching', 'fishing', 'firemaking', 'crafting', 'smithing', 'mining', 'herblore', 'agility', 'thieving', 'slayer', 'farming', 'runecraft', 'hunter', 'construction'];
@@ -25,28 +20,7 @@ function setTheme(theme) { document.documentElement.setAttribute('data-theme', t
 function toggleTheme() { const cur = localStorage.getItem('theme') || 'light'; setTheme(cur === 'light' ? 'dark' : 'light'); }
 function updateThemeToggle() { const btn = $('#themeToggle'); if (!btn) return; btn.innerHTML = ''; const theme = localStorage.getItem('theme') || 'light'; const icon = document.createElement('i'); icon.setAttribute('data-lucide', theme === 'light' ? 'moon' : 'sun'); btn.appendChild(icon); if (window.lucide) window.lucide.createIcons(); }
 
-async function fetchJSON(path, init) {
-    const url = API_BASE + path;
-    const resp = await fetch(url, init);
-    if (!resp.ok) throw new Error('Request failed: ' + resp.status + ' ' + resp.statusText);
-    const contentType = resp.headers.get('content-type') || '';
-    const textBody = await resp.text();
-    // Try to parse JSON, but provide clearer diagnostics if HTML/non-JSON is returned
-    try {
-        if (!contentType.includes('application/json')) {
-            if (/^\s*</.test(textBody)) {
-                throw new Error('Received HTML instead of JSON from ' + url + ' (check data-api-base pointing to Worker).');
-            }
-            throw new Error('Unexpected content-type (' + contentType + ') from ' + url);
-        }
-        return JSON.parse(textBody);
-    } catch (e) {
-        if (e instanceof SyntaxError) {
-            throw new Error('Invalid JSON from ' + url + ' – first chars: ' + textBody.slice(0, 60));
-        }
-        throw e;
-    }
-}
+// fetchJSON & API_BASE now provided by common.js
 async function loadLeaderboard(force = false) { if (cache.leaderboard && !force) return cache.leaderboard; cache.leaderboard = await fetchJSON(`/api/leaderboard?limit=${LEADERBOARD_LIMIT}`); return cache.leaderboard; }
 async function loadUsers(force = false) { if (cache.users && !force && (Date.now() - cache.usersFetchedAt < 60_000)) return cache.users; cache.users = await fetchJSON('/api/users'); cache.usersFetchedAt = Date.now(); return cache.users; }
 async function loadUser(username) { return fetchJSON('/api/users/' + encodeURIComponent(username)); }

@@ -1,8 +1,5 @@
 // Skill Hiscores page logic
-const __queryApi = new URLSearchParams(location.search).get('api');
-if (__queryApi) localStorage.setItem('apiBaseOverride', __queryApi);
-const API_BASE = (localStorage.getItem('apiBaseOverride') || document.documentElement.getAttribute('data-api-base') || location.origin).replace(/\/$/, '');
-function setApiBase(newBase) { if (!newBase) return; localStorage.setItem('apiBaseOverride', newBase.replace(/\/$/, '')); location.reload(); }
+// API_BASE, setApiBase, fetchJSON provided by common.js
 const SKILLS = ['attack', 'defence', 'strength', 'hitpoints', 'ranged', 'prayer', 'magic', 'cooking', 'woodcutting', 'fletching', 'fishing', 'firemaking', 'crafting', 'smithing', 'mining', 'herblore', 'agility', 'thieving', 'slayer', 'farming', 'runecraft', 'hunter', 'construction'];
 const cache = { skillRankings: null };
 
@@ -14,23 +11,7 @@ function setTheme(theme) { document.documentElement.setAttribute('data-theme', t
 function toggleTheme() { setTheme((localStorage.getItem('theme') || 'light') === 'light' ? 'dark' : 'light'); }
 function updateThemeToggle() { const btn = $('#themeToggle'); if (!btn) return; btn.innerHTML = ''; const i = document.createElement('i'); i.setAttribute('data-lucide', (localStorage.getItem('theme') || 'light') === 'light' ? 'moon' : 'sun'); btn.appendChild(i); if (window.lucide) window.lucide.createIcons(); }
 
-async function fetchJSON(path) {
-    const url = API_BASE + path;
-    const r = await fetch(url);
-    if (!r.ok) throw new Error('Request failed: ' + r.status + ' ' + r.statusText);
-    const ct = r.headers.get('content-type') || '';
-    const body = await r.text();
-    try {
-        if (!ct.includes('application/json')) {
-            if (/^\s*</.test(body)) throw new Error('Received HTML instead of JSON from ' + url + ' (configure data-api-base).');
-            throw new Error('Unexpected content-type (' + ct + ') from ' + url);
-        }
-        return JSON.parse(body);
-    } catch (e) {
-        if (e instanceof SyntaxError) throw new Error('Invalid JSON from ' + url + ' – first chars: ' + body.slice(0, 60));
-        throw e;
-    }
-}
+// fetchJSON now global (common.js)
 async function loadSkillRankings(force = false) { if (cache.skillRankings && !force) return cache.skillRankings; cache.skillRankings = await fetchJSON('/api/skill-rankings'); return cache.skillRankings; }
 
 let currentSkill = 'attack';
