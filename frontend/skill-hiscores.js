@@ -1,204 +1,42 @@
-// frontend/skill-hiscores.js
+// Skill Hiscores page logic
+const API_BASE = (document.documentElement.getAttribute('data-api-base') || location.origin).replace(/\/$/, '');
+const SKILLS = ['attack','defence','strength','hitpoints','ranged','prayer','magic','cooking','woodcutting','fletching','fishing','firemaking','crafting','smithing','mining','herblore','agility','thieving','slayer','farming','runecraft','hunter','construction'];
+const cache = { skillRankings: null };
 
-document.addEventListener('DOMContentLoaded', () => {
-    // --- PAGE-SPECIFIC STATE ---
-    const ITEMS_PER_PAGE_DEFAULT = 25;
-    let currentPage = 1;
-    let itemsPerPage = ITEMS_PER_PAGE_DEFAULT;
-    let currentSkill = null;
-    let currentSortField = 'rank';
-    let currentSortDirection = 'asc';
-    let filteredData = [];
-    let allSkillData = [];
+function $(sel, root=document) { return root.querySelector(sel); }
+function el(tag, cls, children) { const e = document.createElement(tag); if (cls) e.className = cls; if (children) children.forEach(c => e.appendChild(c)); return e; }
+function toast(msg, type='info', timeout=3000) { const c = $('#toastContainer'); const d = el('div','toast'); if(type==='error') d.style.borderColor='var(--color-danger)'; d.textContent=msg; c.appendChild(d); setTimeout(()=>d.remove(), timeout); }
 
-    // --- DOM ELEMENT REFERENCES ---
-    const loadingState = document.getElementById('loading-state');
-    const errorState = document.getElementById('error-state');
-    const skillSelectionView = document.getElementById('skill-selection-view');
-    const skillHiscoresView = document.getElementById('skill-hiscores-view');
-    const skillHiscoresBody = document.getElementById('skill-hiscores-body');
-    const skillPlayerSearch = document.getElementById('skill-player-search');
-    const levelFilter = document.getElementById('level-filter');
-    const xpFilter = document.getElementById('xp-filter');
-    const itemsPerPageSelect = document.getElementById('items-per-page');
+function setTheme(theme) { document.documentElement.setAttribute('data-theme',theme); localStorage.setItem('theme', theme); updateThemeToggle(); }
+function toggleTheme() { setTheme((localStorage.getItem('theme')||'light')==='light'?'dark':'light'); }
+function updateThemeToggle(){ const btn=$('#themeToggle'); if(!btn)return; btn.innerHTML=''; const i=document.createElement('i'); i.setAttribute('data-lucide',(localStorage.getItem('theme')||'light')==='light'?'moon':'sun'); btn.appendChild(i); if(window.lucide) window.lucide.createIcons(); }
 
-    // --- VIEW MANAGEMENT ---
-    const showView = (viewName) => {
-        [loadingState, errorState, skillSelectionView, skillHiscoresView].forEach(v => v.style.display = 'none');
-        document.getElementById('main-content').style.display = 'block';
-        const viewMap = { loading: loadingState, error: errorState, skillSelection: skillSelectionView, skillHiscores: skillHiscoresView };
-        if (viewMap[viewName]) {
-            viewMap[viewName].style.display = 'block';
-            if (viewName === 'loading' || viewName === 'error') {
-                document.getElementById('main-content').style.display = 'none';
-            }
-        }
-    };
+async function fetchJSON(path) { const r = await fetch(API_BASE + path); if (!r.ok) throw new Error('Failed'); return r.json(); }
+async function loadSkillRankings(force=false) { if (cache.skillRankings && !force) return cache.skillRankings; cache.skillRankings = await fetchJSON('/api/skill-rankings'); return cache.skillRankings; }
 
-    const handleRouteChange = () => {
-        const skillName = decodeURIComponent(window.location.hash.substring(1));
-        if (skillName && HiscoresApp.state.skills.includes(skillName)) {
-            loadSkillHiscores(skillName);
-        } else {
-            window.location.hash = '';
-            showView('skillSelection');
-        }
-    };
+let currentSkill = 'attack';
+let sortKey = 'rank';
+let sortDir = 1; // 1 asc, -1 desc
+let page = 1; let perPage = parseInt(localStorage.getItem('perPage')||'25') || 25;
 
-    // --- DATA & RENDERING ---
-    const loadSkillHiscores = async (skillName) => {
-        showView('loading');
-        try {
-            const rankings = await HiscoresApp.ApiService.fetchAndCacheRankings();
-            currentSkill = skillName;
-            allSkillData = rankings.skills?.[skillName] || [];
-            updateSkillHeader(skillName, allSkillData);
-            applyFiltersAndSort();
-            showView('skillHiscores');
-        } catch (error) { /* Error handled by shared function */ }
-    };
+function applyFilters(data) { const name = $('#filterName').value.trim().toLowerCase(); const minLvl = parseInt($('#filterMinLvl').value) || 1; const maxLvl = parseInt($('#filterMaxLvl').value) || 99; return data.filter(r => r.level >= minLvl && r.level <= maxLvl && (!name || r.username.toLowerCase().includes(name))); }
+function sortData(data) { return [...data].sort((a,b) => { let av = a[sortKey]; let bv = b[sortKey]; if (typeof av === 'string') return av.localeCompare(bv) * sortDir; return (av - bv) * sortDir; }); }
 
-    const SKILL_CATEGORIES = { combat: ['Attack', 'Strength', 'Defence', 'Ranged', 'Prayer', 'Magic', 'Hitpoints'], gathering: ['Mining', 'Fishing', 'Woodcutting', 'Farming', 'Hunter'], artisan: ['Smithing', 'Cooking', 'Fletching', 'Crafting', 'Firemaking', 'Herblore'], support: ['Runecrafting', 'Construction', 'Agility', 'Thieving', 'Slayer'] };
+function renderTable() { loadSkillRankings().then(data => { const rows = data.rankings[currentSkill]; const filtered = applyFilters(rows); const sorted = sortData(filtered); const tableBody = $('#skillTable tbody'); tableBody.innerHTML=''; const totalPages = Math.max(1, Math.ceil(sorted.length / perPage)); if (page > totalPages) page = totalPages; const slice = sorted.slice((page-1)*perPage, page*perPage); slice.forEach(r => { const tr = document.createElement('tr'); tr.innerHTML = `<td class=\"text-center\">${r.rank}</td><td><a class=\"underline\" href=\"index.html#user/${encodeURIComponent(r.username)}\" aria-label=\"View ${r.username} overall stats\">${r.username}</a></td><td class=\"text-center\">${r.level}</td><td class=\"text-right tabular-nums\">${r.xp.toLocaleString()}</td>`; tableBody.appendChild(tr); }); $('#pageNum').textContent = String(page); $('#pageTotal').textContent = String(totalPages); const statsEl = $('#skillStats'); if (filtered.length) { const top = filtered[0]; const highestXp = filtered.slice().sort((a,b)=> b.xp - a.xp)[0]; const avgLvl = (filtered.reduce((a,x)=>a+x.level,0)/filtered.length).toFixed(2); statsEl.textContent = `${filtered.length} players • Top: ${top.username} (rank ${top.rank}) • Highest XP: ${highestXp.username} (${highestXp.xp.toLocaleString()}) • Avg Lvl: ${avgLvl}`; } else statsEl.textContent = 'No results'; }).catch(e => toast(e.message,'error')); }
 
+function exportCsv() { loadSkillRankings().then(data => { const rows = data.rankings[currentSkill]; const filtered = applyFilters(rows); const header = 'rank,username,level,xp\n'; const body = filtered.map(r => `${r.rank},${r.username},${r.level},${r.xp}`).join('\n'); const blob = new Blob([header+body], { type: 'text/csv' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${currentSkill}-hiscores.csv`; document.body.appendChild(a); a.click(); a.remove(); }); }
 
-    const renderSkillGrid = () => {
-        Object.entries(SKILL_CATEGORIES).forEach(([category, skills]) => {
-            const container = document.getElementById(`${category}-skills`);
-            if (!container) return;
-            container.innerHTML = skills
-                .filter(skill => HiscoresApp.state.skills.includes(skill))
-                .map(skill => `
-                    <button class="osrs-button" data-skill="${skill}">
-                        <span class="text-osrs-text-light font-medium text-sm group-hover:text-osrs-gold">${skill}</span>
-                    </button>`).join('');
-            container.querySelectorAll('.osrs-button').forEach(btn =>
-                btn.addEventListener('click', () => window.location.hash = encodeURIComponent(btn.dataset.skill))
-            );
-        });
-    };
+document.addEventListener('click', e => { if (e.target.id === 'themeToggle' || e.target.closest('#themeToggle')) toggleTheme(); if (e.target.closest('th.sortable')) { const th = e.target.closest('th'); const key = th.getAttribute('data-sort'); if (sortKey === key) sortDir *= -1; else { sortKey = key; sortDir = key==='rank'?1:-1; } renderTable(); } if (e.target.id === 'prevPage') { if (page>1){page--; renderTable();} } if (e.target.id === 'nextPage') { const totalPages = parseInt($('#pageTotal').textContent)||1; if (page<totalPages){ page++; renderTable(); } } if (e.target.id === 'exportCsv') exportCsv(); });
 
-    const updateSkillHeader = (skillName, data) => {
-        document.getElementById('current-skill-name').textContent = skillName;
-        document.getElementById('total-players-count').textContent = `${data.length.toLocaleString()} players tracked`;
+$('#perPage').addEventListener('change', () => { perPage = parseInt($('#perPage').value)||25; localStorage.setItem('perPage', String(perPage)); page=1; renderTable(); });
+let filterDebounce; function queueFilterRender(){ clearTimeout(filterDebounce); filterDebounce = setTimeout(()=> { page=1; renderTable(); }, 150); }
+$('#filterName').addEventListener('input', queueFilterRender);
+$('#filterMinLvl').addEventListener('input', queueFilterRender);
+$('#filterMaxLvl').addEventListener('input', queueFilterRender);
+$('#skillSelect').addEventListener('change', () => { currentSkill = $('#skillSelect').value; page=1; renderTable(); });
 
-        if (data.length > 0) {
-            const topPlayer = data[0];
-            const topPlayerEl = document.getElementById('top-player-name');
-            const topPlayerLevelEl = document.getElementById('top-player-level');
-            const highestXpEl = document.getElementById('highest-xp');
-            const highestXpPlayerEl = document.getElementById('highest-xp-player');
-            const avgLevelEl = document.getElementById('average-level');
+function init() { const select = $('#skillSelect'); SKILLS.forEach(s => { const opt = document.createElement('option'); opt.value = s; opt.textContent = s; select.appendChild(opt); }); select.value = currentSkill; const theme = localStorage.getItem('theme') || 'light'; setTheme(theme); // apply stored perPage
+	const perPageSelect = $('#perPage'); if (perPageSelect) { [...perPageSelect.options].forEach(o => { if (parseInt(o.value)===perPage) perPageSelect.value = o.value; }); }
+	renderTable(); }
 
-            if (topPlayerEl) topPlayerEl.textContent = topPlayer.username;
-            if (topPlayerLevelEl) topPlayerLevelEl.textContent = `Level ${topPlayer.level}`;
-
-            // Find highest XP
-            const highestXpPlayer = data.reduce((max, player) => player.xp > max.xp ? player : max, data[0]);
-            if (highestXpEl) highestXpEl.textContent = HiscoresApp.formatNumber(highestXpPlayer.xp);
-            if (highestXpPlayerEl) highestXpPlayerEl.textContent = highestXpPlayer.username;
-
-            // Calculate average level of top 100
-            const top100 = data.slice(0, 100);
-            const avgLevel = Math.round(top100.reduce((sum, p) => sum + p.level, 0) / top100.length);
-            if (avgLevelEl) avgLevelEl.textContent = avgLevel;
-        }
-    };
-
-    const applyFiltersAndSort = () => {
-        const searchTerm = skillPlayerSearch.value.toLowerCase().trim();
-        const minLevel = parseInt(levelFilter.value) || 0;
-        const minXp = parseInt(xpFilter.value) || 0;
-
-        let filtered = allSkillData.filter(p =>
-            p.username.toLowerCase().includes(searchTerm) &&
-            p.level >= minLevel &&
-            p.xp >= minXp
-        );
-
-        filtered = HiscoresApp.Sorter.apply(filtered, currentSortField, currentSortDirection);
-        filteredData = filtered;
-        currentPage = 1;
-        renderSkillHiscoresTable();
-    };
-
-    const renderSkillHiscoresTable = () => {
-        const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-        currentPage = Math.max(1, Math.min(currentPage, totalPages));
-        const startIdx = (currentPage - 1) * itemsPerPage;
-        const pageData = filteredData.slice(startIdx, startIdx + itemsPerPage);
-
-        skillHiscoresBody.innerHTML = pageData.length === 0
-            ? `<tr><td colspan="4" class="px-4 py-8 text-center text-osrs-brown">No players found.</td></tr>`
-            : pageData.map(player => {
-                let rankClass = '';
-                if (player.rank === 1) rankClass = 'text-yellow-600 font-bold';
-                else if (player.rank === 2) rankClass = 'text-gray-500 font-bold';
-                else if (player.rank === 3) rankClass = 'text-yellow-700 font-bold';
-
-                return `<tr class="border-t-2 border-osrs-brown/50 hover:bg-osrs-parchment-dark">
-                    <td class="px-4 py-2"><span class="font-medium ${rankClass}">${player.rank.toLocaleString()}</span></td>
-                    <td class="px-4 py-2">
-                        <button class="player-link font-medium hover:text-blue-700 underline" data-username="${player.username}">${player.username}</button>
-                    </td>
-                    <td class="px-4 py-2 font-medium">${player.level.toLocaleString()}</td>
-                    <td class="px-4 py-2 font-medium">${HiscoresApp.formatNumber(player.xp)}</td>
-                </tr>`;
-            }).join('');
-
-        document.querySelectorAll('.player-link').forEach(link => {
-            link.addEventListener('click', e => window.open(`index.html#${encodeURIComponent(e.currentTarget.dataset.username)}`, '_blank'));
-        });
-
-        document.getElementById('skill-prev-page').disabled = (currentPage === 1);
-        document.getElementById('skill-next-page').disabled = (currentPage >= totalPages);
-        document.getElementById('skill-page-info').textContent = `Page ${currentPage} of ${totalPages || 1} (${filteredData.length.toLocaleString()} players)`;
-    };
-
-    // --- EVENT LISTENERS & INITIALIZATION ---
-    const init = async () => {
-        showView('loading');
-        HiscoresApp.Theme.init();
-        HiscoresApp.MobileMenu.init();
-        HiscoresApp.Navigation.setActive('skills');
-        HiscoresApp.Search.init({
-            onPlayerSelect: (username) => window.open(`index.html#${encodeURIComponent(username)}`),
-            onQuickSearch: (username) => window.open(`index.html#${encodeURIComponent(username)}`)
-        });
-
-        try {
-            await HiscoresApp.ApiService.fetchSkills();
-            await HiscoresApp.ApiService.fetchAndCacheRankings();
-            renderSkillGrid();
-            handleRouteChange();
-        } catch (error) { /* Error handled by shared function */ }
-
-        // --- Permanent Event Listeners ---
-        window.addEventListener('hashchange', handleRouteChange);
-        document.getElementById('back-to-skills-btn')?.addEventListener('click', () => window.location.hash = '');
-        document.getElementById('retry-btn')?.addEventListener('click', () => location.reload());
-
-        // Filtering & Pagination
-        skillPlayerSearch?.addEventListener('input', HiscoresApp.debounce(applyFiltersAndSort, 300));
-        [levelFilter, xpFilter].forEach(el => el?.addEventListener('change', applyFiltersAndSort));
-        itemsPerPageSelect?.addEventListener('change', (e) => { itemsPerPage = parseInt(e.target.value); applyFiltersAndSort(); });
-        document.getElementById('skill-prev-page')?.addEventListener('click', () => { currentPage--; renderSkillHiscoresTable(); });
-        document.getElementById('skill-next-page')?.addEventListener('click', () => { currentPage++; renderSkillHiscoresTable(); });
-
-        // Sorting
-        ['rank', 'player', 'level', 'xp'].forEach(field => {
-            document.getElementById(`sort-${field}`)?.addEventListener('click', () => {
-                if (currentSortField === field) {
-                    currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
-                } else {
-                    currentSortField = field;
-                    currentSortDirection = field === 'rank' ? 'asc' : 'desc';
-                }
-                applyFiltersAndSort();
-                HiscoresApp.Sorter.updateIndicators('sort-', currentSortField, currentSortDirection);
-            });
-        });
-        HiscoresApp.Sorter.updateIndicators('sort-', currentSortField, currentSortDirection);
-    };
-
-    init();
-});
+init();

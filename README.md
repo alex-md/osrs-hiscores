@@ -1,178 +1,137 @@
 # OSRS Hiscores Clone
 
-A modern, full-stack web application for looking up and displaying mock Old School RuneScape player statistics, built with a vanilla JavaScript frontend and a Cloudflare Workers backend. This project features a sophisticated data generation system to simulate a dynamic player base.
+A modern, full-stack mock Old School RuneScape hiscores application. Frontend is vanilla JavaScript + Tailwind (CDN) and backend is a single Cloudflare Worker written in pure JavaScript that simulates a dynamic player base.
 
 ## Features
 
-  - 📊 **Dynamic Leaderboard**: View a paginated leaderboard of all players, ranked by total level and experience.
-  - 👤 **Detailed Player Stats**: Look up any player to see their complete hiscores, including individual skill ranks, levels, and experience.
-  - 🎯 **Individual Skill Hiscores**: Dedicated skill-specific leaderboards with advanced filtering, sorting, and export functionality.
-  - 🔍 **Live Player Search**: Instantly search for players with debounced search and live suggestions.
-  - 🤖 **Sophisticated Mock Data**: The backend worker continuously generates and updates player data with realistic activity patterns, including different player types (e.g., Casual, Hardcore, Elite) and weighted XP gains.
-  - ⚡ **Edge Performance**: Powered by Cloudflare Workers for fast API responses and data storage with Cloudflare KV.
-  - 🎨 **Modern UI/UX**: A clean, responsive, and themeable (light/dark) interface built with Tailwind CSS and Lucide icons.
-  - 🔄 **Automatic Data Refresh**: A cron job runs every 15 minutes to simulate player progress and create new users, keeping the data fresh and dynamic.
-
------
+- Dynamic overall leaderboard (ranked by total level then total XP)
+- Player lookup with per-skill stats
+- Individual skill hiscores page with filtering, sorting, pagination & CSV export
+- Live (debounced) player search with suggestions dropdown
+- Weighted XP simulation with player activity archetypes & weekend bonus
+- Automatic cron-driven progression and new player creation (every 15 minutes)
+- Hitpoints migration endpoints (illustrative data maintenance task)
+- Theme toggle (light/dark) persisted in local storage
 
 ## Project Structure
 
 ```
 osrs-hiscores/
-├── .github/workflows/    # CI/CD workflows
-├── frontend/             # Static frontend files
-│   ├── index.html        # Main application page
-│   ├── skill-hiscores.html  # Individual skill hiscores page
-│   ├── skill-hiscores.js    # Skill hiscores application logic
-│   ├── styles.css        # Custom OSRS-themed styles
-│   └── app.js            # Frontend application logic
-├── workers/              # Cloudflare Worker backend
-│   ├── src/
-│   │   └── index.js      # Main worker entry point with all backend logic
-│   ├── wrangler.toml     # Cloudflare Worker configuration
-│   └── package.json
-└── README.md
+├── frontend/
+│   ├── index.html
+│   ├── skill-hiscores.html
+│   ├── app.js
+│   ├── skill-hiscores.js
+│   └── styles.css
+└── workers/
+    ├── src/index.js
+    ├── wrangler.toml
+    └── package.json
 ```
 
------
+## Backend (Cloudflare Worker)
 
-## Backend: Cloudflare Worker
+Endpoints:
 
-The backend is a single Cloudflare Worker (`workers/src/index.js`) that handles API requests, data generation, and scheduled updates.
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| GET | /api/health | Health check |
+| GET | /api/leaderboard | Overall leaderboard |
+| GET | /api/users | List of all usernames |
+| GET | /api/users/:username | Player profile |
+| GET | /api/skill-rankings | Rankings for every skill |
+| POST | /api/cron/trigger | Manually trigger scheduled simulation |
+| POST | /api/migrate/hitpoints | Run hitpoints migration (if flagged) |
+| GET | /api/users/:username/hitpoints-check | Check HP migration status |
 
-### API Endpoints
+### Leaderboard Limiting
 
-  - `GET /api/leaderboard`: Returns a ranked list of all players by total level and XP.
-  - `GET /api/users/{username}`: Fetches the hiscores data for a specific player.
-  - `GET /api/users`: Returns a list of all player usernames.
-  - `GET /api/skill-rankings`: Provides detailed rankings for every individual skill.
-  - `GET /api/health`: A simple health check endpoint.
-  - `POST /api/cron/trigger`: Manually triggers the scheduled update task.
-  - `POST /api/migrate/hitpoints`: Migrates all users to the new hitpoints calculation formula.
-  - `GET /api/users/{username}/hitpoints-check`: Checks if a specific user needs hitpoints migration.
+The `/api/leaderboard` endpoint now accepts an optional `?limit=<n>` query parameter (capped at 5000) to reduce payload size when only a subset (e.g. top 100) is needed. If omitted, all players (up to the internal cap) are returned.
 
-### Data Generation & Simulation
+### Simulation Cycle
 
-The worker uses a multi-layered system to create a realistic and dynamic set of player data:
+Each scheduled run performs:
+1. Update 10–35% of users with activity-weighted XP budgets.
+2. Distribute XP across 1–5 random skills using popularity weights + weekend multiplier.
+3. Randomly flag ~1% of touched users for future hitpoints migration (simulated bug).
+4. Create 1–3 new users with generated names.
 
-  - **Username Generation**: New usernames are created by fetching words from the `random-word-api.herokuapp.com` API, with a local fallback generator to ensure reliability.
-  - **Player Activity Types**: Each update cycle, existing players are assigned a random activity type (`INACTIVE`, `CASUAL`, `REGULAR`, `HARDCORE`, `ELITE`), which determines their potential XP gains.
-  - **Weighted XP Gains**: XP is distributed based on skill popularity, player activity level, and a weekend bonus multiplier, making the simulation more authentic.
+### Data Model
 
-### Scheduled Updates
+User KV record (`user:<username>`):
+```
+{
+  username: string,
+  createdAt: number,
+  updatedAt: number,
+  skills: { [skill]: { xp: number, level: number } },
+  totalLevel: number,
+  totalXP: number,
+  activity: string,
+  needsHpMigration: boolean,
+  version: number
+}
+```
 
-A cron job is configured in `wrangler.toml` to run **every 15 minutes** (`*/15 * * * *`). On each run, it:
+## Frontend
 
-1.  Updates the XP and levels for a portion of the existing user base.
-2.  Creates 1-3 new, unique players to grow the community.
-3.  Saves all changes to the `HISCORES_KV` Cloudflare KV namespace.
+- `index.html` – Overall leaderboard & player detail (hash routing `#user/<name>`)
+- `skill-hiscores.html` – Per-skill rankings with filters, sorting, pagination, CSV export.
 
------
+No build step required; served as static assets. You can optionally point the pages at a different API origin by adding a `data-api-base="https://your-worker.example"` attribute to the root `<html>` element.
 
-## Frontend: Vanilla JavaScript App
+### Frontend Enhancements (Recent)
+* Leaderboard now requests only top 500 by default (configurable in `app.js`).
+* Accessible, keyboard-navigable player search (Arrow Up/Down, Enter, Escape) with ARIA roles.
+* Skill hiscores remember "per page" preference via `localStorage`.
+* Basic loading / error states for the leaderboard table.
+* Debounced filtering for skill hiscores to reduce re-render thrash.
 
-The frontend consists of two main pages:
+## Development
 
-### Main Application (`frontend/index.html` + `app.js`)
-The primary single-page application that provides the user interface for viewing overall hiscores and player details.
+Install dependencies for worker:
 
-### Skill Hiscores (`frontend/skill-hiscores.html` + `skill-hiscores.js`)
-A dedicated page for viewing individual skill leaderboards with advanced features:
-- **Skill Selection Grid**: Visual grid of all skills with color-coded icons
-- **Advanced Filtering**: Filter by level ranges, XP thresholds, and player names
-- **Sortable Columns**: Click column headers to sort by rank, player name, level, or XP
-- **Pagination Controls**: Configurable items per page (25/50/100)
-- **Export Functionality**: Download skill rankings as CSV files
-- **Skill Statistics**: View top player, highest XP, and average level for each skill
-
-### Shared Features
-
-  - **View Routing**: Uses the URL hash (`#`) to navigate between views and maintain state.
-  - **Data Caching**: Caches API responses (leaderboard, users, rankings) in memory to reduce redundant network requests and speed up navigation.
-  - **Dynamic Rendering**: All views are rendered dynamically based on the fetched API data.
-  - **Theming**: Supports both light and dark modes, with the user's preference saved to local storage.
-  - **Interactive Elements**: Includes searchable interfaces, toast notifications, and cross-page navigation for a seamless user experience.
-
------
-
-## Setup & Deployment
-
-### Prerequisites
-
-  - Node.js and npm
-  - A Cloudflare account
-  - Wrangler CLI installed and configured (`npx wrangler login`)
-
-### Installation
-
-1.  **Clone the repository**.
-2.  **Install worker dependencies**:
-    ```bash
-    cd workers
-    npm install
-    ```
-3.  **Create KV Namespace**: Create a KV namespace for storing hiscores data. This is required for the worker to function.
-    ```bash
-    # Create production and preview namespaces
-    npx wrangler kv:namespace create "HISCORES_KV"
-    npx wrangler kv:namespace create "HISCORES_KV" --preview
-    ```
-4.  **Update `wrangler.toml`**: Add the generated `id` and `preview_id` from the previous step to your `wrangler.toml` file.
-
-### Running Locally
-
-To run the backend worker locally for development:
-
-```bash
+```sh
 cd workers
-npx wrangler dev
+npm install
 ```
 
-The worker will be available at `http://localhost:8787`. You can open the `frontend/index.html` file in your browser to interact with the local worker.
+Create a KV namespace and configure wrangler (replace placeholders in `wrangler.toml` or secrets):
 
-### Deployment
+```sh
+wrangler kv:namespace create HISCORES_KV
+wrangler secret put ACCOUNT_ID
+wrangler secret put KV_NAMESPACE_ID
+wrangler dev
+```
 
-Deploy the worker to your Cloudflare account:
+Open the frontend via a static server (adjust origin for API if different):
 
-```bash
+```sh
+cd frontend
+python -m http.server 8000
+```
+
+Navigate to http://localhost:8000 and the app will request data from the worker (ensure CORS allowed; current worker sets `access-control-allow-origin: *`).
+
+## Deployment
+
+Deploy worker:
+```sh
 cd workers
-npx wrangler deploy
+npm run deploy
 ```
+Then host `frontend/` (e.g., Cloudflare Pages, Netlify, GitHub Pages). For same-origin simplicity you can also bundle static assets into a Worker Site / Pages project later.
 
-### Hitpoints Formula Migration
+## Hardening & Future Improvements
 
-This project includes a new hitpoints calculation formula where hitpoints XP is calculated as 1/3 of all non-hitpoints combat XP (Attack, Strength, Defence, Ranged, Prayer, Magic).
+- Persist precomputed leaderboards to reduce per-request aggregation cost
+- Add pagination to API endpoints
+- Implement ETag / If-Modified-Since caching
+- Introduce authentication & admin endpoints for migrations
+- Add tests (Wrangler + Miniflare) for simulation correctness
+- Store additional metadata (e.g., last activity type distribution stats)
 
-#### Running the Migration
+## License
 
-After deploying the updated code, you need to migrate existing users to use the new formula:
-
-**Option 1: Use the PowerShell script (Windows)**
-```powershell
-.\migrate_hitpoints.ps1
-```
-
-**Option 2: Use the Bash script (Linux/Mac)**
-```bash
-chmod +x migrate_hitpoints.sh
-./migrate_hitpoints.sh
-```
-
-**Option 3: Manual API call**
-```bash
-curl -X POST "https://your-worker-url.workers.dev/api/migrate/hitpoints"
-```
-
-#### Migration Details
-
-- The migration processes all users in batches to avoid timeouts
-- Only users whose hitpoints don't match the new formula will be updated
-- Leaderboards are automatically regenerated after migration
-- See `MIGRATION_GUIDE.md` for detailed instructions and troubleshooting
-
-#### Verification
-
-Check if a specific user needs migration:
-```bash
-curl -X GET "https://your-worker-url.workers.dev/api/users/{username}/hitpoints-check"
-```
+MIT

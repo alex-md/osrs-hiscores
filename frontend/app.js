@@ -1,308 +1,79 @@
-// frontend/app.js
+// Frontend main application logic for OSRS Hiscores clone
+// Allow override via data attribute for cross-origin API hosting
+const API_BASE = (document.documentElement.getAttribute('data-api-base') || location.origin).replace(/\/$/, '');
+const LEADERBOARD_LIMIT = 500; // configurable cap for initial view
+const cache = { leaderboard: null, users: null, skillRankings: null, usersFetchedAt: 0 };
+const SKILLS = ['attack','defence','strength','hitpoints','ranged','prayer','magic','cooking','woodcutting','fletching','fishing','firemaking','crafting','smithing','mining','herblore','agility','thieving','slayer','farming','runecraft','hunter','construction'];
 
-document.addEventListener('DOMContentLoaded', () => {
-    // --- PAGE-SPECIFIC STATE ---
-    const ITEMS_PER_PAGE_DEFAULT = 25;
-    let currentPage = 1;
-    let itemsPerPage = ITEMS_PER_PAGE_DEFAULT;
-    let currentLeaderboardSortField = 'rank';
-    let currentLeaderboardSortDirection = 'asc';
-    let filteredLeaderboardData = [];
-    let allLeaderboardData = [];
-    let currentPlayer = null;
+function $(sel, root=document) { return root.querySelector(sel); }
+function el(tag, cls, children) { const e = document.createElement(tag); if (cls) e.className = cls; if (children) children.forEach(c => e.appendChild(c)); return e; }
+function text(t) { return document.createTextNode(t); }
 
-    // --- DOM ELEMENT REFERENCES ---
-    const loadingState = document.getElementById('loading-state');
-    const errorState = document.getElementById('error-state');
-    const leaderboardView = document.getElementById('leaderboard-view');
-    const playerView = document.getElementById('player-view');
-    const leaderboardBody = document.getElementById('leaderboard-body');
-    const leaderboardPlayerSearch = document.getElementById('leaderboard-player-search');
-    const totalLevelFilter = null; // Remove filters for simplified UI
-    const totalXpFilter = null;
-    const leaderboardItemsPerPage = null; // Simplified UI, no items per page selection
+function toast(msg, type='info', timeout=3000) {
+  const container = $('#toastContainer');
+  const div = el('div', 'toast');
+  if (type==='error') div.style.borderColor = 'var(--color-danger)';
+  div.textContent = msg;
+  container.appendChild(div);
+  setTimeout(()=> div.remove(), timeout);
+}
 
-    // --- VIEW MANAGEMENT ---
-    const showView = (viewName) => {
-        [loadingState, errorState, leaderboardView, playerView].forEach(v => v.style.display = 'none');
-        document.getElementById('main-content').style.display = 'block';
-        const viewMap = { loading: loadingState, error: errorState, leaderboard: leaderboardView, player: playerView };
-        if (viewMap[viewName]) {
-            viewMap[viewName].style.display = 'block';
-            if (viewName === 'loading' || viewName === 'error') {
-                document.getElementById('main-content').style.display = 'none';
-            }
-        }
-    };
+function setTheme(theme) { document.documentElement.setAttribute('data-theme', theme); localStorage.setItem('theme', theme); updateThemeToggle(); }
+function toggleTheme() { const cur = localStorage.getItem('theme') || 'light'; setTheme(cur === 'light' ? 'dark' : 'light'); }
+function updateThemeToggle() { const btn = $('#themeToggle'); if (!btn) return; btn.innerHTML = ''; const theme = localStorage.getItem('theme') || 'light'; const icon = document.createElement('i'); icon.setAttribute('data-lucide', theme === 'light' ? 'moon' : 'sun'); btn.appendChild(icon); if (window.lucide) window.lucide.createIcons(); }
 
-    const handleRouteChange = () => {
-        const username = decodeURIComponent(window.location.hash.substring(1));
-        if (username) {
-            fetchUserStats(username);
-            HiscoresApp.Navigation.setActive('player');
-        } else {
-            showView('leaderboard');
-            renderLeaderboard();
-            HiscoresApp.Navigation.setActive('leaderboard');
-        }
-    };
+async function fetchJSON(path, init) { const resp = await fetch(API_BASE + path, init); if (!resp.ok) throw new Error('Request failed: ' + resp.status); return resp.json(); }
+async function loadLeaderboard(force=false) { if (cache.leaderboard && !force) return cache.leaderboard; cache.leaderboard = await fetchJSON(`/api/leaderboard?limit=${LEADERBOARD_LIMIT}`); return cache.leaderboard; }
+async function loadUsers(force=false) { if (cache.users && !force && (Date.now() - cache.usersFetchedAt < 60_000)) return cache.users; cache.users = await fetchJSON('/api/users'); cache.usersFetchedAt = Date.now(); return cache.users; }
+async function loadUser(username) { return fetchJSON('/api/users/' + encodeURIComponent(username)); }
 
-    const navigateToHome = () => { window.location.hash = ''; };
+// ---------- Views ----------
+function renderHomeView() {
+  const root = $('#viewRoot'); root.innerHTML = ''; const section = el('section','flex flex-col gap-4');
+  section.appendChild(el('h2','text-lg font-semibold flex items-center gap-2',[text('Overall Leaderboard')]));
+  const tableWrap = el('div','overflow-auto border border-border rounded bg-layer');
+  const table = el('table','min-w-full text-sm');
+  table.innerHTML = `<thead class="bg-layer2 text-xs uppercase tracking-wide"><tr><th class=\"w-16\">Rank</th><th class=\"text-left\">Player</th><th class=\"w-32\">Total Level</th><th class=\"w-40\">Total XP</th></tr></thead><tbody></tbody>`;
+  tableWrap.appendChild(table); section.appendChild(tableWrap); root.appendChild(section);
+  const tbody = table.querySelector('tbody');
+  tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-6">Loading...</td></tr>';
+  loadLeaderboard().then(data => { tbody.innerHTML = ''; data.players.slice(0, 100).forEach(p => { const tr = document.createElement('tr'); tr.innerHTML = `<td class=\"text-center\">${p.rank}</td><td><button class=\"underline username-link\" data-user=\"${p.username}\" aria-label=\"View ${p.username} stats\">${p.username}</button></td><td class=\"text-center\">${p.totalLevel}</td><td class=\"text-right tabular-nums\">${p.totalXP.toLocaleString()}</td>`; tbody.appendChild(tr); }); }).catch(e => { tbody.innerHTML = `<tr><td colspan=\"4\" class=\"text-center text-danger py-6\">${e.message}</td></tr>`; });
+}
 
-    // --- DATA FETCHING ---
-    const fetchLeaderboard = async () => {
-        showView('loading');
-        try {
-            const rankings = await HiscoresApp.ApiService.fetchAndCacheRankings(true);
-            allLeaderboardData = rankings.totalLevel || [];
-            applyLeaderboardFiltersAndSort();
-            showView('leaderboard');
-            document.getElementById('total-leaderboard-players').textContent = `${allLeaderboardData.length.toLocaleString()} players tracked`;
-        } catch (error) { /* Error handled by shared function */ }
-    };
+function renderUserView(username) {
+  const root = $('#viewRoot'); root.innerHTML = '<div class="text-sm text-muted">Loading player...</div>';
+  loadUser(username).then(user => { const wrap = el('div','flex flex-col gap-6'); wrap.appendChild(el('div','flex items-center gap-4 flex-wrap',[ el('h2','text-lg font-semibold',[text(user.username)]), el('div','badge',[text('Total Level '+user.totalLevel)]), el('div','badge',[text('Total XP '+user.totalXP.toLocaleString())]) ])); const skillsTable = el('table','min-w-full text-sm border border-border rounded overflow-hidden'); skillsTable.innerHTML = `<thead class=\"bg-layer2 text-xs uppercase\"><tr><th class=\"text-left\">Skill</th><th class=\"w-24\">Level</th><th class=\"w-40\">XP</th></tr></thead><tbody></tbody>`; const tbody = skillsTable.querySelector('tbody'); SKILLS.forEach(s => { const sk = user.skills[s]; const tr = document.createElement('tr'); tr.innerHTML = `<td class=\"capitalize\">${s}</td><td class=\"text-center\">${sk.level}</td><td class=\"text-right tabular-nums\">${sk.xp.toLocaleString()}</td>`; tbody.appendChild(tr); }); wrap.appendChild(skillsTable); root.innerHTML = ''; root.appendChild(wrap); }).catch(()=> { root.innerHTML = '<div class="text-danger">Player not found</div>'; });
+}
 
-    const fetchUserStats = async (username) => {
-        showView('loading');
-        try {
-            await HiscoresApp.ApiService.fetchAndCacheRankings();
-            const response = await fetch(`${HiscoresApp.API_BASE_URL}/api/users/${encodeURIComponent(username)}`);
-            if (!response.ok) throw new Error(response.status === 404 ? `Player "${username}" not found` : `API Error: ${response.statusText}`);
+// ---------- Routing ----------
+function handleRoute() { const hash = location.hash.slice(1); if (!hash) { renderHomeView(); } else if (hash.startsWith('user/')) { const u = decodeURIComponent(hash.split('/')[1]); renderUserView(u); } else { renderHomeView(); } }
 
-            const userData = await response.json();
-            currentPlayer = userData;
-            renderUserDetail(userData);
-            showView('player');
-        } catch (error) {
-            HiscoresApp.showToast(error.message, 'error');
-            navigateToHome(); // Go back to leaderboard on error
-        }
-    };
+// ---------- Search + Suggestions ----------
+function setupSearch() {
+  const input = $('#playerSearch'); const suggest = $('#searchSuggest'); let debounce; let activeIndex = -1; let currentItems = [];
+  function hideSuggest() { suggest.classList.add('hidden'); suggest.innerHTML=''; activeIndex=-1; currentItems=[]; input.setAttribute('aria-expanded','false'); }
+  function renderSuggest(matches) { currentItems = matches; suggest.innerHTML = matches.map((m,i) => `<button role="option" aria-selected="${i===activeIndex}" data-user="${m}" class="block${i===activeIndex?' active':''}">${m}</button>`).join(''); suggest.classList.remove('hidden'); input.setAttribute('aria-expanded','true'); }
+  input.addEventListener('input', () => { clearTimeout(debounce); debounce = setTimeout(async () => { const q = input.value.trim().toLowerCase(); if (!q) { hideSuggest(); return; } try { const list = await loadUsers(); const matches = list.users.filter(u => u.toLowerCase().includes(q)).slice(0, 10); if (!matches.length) { hideSuggest(); return; } activeIndex = -1; renderSuggest(matches); } catch(e) { hideSuggest(); } }, 200); });
+  input.addEventListener('keydown', e => {
+    if (suggest.classList.contains('hidden')) { if (e.key==='ArrowDown') { e.preventDefault(); } return; }
+    if (e.key==='Escape') { hideSuggest(); input.blur(); }
+    else if (e.key==='ArrowDown') { e.preventDefault(); activeIndex = Math.min(currentItems.length-1, activeIndex+1); renderSuggest(currentItems); }
+    else if (e.key==='ArrowUp') { e.preventDefault(); activeIndex = Math.max(0, activeIndex-1); renderSuggest(currentItems); }
+    else if (e.key==='Enter') { if (activeIndex>=0 && currentItems[activeIndex]) { const u = currentItems[activeIndex]; location.hash = 'user/' + encodeURIComponent(u); hideSuggest(); } }
+  });
+  document.addEventListener('click', e => { if (e.target.closest('#searchSuggest button')) { const u = e.target.getAttribute('data-user'); location.hash = 'user/' + encodeURIComponent(u); hideSuggest(); } else if (!e.target.closest('#playerSearch') && !e.target.closest('#searchSuggest')) { hideSuggest(); } });
+  input.addEventListener('change', async () => { const q = input.value.trim().toLowerCase(); if (!q) return; try { const list = await loadUsers(); const found = list.users.find(u => u.toLowerCase() === q); if (found) location.hash = 'user/' + encodeURIComponent(found); } catch(_){} });
+  // Accessibility attributes
+  input.setAttribute('role','combobox');
+  input.setAttribute('aria-autocomplete','list');
+  input.setAttribute('aria-expanded','false');
+  suggest.setAttribute('role','listbox');
+}
 
-    // --- RENDERING & UI LOGIC ---
-    const applyLeaderboardFiltersAndSort = () => {
-        const searchTerm = leaderboardPlayerSearch?.value.toLowerCase().trim() || '';
+// ---------- Delegation ----------
+document.addEventListener('click', e => { const btn = e.target.closest('.username-link'); if (btn) { const u = btn.getAttribute('data-user'); location.hash = 'user/' + encodeURIComponent(u); } if (e.target.id === 'themeToggle' || e.target.closest('#themeToggle')) toggleTheme(); });
 
-        let filtered = allLeaderboardData.filter(p =>
-            p.username.toLowerCase().includes(searchTerm)
-        );
+window.addEventListener('hashchange', handleRoute);
 
-        const sortKeyMap = { 'rank': 'rank', 'player': 'username', 'level': 'totalLevel', 'xp': 'totalXp' };
-        filtered = HiscoresApp.Sorter.apply(filtered, sortKeyMap[currentLeaderboardSortField], currentLeaderboardSortDirection);
-
-        filteredLeaderboardData = filtered;
-        currentPage = 1;
-        renderLeaderboard();
-    };
-
-    const renderLeaderboard = () => {
-        const totalPages = Math.ceil(filteredLeaderboardData.length / itemsPerPage);
-        currentPage = Math.max(1, Math.min(currentPage, totalPages));
-        const startIdx = (currentPage - 1) * itemsPerPage;
-        const pageData = filteredLeaderboardData.slice(startIdx, startIdx + itemsPerPage);
-
-        leaderboardBody.innerHTML = pageData.length === 0
-            ? `<tr><td colspan="4" class="px-4 py-8 text-center text-osrs-brown">No players found.</td></tr>`
-            : pageData.map(player => {
-                let rankClass = '';
-                if (player.rank === 1) rankClass = 'text-yellow-600 font-bold';
-                else if (player.rank === 2) rankClass = 'text-gray-500 font-bold';
-                else if (player.rank === 3) rankClass = 'text-yellow-700 font-bold';
-
-                return `<tr class="border-t-2 border-osrs-brown/50 hover:bg-osrs-parchment-dark">
-                    <td class="px-4 py-2"><span class="font-medium ${rankClass}">${player.rank.toLocaleString()}</span></td>
-                    <td class="px-4 py-2">
-                        <button class="player-link font-medium hover:text-blue-700 underline" data-username="${player.username}">${player.username}</button>
-                    </td>
-                    <td class="px-4 py-2 font-medium">${player.totalLevel.toLocaleString()}</td>
-                    <td class="px-4 py-2 font-medium">${HiscoresApp.formatNumber(player.totalXp)}</td>
-                </tr>`;
-            }).join('');
-
-        document.getElementById('prev-page').disabled = (currentPage === 1);
-        document.getElementById('next-page').disabled = (currentPage >= totalPages);
-        document.getElementById('page-info').textContent = `Page ${currentPage} of ${totalPages || 1} (${filteredLeaderboardData.length.toLocaleString()} players)`;
-
-        attachPlayerLinkListeners();
-    };
-
-
-    const calculateCombatLevel = (skills) => {
-        const s = (name) => skills[name]?.level || (name === 'Hitpoints' ? 10 : 1);
-
-        // Base combat level: 0.25 * (Defence + Hitpoints + floor(Prayer/2))
-        const base = 0.25 * (s('Defence') + s('Hitpoints') + Math.floor(s('Prayer') / 2));
-
-        // Combat style multipliers: 0.325 * max combat style
-        const melee = 0.325 * (s('Attack') + s('Strength'));
-        const ranged = 0.325 * (Math.floor(s('Ranged') / 2) + s('Ranged'));
-        const magic = 0.325 * (Math.floor(s('Magic') / 2) + s('Magic'));
-
-        return Math.floor(base + Math.max(melee, ranged, magic));
-    };
-
-    const renderUserDetail = (user) => {
-        document.getElementById('player-name').textContent = user.username;
-
-        // Load player avatar
-        const avatarImg = document.getElementById('player-avatar');
-        if (avatarImg) {
-            HiscoresApp.AvatarService.loadAvatar(user.username, avatarImg);
-        }
-
-        const totalLevel = Object.values(user.skills).reduce((sum, skill) => sum + skill.level, 0);
-        const totalXp = Object.values(user.skills).reduce((sum, skill) => sum + skill.xp, 0);
-        const rankings = HiscoresApp.state.cachedRankings;
-
-        document.getElementById('total-level').textContent = totalLevel.toLocaleString();
-        document.getElementById('total-xp').textContent = HiscoresApp.formatNumber(totalXp);
-        document.getElementById('combat-level').textContent = calculateCombatLevel(user.skills);
-
-        // Display account creation date if available
-        if (user.createdAt) {
-            const createdDate = new Date(user.createdAt);
-            const now = new Date();
-            const daysDiff = Math.floor((now - createdDate) / (1000 * 60 * 60 * 24));
-
-            let accountAgeText;
-            if (daysDiff === 0) {
-                accountAgeText = 'Today';
-            } else if (daysDiff === 1) {
-                accountAgeText = '1 day ago';
-            } else if (daysDiff < 30) {
-                accountAgeText = `${daysDiff} days ago`;
-            } else if (daysDiff < 365) {
-                const months = Math.floor(daysDiff / 30);
-                accountAgeText = months === 1 ? '1 month ago' : `${months} months ago`;
-            } else {
-                const years = Math.floor(daysDiff / 365);
-                accountAgeText = years === 1 ? '1 year ago' : `${years} years ago`;
-            }
-
-            const accountCreationElement = document.getElementById('account-creation');
-            if (accountCreationElement) {
-                accountCreationElement.textContent = accountAgeText;
-            }
-        }
-
-        const skillsTableBody = document.getElementById('skills-table-body');
-        const overallRank = rankings?.totalLevel?.find(p => p.username === user.username)?.rank.toLocaleString() || 'N/A';
-
-        const skillsWithIcons = HiscoresApp.state.skills.map(skillName => {
-            const skill = user.skills[skillName];
-            if (!skill) return null;
-            const rank = rankings?.skills?.[skillName]?.find(p => p.username === user.username)?.rank.toLocaleString() || 'N/A';
-
-            // Get skill icon URL from OSRS wiki
-            const iconUrl = `https://oldschool.runescape.wiki/images/${skillName}_icon.png`;
-
-            return { iconUrl, name: skillName, rank, ...skill };
-        }).filter(Boolean);
-
-        const rows = [{
-            iconUrl: 'https://oldschool.runescape.wiki/images/Overall_icon.png',
-            name: 'Overall',
-            rank: overallRank,
-            level: totalLevel,
-            xp: totalXp,
-            isOverall: true
-        }].concat(skillsWithIcons);
-
-        skillsTableBody.innerHTML = rows.map(s => `
-            <tr class="border-t-2 border-osrs-brown/50 hover:bg-osrs-parchment-dark ${s.isOverall ? 'border-b-4 border-osrs-brown-dark' : ''}">
-                <td class="px-4 py-2"><div class="flex items-center">
-                    <img src="${s.iconUrl}" alt="${s.name}" class="w-5 h-5 mr-3" onerror="this.style.display='none'">
-                    ${s.isOverall ?
-                `<span class="font-bold text-osrs-text-dark">${s.name}</span>` :
-                `<button class="skill-link font-medium text-osrs-text-dark hover:text-blue-700 underline" data-skill="${s.name}">${s.name}</button>`
-            }
-                </div></td>
-                <td class="px-4 py-2 font-medium">${s.rank}</td>
-                <td class="px-4 py-2 font-bold">${s.level.toLocaleString()}</td>
-                <td class="px-4 py-2 font-bold">${s.xp.toLocaleString()}</td>
-            </tr>`).join('');
-
-        attachSkillLinkListeners();
-    };
-
-    const attachPlayerLinkListeners = () => document.querySelectorAll('.player-link').forEach(link => {
-        link.addEventListener('click', e => window.location.hash = encodeURIComponent(e.currentTarget.dataset.username));
-    });
-
-    const attachSkillLinkListeners = () => document.querySelectorAll('.skill-link').forEach(link => {
-        link.addEventListener('click', e => window.open(`skill-hiscores.html#${encodeURIComponent(e.currentTarget.dataset.skill)}`, '_blank'));
-    });
-
-    const exportLeaderboardData = () => {
-        if (!filteredLeaderboardData.length) return HiscoresApp.showToast('No data to export', 'warning');
-        const csv = ['Rank,Player,Total Level,Total XP', ...filteredLeaderboardData.map(p => [p.rank, p.username, p.totalLevel, p.totalXp].join(','))].join('\n');
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-        a.download = 'osrs-overall-hiscores.csv';
-        a.click();
-        URL.revokeObjectURL(a.href);
-        HiscoresApp.showToast('Hiscores exported!', 'success');
-    };
-
-    // --- EVENT LISTENERS & INITIALIZATION ---
-    const init = async () => {
-        showView('loading');
-        HiscoresApp.Theme.init();
-        HiscoresApp.MobileMenu.init();
-        HiscoresApp.Search.init({
-            onPlayerSelect: (username) => {
-                window.location.hash = encodeURIComponent(username);
-                HiscoresApp.Search.hideModal();
-            },
-            onQuickSearch: (username) => {
-                window.location.hash = encodeURIComponent(username);
-            }
-        });
-
-        await HiscoresApp.ApiService.fetchSkills();
-        try {
-            const rankings = await HiscoresApp.ApiService.fetchAndCacheRankings();
-            allLeaderboardData = rankings.totalLevel || [];
-            applyLeaderboardFiltersAndSort();
-            handleRouteChange();
-        } catch (error) { /* Error handled by shared function */ }
-
-        // --- Permanent Event Listeners ---
-        window.addEventListener('hashchange', handleRouteChange);
-        document.getElementById('logo-btn')?.addEventListener('click', navigateToHome);
-        document.getElementById('back-btn')?.addEventListener('click', navigateToHome);
-        document.getElementById('retry-btn')?.addEventListener('click', () => location.reload());
-        document.getElementById('refresh-leaderboard')?.addEventListener('click', fetchLeaderboard);
-        document.getElementById('refresh-player')?.addEventListener('click', () => { if (currentPlayer) fetchUserStats(currentPlayer.username); });
-
-        // Leaderboard controls
-        document.getElementById('prev-page').addEventListener('click', () => { currentPage--; renderLeaderboard(); });
-        document.getElementById('next-page').addEventListener('click', () => { currentPage++; renderLeaderboard(); });
-        leaderboardPlayerSearch?.addEventListener('input', HiscoresApp.debounce(applyLeaderboardFiltersAndSort, 300));
-
-        // Sorting - simplify the sort button IDs to match the HTML
-        ['rank', 'player', 'level', 'xp'].forEach(field => {
-            const sortId = `sort-${field}`;
-            const sortElement = document.getElementById(sortId);
-            if (sortElement) {
-                sortElement.addEventListener('click', () => {
-                    if (currentLeaderboardSortField === field) {
-                        currentLeaderboardSortDirection = currentLeaderboardSortDirection === 'asc' ? 'desc' : 'asc';
-                    } else {
-                        currentLeaderboardSortField = field;
-                        currentLeaderboardSortDirection = field === 'rank' ? 'asc' : 'desc';
-                    }
-                    applyLeaderboardFiltersAndSort();
-                    HiscoresApp.Sorter.updateIndicators('sort-', currentLeaderboardSortField, currentLeaderboardSortDirection);
-                });
-            }
-        });
-        HiscoresApp.Sorter.updateIndicators('sort-', currentLeaderboardSortField, currentLeaderboardSortDirection);
-
-        // Nav Links
-        document.querySelectorAll('.nav-link[data-page="leaderboard"], .mobile-nav-link[data-page="leaderboard"]').forEach(link => {
-            link.addEventListener('click', (e) => { e.preventDefault(); navigateToHome(); });
-        });
-    };
-
-    init();
-});
+// Init
+(() => { const savedTheme = localStorage.getItem('theme') || 'light'; setTheme(savedTheme); setupSearch(); handleRoute(); })();

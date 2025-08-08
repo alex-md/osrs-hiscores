@@ -1,377 +1,65 @@
 <!DOCTYPE html>
-<html lang="en">
-
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta name="color-scheme" content="dark">
-        <meta name="description" content="OSRS individual skill hiscores - View top players for specific skills">
-        <meta name="theme-color" content="#3a2d1d"> <!-- OSRS Dark Brown -->
-        <title>Skill Hiscores | Old School RuneScape Stats</title>
-
-        <!-- Tailwind CSS -->
-        <script src="https://cdn.tailwindcss.com"></script>
-
-        <!-- 
-        DESIGN OVERHAUL: FONTS
-        - 'Press Start 2P' for headers (pixelated, nostalgic).
-        - 'Vollkorn' for body text (classic, readable serif).
-    -->
-        <link rel="preconnect" href="https://fonts.googleapis.com">
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link
-            href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Vollkorn:wght@400;600;700&display=swap"
-            rel="stylesheet">
-        <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-
-        <!-- Lucide icons for general UI -->
-        <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
-
-        <!-- 
-        DESIGN OVERHAUL: TAILWIND CONFIG
-        - Consistent OSRS color palette and fonts from the home page.
-        - Custom box-shadows for the classic "beveled" UI effect.
-    -->
-        <script>
-            tailwind.config = {
-                darkMode: 'class', // Keeping dark mode as the only mode
-                theme: {
-                    extend: {
-                        fontFamily: {
-                            'osrs-title': ['Press Start 2P', 'cursive'],
-                            'osrs-body': ['Vollkorn', 'serif'],
-                        },
-                        colors: {
-                            'osrs-bg': '#2e2518',
-                            'osrs-parchment': '#c5b394',
-                            'osrs-parchment-dark': '#b1a086',
-                            'osrs-brown': '#5d4c38',
-                            'osrs-brown-dark': '#3a2d1d',
-                            'osrs-gold': '#ffb700',
-                            'osrs-text-dark': '#2e2518',
-                            'osrs-text-light': '#c5b394',
-                        },
-                        boxShadow: {
-                            'osrs-panel': 'inset 0 0 0 2px #000, 0 0 0 2px #5d4c38',
-                            'osrs-btn': 'inset -1px -2px 0px #00000080, inset 1px 1px 0px #ffffff30',
-                            'osrs-btn-hover': 'inset -1px -2px 0px #00000080, inset 1px 1px 0px #ffffff30, 0 0 10px #ffb70050',
-                            'osrs-btn-active': 'inset 1px 2px 0px #00000080',
-                        },
-                        borderWidth: {
-                            '3': '3px',
-                        },
-                        animation: {
-                            'spin-slow': 'spin 3s linear infinite',
-                        }
-                    }
-                }
-            }
-        </script>
-
-        <!-- 
-        DESIGN OVERHAUL: CUSTOM STYLES
-        - Reusing the same core styles for the background, panels, buttons, and scrollbar.
-    -->
-        <style>
-            body {
-                background-color: #2e2518;
-                -webkit-font-smoothing: antialiased;
-                -moz-osx-font-smoothing: grayscale;
-            }
-
-            .osrs-panel {
-                background-color: #3a2d1d;
-                border: 3px solid #000;
-                border-image: linear-gradient(to bottom, #5d4c38, #2e2518) 1;
-            }
-
-            .osrs-button {
-                background-color: #5d4c38;
-                border: 2px solid #2e2518;
-                color: #ffb700;
-                font-family: 'Vollkorn', serif;
-                font-weight: 600;
-                padding: 0.5rem 1rem;
-                box-shadow: inset -1px -2px 0px #00000080, inset 1px 1px 0px #ffffff30;
-                transition: all 0.1s ease-in-out;
-            }
-
-            .osrs-button:hover {
-                background-color: #6c5a46;
-                box-shadow: var(--tw-shadow-osrs-btn-hover);
-            }
-
-            .osrs-button:active {
-                box-shadow: var(--tw-shadow-osrs-btn-active);
-                transform: translateY(1px);
-            }
-
-            .osrs-button:disabled {
-                background-color: #4a3d2d;
-                color: #c5b39480;
-                cursor: not-allowed;
-            }
-
-            .osrs-table-parchment {
-                background-color: #c5b394;
-                color: #2e2518;
-            }
-
-            .osrs-text-input {
-                padding: 0.75rem;
-                background-color: #b1a086;
-                border: 2px solid #5d4c38;
-                color: #2e2518;
-                font-family: 'Vollkorn', serif;
-                font-weight: 600;
-            }
-
-            .osrs-text-input::placeholder {
-                color: #5d4c38;
-            }
-
-            .osrs-text-input:focus {
-                outline: 2px solid #ffb700;
-                border-color: #ffb700;
-            }
-
-            ::-webkit-scrollbar {
-                width: 12px;
-            }
-
-            ::-webkit-scrollbar-track {
-                background: #3a2d1d;
-            }
-
-            ::-webkit-scrollbar-thumb {
-                background: #5d4c38;
-                border: 1px solid #2e2518;
-            }
-
-            ::-webkit-scrollbar-thumb:hover {
-                background: #6c5a46;
-            }
-
-            /* High-contrast rank colors adapted for OSRS theme */
-            .rank-gold {
-                color: #ffb700;
-                font-weight: bold;
-                text-shadow: 0 0 10px rgba(255, 183, 0, 0.3);
-            }
-
-            .rank-silver {
-                color: #e5e7eb;
-                font-weight: bold;
-            }
-
-            .rank-bronze {
-                color: #cd7f32;
-                font-weight: bold;
-            }
-        </style>
-    </head>
-
-    <body class="dark bg-osrs-bg text-osrs-text-light min-h-screen font-osrs-body antialiased">
-
-        <div class="min-h-screen flex flex-col relative">
-            <header class="sticky top-0 z-50 bg-osrs-brown-dark border-b-4 border-black/50 shadow-lg">
-                <div class="container mx-auto px-4 sm:px-6 lg:px-8">
-                    <div class="flex items-center justify-between h-20">
-                        <a href="index.html" class="flex items-center space-x-3 group">
-                            <img src="https://oldschool.runescape.wiki/images/Old_School_RuneScape_logo.png?a3eff"
-                                alt="OSRS Logo" class="h-8 w-auto">
-                            <h1 class="text-xl font-osrs-title text-osrs-gold group-hover:text-white transition-colors">
-                                Hiscores
-                            </h1>
-                        </a>
-
-                        <nav class="hidden md:flex items-center space-x-4">
-                            <a href="index.html"
-                                class="nav-link font-osrs-body text-osrs-parchment hover:text-white transition px-3 py-2 text-lg">Leaderboards</a>
-                            <a href="skill-hiscores.html"
-                                class="nav-link font-osrs-body text-white transition px-3 py-2 text-lg border-b-3 border-osrs-gold">Skill
-                                Hiscores</a>
-                        </nav>
-
-                        <div class="flex items-center space-x-3">
-                            <button class="md:hidden osrs-button" id="mobile-menu-toggle" title="Menu">
-                                <i data-lucide="menu" class="w-5 h-5"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="md:hidden osrs-panel hidden" id="mobile-menu">
-                        <div class="py-2 space-y-1">
-                            <a href="index.html"
-                                class="block px-4 py-3 text-osrs-parchment hover:bg-osrs-brown">Leaderboards</a>
-                            <a href="skill-hiscores.html" class="block px-4 py-3 text-white bg-osrs-brown">Skill
-                                Hiscores</a>
-                        </div>
-                    </div>
-                </div>
-            </header>
-
-            <main class="flex-1 container mx-auto px-4 sm:px-6 lg:px-8 py-8" id="main-content">
-                <!-- Loading and Error states with OSRS theme -->
-                <div class="loading-state hidden flex items-center justify-center min-h-[60vh]" id="loading-state">
-                    <div class="text-center">
-                        <img src="https://oldschool.runescape.wiki/images/Gnomeball.png?b856c"
-                            class="w-24 h-24 mx-auto animate-spin-slow" alt="Loading...">
-                        <h3 class="font-osrs-title text-2xl text-osrs-gold mt-6">Loading Hiscores...</h3>
-                    </div>
-                </div>
-                <div class="error-state hidden flex items-center justify-center min-h-[60vh]" id="error-state">
-                    <div class="osrs-panel p-8 text-center max-w-lg mx-auto">
-                        <h3 class="font-osrs-title text-2xl text-red-500 mb-4">Connection Error</h3>
-                        <p class="text-osrs-parchment mb-6" id="error-message">Could not fetch hiscores.</p>
-                        <button class="osrs-button" id="retry-btn">Try Again</button>
-                    </div>
-                </div>
-
-                <!-- SKILL SELECTION VIEW: IDs are correct for JS population -->
-                <div class="skill-selection-view" id="skill-selection-view">
-                    <div class="text-center mb-12">
-                        <h2 class="font-osrs-title text-4xl text-osrs-gold drop-shadow-lg">Skill Hiscores</h2>
-                        <p class="text-lg text-osrs-parchment mt-2">Select a skill to view the leaderboard.</p>
-                    </div>
-                    <div class="space-y-8 max-w-5xl mx-auto">
-                        <div class="skill-category">
-                            <h3 class="font-osrs-title text-xl text-osrs-parchment mb-4">Combat & Overall</h3>
-                            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"
-                                id="combat-skills"></div>
-                        </div>
-                        <hr class="border-t-2 border-osrs-brown my-6" />
-                        <div class="skill-category">
-                            <h3 class="font-osrs-title text-xl text-osrs-parchment mb-4">Gathering Skills</h3>
-                            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"
-                                id="gathering-skills"></div>
-                        </div>
-                        <hr class="border-t-2 border-osrs-brown my-6" />
-                        <div class="skill-category">
-                            <h3 class="font-osrs-title text-xl text-osrs-parchment mb-4">Artisan Skills</h3>
-                            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"
-                                id="artisan-skills"></div>
-                        </div>
-                        <hr class="border-t-2 border-osrs-brown my-6" />
-                        <div class="skill-category">
-                            <h3 class="font-osrs-title text-xl text-osrs-parchment mb-4">Support Skills</h3>
-                            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"
-                                id="support-skills"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- INDIVIDUAL SKILL VIEW -->
-                <div class="skill-hiscores-view hidden" id="skill-hiscores-view">
-                    <div class="mb-6"><button class="osrs-button" id="back-to-skills-btn">Back to Skills</button></div>
-                    <div class="osrs-table-parchment p-4 sm:p-6 border-2 border-osrs-brown-dark shadow-lg">
-                        <!-- Header -->
-                        <div>
-                            <h2 class="font-osrs-title text-2xl sm:text-3xl text-osrs-text-dark"><span
-                                    id="current-skill-name">Skill</span> Hiscores</h2>
-                            <p class="text-osrs-brown" id="total-players-count">Loading players...</p>
-                        </div>
-                        <!-- Stats with OSRS theme -->
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 my-6 border-y-2 border-osrs-brown/30 py-4"
-                            id="skill-stats-overview">
-                            <div class="bg-osrs-parchment-dark p-3 border-2 border-osrs-brown">
-                                <p class="text-osrs-brown font-bold">Top Player</p>
-                                <p class="text-lg font-bold text-osrs-text-dark" id="top-player-name">Loading...</p>
-                                <p class="text-sm text-osrs-brown" id="top-player-level">Level 0</p>
-                            </div>
-                            <div class="bg-osrs-parchment-dark p-3 border-2 border-osrs-brown">
-                                <p class="text-osrs-brown font-bold">Highest XP</p>
-                                <p class="text-lg font-bold text-osrs-text-dark" id="highest-xp">0</p>
-                                <p class="text-sm text-osrs-brown truncate" id="highest-xp-player">Player</p>
-                            </div>
-                            <div class="bg-osrs-parchment-dark p-3 border-2 border-osrs-brown">
-                                <p class="text-osrs-brown font-bold">Avg. Level</p>
-                                <p class="text-lg font-bold text-osrs-text-dark" id="average-level">0</p>
-                                <p class="text-sm text-osrs-brown">Top 100 players</p>
-                            </div>
-                        </div>
-
-                        <!-- FIX: Added back xp-filter and styled all filters to match -->
-                        <div class="flex flex-col sm:flex-row gap-4 mb-6">
-                            <input type="text" id="skill-player-search" placeholder="Search for player in list..."
-                                class="osrs-text-input flex-1">
-                            <select id="level-filter" class="osrs-text-input">
-                                <option value="">All Levels</option>
-                                <option value="99">Level 99</option>
-                                <option value="90">Level 90+</option>
-                                <option value="80">Level 80+</option>
-                            </select>
-                            <select id="xp-filter" class="osrs-text-input">
-                                <option value="">All XP</option>
-                                <option value="200000000">200M XP</option>
-                                <option value="100000000">100M+ XP</option>
-                                <option value="13034431">99+ XP</option>
-                            </select>
-                        </div>
-
-                        <!-- Table Container with OSRS theme -->
-                        <div class="border-2 border-osrs-brown-dark/50 overflow-hidden">
-                            <div class="overflow-x-auto">
-                                <table class="w-full text-left" id="skill-hiscores-table">
-                                    <thead class="bg-osrs-brown-dark">
-                                        <tr>
-                                            <th class="px-4 py-3 font-osrs-body font-bold text-osrs-gold">
-                                                <div class="flex items-center cursor-pointer" id="sort-rank">Rank</div>
-                                            </th>
-                                            <th class="px-4 py-3 font-osrs-body font-bold text-osrs-gold">
-                                                <div class="flex items-center cursor-pointer" id="sort-player">Player
-                                                </div>
-                                            </th>
-                                            <th class="px-4 py-3 font-osrs-body font-bold text-osrs-gold">
-                                                <div class="flex items-center cursor-pointer" id="sort-level">Level
-                                                </div>
-                                            </th>
-                                            <th class="px-4 py-3 font-osrs-body font-bold text-osrs-gold">
-                                                <div class="flex items-center cursor-pointer" id="sort-xp">Experience
-                                                </div>
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="skill-hiscores-body" class="font-osrs-body font-semibold">
-                                        <!-- Dynamic content will be populated here -->
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        <!-- Pagination with OSRS theme -->
-                        <div id="skill-pagination-controls"
-                            class="flex flex-col sm:flex-row justify-between items-center pt-6 mt-4 border-t-2 border-osrs-brown-dark/20 gap-4">
-                            <button id="skill-prev-page" class="osrs-button">
-                                < Prev</button>
-                                    <div class="flex items-center gap-4">
-                                        <span id="skill-page-info" class="font-osrs-body font-bold text-osrs-brown">Page
-                                            1 of X</span>
-                                        <select id="items-per-page" class="osrs-text-input text-sm">
-                                            <option value="25">25 per page</option>
-                                            <option value="50">50 per page</option>
-                                            <option value="100">100 per page</option>
-                                        </select>
-                                    </div>
-                                    <button id="skill-next-page" class="osrs-button">Next ></button>
-                        </div>
-                    </div>
-                </div>
-            </main>
-
-            <footer class="bg-osrs-brown-dark mt-12 border-t-4 border-black/50">
-                <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-osrs-parchment/70">
-                    <p>OSRS Hiscores project by a fan. All game content and assets are trademarks and copyrights of
-                        Jagex Ltd.</p>
-                    <p class="text-sm mt-1">Data updated periodically from the official OSRS Hiscores API.</p>
-                </div>
-            </footer>
+<html lang="en" class="h-full" data-theme="light" data-api-base="">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Skill Hiscores • OSRS Clone</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="styles.css" />
+  <script defer src="https://unpkg.com/lucide@latest"></script>
+  <script defer src="skill-hiscores.js"></script>
+</head>
+<body class="h-full bg-surface text-foreground">
+  <div class="min-h-full flex flex-col">
+    <header class="p-4 border-b border-border flex flex-wrap items-center gap-4 justify-between bg-layer">
+      <div class="flex items-center gap-2">
+        <a href="index.html" class="text-sm underline text-muted">← Back</a>
+        <h1 class="font-semibold">Skill Hiscores</h1>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap">
+        <select id="skillSelect" class="px-2 py-1 rounded bg-input border border-border text-sm"></select>
+        <input id="filterName" placeholder="Player" class="px-2 py-1 rounded bg-input border border-border text-sm" />
+        <input id="filterMinLvl" type="number" min="1" max="99" placeholder="Min Lvl" class="w-20 px-2 py-1 rounded bg-input border border-border text-sm" />
+        <input id="filterMaxLvl" type="number" min="1" max="99" placeholder="Max Lvl" class="w-20 px-2 py-1 rounded bg-input border border-border text-sm" />
+        <button id="exportCsv" class="btn">CSV</button>
+        <button id="themeToggle" class="icon-button" title="Toggle Theme"></button>
+      </div>
+    </header>
+    <main class="flex-1 p-4 flex flex-col gap-4">
+      <div id="skillStats" class="text-xs text-muted"></div>
+      <div class="overflow-auto border border-border rounded bg-layer">
+        <table class="min-w-full text-sm" id="skillTable">
+          <thead class="bg-layer2 text-xs uppercase tracking-wide">
+            <tr>
+              <th data-sort="rank" class="sortable w-16">Rank</th>
+              <th data-sort="username" class="sortable text-left">Player</th>
+              <th data-sort="level" class="sortable w-24">Level</th>
+              <th data-sort="xp" class="sortable w-48">XP</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="flex items-center gap-4 text-xs flex-wrap">
+        <div class="flex items-center gap-2">
+          <button id="prevPage" class="btn-sm">Prev</button>
+          <button id="nextPage" class="btn-sm">Next</button>
         </div>
-
-        <script src="shared.js"></script>
-        <script src="skill-hiscores.js" defer></script>
-        <script>
-            lucide.createIcons();
-        </script>
-    </body>
-
+        <div>
+          Page <span id="pageNum">1</span> / <span id="pageTotal">1</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <label>Per Page</label>
+            <select id="perPage" class="px-1 py-0.5 rounded bg-input border border-border text-xs">
+              <option>25</option>
+              <option>50</option>
+              <option>100</option>
+            </select>
+        </div>
+      </div>
+    </main>
+    <footer class="p-4 text-xs text-muted text-center border-t border-border bg-layer">Mock data • Cloudflare Workers</footer>
+  </div>
+  <div id="toastContainer" class="fixed top-4 right-4 flex flex-col gap-2 z-50"></div>
+</body>
 </html>

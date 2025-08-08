@@ -2,20 +2,10 @@ name = "osrs-hiscores-clone"
 main = "src/index.js"
 compatibility_date = "2023-10-30"
 
-# Cron Trigger to run the 'scheduled' handler
-# See https://developers.cloudflare.com/workers/platform/triggers/cron-triggers/
+# Cron Trigger: every 15 minutes per specification
 [triggers]
-# This aligns with the new code logic to avoid hitting API request limits.
-# "*/10 * * * *" = At every 10th minute.
-crons = ["*/10 * * * *"]
+crons = ["*/15 * * * *"]
 
-# KV Namespace binding. This part does NOT need to change.
 [[kv_namespaces]]
 binding = "HISCORES_KV"
-id = "4d71578af7894ec8b339d49e0c951bee"
-
-# Environment variables for REST API - enables bulk operations and enhanced features
-[vars]
-ACCOUNT_ID = "1d4a676d0e694a917c3bead46aa6918f"
-CF_API_TOKEN = "0q48w8V6imt1m0qmiYTPufbXckVdVGjlJSHRdSv0"
-KV_NAMESPACE_ID = "4d71578af7894ec8b339d49e0c951bee"
+id = "884ba8e6b3484b0eb148b1e847c7a29a"
