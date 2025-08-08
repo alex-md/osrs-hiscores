@@ -2,6 +2,24 @@ name = "osrs-hiscores-clone"
 main = "src/index.js"
 compatibility_date = "2023-10-30"
 
+# -------------------------------------------------------------
+# Optional: Uncomment and configure routes below to serve the
+# Worker under your own domain so the frontend can use same-origin
+# API calls (no ?api= override needed).
+#
+# 1. Add your domain to Cloudflare and note its zone ID.
+# 2. Replace YOUR_ZONE_ID and example.com below.
+# 3. Deploy: `npm run deploy` (wrangler deploy)
+# 4. Then you can leave data-api-base="" (blank) so the frontend
+#    hits https://example.com/api/... directly.
+#
+# NOTE: Routes will NOT work for the default *.pages.dev subdomain.
+# You must use a custom domain you control that's in Cloudflare DNS.
+# -------------------------------------------------------------
+# routes = [
+#   { pattern = "example.com/api/*", zone_id = "YOUR_ZONE_ID" }
+# ]
+
 # Cron Trigger: every 15 minutes per specification
 [triggers]
 crons = ["*/15 * * * *"]

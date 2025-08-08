@@ -36,27 +36,9 @@ function renderHomeView() {
     const tbody = table.querySelector('tbody');
     tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-6">Loading...</td></tr>';
     loadLeaderboard().then(data => { tbody.innerHTML = ''; data.players.slice(0, 100).forEach(p => { const tr = document.createElement('tr'); tr.innerHTML = `<td class=\"text-center\">${p.rank}</td><td><button class=\"underline username-link\" data-user=\"${p.username}\" aria-label=\"View ${p.username} stats\">${p.username}</button></td><td class=\"text-center\">${p.totalLevel}</td><td class=\"text-right tabular-nums\">${p.totalXP.toLocaleString()}</td>`; tbody.appendChild(tr); }); }).catch(e => {
-        const showHelp = e.message.includes('Received HTML') || e.message.includes('Unexpected content-type');
-        const helpHtml = showHelp ? `<div class=\"mt-3 text-xs max-w-md mx-auto leading-relaxed text-left\">` +
-            `<strong>Troubleshooting:</strong> <code>${API_BASE}/api/leaderboard</code> returned HTML instead of JSON.<br/>` +
-            `<ul class=\"list-disc ml-4 mt-1 space-y-1\">` +
-            `<li>Deploy or open your Worker endpoint (e.g. https://osrs-hiscores-clone.yourname.workers.dev).</li>` +
-            `<li>Set &lt;html data-api-base=\"https://...workers.dev\"&gt; OR append <code>?api=https://...workers.dev</code>.</li>` +
-            `<li>Use the button below to set an override now.</li>` +
-            `</ul>` +
-            `<div class=\"mt-2 flex gap-2 flex-wrap\">` +
-            `<button id=\"apiBaseChangeBtn\" class=\"btn-sm\">Set API Base</button>` +
-            `<button id=\"apiBaseClearBtn\" class=\"btn-sm\">Clear Override</button>` +
-            `</div>` +
-            `<code class=\"block mt-2\">Current API_BASE: ${API_BASE}</code>` +
-            `</div>` : '';
-        tbody.innerHTML = `<tr><td colspan=\"4\" class=\"text-center text-danger py-6\">${e.message}${helpHtml}</td></tr>`;
-        if (showHelp) {
-            const changeBtn = document.getElementById('apiBaseChangeBtn');
-            if (changeBtn) changeBtn.addEventListener('click', () => { const v = prompt('Enter Worker API base URL (e.g. https://osrs-hiscores-clone.yourname.workers.dev)'); if (v) setApiBase(v); });
-            const clearBtn = document.getElementById('apiBaseClearBtn');
-            if (clearBtn) clearBtn.addEventListener('click', () => { localStorage.removeItem('apiBaseOverride'); toast('API base override cleared – reloading'); setTimeout(() => location.reload(), 400); });
-        }
+        const htmlLike = /Received HTML|Unexpected content-type/.test(e.message);
+        const hint = htmlLike ? '<div class="mt-2 text-xs text-left max-w-sm mx-auto">Backend not mounted under /api – verify _worker.js present at repo root and KV binding HISCORES_KV set in Pages project. Also ensure deployment finished successfully. <code>/api/health</code> should return JSON.</div>' : '';
+        tbody.innerHTML = `<tr><td colspan=\"4\" class=\"text-center text-danger py-6\">${e.message}${hint}</td></tr>`;
     });
 }
 
