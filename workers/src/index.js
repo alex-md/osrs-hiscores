@@ -49,19 +49,82 @@ function weightedRandomActivity() {
     return 'INACTIVE';
 }
 
-async function fetchRandomWords(count = 2) {
-    try {
-        const resp = await fetch(`https://random-word-api.herokuapp.com/word?number=${count}`, { cf: { cacheTtl: 60, cacheEverything: true } });
-        if (!resp.ok) throw new Error('bad status');
-        const data = await resp.json();
-        if (Array.isArray(data)) return data;
-    } catch (_) {
-        const syllables = ["zor", "val", "dar", "mor", "lin", "bar", "rax", "zen", "tal", "fin", "gar", "zul", "ora", "ker", "nim", "jor", "sal", "ven", "qua", "lir"];
-        const words = [];
-        for (let i = 0; i < count; i++) words.push((randomChoice(syllables) + randomChoice(syllables) + randomChoice(syllables)).slice(0, 8));
-        return words;
+async function fetchRandomWords(count = 2, existingUsernames = new Set()) {
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min; // inclusive
+    const randChoice = (arr) => arr[Math.floor(Math.random() * arr.length)];
+    const roll = (p) => Math.random() < p;
+
+    async function fetchBatch(n) {
+        while (true) {
+            try {
+                const resp = await fetch(`https://random-word-api.herokuapp.com/word?number=${n}`, { cf: { cacheTtl: 60, cacheEverything: true } });
+                if (!resp.ok) throw new Error("bad status");
+                const data = await resp.json();
+                if (Array.isArray(data) && data.length) return data.map(String);
+            } catch (_) {
+                // ignore and retry after a couple seconds
+            }
+            await sleep(2000);
+        }
     }
+
+    function buildName(w1, w2) {
+        // choose one probability p for ALL rolls on this username, uniform in [0.20, 0.30]
+        const p = randInt(20, 30) / 100;
+
+        let useOneWord = roll(p);
+        let joiner = ""; // default concat
+
+        // maybe space between two words
+        if (!useOneWord && roll(p)) joiner = " ";
+
+        // maybe hyphen or underscore (can overwrite space if both roll true — by design)
+        if (!useOneWord && roll(p)) joiner = randChoice(["-", "_"]);
+
+        let base = useOneWord ? randChoice([w1, w2]) : (w1 + joiner + w2);
+
+        // maybe capitalize first letter
+        if (roll(p)) base = base.replace(/^[a-z]/, ch => ch.toUpperCase());
+
+        // maybe add number (1–999) before or after
+        if (roll(p)) {
+            const num = String(randInt(1, 999));
+            base = roll(0.5) ? (num + base) : (base + num);
+        }
+
+        // hard cap at 12 chars
+        if (base.length > 12) base = base.slice(0, 12);
+        return base;
+    }
+
+    const results = [];
+    const maxAttempts = count * 10; // Prevent infinite loops
+    let attempts = 0;
+
+    while (results.length < count && attempts < maxAttempts) {
+        // grab pairs; overshoot a bit so we have enough to build names
+        const need = Math.max(2, (count - results.length) * 2);
+        const batch = await fetchBatch(need);
+
+        for (let i = 0; i + 1 < batch.length && results.length < count; i += 2) {
+            const w1 = String(batch[i] || "");
+            const w2 = String(batch[i + 1] || "");
+            const name = buildName(w1, w2);
+            const sanitizedName = sanitizeUsername(name);
+
+            // Check if the generated username is unique
+            if (sanitizedName && !existingUsernames.has(sanitizedName.toLowerCase())) {
+                results.push(name);
+                existingUsernames.add(sanitizedName.toLowerCase()); // Add to set to avoid duplicates within this batch
+            }
+            attempts++;
+        }
+    }
+
+    return results;
 }
+
 function sanitizeUsername(name) { return name.replace(/[^a-zA-Z0-9_ -]/g, '').slice(0, 12); }
 function newUser(username) {
     const skills = {};
@@ -106,7 +169,18 @@ async function getAllUsers(env) {
 }
 async function putUser(env, user) { await env.HISCORES_KV.put(`user:${user.username.toLowerCase()}`, JSON.stringify(user)); }
 async function getUser(env, username) { const raw = await env.HISCORES_KV.get(`user:${username.toLowerCase()}`); if (!raw) return null; try { return JSON.parse(raw); } catch (_) { return null; } }
-async function ensureInitialData(env) { const existing = await env.HISCORES_KV.list({ prefix: 'user:', limit: 1 }); if (existing.keys.length === 0) { const words = await fetchRandomWords(5); await Promise.all(words.map(async w => { const username = sanitizeUsername(w.charAt(0).toUpperCase() + w.slice(1)); const u = newUser(username); await putUser(env, u); })); } }
+async function ensureInitialData(env) {
+    const existing = await env.HISCORES_KV.list({ prefix: 'user:', limit: 1 });
+    if (existing.keys.length === 0) {
+        const existingUsernames = new Set(); // Empty set since no users exist yet
+        const words = await fetchRandomWords(5, existingUsernames);
+        await Promise.all(words.map(async w => {
+            const username = sanitizeUsername(w.charAt(0).toUpperCase() + w.slice(1));
+            const u = newUser(username);
+            await putUser(env, u);
+        }));
+    }
+}
 
 async function handleLeaderboard(env, url) {
     const users = await getAllUsers(env);
@@ -157,7 +231,7 @@ async function handleSeed(env, request) {
 }
 
 async function runScheduled(env) {
-    await ensureInitialData(env); const users = await getAllUsers(env); if (users.length === 0) return { processed: 0, newUsers: 0 }; const now = new Date(); const fraction = 0.10 + Math.random() * 0.25; const toUpdate = Math.max(1, Math.floor(users.length * fraction)); const shuffled = [...users].sort(() => Math.random() - 0.5).slice(0, toUpdate); for (const u of shuffled) { const activity = weightedRandomActivity(); u.activity = activity; simulateUserProgress(u, activity, now); if (Math.random() < 0.01) u.needsHpMigration = true; await putUser(env, u); } const newCount = 1 + Math.floor(Math.random() * 3); let created = 0; const lowerSet = new Set(users.map(u => u.username.toLowerCase())); for (let i = 0; i < newCount; i++) { const words = await fetchRandomWords(2); const uname = sanitizeUsername(words.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('')) || 'Player' + Date.now(); if (lowerSet.has(uname.toLowerCase())) continue; const u = newUser(uname); await putUser(env, u); created++; }
+    await ensureInitialData(env); const users = await getAllUsers(env); if (users.length === 0) return { processed: 0, newUsers: 0 }; const now = new Date(); const fraction = 0.10 + Math.random() * 0.25; const toUpdate = Math.max(1, Math.floor(users.length * fraction)); const shuffled = [...users].sort(() => Math.random() - 0.5).slice(0, toUpdate); for (const u of shuffled) { const activity = weightedRandomActivity(); u.activity = activity; simulateUserProgress(u, activity, now); if (Math.random() < 0.01) u.needsHpMigration = true; await putUser(env, u); } const newCount = 1 + Math.floor(Math.random() * 3); let created = 0; const lowerSet = new Set(users.map(u => u.username.toLowerCase())); for (let i = 0; i < newCount; i++) { const words = await fetchRandomWords(2, new Set(lowerSet)); const uname = sanitizeUsername(words.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('')) || 'Player' + Date.now(); if (lowerSet.has(uname.toLowerCase())) continue; const u = newUser(uname); await putUser(env, u); created++; }
     return { processed: toUpdate, newUsers: created, totalPlayers: users.length + created };
 }
 
