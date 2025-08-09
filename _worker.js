@@ -11,24 +11,41 @@
 //   is essential, keep the standalone Worker deployment for cron and have it write to the
 //   same KV namespace.
 
+// Import the worker module - note the file extension is important
 import workerModule from './workers/src/index.js';
-
-// Reuse the fetch & scheduled handlers from the worker module
-const apiFetch = workerModule.fetch ? workerModule.fetch.bind(workerModule) : null;
-const apiScheduled = workerModule.scheduled ? workerModule.scheduled.bind(workerModule) : null;
 
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+
     // Route API calls to existing worker logic
     if (url.pathname.startsWith('/api/')) {
-      if (!apiFetch) return new Response('API handler unavailable', { status: 500 });
-      return apiFetch(request, env, ctx);
+      // Check if the worker module has a fetch handler
+      if (workerModule && typeof workerModule.fetch === 'function') {
+        return await workerModule.fetch(request, env, ctx);
+      } else if (workerModule && typeof workerModule.default?.fetch === 'function') {
+        return await workerModule.default.fetch(request, env, ctx);
+      } else {
+        return new Response(JSON.stringify({
+          error: 'API handler unavailable',
+          debug: `Module type: ${typeof workerModule}, keys: ${Object.keys(workerModule || {})}`
+        }), {
+          status: 500,
+          headers: { 'content-type': 'application/json' }
+        });
+      }
     }
+
     // Otherwise serve static assets (Pages automatically exposes them via env.ASSETS)
     return env.ASSETS.fetch(request);
   },
+
   async scheduled(event, env, ctx) {
-    if (apiScheduled) return apiScheduled(event, env, ctx);
+    // Handle scheduled events (cron jobs)
+    if (workerModule && typeof workerModule.scheduled === 'function') {
+      return await workerModule.scheduled(event, env, ctx);
+    } else if (workerModule && typeof workerModule.default?.scheduled === 'function') {
+      return await workerModule.default.scheduled(event, env, ctx);
+    }
   }
 };
