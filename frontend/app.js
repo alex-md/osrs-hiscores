@@ -23,7 +23,18 @@ function updateThemeToggle() { const btn = $('#themeToggle'); if (!btn) return; 
 // fetchJSON & API_BASE now provided by common.js
 async function loadLeaderboard(force = false) { if (cache.leaderboard && !force) return cache.leaderboard; cache.leaderboard = await fetchJSON(`/api/leaderboard?limit=${LEADERBOARD_LIMIT}`); return cache.leaderboard; }
 async function loadUsers(force = false) { if (cache.users && !force && (Date.now() - cache.usersFetchedAt < 60_000)) return cache.users; cache.users = await fetchJSON('/api/users'); cache.usersFetchedAt = Date.now(); return cache.users; }
-async function loadUser(username) { return fetchJSON('/api/users/' + encodeURIComponent(username)); }
+async function loadSkillRankings(force = false) {
+    if (cache.skillRankings && !force) return cache.skillRankings;
+    cache.skillRankings = await fetchJSON('/api/skill-rankings');
+    return cache.skillRankings;
+}
+
+function getUserSkillRank(skillRankings, username, skill) {
+    if (!skillRankings || !skillRankings.rankings || !skillRankings.rankings[skill]) return null;
+    const skillData = skillRankings.rankings[skill];
+    const playerData = skillData.find(p => p.username === username);
+    return playerData ? playerData.rank : null;
+}
 
 // ---------- Views ----------
 function renderHomeView() {
@@ -42,9 +53,84 @@ function renderHomeView() {
     });
 }
 
+async function loadUser(username) { return fetchJSON('/api/users/' + encodeURIComponent(username)); }
+
 function renderUserView(username) {
-    const root = $('#viewRoot'); root.innerHTML = '<div class="text-sm text-muted">Loading player...</div>';
-    loadUser(username).then(user => { const wrap = el('div', 'flex flex-col gap-6'); wrap.appendChild(el('div', 'flex items-center gap-4 flex-wrap', [el('h2', 'text-lg font-semibold', [text(user.username)]), el('div', 'badge', [text('Total Level ' + user.totalLevel)]), el('div', 'badge', [text('Total XP ' + user.totalXP.toLocaleString())])])); const skillsTable = el('table', 'min-w-full text-sm border border-border rounded overflow-hidden'); skillsTable.innerHTML = `<thead class=\"bg-layer2 text-xs uppercase\"><tr><th class=\"text-left\">Skill</th><th class=\"w-24\">Level</th><th class=\"w-40\">XP</th></tr></thead><tbody></tbody>`; const tbody = skillsTable.querySelector('tbody'); SKILLS.forEach(s => { const sk = user.skills[s]; const tr = document.createElement('tr'); tr.innerHTML = `<td class=\"capitalize\">${s}</td><td class=\"text-center\">${sk.level}</td><td class=\"text-right tabular-nums\">${sk.xp.toLocaleString()}</td>`; tbody.appendChild(tr); }); wrap.appendChild(skillsTable); root.innerHTML = ''; root.appendChild(wrap); }).catch(() => { root.innerHTML = '<div class="text-danger">Player not found</div>'; });
+    const root = $('#viewRoot');
+    root.innerHTML = '<div class="text-sm text-muted">Loading player...</div>';
+
+    Promise.all([
+        loadUser(username),
+        loadSkillRankings()
+    ]).then(([user, skillRankings]) => {
+        const wrap = el('div', 'flex flex-col gap-6');
+
+        // User header
+        wrap.appendChild(el('div', 'flex items-center gap-4 flex-wrap', [
+            el('h2', 'text-2xl font-bold', [text(user.username)]),
+            el('div', 'badge', [text('Total Level ' + user.totalLevel)]),
+            el('div', 'badge', [text('Total XP ' + user.totalXP.toLocaleString())])
+        ]));
+
+        // Skills section
+        const skillsSection = el('div', 'flex flex-col gap-4');
+        skillsSection.appendChild(el('h3', 'text-lg font-semibold', [text('Skills')]));
+
+        const skillsGrid = el('div', 'skills-grid');
+
+        SKILLS.forEach(skillName => {
+            const skill = user.skills[skillName];
+            const rank = getUserSkillRank(skillRankings, username, skillName);
+
+            const skillRow = el('div', 'skill-row bg-layer border border-border rounded-lg');
+
+            // Only make clickable if the skill has meaningful progress (level > 1 or XP > base XP)
+            const baseXP = skillName === 'hitpoints' ? 1154 : 0;
+            const isClickable = skill.level > 1 || skill.xp > baseXP;
+
+            if (isClickable) {
+                skillRow.classList.add('clickable');
+                skillRow.addEventListener('click', () => {
+                    window.open(`skill-hiscores.html?skill=${skillName}#skill=${skillName}`, '_blank');
+                });
+            }
+
+            // Skill icon
+            const iconUrl = window.getSkillIcon(skillName);
+            const skillIcon = el('div', 'skill-icon');
+            if (iconUrl) {
+                skillIcon.style.backgroundImage = `url(${iconUrl})`;
+            }
+
+            const skillInfo = el('div', 'skill-info');
+
+            const nameDiv = el('div', 'skill-name', [text(skillName)]);
+
+            const statsDiv = el('div', 'skill-stats');
+            statsDiv.appendChild(el('span', 'skill-level', [text(`Lvl ${skill.level}`)]));
+            statsDiv.appendChild(el('span', 'skill-xp', [text(`${skill.xp.toLocaleString()} XP`)]));
+
+            if (rank) {
+                statsDiv.appendChild(el('span', 'skill-rank', [text(`#${rank}`)]));
+            }
+
+            skillInfo.appendChild(nameDiv);
+            skillInfo.appendChild(statsDiv);
+
+            skillRow.appendChild(skillIcon);
+            skillRow.appendChild(skillInfo);
+
+            skillsGrid.appendChild(skillRow);
+        });
+
+        skillsSection.appendChild(skillsGrid);
+        wrap.appendChild(skillsSection);
+
+        root.innerHTML = '';
+        root.appendChild(wrap);
+    }).catch(() => {
+        root.innerHTML = '<div class="text-danger">Player not found</div>';
+    });
 }
 
 // ---------- Routing ----------
