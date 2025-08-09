@@ -38,18 +38,67 @@ function getUserSkillRank(skillRankings, username, skill) {
 
 // ---------- Views ----------
 function renderHomeView() {
-    const root = $('#viewRoot'); root.innerHTML = ''; const section = el('section', 'flex flex-col gap-4');
-    section.appendChild(el('h2', 'text-lg font-semibold flex items-center gap-2', [text('Overall Leaderboard')]));
-    const tableWrap = el('div', 'overflow-auto border border-border rounded bg-layer');
-    const table = el('table', 'min-w-full text-sm');
-    table.innerHTML = `<thead class="bg-layer2 text-xs uppercase tracking-wide"><tr><th class=\"w-16\">Rank</th><th class=\"text-left\">Player</th><th class=\"w-32\">Total Level</th><th class=\"w-40\">Total XP</th></tr></thead><tbody></tbody>`;
-    tableWrap.appendChild(table); section.appendChild(tableWrap); root.appendChild(section);
+    const root = $('#viewRoot');
+    root.innerHTML = '';
+
+    const section = el('section', 'flex flex-col gap-6');
+
+    // Header section
+    const headerDiv = el('div', 'flex items-center justify-between flex-wrap gap-4');
+    headerDiv.appendChild(el('h2', 'text-2xl font-bold flex items-center gap-2 text-foreground', [
+        text('🏆 Overall Leaderboard')
+    ]));
+
+    const statsDiv = el('div', 'flex gap-2 flex-wrap');
+    statsDiv.appendChild(el('div', 'badge', [text('Top 100 Players')]));
+    section.appendChild(headerDiv);
+
+    // Table wrapper with OSRS styling
+    const tableWrap = el('div', 'osrs-table');
+    const table = el('table', 'min-w-full');
+    table.innerHTML = `<thead><tr><th class="w-20">Rank</th><th class="text-left">Player</th><th class="w-32">Total Level</th><th class="w-40">Total Experience</th></tr></thead><tbody></tbody>`;
+    tableWrap.appendChild(table);
+    section.appendChild(tableWrap);
+    root.appendChild(section);
+
     const tbody = table.querySelector('tbody');
-    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-6">Loading...</td></tr>';
-    loadLeaderboard().then(data => { tbody.innerHTML = ''; data.players.slice(0, 100).forEach(p => { const tr = document.createElement('tr'); tr.innerHTML = `<td class=\"text-center\">${p.rank}</td><td><button class=\"underline username-link\" data-user=\"${p.username}\" aria-label=\"View ${p.username} stats\">${p.username}</button></td><td class=\"text-center\">${p.totalLevel}</td><td class=\"text-right tabular-nums\">${p.totalXP.toLocaleString()}</td>`; tbody.appendChild(tr); }); }).catch(e => {
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-8">⏳ Loading leaderboard...</td></tr>';
+
+    loadLeaderboard().then(data => {
+        tbody.innerHTML = '';
+        data.players.slice(0, 100).forEach((p, index) => {
+            const tr = document.createElement('tr');
+
+            // Add rank indicators for top 3
+            let rankDisplay = p.rank;
+            if (p.rank === 1) rankDisplay = '🥇 ' + p.rank;
+            else if (p.rank === 2) rankDisplay = '🥈 ' + p.rank;
+            else if (p.rank === 3) rankDisplay = '🥉 ' + p.rank;
+
+            tr.innerHTML = `
+                <td class="text-center font-bold">${rankDisplay}</td>
+                <td>
+                    <button class="username-link" data-user="${p.username}" aria-label="View ${p.username} stats">
+                        ${p.username}
+                    </button>
+                </td>
+                <td class="text-center font-semibold text-accent">${p.totalLevel}</td>
+                <td class="text-right tabular-nums font-mono">${p.totalXP.toLocaleString()}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        // Update stats
+        if (data.totalPlayers > 0) {
+            statsDiv.innerHTML = '';
+            statsDiv.appendChild(el('div', 'badge', [text(`${data.totalPlayers} Total Players`)]));
+            statsDiv.appendChild(el('div', 'badge', [text(`Updated: ${new Date(data.generatedAt).toLocaleTimeString()}`)]));
+            headerDiv.appendChild(statsDiv);
+        }
+    }).catch(e => {
         const htmlLike = /Received HTML|Unexpected content-type/.test(e.message);
-        const hint = htmlLike ? '<div class="mt-2 text-xs text-left max-w-sm mx-auto">Backend not mounted under /api – verify _worker.js present at repo root and KV binding HISCORES_KV set in Pages project. Also ensure deployment finished successfully. <code>/api/health</code> should return JSON.</div>' : '';
-        tbody.innerHTML = `<tr><td colspan=\"4\" class=\"text-center text-danger py-6\">${e.message}${hint}</td></tr>`;
+        const hint = htmlLike ? '<div class="mt-4 text-sm text-left max-w-lg mx-auto p-4 bg-layer2 rounded border-l-4 border-accent">⚠️ <strong>Backend not mounted:</strong><br>Verify _worker.js is present at repo root and KV binding HISCORES_KV is configured in Pages project settings. Also ensure deployment finished successfully.<br><br><code class="bg-layer p-1 rounded text-xs">/api/health</code> should return JSON.</div>' : '';
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8"><div class="text-danger font-semibold">❌ ${e.message}</div>${hint}</td></tr>`;
     });
 }
 
@@ -57,34 +106,69 @@ async function loadUser(username) { return fetchJSON('/api/users/' + encodeURICo
 
 function renderUserView(username) {
     const root = $('#viewRoot');
-    root.innerHTML = '<div class="text-sm text-muted">Loading player...</div>';
+    root.innerHTML = '<div class="text-center text-muted py-8">⏳ Loading player data...</div>';
 
     Promise.all([
         loadUser(username),
         loadSkillRankings()
     ]).then(([user, skillRankings]) => {
-        const wrap = el('div', 'flex flex-col gap-6');
+        const wrap = el('div', 'flex flex-col gap-8');
 
-        // User header
-        wrap.appendChild(el('div', 'flex items-center gap-4 flex-wrap', [
-            el('h2', 'text-2xl font-bold', [text(user.username)]),
-            el('div', 'badge', [text('Total Level ' + user.totalLevel)]),
-            el('div', 'badge', [text('Total XP ' + user.totalXP.toLocaleString())])
-        ]));
+        // User header with enhanced styling
+        const headerSection = el('div', 'bg-layer2 p-6 rounded-lg border-2 border-border-dark');
+        const headerContent = el('div', 'flex items-center justify-between flex-wrap gap-4');
 
-        // Skills section
-        const skillsSection = el('div', 'flex flex-col gap-4');
-        skillsSection.appendChild(el('h3', 'text-lg font-semibold', [text('Skills')]));
+        const userInfo = el('div', 'flex items-center gap-4');
+        userInfo.appendChild(el('h2', 'text-3xl font-bold text-foreground', [text(`⚔️ ${user.username}`)]));
+
+        const badges = el('div', 'flex gap-3 flex-wrap');
+        badges.appendChild(el('div', 'badge', [text(`Total Level ${user.totalLevel}`)]));
+        badges.appendChild(el('div', 'badge', [text(`${user.totalXP.toLocaleString()} XP`)]));
+
+        // Calculate combat level (simplified)
+        const attack = user.skills.attack.level;
+        const strength = user.skills.strength.level;
+        const defence = user.skills.defence.level;
+        const hitpoints = user.skills.hitpoints.level;
+        const ranged = user.skills.ranged.level;
+        const magic = user.skills.magic.level;
+        const prayer = user.skills.prayer.level;
+
+        const combatLevel = Math.floor((defence + hitpoints + Math.floor(prayer / 2)) * 0.25 +
+            Math.max(attack + strength, Math.max(ranged * 1.5, magic * 1.5)) * 0.325);
+
+        badges.appendChild(el('div', 'badge', [text(`Combat ${combatLevel}`)]));
+
+        headerContent.appendChild(userInfo);
+        headerContent.appendChild(badges);
+        headerSection.appendChild(headerContent);
+        wrap.appendChild(headerSection);
+
+        // Skills section with better organization
+        const skillsSection = el('div', 'flex flex-col gap-6');
+        const skillsHeader = el('div', 'flex items-center justify-between');
+        skillsHeader.appendChild(el('h3', 'text-2xl font-bold text-foreground', [text('⚡ Skills Overview')]));
+        skillsHeader.appendChild(el('div', 'badge', [text('Click skills to view hiscores')]));
+        skillsSection.appendChild(skillsHeader);
 
         const skillsGrid = el('div', 'skills-grid');
 
-        SKILLS.forEach(skillName => {
+        // Group skills by category for better organization
+        const skillCategories = {
+            combat: ['attack', 'strength', 'defence', 'hitpoints', 'ranged', 'prayer', 'magic'],
+            gathering: ['mining', 'fishing', 'woodcutting', 'farming', 'hunter'],
+            production: ['cooking', 'smithing', 'crafting', 'herblore', 'fletching', 'firemaking', 'runecraft'],
+            support: ['agility', 'thieving', 'slayer', 'construction']
+        };
+
+        // Render skills in category order
+        Object.values(skillCategories).flat().forEach(skillName => {
             const skill = user.skills[skillName];
             const rank = getUserSkillRank(skillRankings, username, skillName);
 
-            const skillRow = el('div', 'skill-row bg-layer border border-border rounded-lg');
+            const skillRow = el('div', 'skill-row bg-layer');
 
-            // Only make clickable if the skill has meaningful progress (level > 1 or XP > base XP)
+            // Only make clickable if the skill has meaningful progress
             const baseXP = skillName === 'hitpoints' ? 1154 : 0;
             const isClickable = skill.level > 1 || skill.xp > baseXP;
 
@@ -103,15 +187,14 @@ function renderUserView(username) {
             }
 
             const skillInfo = el('div', 'skill-info');
-
             const nameDiv = el('div', 'skill-name', [text(skillName)]);
 
             const statsDiv = el('div', 'skill-stats');
-            statsDiv.appendChild(el('span', 'skill-level', [text(`Lvl ${skill.level}`)]));
+            statsDiv.appendChild(el('span', 'skill-level', [text(`Level ${skill.level}`)]));
             statsDiv.appendChild(el('span', 'skill-xp', [text(`${skill.xp.toLocaleString()} XP`)]));
 
             if (rank) {
-                statsDiv.appendChild(el('span', 'skill-rank', [text(`#${rank}`)]));
+                statsDiv.appendChild(el('span', 'skill-rank', [text(`Rank #${rank}`)]));
             }
 
             skillInfo.appendChild(nameDiv);
@@ -129,7 +212,7 @@ function renderUserView(username) {
         root.innerHTML = '';
         root.appendChild(wrap);
     }).catch(() => {
-        root.innerHTML = '<div class="text-danger">Player not found</div>';
+        root.innerHTML = '<div class="text-center py-8"><div class="text-danger text-xl font-semibold">❌ Player not found</div><div class="text-muted mt-2">The player you\'re looking for doesn\'t exist in our database.</div></div>';
     });
 }
 

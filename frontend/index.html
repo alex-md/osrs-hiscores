@@ -14,13 +14,25 @@
 
     <body class="h-full bg-surface text-foreground transition-colors">
         <div id="app" class="min-h-full flex flex-col">
-            <header class="p-4 border-b border-border flex items-center justify-between gap-4 bg-layer">
-                <h1 class="text-xl font-bold flex items-center gap-2"><span class="text-accent">OSRS</span> Hiscores
-                </h1>
+            <header class="osrs-header p-6 flex items-center justify-between gap-4">
+                <div class="flex items-center gap-4">
+                    <h1 class="text-2xl font-bold flex items-center gap-2 text-white">
+                        <span class="text-gold">⚔️ OSRS</span>
+                        <span>Hiscores</span>
+                    </h1>
+                    <div class="nav-pills">
+                        <a href="#" class="nav-pill active" data-view="home">
+                            🏆 Leaderboard
+                        </a>
+                        <a href="skill-hiscores.html" class="nav-pill">
+                            ⚡ Skill Hiscores
+                        </a>
+                    </div>
+                </div>
                 <div class="flex items-center gap-3 relative">
                     <div class="relative">
                         <input id="playerSearch" type="text" placeholder="Search player..."
-                            class="px-3 py-1 rounded bg-input border border-border focus:outline-none focus:ring-2 focus:ring-accent/60 text-sm"
+                            class="px-4 py-2 rounded bg-input border border-border focus:outline-none focus:ring-2 focus:ring-accent/60 text-sm min-w-64"
                             aria-label="Search player" autocomplete="off" />
                         <div id="searchSuggest"
                             class="absolute mt-1 w-full bg-layer border border-border rounded shadow hidden max-h-64 overflow-auto text-sm z-20">
@@ -29,13 +41,19 @@
                     <button id="themeToggle" class="icon-button" title="Toggle Theme"></button>
                 </div>
             </header>
-            <main class="flex-1 p-4 flex flex-col gap-6" id="viewRoot"></main>
-            <footer class="p-4 text-xs text-muted text-center border-t border-border bg-layer">
-                Mock data • Cloudflare Workers • <a href="skill-hiscores.html" class="underline">Skill Hiscores</a>
-                <div class="mt-1 opacity-60">
+            <main class="flex-1 p-6" id="viewRoot"></main>
+            <footer class="p-4 text-xs text-muted text-center border-t-2 border-border-dark bg-layer">
+                <div class="flex items-center justify-center gap-4 flex-wrap">
+                    <span>⚔️ Mock OSRS Hiscores</span>
+                    <span>•</span>
+                    <span>🌩️ Powered by Cloudflare Workers</span>
+                    <span>•</span>
+                    <a href="skill-hiscores.html" class="underline hover:text-accent">Skill Hiscores</a>
+                </div>
+                <div class="mt-2 opacity-60 text-xs">
                     API: <span id="currentApiBase"></span>
                     <button onclick="window.setApiBase(prompt('Enter API base URL:', window.API_BASE))"
-                        class="ml-2 underline">Change</button>
+                        class="ml-2 underline hover:text-accent">Change</button>
                 </div>
             </footer>
         </div>

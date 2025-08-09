@@ -14,49 +14,61 @@
 
     <body class="h-full bg-surface text-foreground">
         <div class="min-h-full flex flex-col">
-            <header class="p-4 border-b border-border flex flex-wrap items-center gap-4 justify-between bg-layer">
-                <div class="flex items-center gap-2">
-                    <a href="index.html" class="text-sm underline text-muted">← Back</a>
-                    <h1 class="font-semibold">Skill Hiscores</h1>
+            <header class="osrs-header p-6 flex flex-wrap items-center gap-4 justify-between">
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-3">
+                        <a href="index.html" class="text-sm font-semibold text-gold hover:text-white transition-colors">
+                            ← Back to Home
+                        </a>
+                        <div class="w-px h-6 bg-gold opacity-50"></div>
+                        <h1 class="font-bold text-white text-xl">⚡ Skill Hiscores</h1>
+                    </div>
                 </div>
-                <div class="flex items-center gap-2 flex-wrap">
-                    <select id="skillSelect" class="px-2 py-1 rounded bg-input border border-border text-sm"></select>
-                    <input id="filterName" placeholder="Player"
-                        class="px-2 py-1 rounded bg-input border border-border text-sm" />
-                    <input id="filterMinLvl" type="number" min="1" max="99" placeholder="Min Lvl"
-                        class="w-20 px-2 py-1 rounded bg-input border border-border text-sm" />
-                    <input id="filterMaxLvl" type="number" min="1" max="99" placeholder="Max Lvl"
-                        class="w-20 px-2 py-1 rounded bg-input border border-border text-sm" />
-                    <button id="exportCsv" class="btn">CSV</button>
+                <div class="flex items-center gap-3 flex-wrap">
+                    <select id="skillSelect"
+                        class="px-3 py-2 rounded bg-input border border-border text-sm font-semibold"></select>
+                    <input id="filterName" placeholder="Search player..."
+                        class="px-3 py-2 rounded bg-input border border-border text-sm min-w-32" />
+                    <div class="flex items-center gap-2">
+                        <input id="filterMinLvl" type="number" min="1" max="99" placeholder="Min"
+                            class="w-16 px-2 py-2 rounded bg-input border border-border text-sm text-center" />
+                        <span class="text-gold font-semibold">-</span>
+                        <input id="filterMaxLvl" type="number" min="1" max="99" placeholder="Max"
+                            class="w-16 px-2 py-2 rounded bg-input border border-border text-sm text-center" />
+                    </div>
+                    <button id="exportCsv" class="btn-sm">📊 Export</button>
                     <button id="themeToggle" class="icon-button" title="Toggle Theme"></button>
                 </div>
             </header>
-            <main class="flex-1 p-4 flex flex-col gap-4">
-                <div id="skillStats" class="text-xs text-muted"></div>
-                <div class="overflow-auto border border-border rounded bg-layer">
+            <main class="flex-1 p-6 flex flex-col gap-6">
+                <div id="skillStats"
+                    class="text-sm font-semibold text-muted bg-layer2 p-4 rounded-lg border-2 border-border"></div>
+                <div class="osrs-table">
                     <table class="min-w-full text-sm" id="skillTable">
-                        <thead class="bg-layer2 text-xs uppercase tracking-wide">
+                        <thead>
                             <tr>
-                                <th data-sort="rank" class="sortable w-16">Rank</th>
+                                <th data-sort="rank" class="sortable w-20">Rank</th>
                                 <th data-sort="username" class="sortable text-left">Player</th>
                                 <th data-sort="level" class="sortable w-24">Level</th>
-                                <th data-sort="xp" class="sortable w-48">XP</th>
+                                <th data-sort="xp" class="sortable w-48">Experience</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
                     </table>
                 </div>
-                <div class="flex items-center gap-4 text-xs flex-wrap">
-                    <div class="flex items-center gap-2">
-                        <button id="prevPage" class="btn-sm">Prev</button>
-                        <button id="nextPage" class="btn-sm">Next</button>
+                <div
+                    class="flex items-center justify-between gap-4 text-sm flex-wrap bg-layer2 p-4 rounded-lg border-2 border-border">
+                    <div class="flex items-center gap-3">
+                        <button id="prevPage" class="btn-sm">← Previous</button>
+                        <button id="nextPage" class="btn-sm">Next →</button>
                     </div>
-                    <div>
-                        Page <span id="pageNum">1</span> / <span id="pageTotal">1</span>
+                    <div class="font-semibold">
+                        Page <span id="pageNum" class="text-accent">1</span> of <span id="pageTotal"
+                            class="text-accent">1</span>
                     </div>
                     <div class="flex items-center gap-2">
-                        <label>Per Page</label>
-                        <select id="perPage" class="px-1 py-0.5 rounded bg-input border border-border text-xs">
+                        <label class="font-semibold">Per Page:</label>
+                        <select id="perPage" class="px-2 py-1 rounded bg-input border border-border text-sm">
                             <option>25</option>
                             <option>50</option>
                             <option>100</option>
@@ -64,12 +76,16 @@
                     </div>
                 </div>
             </main>
-            <footer class="p-4 text-xs text-muted text-center border-t border-border bg-layer">
-                Mock data • Cloudflare Workers
-                <div class="mt-1 opacity-60">
+            <footer class="p-4 text-xs text-muted text-center border-t-2 border-border-dark bg-layer">
+                <div class="flex items-center justify-center gap-4 flex-wrap">
+                    <span>⚔️ Mock OSRS Hiscores</span>
+                    <span>•</span>
+                    <span>🌩️ Powered by Cloudflare Workers</span>
+                </div>
+                <div class="mt-2 opacity-60 text-xs">
                     API: <span id="currentApiBase"></span>
                     <button onclick="window.setApiBase(prompt('Enter API base URL:', window.API_BASE))"
-                        class="ml-2 underline">Change</button>
+                        class="ml-2 underline hover:text-accent">Change</button>
                 </div>
             </footer>
         </div>
