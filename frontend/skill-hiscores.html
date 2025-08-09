@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full" data-theme="light" data-api-base="">
+<html lang="en" class="h-full" data-theme="light" data-api-base="https://osrs-hiscores-clone.vs.workers.dev">
 
     <head>
         <meta charset="UTF-8" />
@@ -64,8 +64,14 @@
                     </div>
                 </div>
             </main>
-            <footer class="p-4 text-xs text-muted text-center border-t border-border bg-layer">Mock data • Cloudflare
-                Workers</footer>
+            <footer class="p-4 text-xs text-muted text-center border-t border-border bg-layer">
+                Mock data • Cloudflare Workers
+                <div class="mt-1 opacity-60">
+                    API: <span id="currentApiBase"></span>
+                    <button onclick="window.setApiBase(prompt('Enter API base URL:', window.API_BASE))"
+                        class="ml-2 underline">Change</button>
+                </div>
+            </footer>
         </div>
         <div id="toastContainer" class="fixed top-4 right-4 flex flex-col gap-2 z-50"></div>
     </body>

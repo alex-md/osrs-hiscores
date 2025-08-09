@@ -38,6 +38,14 @@ $('#skillSelect').addEventListener('change', () => { currentSkill = $('#skillSel
 function init() {
     const select = $('#skillSelect'); SKILLS.forEach(s => { const opt = document.createElement('option'); opt.value = s; opt.textContent = s; select.appendChild(opt); }); select.value = currentSkill; const theme = localStorage.getItem('theme') || 'light'; setTheme(theme); // apply stored perPage
     const perPageSelect = $('#perPage'); if (perPageSelect) { [...perPageSelect.options].forEach(o => { if (parseInt(o.value) === perPage) perPageSelect.value = o.value; }); }
+
+    // Show current API base in footer
+    const apiSpan = $('#currentApiBase');
+    if (apiSpan && window.API_BASE) {
+        const displayBase = window.API_BASE === location.origin ? 'Same-origin' : window.API_BASE;
+        apiSpan.textContent = displayBase;
+    }
+
     renderTable();
 }
 

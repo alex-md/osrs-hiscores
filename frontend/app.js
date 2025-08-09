@@ -78,4 +78,12 @@ document.addEventListener('click', e => { const btn = e.target.closest('.usernam
 window.addEventListener('hashchange', handleRoute);
 
 // Init
-(() => { const savedTheme = localStorage.getItem('theme') || 'light'; setTheme(savedTheme); setupSearch(); handleRoute(); })();
+(() => {
+    const savedTheme = localStorage.getItem('theme') || 'light'; setTheme(savedTheme); setupSearch(); handleRoute();
+    // Show current API base in footer
+    const apiSpan = $('#currentApiBase');
+    if (apiSpan && window.API_BASE) {
+        const displayBase = window.API_BASE === location.origin ? 'Same-origin' : window.API_BASE;
+        apiSpan.textContent = displayBase;
+    }
+})();

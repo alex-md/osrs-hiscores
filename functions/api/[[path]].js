@@ -403,6 +403,17 @@ async function router(request, env) {
 
     // Route handlers
     if (path === '/health') return handleHealth();
+    if (path === '/debug') {
+        return jsonResponse({
+            path: path,
+            originalPath: url.pathname,
+            pathParts: pathParts,
+            method: method,
+            hasKV: !!env.HISCORES_KV,
+            availableBindings: Object.keys(env || {}),
+            adminToken: !!env.ADMIN_TOKEN
+        });
+    }
     if (path === '/leaderboard' && method === 'GET') return handleLeaderboard(env, url);
     if (path === '/users' && method === 'GET') return handleUsersList(env);
     if (path === '/skill-rankings' && method === 'GET') return handleSkillRankings(env);
@@ -439,12 +450,22 @@ export async function onRequest(context) {
     const { request, env } = context;
 
     try {
+        // Check if KV binding is available
+        if (!env.HISCORES_KV) {
+            return jsonResponse({
+                error: 'KV binding not configured',
+                message: 'HISCORES_KV binding is missing. Please configure it in Pages project settings.',
+                availableBindings: Object.keys(env)
+            }, { status: 500 });
+        }
+
         return await router(request, env);
     } catch (err) {
         console.error('API Error:', err);
         return jsonResponse({
             error: 'Internal error',
-            detail: String(err)
+            detail: String(err),
+            stack: err.stack
         }, { status: 500 });
     }
 }
