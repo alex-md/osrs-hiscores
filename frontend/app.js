@@ -17,8 +17,8 @@ function toast(msg, type = 'info', timeout = 3000) {
 }
 
 function setTheme(theme) { document.documentElement.setAttribute('data-theme', theme); localStorage.setItem('theme', theme); updateThemeToggle(); }
-function toggleTheme() { const cur = localStorage.getItem('theme') || 'light'; setTheme(cur === 'light' ? 'dark' : 'light'); }
-function updateThemeToggle() { const btn = $('#themeToggle'); if (!btn) return; btn.innerHTML = ''; const theme = localStorage.getItem('theme') || 'light'; const icon = document.createElement('i'); icon.setAttribute('data-lucide', theme === 'light' ? 'moon' : 'sun'); btn.appendChild(icon); if (window.lucide) window.lucide.createIcons(); }
+function toggleTheme() { const cur = localStorage.getItem('theme') || 'dark'; setTheme(cur === 'light' ? 'dark' : 'light'); }
+function updateThemeToggle() { const btn = $('#themeToggle'); if (!btn) return; btn.innerHTML = ''; const theme = localStorage.getItem('theme') || 'dark'; const icon = document.createElement('i'); icon.setAttribute('data-lucide', theme === 'light' ? 'moon' : 'sun'); btn.appendChild(icon); if (window.lucide) window.lucide.createIcons(); }
 
 // fetchJSON & API_BASE now provided by common.js
 async function loadLeaderboard(force = false) { if (cache.leaderboard && !force) return cache.leaderboard; cache.leaderboard = await fetchJSON(`/api/leaderboard?limit=${LEADERBOARD_LIMIT}`); return cache.leaderboard; }
@@ -75,6 +75,10 @@ function renderHomeView() {
             else if (p.rank === 2) rankDisplay = '🥈 ' + p.rank;
             else if (p.rank === 3) rankDisplay = '🥉 ' + p.rank;
 
+            if (p.rank === 1) tr.classList.add('rank-1');
+            else if (p.rank === 2) tr.classList.add('rank-2');
+            else if (p.rank === 3) tr.classList.add('rank-3');
+
             tr.innerHTML = `
                 <td class="text-center font-bold">${rankDisplay}</td>
                 <td>
@@ -110,8 +114,9 @@ function renderUserView(username) {
 
     Promise.all([
         loadUser(username),
-        loadSkillRankings()
-    ]).then(([user, skillRankings]) => {
+        loadSkillRankings(),
+        loadLeaderboard().catch(() => null)
+    ]).then(([user, skillRankings, leaderboard]) => {
         const wrap = el('div', 'flex flex-col gap-8');
 
         // User header with enhanced styling
@@ -144,70 +149,89 @@ function renderUserView(username) {
         headerSection.appendChild(headerContent);
         wrap.appendChild(headerSection);
 
-        // Skills section with better organization
-        const skillsSection = el('div', 'flex flex-col gap-6');
-        const skillsHeader = el('div', 'flex items-center justify-between');
-        skillsHeader.appendChild(el('h3', 'text-2xl font-bold text-foreground', [text('⚡ Skills Overview')]));
-        skillsHeader.appendChild(el('div', 'badge', [text('Click skills to view hiscores')]));
-        skillsSection.appendChild(skillsHeader);
+        // Hiscores table (column layout like OSRS)
+        const section = el('section', 'flex flex-col gap-4');
+        const headerRow = el('div', 'flex items-center justify-between');
+        headerRow.appendChild(el('h3', 'text-2xl font-bold text-foreground', [text('📜 Hiscores')]));
+        headerRow.appendChild(el('div', 'badge', [text('Click a skill to view rankings')]));
+        section.appendChild(headerRow);
 
-        const skillsGrid = el('div', 'skills-grid');
+        const tableWrap = el('div', 'osrs-table');
+        const table = el('table', 'min-w-full text-sm');
+        table.innerHTML = `
+            <thead>
+                <tr>
+                    <th class="text-left">Skill</th>
+                    <th class="w-28">Level</th>
+                    <th class="w-44">Experience</th>
+                    <th class="w-28">Rank</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        `;
+        tableWrap.appendChild(table);
+        section.appendChild(tableWrap);
+        wrap.appendChild(section);
 
-        // Group skills by category for better organization
-        const skillCategories = {
-            combat: ['attack', 'strength', 'defence', 'hitpoints', 'ranged', 'prayer', 'magic'],
-            gathering: ['mining', 'fishing', 'woodcutting', 'farming', 'hunter'],
-            production: ['cooking', 'smithing', 'crafting', 'herblore', 'fletching', 'firemaking', 'runecraft'],
-            support: ['agility', 'thieving', 'slayer', 'construction']
-        };
+        const tbody = table.querySelector('tbody');
 
-        // Render skills in category order
-        Object.values(skillCategories).flat().forEach(skillName => {
+        // Determine overall rank from leaderboard (if available)
+        let overallRank = null;
+        if (leaderboard && leaderboard.players) {
+            const found = leaderboard.players.find(p => p.username === user.username);
+            if (found) overallRank = found.rank;
+        }
+
+        // Overall row first
+        const overallTr = document.createElement('tr');
+        overallTr.classList.add('overall-row');
+        overallTr.innerHTML = `
+            <td class="font-semibold">
+                🏆 Overall
+            </td>
+            <td class="text-center font-semibold text-accent">${user.totalLevel}</td>
+            <td class="text-right tabular-nums">${user.totalXP.toLocaleString()}</td>
+            <td class="text-center">${overallRank ? `#${overallRank}` : `Not in Top ${LEADERBOARD_LIMIT}`}</td>
+        `;
+        tbody.appendChild(overallTr);
+
+        // Per-skill rows
+        SKILLS.forEach(skillName => {
             const skill = user.skills[skillName];
             const rank = getUserSkillRank(skillRankings, username, skillName);
 
-            const skillRow = el('div', 'skill-row bg-layer');
+            const tr = document.createElement('tr');
 
-            // Only make clickable if the skill has meaningful progress
+            // Decorative highlight for top 3 ranks
+            if (rank === 1) tr.classList.add('rank-1');
+            else if (rank === 2) tr.classList.add('rank-2');
+            else if (rank === 3) tr.classList.add('rank-3');
+
+            // Clickable if any meaningful progress
             const baseXP = skillName === 'hitpoints' ? 1154 : 0;
-            const isClickable = skill.level > 1 || skill.xp > baseXP;
-
+            const isClickable = (skill?.level || 1) > 1 || (skill?.xp || 0) > baseXP;
             if (isClickable) {
-                skillRow.classList.add('clickable');
-                skillRow.addEventListener('click', () => {
+                tr.classList.add('clickable');
+                tr.addEventListener('click', () => {
                     window.open(`skill-hiscores.html?skill=${skillName}#skill=${skillName}`, '_blank');
                 });
             }
 
-            // Skill icon
             const iconUrl = window.getSkillIcon(skillName);
-            const skillIcon = el('div', 'skill-icon');
-            if (iconUrl) {
-                skillIcon.style.backgroundImage = `url(${iconUrl})`;
-            }
+            const nameCell = document.createElement('td');
+            nameCell.className = 'text-left';
+            nameCell.innerHTML = `${iconUrl ? `<img src="${iconUrl}" class="skill-icon" alt="${skillName}" style="width:18px;height:18px;margin-right:6px;vertical-align:middle;">` : ''}<span class="skill-name" style="text-transform: capitalize;">${skillName}</span>`;
 
-            const skillInfo = el('div', 'skill-info');
-            const nameDiv = el('div', 'skill-name', [text(skillName)]);
+            const lvl = skill?.level ?? 1;
+            const xp = skill?.xp ?? 0;
 
-            const statsDiv = el('div', 'skill-stats');
-            statsDiv.appendChild(el('span', 'skill-level', [text(`Level ${skill.level}`)]));
-            statsDiv.appendChild(el('span', 'skill-xp', [text(`${skill.xp.toLocaleString()} XP`)]));
+            tr.appendChild(nameCell);
+            tr.appendChild(el('td', 'text-center', [text(String(lvl))]));
+            tr.appendChild(el('td', 'text-right tabular-nums', [text(xp.toLocaleString())]));
+            tr.appendChild(el('td', 'text-center', [text(rank ? `#${rank}` : '—')]));
 
-            if (rank) {
-                statsDiv.appendChild(el('span', 'skill-rank', [text(`Rank #${rank}`)]));
-            }
-
-            skillInfo.appendChild(nameDiv);
-            skillInfo.appendChild(statsDiv);
-
-            skillRow.appendChild(skillIcon);
-            skillRow.appendChild(skillInfo);
-
-            skillsGrid.appendChild(skillRow);
+            tbody.appendChild(tr);
         });
-
-        skillsSection.appendChild(skillsGrid);
-        wrap.appendChild(skillsSection);
 
         root.innerHTML = '';
         root.appendChild(wrap);
@@ -242,13 +266,26 @@ function setupSearch() {
 }
 
 // ---------- Delegation ----------
-document.addEventListener('click', e => { const btn = e.target.closest('.username-link'); if (btn) { const u = btn.getAttribute('data-user'); location.hash = 'user/' + encodeURIComponent(u); } if (e.target.id === 'themeToggle' || e.target.closest('#themeToggle')) toggleTheme(); });
+document.addEventListener('click', e => {
+    const btn = e.target.closest('.username-link');
+    if (btn) {
+        const u = btn.getAttribute('data-user');
+        location.hash = 'user/' + encodeURIComponent(u);
+    }
+    if (e.target.id === 'themeToggle' || e.target.closest('#themeToggle')) toggleTheme();
+    const brand = e.target.closest('.brand-link');
+    if (brand) {
+        e.preventDefault();
+        // SPA: go back to main leaderboard view without reload
+        location.hash = '';
+    }
+});
 
 window.addEventListener('hashchange', handleRoute);
 
 // Init
 (() => {
-    const savedTheme = localStorage.getItem('theme') || 'light'; setTheme(savedTheme); setupSearch(); handleRoute();
+    const savedTheme = localStorage.getItem('theme') || 'dark'; setTheme(savedTheme); setupSearch(); handleRoute();
     // Show current API base in footer
     const apiSpan = $('#currentApiBase');
     if (apiSpan && window.API_BASE) {

@@ -8,8 +8,8 @@ function el(tag, cls, children) { const e = document.createElement(tag); if (cls
 function toast(msg, type = 'info', timeout = 3000) { const c = $('#toastContainer'); const d = el('div', 'toast'); if (type === 'error') d.style.borderColor = 'var(--color-danger)'; d.textContent = msg; c.appendChild(d); setTimeout(() => d.remove(), timeout); }
 
 function setTheme(theme) { document.documentElement.setAttribute('data-theme', theme); localStorage.setItem('theme', theme); updateThemeToggle(); }
-function toggleTheme() { setTheme((localStorage.getItem('theme') || 'light') === 'light' ? 'dark' : 'light'); }
-function updateThemeToggle() { const btn = $('#themeToggle'); if (!btn) return; btn.innerHTML = ''; const i = document.createElement('i'); i.setAttribute('data-lucide', (localStorage.getItem('theme') || 'light') === 'light' ? 'moon' : 'sun'); btn.appendChild(i); if (window.lucide) window.lucide.createIcons(); }
+function toggleTheme() { setTheme((localStorage.getItem('theme') || 'dark') === 'light' ? 'dark' : 'light'); }
+function updateThemeToggle() { const btn = $('#themeToggle'); if (!btn) return; btn.innerHTML = ''; const i = document.createElement('i'); i.setAttribute('data-lucide', (localStorage.getItem('theme') || 'dark') === 'light' ? 'moon' : 'sun'); btn.appendChild(i); if (window.lucide) window.lucide.createIcons(); }
 
 // fetchJSON now global (common.js)
 async function loadSkillRankings(force = false) { if (cache.skillRankings && !force) return cache.skillRankings; cache.skillRankings = await fetchJSON('/api/skill-rankings'); return cache.skillRankings; }
@@ -37,6 +37,9 @@ function renderTable() {
 
         slice.forEach(r => {
             const tr = document.createElement('tr');
+            if (r.rank === 1) tr.classList.add('rank-1');
+            else if (r.rank === 2) tr.classList.add('rank-2');
+            else if (r.rank === 3) tr.classList.add('rank-3');
 
             const iconHtml = skillIcon ? `<img src="${skillIcon}" class="skill-icon" alt="${currentSkill}" style="width: 16px; height: 16px; margin-right: 4px; vertical-align: middle;">` : '';
 
@@ -57,13 +60,13 @@ function renderTable() {
         $('#pageTotal').textContent = String(totalPages);
 
         const statsEl = $('#skillStats');
-        if (filtered.length) {
+        if (statsEl && filtered.length) {
             const top = filtered[0];
             const highestXp = filtered.slice().sort((a, b) => b.xp - a.xp)[0];
             const avgLvl = (filtered.reduce((a, x) => a + x.level, 0) / filtered.length).toFixed(2);
             const skillIconHtml = skillIcon ? `<img src="${skillIcon}" style="width: 16px; height: 16px; margin-right: 4px; vertical-align: middle;" alt="${currentSkill}">` : '';
             statsEl.innerHTML = `${skillIconHtml}<strong>${currentSkill.charAt(0).toUpperCase() + currentSkill.slice(1)}</strong> • ${filtered.length} players • Top: ${top.username} (rank ${top.rank}) • Highest XP: ${highestXp.username} (${highestXp.xp.toLocaleString()}) • Avg Lvl: ${avgLvl}`;
-        } else {
+        } else if (statsEl) {
             statsEl.textContent = 'No results';
         }
     }).catch(e => {
@@ -104,7 +107,7 @@ function init() {
 
     select.value = currentSkill;
 
-    const theme = localStorage.getItem('theme') || 'light';
+    const theme = localStorage.getItem('theme') || 'dark';
     setTheme(theme);
 
     // apply stored perPage

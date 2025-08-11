@@ -1,10 +1,20 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full" data-theme="light" data-api-base="https://osrs-hiscores-clone.vs.workers.dev">
+<html lang="en" class="h-full" data-theme="dark" data-api-base="https://osrs-hiscores-clone.vs.workers.dev">
 
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Skill Hiscores • OSRS Clone</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+        <script>
+            // Apply saved theme early (default: dark) to avoid flash
+            (function () {
+                var t = localStorage.getItem('theme') || 'dark';
+                document.documentElement.setAttribute('data-theme', t);
+            })();
+        </script>
         <script src="https://cdn.tailwindcss.com"></script>
         <link rel="stylesheet" href="styles.css" />
         <script defer src="https://unpkg.com/lucide@latest"></script>
@@ -16,12 +26,15 @@
         <div class="min-h-full flex flex-col">
             <header class="osrs-header p-6 flex flex-wrap items-center gap-4 justify-between">
                 <div class="flex items-center gap-4">
-                    <div class="flex items-center gap-3">
-                        <a href="index.html" class="text-sm font-semibold text-gold hover:text-white transition-colors">
-                            ← Back to Home
+                    <h1 class="text-xl font-bold text-white">
+                        <a href="index.html" class="brand-link flex items-center gap-2">
+                            <span class="text-gold">⚔️ OSRS</span>
+                            <span>Hiscores</span>
                         </a>
-                        <div class="w-px h-6 bg-gold opacity-50"></div>
-                        <h1 class="font-bold text-white text-xl">⚡ Skill Hiscores</h1>
+                    </h1>
+                    <div class="w-px h-6 bg-gold opacity-50"></div>
+                    <div class="flex items-center gap-3">
+                        <span class="font-bold text-white text-xl">⚡ Skill Hiscores</span>
                     </div>
                 </div>
                 <div class="flex items-center gap-3 flex-wrap">
@@ -40,9 +53,7 @@
                     <button id="themeToggle" class="icon-button" title="Toggle Theme"></button>
                 </div>
             </header>
-            <main class="flex-1 p-6 flex flex-col gap-6">
-                <div id="skillStats"
-                    class="text-sm font-semibold text-muted bg-layer2 p-4 rounded-lg border-2 border-border"></div>
+            <main class="flex-1 p-6 flex flex-col gap-6 container-wrap">
                 <div class="osrs-table">
                     <table class="min-w-full text-sm" id="skillTable">
                         <thead>
