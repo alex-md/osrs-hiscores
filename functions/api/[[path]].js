@@ -85,6 +85,15 @@ async function fetchRandomWords(count = 2, existingUsernames = new Set()) {
     const randomChoice = (arr) => arr[Math.floor(Math.random() * arr.length)];
     const roll = (p) => Math.random() < p;
 
+    // --- simple anti-gibberish heuristics ---
+    const isAlpha = (w) => /^[a-z]+$/i.test(w);
+    const hasVowel = (w) => /[aeiou]/i.test(w);
+    const noLongConsonantRuns = (w) => !/[bcdfghjklmnpqrstvwxyz]{4,}/i.test(w);
+    const looksLikeWord = (w) => isAlpha(w) && hasVowel(w) && noLongConsonantRuns(w);
+
+    const GOOD_MIN = 3;
+    const GOOD_MAX = 12;
+
     async function fetchBatch(n) {
         while (true) {
             try {
@@ -99,46 +108,105 @@ async function fetchRandomWords(count = 2, existingUsernames = new Set()) {
         }
     }
 
+    function capFirst(w) {
+        return w.replace(/^[a-z]/, ch => ch.toUpperCase());
+    }
+
+    // Build without slicing inside words; return null if nothing clean fits <= 12.
     function buildName(w1, w2) {
-        const p = randInt(20, 30) / 100;
-        let useOneWord = roll(p);
-        let joiner = "";
-        if (!useOneWord && roll(p)) joiner = " ";
-        if (!useOneWord && roll(p)) joiner = randomChoice(["-", "_"]);
-        let base = useOneWord ? randomChoice([w1, w2]) : (w1 + joiner + w2);
-        if (roll(p)) base = base.replace(/^[a-z]/, ch => ch.toUpperCase());
-        if (roll(p)) {
-            const num = String(randInt(1, 999));
-            base = roll(0.5) ? (num + base) : (base + num);
+        const a = String(w1 || "").trim().toLowerCase();
+        const b = String(w2 || "").trim().toLowerCase();
+
+        const pool = [a, b].filter(w =>
+            w.length >= GOOD_MIN && w.length <= GOOD_MAX && looksLikeWord(w)
+        );
+
+        if (pool.length === 0) return null;
+
+        // prefer shorter words first to improve fit
+        const words = [...new Set(pool)].sort((x, y) => x.length - y.length);
+
+        const candidates = [];
+
+        // maybe try two-word combos (with joiners), but only if they fit whole within 12
+        if (words.length >= 2 && roll(0.6)) {
+            const wA = words[0], wB = words[1];
+            for (const j of ["", " ", "-", "_"]) {
+                const c1 = capFirst(wA) + j + capFirst(wB);
+                const c2 = capFirst(wB) + j + capFirst(wA);
+                if (c1.length <= 12) candidates.push(c1);
+                if (c2.length <= 12) candidates.push(c2);
+            }
         }
-        if (base.length > 12) base = base.slice(0, 12);
+
+        // always consider single-word options
+        for (const w of words) {
+            const c = capFirst(w);
+            if (c.length <= 12) candidates.push(c);
+        }
+
+        // nothing usable? bail
+        if (candidates.length === 0) return null;
+
+        // pick one, maybe add a numeric *suffix* (never prefix), still within 12
+        let base = randomChoice(candidates);
+        if (roll(0.25)) {
+            const suffix = String(randInt(1, 999));
+            if (base.length + suffix.length <= 12) base = base + suffix;
+        }
+
+        // guardrails: no leading digit, <=12 (already enforced)
+        if (/^\d/.test(base)) return null;
+
         return base;
     }
 
     const results = [];
-    const maxAttempts = count * 10;
+    const maxAttempts = count * 20; // a bit more slack—filters are stricter
     let attempts = 0;
+
     while (results.length < count && attempts < maxAttempts) {
-        const need = Math.max(2, (count - results.length) * 2);
+        const need = Math.max(6, (count - results.length) * 6); // fetch more to find good pairs
         const batch = await fetchBatch(need);
-        for (let i = 0; i + 1 < batch.length && results.length < count; i += 2) {
-            const w1 = String(batch[i] || "");
-            const w2 = String(batch[i + 1] || "");
-            const name = buildName(w1, w2);
+
+        // prefilter once
+        const good = batch.filter(w =>
+            typeof w === "string" &&
+            looksLikeWord(w) &&
+            w.length >= GOOD_MIN &&
+            w.length <= GOOD_MAX
+        );
+
+        for (let i = 0; i + 1 < good.length && results.length < count; i += 2) {
+            const name = buildName(good[i], good[i + 1]);
+            if (!name) { attempts++; continue; }
+
             const sanitizedName = sanitizeUsername(name);
-            if (sanitizedName && !existingUsernames.has(sanitizedName.toLowerCase())) {
-                results.push(name);
-                existingUsernames.add(sanitizedName.toLowerCase());
+            const key = sanitizedName.toLowerCase();
+
+            if (
+                sanitizedName &&
+                !/^\d/.test(sanitizedName) &&
+                sanitizedName.length <= 12 &&
+                !existingUsernames.has(key)
+            ) {
+                results.push(sanitizedName);               // return the clean version
+                existingUsernames.add(key);
             }
             attempts++;
         }
     }
+
     return results;
 }
 
 function sanitizeUsername(name) {
-    return name.replace(/[^a-zA-Z0-9_ -]/g, '').slice(0, 12);
+    // allow letters, digits, underscore, space, hyphen; trim leading separators
+    let n = String(name || "").replace(/[^a-zA-Z0-9_ -]/g, "");
+    n = n.replace(/^[_\-\s]+/, "");
+    return n.slice(0, 12); // hard cap—though we avoid mid-word slicing earlier
 }
+
 
 function newUser(username) {
     const skills = {};

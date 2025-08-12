@@ -88,10 +88,26 @@ async function fetchRandomWords(count = 2, existingUsernames = new Set()) {
     const randChoice = (arr) => arr[Math.floor(Math.random() * arr.length)];
     const roll = (p) => Math.random() < p;
 
+    // --- heuristics to avoid gibberish ---
+    const isAlpha = (w) => /^[a-z]+$/i.test(w);
+    const hasVowel = (w) => /[aeiou]/i.test(w);
+    const noLongConsonantRuns = (w) => !/[bcdfghjklmnpqrstvwxyz]{4,}/i.test(w);
+    const looksLikeWord = (w) => isAlpha(w) && hasVowel(w) && noLongConsonantRuns(w);
+
+    // Accept words 3..12 chars (12 to allow single-word usernames that exactly fit)
+    const GOOD_MIN = 3;
+    const GOOD_MAX = 12;
+
+    function normalize(u) {
+        return u.toLowerCase();
+    }
+
     async function fetchBatch(n) {
         while (true) {
             try {
-                const resp = await fetch(`https://random-word-api.herokuapp.com/word?number=${n}`, { cf: { cacheTtl: 60, cacheEverything: true } });
+                const resp = await fetch(`https://random-word-api.herokuapp.com/word?number=${n}`, {
+                    cf: { cacheTtl: 60, cacheEverything: true }
+                });
                 if (!resp.ok) throw new Error("bad status");
                 const data = await resp.json();
                 if (Array.isArray(data) && data.length) return data.map(String);
@@ -102,50 +118,129 @@ async function fetchRandomWords(count = 2, existingUsernames = new Set()) {
         }
     }
 
+    function capFirst(w) {
+        return w.replace(/^[a-z]/, ch => ch.toUpperCase());
+    }
+
+    // Build without ever slicing inside a word.
+    // Return null if we can't make a clean <=12 username.
     function buildName(w1, w2) {
-        const p = randInt(20, 30) / 100;
-        let useOneWord = roll(p);
-        let joiner = "";
-        if (!useOneWord && roll(p)) joiner = " ";
-        if (!useOneWord && roll(p)) joiner = randChoice(["-", "_"]);
-        let base = useOneWord ? randChoice([w1, w2]) : (w1 + joiner + w2);
-        if (roll(p)) base = base.replace(/^[a-z]/, ch => ch.toUpperCase());
-        if (roll(p)) {
-            const num = String(randInt(1, 999));
-            base = roll(0.5) ? (num + base) : (base + num);
+        // sanitize source words first
+        const a = String(w1 || "").trim();
+        const b = String(w2 || "").trim();
+
+        const pool = [a, b].filter(
+            w => w.length >= GOOD_MIN && w.length <= GOOD_MAX && looksLikeWord(w)
+        );
+        if (pool.length === 0) return null;
+
+        // maybe try two-word combo
+        const tryTwoWords = roll(0.5) && pool.length >= 2;
+        const joiners = ["", " ", "-", "_"];
+
+        // candidates list in preference order (shorter first helps fit within 12)
+        const words = [...new Set(pool.map(w => w.toLowerCase()))].sort((x, y) => x.length - y.length);
+
+        const combos = [];
+        if (tryTwoWords && words.length >= 2) {
+            const wA = words[0], wB = words[1];
+            for (const j of joiners) {
+                combos.push(capFirst(wA) + j + capFirst(wB));
+                combos.push(capFirst(wB) + j + capFirst(wA));
+            }
         }
-        if (base.length > 12) base = base.slice(0, 12);
+
+        // always consider single-word options
+        for (const w of words) combos.push(capFirst(w));
+
+        // filter to <= 12 and not starting with a digit (we never prefix digits anyway)
+        const clean = combos.filter(c => c.length <= 12 && !/^\d/.test(c));
+        if (clean.length === 0) return null;
+
+        // maybe add a numeric suffix (never prefix), keep within 12
+        let base = randChoice(clean);
+        if (roll(0.25)) {
+            const suffix = String(randInt(1, 999));
+            if (base.length + suffix.length <= 12) base = base + suffix;
+        }
+
+        // Final guardrails: still mustn’t start with a digit, must be whole words (it is), <=12.
+        if (/^\d/.test(base) || base.length > 12) return null;
+
         return base;
     }
 
     const results = [];
-    const maxAttempts = count * 10;
+    const maxAttempts = count * 20; // a bit more slack due to stricter filters
     let attempts = 0;
+
     while (results.length < count && attempts < maxAttempts) {
-        const need = Math.max(2, (count - results.length) * 2);
+        const need = Math.max(6, (count - results.length) * 6); // fetch larger batches to find good words
         const batch = await fetchBatch(need);
-        for (let i = 0; i + 1 < batch.length && results.length < count; i += 2) {
-            const w1 = String(batch[i] || "");
-            const w2 = String(batch[i + 1] || "");
+
+        // prefilter words once to reduce noise
+        const good = batch.filter(w =>
+            typeof w === "string" &&
+            looksLikeWord(w) &&
+            w.length >= GOOD_MIN &&
+            w.length <= GOOD_MAX
+        );
+
+        // walk pairs
+        for (let i = 0; i + 1 < good.length && results.length < count; i += 2) {
+            const w1 = good[i];
+            const w2 = good[i + 1];
+
             const name = buildName(w1, w2);
+            if (!name) { attempts++; continue; }
+
             const sanitizedName = sanitizeUsername(name);
-            if (sanitizedName && !existingUsernames.has(sanitizedName.toLowerCase())) {
-                results.push(name);
-                existingUsernames.add(sanitizedName.toLowerCase());
+            const key = normalize(sanitizedName);
+            if (
+                sanitizedName &&
+                !/^\d/.test(sanitizedName) &&
+                sanitizedName.length <= 12 &&
+                !existingUsernames.has(key)
+            ) {
+                results.push(sanitizedName);
+                existingUsernames.add(key);
             }
             attempts++;
         }
     }
+
     return results;
 }
 
-function sanitizeUsername(name) { return name.replace(/[^a-zA-Z0-9_ -]/g, '').slice(0, 12); }
+// keep it strict and short; no slicing mid-word happens before this point
+function sanitizeUsername(name) {
+    // allow letters, digits, underscore, space, hyphen
+    let n = String(name || "").replace(/[^a-zA-Z0-9_ -]/g, "");
+    // no leading spaces/hyphens/underscores
+    n = n.replace(/^[_\-\s]+/, "");
+    // hard cap (we already enforce complete words <=12)
+    return n.slice(0, 12);
+}
+
+// unchanged:
 function newUser(username) {
     const skills = {};
     SKILLS.forEach(s => { skills[s] = { xp: 0, level: 1 }; });
     skills.hitpoints.level = 10; skills.hitpoints.xp = 1154; // OSRS starting HP
-    return { username, createdAt: Date.now(), updatedAt: Date.now(), skills, totalLevel: totalLevel(skills), totalXP: totalXP(skills), activity: 'INACTIVE', archetype: assignRandomArchetype(), needsHpMigration: false, version: 2 };
+    return {
+        username,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        skills,
+        totalLevel: totalLevel(skills),
+        totalXP: totalXP(skills),
+        activity: 'INACTIVE',
+        archetype: assignRandomArchetype(),
+        needsHpMigration: false,
+        version: 2
+    };
 }
+
 function recalcTotals(user) { user.totalLevel = totalLevel(user.skills); user.totalXP = totalXP(user.skills); }
 function applyXpGain(user, skill, gainedXp) { const s = user.skills[skill]; s.xp += Math.floor(gainedXp); const newLevel = levelFromXp(s.xp); if (newLevel !== s.level) s.level = newLevel; }
 function simulateUserProgress(user, activityName, date = new Date()) {
