@@ -437,10 +437,8 @@ async function handleDeleteUsersBatch(env, request) {
     const inputPrefix = typeof payload?.prefix === 'string' ? payload.prefix : 'user:';
     // Restrict to only deleting user: namespace
     const prefix = inputPrefix === 'user:' ? 'user:' : 'user:';
-    const cursor = typeof payload?.cursor === 'string' ? payload.cursor : undefined;
 
     const keysToDelete = [];
-    let nextCursor = undefined;
 
     function kvKeyFromUsername(name) {
         const sanitized = sanitizeUsername(String(name || '').trim());
@@ -459,36 +457,40 @@ async function handleDeleteUsersBatch(env, request) {
             if (keysToDelete.length >= limit) break;
         }
     } else {
-        // Enumerate by prefix with optional age filter
-        const list = await env.HISCORES_KV.list({ prefix, limit, cursor });
-        nextCursor = list.list_complete ? undefined : list.cursor;
+        // Enumerate by prefix with optional age filter, auto-paginating until we collect up to `limit` items
+        let cursor;
+        do {
+            const page = await env.HISCORES_KV.list({ prefix, limit: Math.min(1000, limit), cursor });
+            cursor = page.list_complete ? undefined : page.cursor;
 
-        if (olderThanTs == null) {
-            // No extra filtering needed
-            for (const k of list.keys) keysToDelete.push(k.name);
-        } else {
-            // Need to fetch values to check timestamps
-            const chunkSize = 50;
-            for (let i = 0; i < list.keys.length && keysToDelete.length < limit; i += chunkSize) {
-                const slice = list.keys.slice(i, i + chunkSize);
-                const values = await Promise.all(slice.map(k => env.HISCORES_KV.get(k.name)));
-                for (let j = 0; j < values.length && keysToDelete.length < limit; j++) {
-                    const v = values[j];
-                    if (!v) continue;
-                    try {
-                        const obj = JSON.parse(v);
-                        const ts = Number(obj?.updatedAt || obj?.createdAt || 0);
-                        if (Number.isFinite(ts) && ts < olderThanTs) {
-                            keysToDelete.push(slice[j].name);
-                        }
-                    } catch (_) { /* skip malformed */ }
+            if (olderThanTs == null) {
+                for (const k of page.keys) {
+                    if (keysToDelete.length >= limit) break;
+                    keysToDelete.push(k.name);
+                }
+            } else {
+                const chunkSize = 50;
+                for (let i = 0; i < page.keys.length && keysToDelete.length < limit; i += chunkSize) {
+                    const slice = page.keys.slice(i, i + chunkSize);
+                    const values = await Promise.all(slice.map(k => env.HISCORES_KV.get(k.name)));
+                    for (let j = 0; j < values.length && keysToDelete.length < limit; j++) {
+                        const v = values[j];
+                        if (!v) continue;
+                        try {
+                            const obj = JSON.parse(v);
+                            const ts = Number(obj?.updatedAt || obj?.createdAt || 0);
+                            if (Number.isFinite(ts) && ts < olderThanTs) keysToDelete.push(slice[j].name);
+                        } catch (_) { /* skip malformed */ }
+                    }
                 }
             }
-        }
+
+            if (keysToDelete.length >= limit) break;
+        } while (cursor);
     }
 
     if (dryRun) {
-        return jsonResponse({ dryRun: true, count: keysToDelete.length, keys: keysToDelete, nextCursor });
+        return jsonResponse({ dryRun: true, count: keysToDelete.length, keys: keysToDelete });
     }
 
     // Perform deletions in small concurrent batches
@@ -499,7 +501,7 @@ async function handleDeleteUsersBatch(env, request) {
         await Promise.all(b.map(k => env.HISCORES_KV.delete(k).then(() => { deleted++; }).catch(() => { })));
     }
 
-    return jsonResponse({ deleted, requested: keysToDelete.length, nextCursor });
+    return jsonResponse({ deleted, requested: keysToDelete.length });
 }
 
 async function runScheduled(env) {
