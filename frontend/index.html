@@ -1,10 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full" data-theme="dark" data-api-base="https://osrs-hiscores-clone.vs.workers.dev" style="
-    font-size: smaller;">
+<html lang="en" class="h-full" data-theme="dark" data-api-base="https://osrs-hiscores-clone.vs.workers.dev">
 
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="color-scheme" content="light dark" />
+        <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f2e8" />
+        <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1a1611" />
         <title>OSRS Hiscores Clone</title>
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,8 +14,13 @@
         <script>
             // Apply saved theme early (default: dark) to avoid flash
             (function () {
-                var t = localStorage.getItem('theme') || 'dark';
-                document.documentElement.setAttribute('data-theme', t);
+                try {
+                    var saved = localStorage.getItem('theme');
+                    var t = saved || (matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+                    document.documentElement.setAttribute('data-theme', t);
+                } catch (_) {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                }
             })();
         </script>
         <script src="https://cdn.tailwindcss.com"></script>
@@ -25,37 +32,47 @@
 
     <body class="h-full bg-surface text-foreground transition-colors">
         <div id="app" class="min-h-full flex flex-col">
-            <header class="osrs-header p-6 flex items-center justify-between gap-4">
-                <div class="flex items-center gap-4">
-                    <h1 class="text-2xl font-bold text-white">
-                        <a href="#" class="brand-link flex items-center gap-2">
-                            <span class="text-gold">⚔️ OSRS</span>
-                            <span>Hiscores</span>
-                        </a>
-                    </h1>
-                    <div class="nav-pills">
+            <header
+                class="osrs-header px-6 py-4 flex items-center justify-between bg-dark/90 backdrop-blur-sm border-b border-gold/50">
+                <!-- Left Section: Logo + Nav -->
+                <div class="flex items-center gap-8">
+                    <!-- Brand -->
+                    <a href="#"
+                        class="flex items-center gap-2 text-2xl font-extrabold leading-none hover:text-gold transition-colors">
+                        <span class="text-gold">⚔️ OSRS</span>
+                        <span class="text-white">Hiscores</span>
+                    </a>
+
+                    <!-- Nav -->
+                    <nav class="flex items-center gap-4 text-base font-semibold">
                         <a href="#" class="nav-pill active" data-view="home">
                             🏆 Leaderboard
                         </a>
                         <a href="skill-hiscores.html" class="nav-pill">
                             ⚡ Skill Hiscores
                         </a>
-                    </div>
+                    </nav>
                 </div>
-                <div class="flex items-center gap-3 relative">
-                    <div class="relative">
+
+                <!-- Right Section: Search + Theme -->
+                <div class="flex items-center gap-3">
+                    <div class="relative flex items-center">
                         <input id="playerSearch" type="text" placeholder="Search player..."
-                            class="px-4 py-2 rounded bg-input border border-border focus:outline-none focus:ring-2 focus:ring-accent/60 text-sm min-w-64"
+                            class="px-4 py-2 h-10 rounded-md bg-input border border-border text-sm focus:outline-none focus:ring-2 focus:ring-gold"
                             aria-label="Search player" autocomplete="off" />
                         <div id="searchSuggest"
                             class="absolute mt-1 w-full bg-layer border border-border rounded shadow hidden max-h-64 overflow-auto text-sm z-20">
                         </div>
                     </div>
-                    <button id="themeToggle" class="icon-button" title="Toggle Theme"></button>
+
+                    <button id="themeToggle" class="icon-button" title="Toggle Theme">
+                        🌓
+                    </button>
                 </div>
             </header>
+
             <main class="flex-1 p-6 container-wrap" id="viewRoot"></main>
-            <footer class="p-4 text-xs text-muted text-center border-t-2 border-border-dark bg-layer">
+            <footer class="p-4 text-xs text-muted text-center border-t-2 border-border-dark bg-layer site-footer">
                 <div class="flex items-center justify-center gap-4 flex-wrap">
                     <span>⚔️ Mock OSRS Hiscores</span>
                     <span>•</span>

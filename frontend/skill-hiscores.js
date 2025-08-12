@@ -5,7 +5,7 @@ const cache = { skillRankings: null };
 
 function $(sel, root = document) { return root.querySelector(sel); }
 function el(tag, cls, children) { const e = document.createElement(tag); if (cls) e.className = cls; if (children) children.forEach(c => e.appendChild(c)); return e; }
-function toast(msg, type = 'info', timeout = 3000) { const c = $('#toastContainer'); const d = el('div', 'toast'); if (type === 'error') d.style.borderColor = 'var(--color-danger)'; d.textContent = msg; c.appendChild(d); setTimeout(() => d.remove(), timeout); }
+function toast(msg, type = 'info', timeout = 3000) { const c = $('#toastContainer'); const d = el('div', type === 'error' ? 'toast toast--error' : 'toast'); d.textContent = msg; c.appendChild(d); setTimeout(() => d.remove(), timeout); }
 
 function setTheme(theme) { document.documentElement.setAttribute('data-theme', theme); localStorage.setItem('theme', theme); updateThemeToggle(); }
 function toggleTheme() { setTheme((localStorage.getItem('theme') || 'dark') === 'light' ? 'dark' : 'light'); }
@@ -15,23 +15,25 @@ function updateThemeToggle() { const btn = $('#themeToggle'); if (!btn) return; 
 async function loadSkillRankings(force = false) { if (cache.skillRankings && !force) return cache.skillRankings; cache.skillRankings = await fetchJSON('/api/skill-rankings'); return cache.skillRankings; }
 
 let currentSkill = 'attack';
-let sortKey = 'rank';
-let sortDir = 1; // 1 asc, -1 desc
-let page = 1; let perPage = parseInt(localStorage.getItem('perPage') || '25') || 25;
+let page = 1;
+let perPage = 50; // fixed page size; can be adjusted if needed
 
-function applyFilters(data) { const name = $('#filterName').value.trim().toLowerCase(); const minLvl = parseInt($('#filterMinLvl').value) || 1; const maxLvl = parseInt($('#filterMaxLvl').value) || 99; return data.filter(r => r.level >= minLvl && r.level <= maxLvl && (!name || r.username.toLowerCase().includes(name))); }
-function sortData(data) { return [...data].sort((a, b) => { let av = a[sortKey]; let bv = b[sortKey]; if (typeof av === 'string') return av.localeCompare(bv) * sortDir; return (av - bv) * sortDir; }); }
+function applyNameFilter(rows) {
+    const q = ($('#filterName')?.value || '').trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter(r => r.username.toLowerCase().includes(q));
+}
 
 function renderTable() {
     loadSkillRankings().then(data => {
         const rows = data.rankings[currentSkill];
-        const filtered = applyFilters(rows);
-        const sorted = sortData(filtered);
+        const filtered = applyNameFilter(rows);
         const tableBody = $('#skillTable tbody');
         tableBody.innerHTML = '';
-        const totalPages = Math.max(1, Math.ceil(sorted.length / perPage));
+        const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
         if (page > totalPages) page = totalPages;
-        const slice = sorted.slice((page - 1) * perPage, page * perPage);
+        const start = (page - 1) * perPage;
+        const slice = filtered.slice(start, start + perPage);
 
         const skillIcon = window.getSkillIcon(currentSkill);
 
@@ -41,30 +43,30 @@ function renderTable() {
             else if (r.rank === 2) tr.classList.add('rank-2');
             else if (r.rank === 3) tr.classList.add('rank-3');
 
-            const iconHtml = skillIcon ? `<img src="${skillIcon}" class="skill-icon" alt="${currentSkill}" style="width: 16px; height: 16px; margin-right: 4px; vertical-align: middle;">` : '';
+            const iconHtml = skillIcon ? `<img src="${skillIcon}" class="skill-icon skill-icon--xs" alt="${currentSkill}">` : '';
 
             tr.innerHTML = `
                 <td class="text-center">${r.rank}</td>
                 <td>
-                    <a class="underline hover:text-accent" href="index.html#user/${encodeURIComponent(r.username)}" aria-label="View ${r.username} overall stats">
-                        ${r.username}
-                    </a>
+                    <a class="username-link" href="index.html#user/${encodeURIComponent(r.username)}" aria-label="View ${r.username} overall stats">${r.username}</a>
                 </td>
-                <td class="text-center">${r.level}</td>
-                <td class="text-right tabular-nums">${r.xp.toLocaleString()}</td>
+                <td class="text-center skill-level">${r.level}</td>
+                <td class="text-right skill-xp">${r.xp.toLocaleString()}</td>
             `;
             tableBody.appendChild(tr);
         });
 
-        $('#pageNum').textContent = String(page);
-        $('#pageTotal').textContent = String(totalPages);
+        // update pagination display
+        const num = $('#pageNum'); const tot = $('#pageTotal');
+        if (num) num.textContent = String(page);
+        if (tot) tot.textContent = String(totalPages);
 
         const statsEl = $('#skillStats');
         if (statsEl && filtered.length) {
             const top = filtered[0];
             const highestXp = filtered.slice().sort((a, b) => b.xp - a.xp)[0];
             const avgLvl = (filtered.reduce((a, x) => a + x.level, 0) / filtered.length).toFixed(2);
-            const skillIconHtml = skillIcon ? `<img src="${skillIcon}" style="width: 16px; height: 16px; margin-right: 4px; vertical-align: middle;" alt="${currentSkill}">` : '';
+            const skillIconHtml = skillIcon ? `<img src="${skillIcon}" class="skill-icon skill-icon--xs" alt="${currentSkill}">` : '';
             statsEl.innerHTML = `${skillIconHtml}<strong>${currentSkill.charAt(0).toUpperCase() + currentSkill.slice(1)}</strong> • ${filtered.length} players • Top: ${top.username} (rank ${top.rank}) • Highest XP: ${highestXp.username} (${highestXp.xp.toLocaleString()}) • Avg Lvl: ${avgLvl}`;
         } else if (statsEl) {
             statsEl.textContent = 'No results';
@@ -76,15 +78,22 @@ function renderTable() {
     });
 }
 
-function exportCsv() { loadSkillRankings().then(data => { const rows = data.rankings[currentSkill]; const filtered = applyFilters(rows); const header = 'rank,username,level,xp\n'; const body = filtered.map(r => `${r.rank},${r.username},${r.level},${r.xp}`).join('\n'); const blob = new Blob([header + body], { type: 'text/csv' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${currentSkill}-hiscores.csv`; document.body.appendChild(a); a.click(); a.remove(); }); }
+// Removed exportCsv and CSV export button handlers
 
-document.addEventListener('click', e => { if (e.target.id === 'themeToggle' || e.target.closest('#themeToggle')) toggleTheme(); if (e.target.closest('th.sortable')) { const th = e.target.closest('th'); const key = th.getAttribute('data-sort'); if (sortKey === key) sortDir *= -1; else { sortKey = key; sortDir = key === 'rank' ? 1 : -1; } renderTable(); } if (e.target.id === 'prevPage') { if (page > 1) { page--; renderTable(); } } if (e.target.id === 'nextPage') { const totalPages = parseInt($('#pageTotal').textContent) || 1; if (page < totalPages) { page++; renderTable(); } } if (e.target.id === 'exportCsv') exportCsv(); });
+document.addEventListener('click', e => {
+    if (e.target.id === 'themeToggle' || e.target.closest('#themeToggle')) toggleTheme();
+    if (e.target.id === 'prevPage') { if (page > 1) { page--; renderTable(); } }
+    if (e.target.id === 'nextPage') { page++; renderTable(); }
+    if (e.target.id === 'backButton' || e.target.closest && e.target.closest('#backButton')) {
+        e.preventDefault();
+        location.href = 'index.html';
+    }
+});
 
-$('#perPage').addEventListener('change', () => { perPage = parseInt($('#perPage').value) || 25; localStorage.setItem('perPage', String(perPage)); page = 1; renderTable(); });
+// name filter
 let filterDebounce; function queueFilterRender() { clearTimeout(filterDebounce); filterDebounce = setTimeout(() => { page = 1; renderTable(); }, 150); }
 $('#filterName').addEventListener('input', queueFilterRender);
-$('#filterMinLvl').addEventListener('input', queueFilterRender);
-$('#filterMaxLvl').addEventListener('input', queueFilterRender);
+// removed min/max level filters
 $('#skillSelect').addEventListener('change', () => { currentSkill = $('#skillSelect').value; page = 1; renderTable(); });
 
 function init() {
@@ -110,13 +119,7 @@ function init() {
     const theme = localStorage.getItem('theme') || 'dark';
     setTheme(theme);
 
-    // apply stored perPage
-    const perPageSelect = $('#perPage');
-    if (perPageSelect) {
-        [...perPageSelect.options].forEach(o => {
-            if (parseInt(o.value) === perPage) perPageSelect.value = o.value;
-        });
-    }
+    // perPage is fixed; page starts at 1
 
     // Show current API base in footer
     const apiSpan = $('#currentApiBase');

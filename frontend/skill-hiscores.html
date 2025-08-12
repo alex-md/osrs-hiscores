@@ -4,6 +4,9 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="color-scheme" content="light dark" />
+        <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f2e8" />
+        <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1a1611" />
         <title>Skill Hiscores • OSRS Clone</title>
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,8 +14,13 @@
         <script>
             // Apply saved theme early (default: dark) to avoid flash
             (function () {
-                var t = localStorage.getItem('theme') || 'dark';
-                document.documentElement.setAttribute('data-theme', t);
+                try {
+                    var saved = localStorage.getItem('theme');
+                    var t = saved || (matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+                    document.documentElement.setAttribute('data-theme', t);
+                } catch (_) {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                }
             })();
         </script>
         <script src="https://cdn.tailwindcss.com"></script>
@@ -24,44 +32,54 @@
 
     <body class="h-full bg-surface text-foreground">
         <div class="min-h-full flex flex-col">
-            <header class="osrs-header p-6 flex flex-wrap items-center gap-4 justify-between">
+            <header
+                class="osrs-header p-4 flex flex-wrap items-center justify-between bg-dark/80 backdrop-blur rounded-lg shadow-md gap-4">
+                <!-- Brand & Title -->
                 <div class="flex items-center gap-4">
-                    <h1 class="text-xl font-bold text-white">
-                        <a href="index.html" class="brand-link flex items-center gap-2">
+                    <h1 class="flex items-center gap-2 text-2xl font-extrabold text-white tracking-wide">
+                        <a href="index.html"
+                            class="brand-link flex items-center gap-2 hover:text-gold transition-colors">
                             <span class="text-gold">⚔️ OSRS</span>
                             <span>Hiscores</span>
                         </a>
                     </h1>
-                    <div class="w-px h-6 bg-gold opacity-50"></div>
-                    <div class="flex items-center gap-3">
-                        <span class="font-bold text-white text-xl">⚡ Skill Hiscores</span>
-                    </div>
+                    <div class="w-px h-6 bg-gold/50"></div>
+                    <span class="text-xl font-semibold text-white/90">⚡ Skill Hiscores</span>
                 </div>
-                <div class="flex items-center gap-3 flex-wrap">
-                    <select id="skillSelect"
-                        class="px-3 py-2 rounded bg-input border border-border text-sm font-semibold"></select>
+
+                <!-- Controls -->
+                <div class="flex items-center gap-3">
+                    <!-- Back Button -->
+                    <button id="backButton" class="icon-button" title="Back to Overall Hiscores">
+                        <svg class="lucide lucide-arrow-left w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none"
+                            viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                    </button>
+
+                    <!-- Skill Dropdown -->
+                    <select id="skillSelect" class="bg-input border border-border text-sm"></select>
+
+                    <!-- Search -->
                     <input id="filterName" placeholder="Search player..."
-                        class="px-3 py-2 rounded bg-input border border-border text-sm min-w-32" />
-                    <div class="flex items-center gap-2">
-                        <input id="filterMinLvl" type="number" min="1" max="99" placeholder="Min"
-                            class="w-16 px-2 py-2 rounded bg-input border border-border text-sm text-center" />
-                        <span class="text-gold font-semibold">-</span>
-                        <input id="filterMaxLvl" type="number" min="1" max="99" placeholder="Max"
-                            class="w-16 px-2 py-2 rounded bg-input border border-border text-sm text-center" />
-                    </div>
-                    <button id="exportCsv" class="btn-sm">📊 Export</button>
-                    <button id="themeToggle" class="icon-button" title="Toggle Theme"></button>
+                        class="bg-input border border-border text-sm min-w-32" />
+
+                    <!-- Theme Toggle -->
+                    <button id="themeToggle" class="icon-button" title="Toggle Theme">
+                        🌓
+                    </button>
                 </div>
             </header>
+
             <main class="flex-1 p-6 flex flex-col gap-6 container-wrap">
                 <div class="osrs-table">
                     <table class="min-w-full text-sm" id="skillTable">
                         <thead>
                             <tr>
-                                <th data-sort="rank" class="sortable w-20">Rank</th>
-                                <th data-sort="username" class="sortable text-left">Player</th>
-                                <th data-sort="level" class="sortable w-24">Level</th>
-                                <th data-sort="xp" class="sortable w-48">Experience</th>
+                                <th>Rank</th>
+                                <th class="text-left">Player</th>
+                                <th>Level</th>
+                                <th>Experience</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
@@ -77,17 +95,10 @@
                         Page <span id="pageNum" class="text-accent">1</span> of <span id="pageTotal"
                             class="text-accent">1</span>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <label class="font-semibold">Per Page:</label>
-                        <select id="perPage" class="px-2 py-1 rounded bg-input border border-border text-sm">
-                            <option>25</option>
-                            <option>50</option>
-                            <option>100</option>
-                        </select>
-                    </div>
+                    <div class="opacity-50">Showing ranked results</div>
                 </div>
             </main>
-            <footer class="p-4 text-xs text-muted text-center border-t-2 border-border-dark bg-layer">
+            <footer class="p-4 text-xs text-muted text-center border-t-2 border-border-dark bg-layer site-footer">
                 <div class="flex items-center justify-center gap-4 flex-wrap">
                     <span>⚔️ Mock OSRS Hiscores</span>
                     <span>•</span>

@@ -9,8 +9,7 @@ function text(t) { return document.createTextNode(t); }
 
 function toast(msg, type = 'info', timeout = 3000) {
     const container = $('#toastContainer');
-    const div = el('div', 'toast');
-    if (type === 'error') div.style.borderColor = 'var(--color-danger)';
+    const div = el('div', type === 'error' ? 'toast toast--error' : 'toast');
     div.textContent = msg;
     container.appendChild(div);
     setTimeout(() => div.remove(), timeout);
@@ -49,14 +48,14 @@ function renderHomeView() {
         text('🏆 Overall Leaderboard')
     ]));
 
-    const statsDiv = el('div', 'flex gap-2 flex-wrap');
+    const statsDiv = el('div', 'flex gap-3 flex-wrap text-muted text-sm');
     statsDiv.appendChild(el('div', 'badge', [text('Top 100 Players')]));
     section.appendChild(headerDiv);
 
     // Table wrapper with OSRS styling
     const tableWrap = el('div', 'osrs-table');
     const table = el('table', 'min-w-full');
-    table.innerHTML = `<thead><tr><th class="w-20">Rank</th><th class="text-left">Player</th><th class="w-32">Total Level</th><th class="w-40">Total Experience</th></tr></thead><tbody></tbody>`;
+    table.innerHTML = `<thead><tr><th>Rank</th><th class="text-left">Player</th><th>Total Level</th><th>Total Experience</th></tr></thead><tbody></tbody>`;
     tableWrap.appendChild(table);
     section.appendChild(tableWrap);
     root.appendChild(section);
@@ -82,12 +81,10 @@ function renderHomeView() {
             tr.innerHTML = `
                 <td class="text-center font-bold">${rankDisplay}</td>
                 <td>
-                    <button class="username-link" data-user="${p.username}" aria-label="View ${p.username} stats">
-                        ${p.username}
-                    </button>
+                    <button class="username-link" data-user="${p.username}" aria-label="View ${p.username} stats">${p.username}</button>
                 </td>
-                <td class="text-center font-semibold text-accent">${p.totalLevel}</td>
-                <td class="text-right tabular-nums font-mono">${p.totalXP.toLocaleString()}</td>
+                <td class="text-center skill-level">${p.totalLevel}</td>
+                <td class="text-right skill-xp">${p.totalXP.toLocaleString()}</td>
             `;
             tbody.appendChild(tr);
         });
@@ -95,8 +92,7 @@ function renderHomeView() {
         // Update stats
         if (data.totalPlayers > 0) {
             statsDiv.innerHTML = '';
-            statsDiv.appendChild(el('div', 'badge', [text(`${data.totalPlayers} Total Players`)]));
-            statsDiv.appendChild(el('div', 'badge', [text(`Updated: ${new Date(data.generatedAt).toLocaleTimeString()}`)]));
+            statsDiv.appendChild(el('div', 'badge', [text(`${data.totalPlayers} total players`)]));
             headerDiv.appendChild(statsDiv);
         }
     }).catch(e => {
@@ -123,12 +119,8 @@ function renderUserView(username) {
         const headerSection = el('div', 'bg-layer2 p-6 rounded-lg border-2 border-border-dark');
         const headerContent = el('div', 'flex items-center justify-between flex-wrap gap-4');
 
-        const userInfo = el('div', 'flex items-center gap-4');
-        userInfo.appendChild(el('h2', 'text-3xl font-bold text-foreground', [text(`⚔️ ${user.username}`)]));
-
-        const badges = el('div', 'flex gap-3 flex-wrap');
-        badges.appendChild(el('div', 'badge', [text(`Total Level ${user.totalLevel}`)]));
-        badges.appendChild(el('div', 'badge', [text(`${user.totalXP.toLocaleString()} XP`)]));
+        const userInfo = el('div', 'flex items-center gap-3 flex-wrap');
+        userInfo.appendChild(el('h3', 'font-bold text-foreground', [text(`⚔️ ${user.username}`)]));
 
         // Calculate combat level (simplified)
         const attack = user.skills.attack.level;
@@ -142,10 +134,19 @@ function renderUserView(username) {
         const combatLevel = Math.floor((defence + hitpoints + Math.floor(prayer / 2)) * 0.25 +
             Math.max(attack + strength, Math.max(ranged * 1.5, magic * 1.5)) * 0.325);
 
-        badges.appendChild(el('div', 'badge', [text(`Combat ${combatLevel}`)]));
+        // Inline metadata badges next to username
+        const meta = el('div', 'meta-badges text-sm flex items-center gap-2 flex-wrap');
+        meta.appendChild(el('span', 'meta-badge', [text(`Combat Lv. ${combatLevel}`)]));
+        {
+            const ts = user.createdAt || user.updatedAt || null;
+            if (ts) {
+                const createdStr = new Date(ts).toLocaleDateString();
+                meta.appendChild(el('span', 'meta-badge', [text(`User created on ${createdStr}`)]));
+            }
+        }
+        userInfo.appendChild(meta);
 
         headerContent.appendChild(userInfo);
-        headerContent.appendChild(badges);
         headerSection.appendChild(headerContent);
         wrap.appendChild(headerSection);
 
@@ -153,7 +154,6 @@ function renderUserView(username) {
         const section = el('section', 'flex flex-col gap-4');
         const headerRow = el('div', 'flex items-center justify-between');
         headerRow.appendChild(el('h3', 'text-2xl font-bold text-foreground', [text('📜 Hiscores')]));
-        headerRow.appendChild(el('div', 'badge', [text('Click a skill to view rankings')]));
         section.appendChild(headerRow);
 
         const tableWrap = el('div', 'osrs-table');
@@ -161,10 +161,10 @@ function renderUserView(username) {
         table.innerHTML = `
             <thead>
                 <tr>
-                    <th class="text-left">Skill</th>
-                    <th class="w-28">Level</th>
-                    <th class="w-44">Experience</th>
-                    <th class="w-28">Rank</th>
+            <th class="text-left">Skill</th>
+            <th>Level</th>
+            <th>Experience</th>
+            <th>Rank</th>
                 </tr>
             </thead>
             <tbody></tbody>
@@ -182,18 +182,7 @@ function renderUserView(username) {
             if (found) overallRank = found.rank;
         }
 
-        // Overall row first
-        const overallTr = document.createElement('tr');
-        overallTr.classList.add('overall-row');
-        overallTr.innerHTML = `
-            <td class="font-semibold">
-                🏆 Overall
-            </td>
-            <td class="text-center font-semibold text-accent">${user.totalLevel}</td>
-            <td class="text-right tabular-nums">${user.totalXP.toLocaleString()}</td>
-            <td class="text-center">${overallRank ? `#${overallRank}` : `Not in Top ${LEADERBOARD_LIMIT}`}</td>
-        `;
-        tbody.appendChild(overallTr);
+        // Removed overall totals row per request; focus on per-skill stats only
 
         // Per-skill rows
         SKILLS.forEach(skillName => {
@@ -220,15 +209,15 @@ function renderUserView(username) {
             const iconUrl = window.getSkillIcon(skillName);
             const nameCell = document.createElement('td');
             nameCell.className = 'text-left';
-            nameCell.innerHTML = `${iconUrl ? `<img src="${iconUrl}" class="skill-icon" alt="${skillName}" style="width:18px;height:18px;margin-right:6px;vertical-align:middle;">` : ''}<span class="skill-name" style="text-transform: capitalize;">${skillName}</span>`;
+            nameCell.innerHTML = `${iconUrl ? `<img src="${iconUrl}" class="skill-icon skill-icon--sm" alt="${skillName}">` : ''}<span class="skill-name text-capitalize">${skillName}</span>`;
 
             const lvl = skill?.level ?? 1;
             const xp = skill?.xp ?? 0;
 
             tr.appendChild(nameCell);
-            tr.appendChild(el('td', 'text-center', [text(String(lvl))]));
-            tr.appendChild(el('td', 'text-right tabular-nums', [text(xp.toLocaleString())]));
-            tr.appendChild(el('td', 'text-center', [text(rank ? `#${rank}` : '—')]));
+            tr.appendChild(el('td', 'text-center skill-level', [text(String(lvl))]));
+            tr.appendChild(el('td', 'text-right skill-xp', [text(xp.toLocaleString())]));
+            tr.appendChild(el('td', 'text-center skill-rank', [text(rank ? `#${rank}` : '—')]));
 
             tbody.appendChild(tr);
         });
@@ -285,7 +274,11 @@ window.addEventListener('hashchange', handleRoute);
 
 // Init
 (() => {
-    const savedTheme = localStorage.getItem('theme') || 'dark'; setTheme(savedTheme); setupSearch(); handleRoute();
+    const saved = localStorage.getItem('theme');
+    const startTheme = saved || (matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    setTheme(startTheme);
+    setupSearch();
+    handleRoute();
     // Show current API base in footer
     const apiSpan = $('#currentApiBase');
     if (apiSpan && window.API_BASE) {

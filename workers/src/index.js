@@ -301,10 +301,10 @@ async function handleLeaderboard(env, url) {
     const slice = users.slice(0, limit);
     return jsonResponse({ generatedAt: Date.now(), totalPlayers: users.length, returned: slice.length, players: slice.map(u => ({ username: u.username, totalLevel: u.totalLevel, totalXP: u.totalXP, rank: u.rank, updatedAt: u.updatedAt })) }, { headers: { 'cache-control': 'public, max-age=30' } });
 }
-async function handleUser(env, username) { const user = await getUser(env, username); if (!user) return notFound('User not found'); return jsonResponse(user); }
-async function handleUsersList(env) { const users = await getAllUsers(env); return jsonResponse({ users: users.map(u => u.username).sort() }); }
-async function handleSkillRankings(env) { const users = await getAllUsers(env); const rankings = {}; for (const skill of SKILLS) { const arr = users.map(u => ({ username: u.username, xp: u.skills[skill].xp, level: u.skills[skill].level })).sort((a, b) => b.xp - a.xp || a.username.localeCompare(b.username)); arr.forEach((r, i) => r.rank = i + 1); rankings[skill] = arr; } return jsonResponse({ generatedAt: Date.now(), rankings }); }
-function handleHealth() { return jsonResponse({ status: 'ok', time: Date.now() }); }
+async function handleUser(env, username) { const user = await getUser(env, username); if (!user) return notFound('User not found'); return jsonResponse(user, { headers: { 'cache-control': 'public, max-age=15' } }); }
+async function handleUsersList(env) { const users = await getAllUsers(env); return jsonResponse({ users: users.map(u => u.username).sort() }, { headers: { 'cache-control': 'public, max-age=120' } }); }
+async function handleSkillRankings(env) { const users = await getAllUsers(env); const rankings = {}; for (const skill of SKILLS) { const arr = users.map(u => ({ username: u.username, xp: u.skills[skill].xp, level: u.skills[skill].level })).sort((a, b) => b.xp - a.xp || a.username.localeCompare(b.username)); arr.forEach((r, i) => r.rank = i + 1); rankings[skill] = arr; } return jsonResponse({ generatedAt: Date.now(), rankings }, { headers: { 'cache-control': 'public, max-age=30' } }); }
+function handleHealth() { return jsonResponse({ status: 'ok', time: Date.now() }, { headers: { 'cache-control': 'no-store' } }); }
 async function handleCronTrigger(env) { const result = await runScheduled(env); return jsonResponse({ triggered: true, ...result }); }
 async function handleHitpointsMigration(env) { const users = await getAllUsers(env); let changed = 0; for (const u of users) { if (u.needsHpMigration) { if (migrateHitpoints(u)) changed++; await putUser(env, u); } } return jsonResponse({ migrated: changed }); }
 async function handleUserHpCheck(env, username) { const user = await getUser(env, username); if (!user) return notFound('User not found'); const hp = user.skills.hitpoints; const correct = levelFromXp(hp.xp); const needs = hp.level !== correct || user.needsHpMigration; return jsonResponse({ username: user.username, needsMigration: needs, currentLevel: hp.level, correctLevel: correct }); }
@@ -460,7 +460,8 @@ function jsonResponse(obj, init = {}) {
         'content-type': 'application/json',
         'access-control-allow-origin': '*',
         'access-control-allow-methods': 'GET,POST,OPTIONS',
-        'access-control-allow-headers': 'Content-Type, X-Admin-Token'
+        'access-control-allow-headers': 'Content-Type, X-Admin-Token',
+        'vary': 'Origin, Accept-Encoding'
     };
     const provided = init.headers || {};
     return new Response(JSON.stringify(obj), { ...init, headers: { ...baseHeaders, ...provided } });
