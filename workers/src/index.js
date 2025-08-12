@@ -336,6 +336,84 @@ async function handleSeed(env, request) {
     return jsonResponse({ seeded: results.filter(r => r.ok).length, total: results.length, results });
 }
 
+// Admin: delete users in batches (Worker version)
+async function handleDeleteUsersBatch(env, request) {
+    // Unprotected endpoint (requested). Use dryRun and limit as safety rails.
+    const url = new URL(request.url);
+    let payload = {};
+    try { if (request.headers.get('content-type')?.includes('application/json')) payload = await request.json(); } catch (_) { /* ignore */ }
+
+    const dryRun = Boolean(payload?.dryRun);
+    const limitRaw = Number(payload?.limit);
+    let limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.floor(limitRaw) : 100;
+    const HARD_CAP = 1000; if (limit > HARD_CAP) limit = HARD_CAP;
+
+    // Interpret olderThan as days (e.g., 1 => older than 1 day)
+    const olderThanInput = payload?.olderThan;
+    let olderThanTs = null;
+    if (olderThanInput !== undefined && olderThanInput !== null) {
+        const days = Number(olderThanInput);
+        if (Number.isFinite(days) && days > 0) {
+            olderThanTs = Date.now() - (days * 24 * 60 * 60 * 1000);
+        }
+    }
+
+    const byUsernames = Array.isArray(payload?.usernames) ? payload.usernames : null;
+    const cursor = typeof payload?.cursor === 'string' ? payload.cursor : undefined;
+
+    const keysToDelete = [];
+    let nextCursor = undefined;
+
+    function kvKeyFromUsername(name) {
+        const sanitized = sanitizeUsername(String(name || '').trim());
+        if (!sanitized) return null;
+        return `user:${sanitized.toLowerCase()}`;
+    }
+
+    if (byUsernames && byUsernames.length) {
+        const seen = new Set();
+        for (const raw of byUsernames) {
+            const key = kvKeyFromUsername(raw);
+            if (!key || seen.has(key)) continue;
+            seen.add(key);
+            keysToDelete.push(key);
+            if (keysToDelete.length >= limit) break;
+        }
+    } else {
+        const list = await env.HISCORES_KV.list({ prefix: 'user:', limit, cursor });
+        nextCursor = list.list_complete ? undefined : list.cursor;
+        if (olderThanTs == null) {
+            for (const k of list.keys) keysToDelete.push(k.name);
+        } else {
+            const chunkSize = 50;
+            for (let i = 0; i < list.keys.length && keysToDelete.length < limit; i += chunkSize) {
+                const slice = list.keys.slice(i, i + chunkSize);
+                const values = await Promise.all(slice.map(k => env.HISCORES_KV.get(k.name)));
+                for (let j = 0; j < values.length && keysToDelete.length < limit; j++) {
+                    const v = values[j]; if (!v) continue;
+                    try {
+                        const obj = JSON.parse(v);
+                        const ts = Number(obj?.updatedAt || obj?.createdAt || 0);
+                        if (Number.isFinite(ts) && ts < olderThanTs) keysToDelete.push(slice[j].name);
+                    } catch (_) { /* skip malformed */ }
+                }
+            }
+        }
+    }
+
+    if (dryRun) {
+        return jsonResponse({ dryRun: true, count: keysToDelete.length, keys: keysToDelete, nextCursor });
+    }
+
+    const chunk = (arr, n) => arr.reduce((acc, _, i) => (i % n ? acc : [...acc, arr.slice(i, i + n)]), []);
+    const batches = chunk(keysToDelete, 50);
+    let deleted = 0;
+    for (const b of batches) {
+        await Promise.all(b.map(k => env.HISCORES_KV.delete(k).then(() => { deleted++; }).catch(() => { })));
+    }
+    return jsonResponse({ deleted, requested: keysToDelete.length, nextCursor });
+}
+
 async function runScheduled(env) {
     await ensureInitialData(env);
     const users = await getAllUsers(env);
@@ -395,6 +473,7 @@ async function router(request, env) {
     if (path === '/api/cron/trigger' && method === 'POST') return handleCronTrigger(env);
     if (path === '/api/migrate/hitpoints' && method === 'POST') return handleHitpointsMigration(env);
     if (path === '/api/seed' && method === 'POST') return handleSeed(env, request);
+    if (path === '/api/admin/users/delete-batch' && method === 'POST') return handleDeleteUsersBatch(env, request);
     const userMatch = path.match(/^\/api\/users\/([^\/]+)$/); if (userMatch && method === 'GET') return handleUser(env, decodeURIComponent(userMatch[1]));
     const hpCheckMatch = path.match(/^\/api\/users\/([^\/]+)\/hitpoints-check$/); if (hpCheckMatch && method === 'GET') return handleUserHpCheck(env, decodeURIComponent(hpCheckMatch[1]));
     if (method === 'OPTIONS') return new Response(null, { headers: { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET,POST,OPTIONS', 'access-control-allow-headers': 'Content-Type, X-Admin-Token' } });
