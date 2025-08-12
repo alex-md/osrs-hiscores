@@ -348,15 +348,7 @@ async function handleDeleteUsersBatch(env, request) {
     let limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.floor(limitRaw) : 100;
     const HARD_CAP = 1000; if (limit > HARD_CAP) limit = HARD_CAP;
 
-    // Interpret olderThan as days (e.g., 1 => older than 1 day)
-    const olderThanInput = payload?.olderThan;
-    let olderThanTs = null;
-    if (olderThanInput !== undefined && olderThanInput !== null) {
-        const days = Number(olderThanInput);
-        if (Number.isFinite(days) && days > 0) {
-            olderThanTs = Date.now() - (days * 24 * 60 * 60 * 1000);
-        }
-    }
+    // No date filter; we'll randomly sample users to delete
 
     const byUsernames = Array.isArray(payload?.usernames) ? payload.usernames : null;
 
@@ -378,33 +370,22 @@ async function handleDeleteUsersBatch(env, request) {
             if (keysToDelete.length >= limit) break;
         }
     } else {
-        // Auto-paginate until we gather up to `limit` keys to delete
-        let cursor;
+        // Randomly sample users across all user:* keys via reservoir sampling
+        let cursor; let seen = 0; const reservoir = [];
         do {
-            const page = await env.HISCORES_KV.list({ prefix: 'user:', limit: Math.min(1000, limit), cursor });
+            const page = await env.HISCORES_KV.list({ prefix: 'user:', limit: 1000, cursor });
             cursor = page.list_complete ? undefined : page.cursor;
-            if (olderThanTs == null) {
-                for (const k of page.keys) {
-                    if (keysToDelete.length >= limit) break;
-                    keysToDelete.push(k.name);
-                }
-            } else {
-                const chunkSize = 50;
-                for (let i = 0; i < page.keys.length && keysToDelete.length < limit; i += chunkSize) {
-                    const slice = page.keys.slice(i, i + chunkSize);
-                    const values = await Promise.all(slice.map(k => env.HISCORES_KV.get(k.name)));
-                    for (let j = 0; j < values.length && keysToDelete.length < limit; j++) {
-                        const v = values[j]; if (!v) continue;
-                        try {
-                            const obj = JSON.parse(v);
-                            const ts = Number(obj?.updatedAt || obj?.createdAt || 0);
-                            if (Number.isFinite(ts) && ts < olderThanTs) keysToDelete.push(slice[j].name);
-                        } catch (_) { /* skip malformed */ }
-                    }
+            for (const k of page.keys) {
+                seen++;
+                if (reservoir.length < limit) {
+                    reservoir.push(k.name);
+                } else {
+                    const j = Math.floor(Math.random() * seen);
+                    if (j < limit) reservoir[j] = k.name;
                 }
             }
-            if (keysToDelete.length >= limit) break;
         } while (cursor);
+        keysToDelete.push(...reservoir);
     }
 
     if (dryRun) {
@@ -413,11 +394,27 @@ async function handleDeleteUsersBatch(env, request) {
 
     const chunk = (arr, n) => arr.reduce((acc, _, i) => (i % n ? acc : [...acc, arr.slice(i, i + n)]), []);
     const batches = chunk(keysToDelete, 50);
-    let deleted = 0;
+    let deleted = 0; let deletedRelated = 0;
     for (const b of batches) {
+        // Delete primary user keys
         await Promise.all(b.map(k => env.HISCORES_KV.delete(k).then(() => { deleted++; }).catch(() => { })));
+        // Delete related keys with prefix user:<name>:
+        for (const baseKey of b) {
+            const relPrefix = baseKey + ':';
+            let relCursor;
+            do {
+                const rel = await env.HISCORES_KV.list({ prefix: relPrefix, limit: 1000, cursor: relCursor });
+                relCursor = rel.list_complete ? undefined : rel.cursor;
+                if (rel.keys && rel.keys.length) {
+                    const relBatches = chunk(rel.keys.map(x => x.name), 50);
+                    for (const rb of relBatches) {
+                        await Promise.all(rb.map(rk => env.HISCORES_KV.delete(rk).then(() => { deletedRelated++; }).catch(() => { })));
+                    }
+                }
+            } while (relCursor);
+        }
     }
-    return jsonResponse({ deleted, requested: keysToDelete.length });
+    return jsonResponse({ deleted, deletedRelated, requested: keysToDelete.length });
 }
 
 async function runScheduled(env) {
