@@ -1,15 +1,6 @@
 // Skill Hiscores page logic
 // API_BASE, setApiBase, fetchJSON provided by common.js
-const SKILLS = ['attack', 'defence', 'strength', 'hitpoints', 'ranged', 'prayer', 'magic', 'cooking', 'woodcutting', 'fletching', 'fishing', 'firemaking', 'crafting', 'smithing', 'mining', 'herblore', 'agility', 'thieving', 'slayer', 'farming', 'runecraft', 'hunter', 'construction'];
 const cache = { skillRankings: null };
-
-function $(sel, root = document) { return root.querySelector(sel); }
-function el(tag, cls, children) { const e = document.createElement(tag); if (cls) e.className = cls; if (children) children.forEach(c => e.appendChild(c)); return e; }
-function toast(msg, type = 'info', timeout = 3000) { const c = $('#toastContainer'); const d = el('div', type === 'error' ? 'toast toast--error' : 'toast'); d.textContent = msg; c.appendChild(d); setTimeout(() => d.remove(), timeout); }
-
-function setTheme(theme) { document.documentElement.setAttribute('data-theme', theme); localStorage.setItem('theme', theme); updateThemeToggle(); }
-function toggleTheme() { setTheme((localStorage.getItem('theme') || 'dark') === 'light' ? 'dark' : 'light'); }
-function updateThemeToggle() { const btn = $('#themeToggle'); if (!btn) return; btn.innerHTML = ''; const i = document.createElement('i'); i.setAttribute('data-lucide', (localStorage.getItem('theme') || 'dark') === 'light' ? 'moon' : 'sun'); btn.appendChild(i); if (window.lucide) window.lucide.createIcons(); }
 
 // fetchJSON now global (common.js)
 async function loadSkillRankings(force = false) { if (cache.skillRankings && !force) return cache.skillRankings; cache.skillRankings = await fetchJSON('/api/skill-rankings'); return cache.skillRankings; }
@@ -37,24 +28,26 @@ function renderTable() {
 
         const skillIcon = window.getSkillIcon(currentSkill);
 
-        slice.forEach(r => {
-            const tr = document.createElement('tr');
-            if (r.rank === 1) tr.classList.add('rank-1');
-            else if (r.rank === 2) tr.classList.add('rank-2');
-            else if (r.rank === 3) tr.classList.add('rank-3');
+        if (slice.length === 0) {
+            tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4">No players found</td></tr>`;
+        } else {
+            slice.forEach(r => {
+                const tr = document.createElement('tr');
+                if (r.rank === 1) tr.classList.add('rank-1');
+                else if (r.rank === 2) tr.classList.add('rank-2');
+                else if (r.rank === 3) tr.classList.add('rank-3');
 
-            const iconHtml = skillIcon ? `<img src="${skillIcon}" class="skill-icon skill-icon--xs" alt="${currentSkill}">` : '';
-
-            tr.innerHTML = `
-                <td class="text-center">${r.rank}</td>
-                <td>
-                    <a class="username-link" href="index.html#user/${encodeURIComponent(r.username)}" aria-label="View ${r.username} overall stats">${r.username}</a>
-                </td>
-                <td class="text-center skill-level">${r.level}</td>
-                <td class="text-right skill-xp">${r.xp.toLocaleString()}</td>
-            `;
-            tableBody.appendChild(tr);
-        });
+                tr.innerHTML = `
+                    <td class="text-center">${r.rank}</td>
+                    <td>
+                        <a class="username-link" href="index.html#user/${encodeURIComponent(r.username)}" aria-label="View ${r.username} overall stats">${r.username}</a>
+                    </td>
+                    <td class="text-center skill-level">${r.level}</td>
+                    <td class="text-right skill-xp">${r.xp.toLocaleString()}</td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
 
         // update pagination display
         const num = $('#pageNum'); const tot = $('#pageTotal');

@@ -1,23 +1,6 @@
 // Frontend main application logic for OSRS Hiscores clone
 const LEADERBOARD_LIMIT = 500; // configurable cap for initial view
 const cache = { leaderboard: null, users: null, skillRankings: null, usersFetchedAt: 0 };
-const SKILLS = ['attack', 'defence', 'strength', 'hitpoints', 'ranged', 'prayer', 'magic', 'cooking', 'woodcutting', 'fletching', 'fishing', 'firemaking', 'crafting', 'smithing', 'mining', 'herblore', 'agility', 'thieving', 'slayer', 'farming', 'runecraft', 'hunter', 'construction'];
-
-function $(sel, root = document) { return root.querySelector(sel); }
-function el(tag, cls, children) { const e = document.createElement(tag); if (cls) e.className = cls; if (children) children.forEach(c => e.appendChild(c)); return e; }
-function text(t) { return document.createTextNode(t); }
-
-function toast(msg, type = 'info', timeout = 3000) {
-    const container = $('#toastContainer');
-    const div = el('div', type === 'error' ? 'toast toast--error' : 'toast');
-    div.textContent = msg;
-    container.appendChild(div);
-    setTimeout(() => div.remove(), timeout);
-}
-
-function setTheme(theme) { document.documentElement.setAttribute('data-theme', theme); localStorage.setItem('theme', theme); updateThemeToggle(); }
-function toggleTheme() { const cur = localStorage.getItem('theme') || 'dark'; setTheme(cur === 'light' ? 'dark' : 'light'); }
-function updateThemeToggle() { const btn = $('#themeToggle'); if (!btn) return; btn.innerHTML = ''; const theme = localStorage.getItem('theme') || 'dark'; const icon = document.createElement('i'); icon.setAttribute('data-lucide', theme === 'light' ? 'moon' : 'sun'); btn.appendChild(icon); if (window.lucide) window.lucide.createIcons(); }
 
 // fetchJSON & API_BASE now provided by common.js
 async function loadLeaderboard(force = false) { if (cache.leaderboard && !force) return cache.leaderboard; cache.leaderboard = await fetchJSON(`/api/leaderboard?limit=${LEADERBOARD_LIMIT}`); return cache.leaderboard; }

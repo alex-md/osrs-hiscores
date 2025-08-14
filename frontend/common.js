@@ -1,10 +1,14 @@
-// Shared API base + fetch utilities for OSRS Hiscores frontend
-// When using unified Cloudflare Pages deployment with _worker.js at repo root,
-// the API is same-origin under /api/* and no override is necessary.
+// Shared utilities for OSRS Hiscores frontend pages
+// Handles API base configuration plus exposes common DOM helpers and theme utilities
 (function () {
+    // allow overriding API base via ?api=
     const qApi = new URLSearchParams(location.search).get('api');
     if (qApi) localStorage.setItem('apiBaseOverride', qApi);
-    let apiBase = (localStorage.getItem('apiBaseOverride') || document.documentElement.getAttribute('data-api-base') || location.origin).replace(/\/$/, '');
+    let apiBase = (
+        localStorage.getItem('apiBaseOverride') ||
+        document.documentElement.getAttribute('data-api-base') ||
+        location.origin
+    ).replace(/\/$/, '');
 
     function setApiBase(newBase) {
         if (!newBase) return;
@@ -33,13 +37,88 @@
         }
     }
 
+    // -------- DOM & Theme helpers --------
+    function $(sel, root = document) {
+        return root.querySelector(sel);
+    }
+    function el(tag, cls, children) {
+        const e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (children) children.forEach(c => e.appendChild(c));
+        return e;
+    }
+    function text(t) {
+        return document.createTextNode(t);
+    }
+
+    function toast(msg, type = 'info', timeout = 3000) {
+        const container = $('#toastContainer');
+        const div = el('div', type === 'error' ? 'toast toast--error' : 'toast');
+        div.textContent = msg;
+        container.appendChild(div);
+        setTimeout(() => div.remove(), timeout);
+    }
+
+    function setTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('theme', theme);
+        updateThemeToggle();
+    }
+    function toggleTheme() {
+        const cur = localStorage.getItem('theme') || 'dark';
+        setTheme(cur === 'light' ? 'dark' : 'light');
+    }
+    function updateThemeToggle() {
+        const btn = $('#themeToggle');
+        if (!btn) return;
+        btn.innerHTML = '';
+        const icon = document.createElement('i');
+        icon.setAttribute('data-lucide', (localStorage.getItem('theme') || 'dark') === 'light' ? 'moon' : 'sun');
+        btn.appendChild(icon);
+        if (window.lucide) window.lucide.createIcons();
+    }
+
     // Expose
     window.API_BASE = apiBase;
     window.setApiBase = setApiBase;
     window.clearApiBase = clearApiBase;
     window.fetchJSON = fetchJSON;
+    window.$ = $;
+    window.el = el;
+    window.text = text;
+    window.toast = toast;
+    window.setTheme = setTheme;
+    window.toggleTheme = toggleTheme;
+    window.updateThemeToggle = updateThemeToggle;
 
-    // Skill icons and utilities
+    // Skills list and icons
+    const SKILLS = [
+        'attack',
+        'defence',
+        'strength',
+        'hitpoints',
+        'ranged',
+        'prayer',
+        'magic',
+        'cooking',
+        'woodcutting',
+        'fletching',
+        'fishing',
+        'firemaking',
+        'crafting',
+        'smithing',
+        'mining',
+        'herblore',
+        'agility',
+        'thieving',
+        'slayer',
+        'farming',
+        'runecraft',
+        'hunter',
+        'construction'
+    ];
+    window.SKILLS = SKILLS;
+
     const SKILL_ICONS = {
         'attack': 'https://oldschool.runescape.wiki/images/thumb/f/fe/Attack_icon.png/21px-Attack_icon.png',
         'defence': 'https://oldschool.runescape.wiki/images/thumb/b/b8/Defence_icon.png/21px-Defence_icon.png',
