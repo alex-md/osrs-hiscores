@@ -37,12 +37,13 @@ Endpoints:
 | ------ | ---- | ----------- |
 | GET | /api/health | Health check |
 | GET | /api/leaderboard | Overall leaderboard |
+| GET | /api/skill-rankings | Rankings for every skill |
 | GET | /api/users | List of all usernames |
 | GET | /api/users/:username | Player profile |
-| GET | /api/skill-rankings | Rankings for every skill |
+| GET | /api/users/:username/hitpoints-check | Check HP migration status |
+| POST | /api/admin/users/delete-batch | Batch delete users (admin token required) |
 | POST | /api/cron/trigger | Manually trigger scheduled simulation |
 | POST | /api/migrate/hitpoints | Run hitpoints migration (if flagged) |
-| GET | /api/users/:username/hitpoints-check | Check HP migration status |
 | POST | /api/seed | Bulk create users (admin token required) |
 
 ### Leaderboard Limiting
