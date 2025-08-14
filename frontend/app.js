@@ -9,7 +9,9 @@ const cache = {
 
 // fetchJSON & API_BASE now provided by common.js
 async function loadLeaderboard(force = false) {
-  if (cache.leaderboard && !force) return cache.leaderboard;
+  if (cache.leaderboard && !force) {
+    return cache.leaderboard;
+  }
   cache.leaderboard = await fetchJSON(
     `/api/leaderboard?limit=${LEADERBOARD_LIMIT}`,
   );
@@ -38,6 +40,57 @@ function getUserSkillRank(skillRankings, username, skill) {
   const skillData = skillRankings.rankings[skill];
   const playerData = skillData.find((p) => p.username === username);
   return playerData ? playerData.rank : null;
+}
+
+function updateSummary(user, skillRankings) {
+  const rankEl = $("#topRankSummary span");
+  const levelEl = $("#topLevelSummary span");
+  if (!rankEl || !levelEl) return;
+  if (!user) {
+    rankEl.textContent = "Highest rank: —";
+    levelEl.textContent = "Highest level: —";
+    return;
+  }
+
+  // Highest rank (lowest rank number)
+  let bestRank = Infinity;
+  let bestRankSkill = null;
+  SKILLS.forEach((s) => {
+    const r = getUserSkillRank(skillRankings, user.username, s);
+    if (r && r < bestRank) {
+      bestRank = r;
+      bestRankSkill = s;
+    }
+  });
+  if (bestRankSkill) {
+    const name =
+      bestRankSkill.charAt(0).toUpperCase() + bestRankSkill.slice(1);
+    rankEl.textContent = `Highest rank: ${name} (#${bestRank})`;
+  } else {
+    rankEl.textContent = "Highest rank: —";
+  }
+
+  // Highest level/XP
+  let bestLevel = -1;
+  let bestXp = -1;
+  let bestLevelSkill = null;
+  SKILLS.forEach((s) => {
+    const skill = user.skills[s];
+    const lvl = skill?.level || 1;
+    const xp = skill?.xp || 0;
+    if (lvl > bestLevel || (lvl === bestLevel && xp > bestXp)) {
+      bestLevel = lvl;
+      bestXp = xp;
+      bestLevelSkill = s;
+    }
+  });
+  if (bestLevelSkill) {
+    const name =
+      bestLevelSkill.charAt(0).toUpperCase() + bestLevelSkill.slice(1);
+    levelEl.textContent = `Highest level: ${name} (Lv. ${bestLevel}, ${bestXp.toLocaleString()} XP)`;
+  } else {
+    levelEl.textContent = "Highest level: —";
+  }
 }
 
 // ---------- Views ----------
@@ -225,7 +278,22 @@ function renderUserView(username) {
         if (found) overallRank = found.rank;
       }
 
-      // Removed overall totals row per request; focus on per-skill stats only
+      // Overall row
+      const totalLevel =
+        user.totalLevel ||
+        SKILLS.reduce((sum, s) => sum + (user.skills[s]?.level || 1), 0);
+      const totalXP =
+        user.totalXP ||
+        SKILLS.reduce((sum, s) => sum + (user.skills[s]?.xp || 0), 0);
+      const overallTr = document.createElement("tr");
+      overallTr.classList.add("font-bold");
+      overallTr.innerHTML = `
+          <td class="text-left">Overall</td>
+          <td class="text-center skill-level">${totalLevel}</td>
+          <td class="text-right skill-xp">${totalXP.toLocaleString()}</td>
+          <td class="text-center skill-rank">${overallRank ? "#" + overallRank : "—"}</td>
+        `;
+      tbody.appendChild(overallTr);
 
       // Per-skill rows
       SKILLS.forEach((skillName) => {
@@ -274,13 +342,14 @@ function renderUserView(username) {
 
         tbody.appendChild(tr);
       });
-
+      updateSummary(user, skillRankings);
       root.innerHTML = "";
       root.appendChild(wrap);
     })
     .catch(() => {
       root.innerHTML =
         '<div class="text-center py-8"><div class="text-danger text-xl font-semibold">❌ Player not found</div><div class="text-muted mt-2">The player you\'re looking for doesn\'t exist in our database.</div></div>';
+      updateSummary(null);
     });
 }
 
@@ -289,11 +358,13 @@ function handleRoute() {
   const hash = location.hash.slice(1);
   if (!hash) {
     renderHomeView();
+    updateSummary(null);
   } else if (hash.startsWith("user/")) {
     const u = decodeURIComponent(hash.split("/")[1]);
     renderUserView(u);
   } else {
     renderHomeView();
+    updateSummary(null);
   }
 }
 
