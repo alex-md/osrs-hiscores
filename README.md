@@ -23,6 +23,8 @@ osrs-hiscores/
 │   ├── app.js
 │   ├── skill-hiscores.js
 │   └── styles.css
+├── functions/
+│   └── api/[[path]].js
 └── workers/
     ├── src/index.js
     ├── wrangler.toml
@@ -81,18 +83,6 @@ User KV record (`user:<username>`):
 - `skill-hiscores.html` – Per-skill rankings with filters, sorting, pagination, CSV export.
 
 No build step required; served as static assets.
-
-### Unified Deployment (Cloudflare Pages + _worker.js)
-
-This repo includes a root `_worker.js` that lets Cloudflare Pages serve the static frontend and proxy `/api/*` to the Worker logic (imported from `workers/src/index.js`). With this setup:
-
-* Frontend fetches simply use relative paths (`/api/leaderboard`, etc.).
-* No `?api=` or `data-api-base` override is needed.
-* Bind the KV namespace as `HISCORES_KV` in the Pages project settings.
-* Optionally set `ADMIN_TOKEN` in Pages environment vars.
-* Cron scheduling still requires a classic Worker deployment or Pages Scheduled Functions (if available); you can keep a separate Worker deployed that shares the same KV namespace for cron while Pages handles user traffic.
-
-If you prefer separate origins, you can remove `_worker.js` and continue using a standalone Worker plus static hosting, supplying a `data-api-base` or `?api=` override.
 
 ### Frontend Enhancements (Recent)
 * Leaderboard now requests only top 500 by default (configurable in `app.js`).
