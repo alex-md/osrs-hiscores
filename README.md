@@ -94,6 +94,12 @@ This repo includes a root `_worker.js` that lets Cloudflare Pages serve the stat
 If you prefer separate origins, you can remove `_worker.js` and continue using a standalone Worker plus static hosting, supplying a `data-api-base` or `?api=` override.
 
 ### Frontend Enhancements (Recent)
+* Leaderboard now requests only top 500 by default (configurable in `app.js`).
+* Accessible, keyboard-navigable player search (Arrow Up/Down, Enter, Escape) with ARIA roles.
+* Skill hiscores remember "per page" preference via `localStorage`.
+* Basic loading / error states for the leaderboard table.
+* Debounced filtering for skill hiscores to reduce re-render thrash.
+
 ### Seeding Users (Admin Only)
 
 To bulk add starter users run (replace token):
@@ -105,11 +111,6 @@ curl -X POST "https://<your-worker-domain>/api/seed?token=YOUR_ADMIN_TOKEN" \
 ```
 
 Alternatively pass the token via `x-admin-token` header. The worker rejects seeding if `ADMIN_TOKEN` is unset or left at the placeholder value.
-* Leaderboard now requests only top 500 by default (configurable in `app.js`).
-* Accessible, keyboard-navigable player search (Arrow Up/Down, Enter, Escape) with ARIA roles.
-* Skill hiscores remember "per page" preference via `localStorage`.
-* Basic loading / error states for the leaderboard table.
-* Debounced filtering for skill hiscores to reduce re-render thrash.
 
 ## Development
 
