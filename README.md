@@ -39,12 +39,13 @@ Endpoints:
 | ------ | ---- | ----------- |
 | GET | /api/health | Health check |
 | GET | /api/leaderboard | Overall leaderboard |
+| GET | /api/skill-rankings | Rankings for every skill |
 | GET | /api/users | List of all usernames |
 | GET | /api/users/:username | Player profile |
-| GET | /api/skill-rankings | Rankings for every skill |
+| GET | /api/users/:username/hitpoints-check | Check HP migration status |
+| POST | /api/admin/users/delete-batch | Batch delete users (admin token required) |
 | POST | /api/cron/trigger | Manually trigger scheduled simulation |
 | POST | /api/migrate/hitpoints | Run hitpoints migration (if flagged) |
-| GET | /api/users/:username/hitpoints-check | Check HP migration status |
 | POST | /api/seed | Bulk create users (admin token required) |
 
 ### Leaderboard Limiting
@@ -84,6 +85,12 @@ User KV record (`user:<username>`):
 No build step required; served as static assets.
 
 ### Frontend Enhancements (Recent)
+* Leaderboard now requests only top 500 by default (configurable in `app.js`).
+* Accessible, keyboard-navigable player search (Arrow Up/Down, Enter, Escape) with ARIA roles.
+* Skill hiscores remember "per page" preference via `localStorage`.
+* Basic loading / error states for the leaderboard table.
+* Debounced filtering for skill hiscores to reduce re-render thrash.
+
 ### Seeding Users (Admin Only)
 
 To bulk add starter users run (replace token):
@@ -95,11 +102,6 @@ curl -X POST "https://<your-worker-domain>/api/seed?token=YOUR_ADMIN_TOKEN" \
 ```
 
 Alternatively pass the token via `x-admin-token` header. The worker rejects seeding if `ADMIN_TOKEN` is unset or left at the placeholder value.
-* Leaderboard now requests only top 500 by default (configurable in `app.js`).
-* Accessible, keyboard-navigable player search (Arrow Up/Down, Enter, Escape) with ARIA roles.
-* Skill hiscores remember "per page" preference via `localStorage`.
-* Basic loading / error states for the leaderboard table.
-* Debounced filtering for skill hiscores to reduce re-render thrash.
 
 ## Development
 
