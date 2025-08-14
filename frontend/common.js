@@ -100,6 +100,11 @@
     if (window.lucide) window.lucide.createIcons();
   }
 
+  document.addEventListener("DOMContentLoaded", () => {
+    if (window.lucide) window.lucide.createIcons();
+    updateThemeToggle();
+  });
+
   // Expose
   window.API_BASE = apiBase;
   window.setApiBase = setApiBase;
