@@ -10,7 +10,10 @@
         <title>Skill Hiscores • OSRS Clone</title>
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
+            rel="stylesheet"
+        />
         <script>
             // Apply saved theme early (default: dark) to avoid flash
             (function () {
@@ -44,7 +47,10 @@
                         </a>
                     </h1>
                     <div class="w-px h-6 bg-gold/50"></div>
-                    <span class="text-xl font-semibold text-white/90">⚡ Skill Hiscores</span>
+                    <span class="flex items-center gap-2 text-xl font-semibold text-white/90">
+                        <i data-lucide="zap" class="w-5 h-5"></i>
+                        Skill Hiscores
+                    </span>
                 </div>
 
                 <!-- Controls -->
@@ -66,43 +72,82 @@
 
                     <!-- Theme Toggle -->
                     <button id="themeToggle" class="icon-button" title="Toggle Theme">
-                        🌓
+                        <i data-lucide="sun" class="w-5 h-5"></i>
                     </button>
                 </div>
             </header>
-
-            <main class="flex-1 p-6 flex flex-col gap-6 container-wrap">
-                <div class="osrs-table">
-                    <table class="min-w-full text-sm" id="skillTable">
-                        <thead>
-                            <tr>
-                                <th>Rank</th>
-                                <th class="text-left">Player</th>
-                                <th>Level</th>
-                                <th>Experience</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-                <div
-                    class="flex items-center justify-between gap-4 text-sm flex-wrap bg-layer2 p-4 rounded-lg border-2 border-border">
-                    <div class="flex items-center gap-3">
-                        <button id="prevPage" class="btn-sm">← Previous</button>
-                        <button id="nextPage" class="btn-sm">Next →</button>
-                    </div>
-                    <div class="font-semibold">
-                        Page <span id="pageNum" class="text-accent">1</span> of <span id="pageTotal"
-                            class="text-accent">1</span>
-                    </div>
-                    <div class="opacity-50">Showing ranked results</div>
+            <main class="flex-1 p-6 container-wrap">
+                <nav aria-label="Breadcrumb" class="breadcrumb mb-4">
+                    <ol>
+                        <li>
+                            <a href="index.html" class="flex items-center gap-1 hover:text-accent">
+                                <i data-lucide="home" class="w-4 h-4"></i>
+                                Home
+                            </a>
+                        </li>
+                        <li class="breadcrumb-sep">/</li>
+                        <li class="text-foreground">Skill Hiscores</li>
+                    </ol>
+                </nav>
+                <div class="main-grid">
+                    <aside class="sidebar card">
+                        <nav class="flex flex-col gap-3">
+                            <a href="index.html" class="flex items-center gap-2 hover:text-accent">
+                                <i data-lucide="trophy" class="w-4 h-4"></i>
+                                Overview
+                            </a>
+                            <details class="group" open>
+                                <summary class="flex items-center gap-2 cursor-pointer hover:text-accent">
+                                    <i data-lucide="zap" class="w-4 h-4"></i>
+                                    Skills
+                                </summary>
+                                <ul id="sidebarSkillList" class="mt-2 pl-6 flex flex-col gap-1 text-sm"></ul>
+                            </details>
+                        </nav>
+                        <details class="collapse mt-4">
+                            <summary class="font-semibold cursor-pointer flex items-center gap-2">
+                                <i data-lucide="info" class="w-4 h-4"></i>
+                                About
+                            </summary>
+                            <p class="mt-2 text-sm">
+                                Rankings for individual skills with optional filters.
+                            </p>
+                        </details>
+                    </aside>
+                    <section class="space-y-6">
+                        <div class="osrs-table">
+                            <table class="min-w-full text-sm" id="skillTable">
+                                <thead>
+                                    <tr>
+                                        <th>Rank</th>
+                                        <th class="text-left">Player</th>
+                                        <th>Level</th>
+                                        <th>Experience</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                        <div
+                            class="flex items-center justify-between gap-4 text-sm flex-wrap bg-layer2 p-4 rounded-lg border-2 border-border">
+                            <div class="flex items-center gap-3">
+                                <button id="prevPage" class="btn-sm">← Previous</button>
+                                <button id="nextPage" class="btn-sm">Next →</button>
+                            </div>
+                            <div class="font-semibold">
+                                Page <span id="pageNum" class="text-accent">1</span> of <span id="pageTotal"
+                                    class="text-accent">1</span>
+                            </div>
+                            <div class="opacity-50">Showing ranked results</div>
+                        </div>
+                    </section>
                 </div>
             </main>
             <footer class="p-4 text-xs text-muted text-center border-t-2 border-border-dark bg-layer site-footer">
                 <div class="flex items-center justify-center gap-4 flex-wrap">
                     <span>⚔️ Mock OSRS Hiscores</span>
                     <span>•</span>
-                    <span>🌩️ Powered by Cloudflare Workers</span>
+                    <span data-tooltip="Serverless platform">🌩️ Powered by Cloudflare Workers</span>
                 </div>
                 <div class="mt-2 opacity-60 text-xs">
                     API: <span id="currentApiBase"></span>

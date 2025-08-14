@@ -9,10 +9,16 @@ const cache = {
 
 // fetchJSON & API_BASE now provided by common.js
 async function loadLeaderboard(force = false) {
-  if (cache.leaderboard && !force) return cache.leaderboard;
+  if (cache.leaderboard && !force) {
+    const cb = $("#statusLoaded");
+    if (cb) cb.checked = true;
+    return cache.leaderboard;
+  }
   cache.leaderboard = await fetchJSON(
     `/api/leaderboard?limit=${LEADERBOARD_LIMIT}`,
   );
+  const cb = $("#statusLoaded");
+  if (cb) cb.checked = true;
   return cache.leaderboard;
 }
 async function loadUsers(force = false) {
@@ -287,13 +293,17 @@ function renderUserView(username) {
 // ---------- Routing ----------
 function handleRoute() {
   const hash = location.hash.slice(1);
+  const playerCb = $("#statusPlayer");
   if (!hash) {
     renderHomeView();
+    if (playerCb) playerCb.checked = false;
   } else if (hash.startsWith("user/")) {
     const u = decodeURIComponent(hash.split("/")[1]);
+    if (playerCb) playerCb.checked = true;
     renderUserView(u);
   } else {
     renderHomeView();
+    if (playerCb) playerCb.checked = false;
   }
 }
 

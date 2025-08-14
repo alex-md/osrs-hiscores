@@ -10,7 +10,10 @@
         <title>OSRS Hiscores Clone</title>
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
+            rel="stylesheet"
+        />
         <script>
             // Apply saved theme early (default: dark) to avoid flash
             (function () {
@@ -45,11 +48,13 @@
 
                     <!-- Nav -->
                     <nav class="flex items-center gap-4 text-base font-semibold">
-                        <a href="#" class="nav-pill active" data-view="home">
-                            🏆 Leaderboard
+                        <a href="#" class="nav-pill active" data-view="home" data-tooltip="Overall rankings">
+                            <i data-lucide="trophy" class="w-4 h-4"></i>
+                            <span>Leaderboard</span>
                         </a>
-                        <a href="skill-hiscores.html" class="nav-pill">
-                            ⚡ Skill Hiscores
+                        <a href="skill-hiscores.html" class="nav-pill" data-tooltip="View by skill">
+                            <i data-lucide="zap" class="w-4 h-4"></i>
+                            <span>Skill Hiscores</span>
                         </a>
                     </nav>
                 </div>
@@ -66,17 +71,75 @@
                     </div>
 
                     <button id="themeToggle" class="icon-button" title="Toggle Theme">
-                        🌓
+                        <i data-lucide="sun" class="w-5 h-5"></i>
                     </button>
                 </div>
             </header>
 
-            <main class="flex-1 p-6 container-wrap" id="viewRoot"></main>
+            <main class="flex-1 p-6 container-wrap">
+                <nav aria-label="Breadcrumb" class="breadcrumb mb-4">
+                    <ol>
+                        <li>
+                            <a href="#" class="flex items-center gap-1 hover:text-accent">
+                                <i data-lucide="home" class="w-4 h-4"></i>
+                                Home
+                            </a>
+                        </li>
+                        <li class="breadcrumb-sep">/</li>
+                        <li class="text-foreground">Leaderboard</li>
+                    </ol>
+                </nav>
+                <div class="main-grid">
+                    <aside class="sidebar card">
+                        <nav class="flex flex-col gap-3">
+                            <a href="#" class="flex items-center gap-2 hover:text-accent">
+                                <i data-lucide="list" class="w-4 h-4"></i>
+                                Overview
+                            </a>
+                            <details class="group">
+                                <summary class="flex items-center gap-2 cursor-pointer hover:text-accent">
+                                    <i data-lucide="zap" class="w-4 h-4"></i>
+                                    Skills
+                                </summary>
+                                <ul id="sidebarSkillList" class="mt-2 pl-6 flex flex-col gap-1 text-sm"></ul>
+                            </details>
+                        </nav>
+                        <details class="collapse mt-4">
+                            <summary class="font-semibold cursor-pointer flex items-center gap-2">
+                                <i data-lucide="filter" class="w-4 h-4"></i>
+                                Filters
+                            </summary>
+                            <div class="mt-2 text-sm space-y-1">
+                                <label class="flex items-center gap-2">
+                                    <input type="checkbox" checked /> Ranked only
+                                </label>
+                                <label class="flex items-center gap-2">
+                                    <input type="checkbox" /> Include unranked
+                                </label>
+                            </div>
+                        </details>
+                        <div class="checklist mt-4">
+                            <h2 class="text-sm font-semibold mb-2">Summary</h2>
+                            <ul class="space-y-1 text-sm">
+                                <li class="flex items-center gap-2">
+                                    <input id="statusLoaded" type="checkbox" disabled title="Shows when the leaderboard data has loaded." />
+                                    Leaderboard loaded
+                                </li>
+                                <li class="flex items-center gap-2">
+                                    <input id="statusPlayer" type="checkbox" disabled title="Checked when a player is selected." />
+                                    Player selected
+                                </li>
+                            </ul>
+                        </div>
+                    </aside>
+                    <section id="viewRoot" class="space-y-4"></section>
+                </div>
+            </main>
             <footer class="p-4 text-xs text-muted text-center border-t-2 border-border-dark bg-layer site-footer">
                 <div class="flex items-center justify-center gap-4 flex-wrap">
                     <span>⚔️ Mock OSRS Hiscores</span>
                     <span>•</span>
-                    <span>🌩️ Powered by Cloudflare Workers</span>
+                    <span data-tooltip="Serverless platform">🌩️ Powered by Cloudflare Workers</span>
                     <span>•</span>
                     <a href="skill-hiscores.html" class="underline hover:text-accent">Skill Hiscores</a>
                 </div>

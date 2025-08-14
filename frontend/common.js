@@ -100,6 +100,13 @@
     if (window.lucide) window.lucide.createIcons();
   }
 
+  document.addEventListener("DOMContentLoaded", () => {
+    if (window.lucide) window.lucide.createIcons();
+    updateThemeToggle();
+    const skillRoot = document.getElementById("sidebarSkillList");
+    if (skillRoot) populateSkillLinks(skillRoot);
+  });
+
   // Expose
   window.API_BASE = apiBase;
   window.setApiBase = setApiBase;
@@ -195,4 +202,33 @@
   }
 
   window.getSkillIcon = getSkillIcon;
+
+  function populateSkillLinks(root) {
+    if (!root) return;
+    const params = new URLSearchParams(location.search);
+    const hashParams = new URLSearchParams(location.hash.slice(1));
+    const active = params.get("skill") || hashParams.get("skill");
+    SKILLS.forEach((s) => {
+      const li = document.createElement("li");
+      const link = document.createElement("a");
+      link.href = `skill-hiscores.html?skill=${s}`;
+      link.className = "flex items-center gap-2 hover:text-accent";
+      if (active === s) link.classList.add("text-accent", "font-semibold");
+      const icon = getSkillIcon(s);
+      if (icon) {
+        const img = document.createElement("img");
+        img.src = icon;
+        img.alt = s;
+        img.className = "skill-icon skill-icon--xs";
+        link.appendChild(img);
+      }
+      const span = document.createElement("span");
+      span.textContent = s.charAt(0).toUpperCase() + s.slice(1);
+      link.appendChild(span);
+      li.appendChild(link);
+      root.appendChild(li);
+    });
+  }
+
+  window.populateSkillLinks = populateSkillLinks;
 })();

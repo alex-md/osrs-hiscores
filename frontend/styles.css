@@ -14,8 +14,8 @@
   --color-input: #ffffff;
   --color-danger: #dc2626;
   --color-success: #16a34a;
-  --root-font-scale: 0.85;
-  --body-font-scale: 0.9;
+  --root-font-scale: 1;
+  --body-font-scale: 1;
   --shadow-sm: 0 2px 4px rgba(45, 24, 16, 0.1), 0 0 0 1px rgba(196, 164, 132, 0.3);
   --shadow-md: 0 4px 6px rgba(45, 24, 16, 0.15), 0 2px 4px rgba(45, 24, 16, 0.06);
   --shadow-lg: 0 10px 15px rgba(45, 24, 16, 0.15), 0 4px 6px rgba(45, 24, 16, 0.05);
@@ -36,8 +36,8 @@
   --color-input: #3d3226;
   --color-danger: #ff6b6b;
   --color-success: #51cf66;
-  --root-font-scale: 0.85;
-  --body-font-scale: 0.9;
+  --root-font-scale: 1;
+  --body-font-scale: 1;
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(92, 77, 58, 0.4);
   --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.2);
   --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.4), 0 4px 6px rgba(0, 0, 0, 0.15);
@@ -48,10 +48,22 @@ html {
 }
 
 body {
-  font-family: "Press Start 2P", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  font-size: calc(10px * var(--body-font-scale));
-  line-height: 1.4;
-  background: var(--color-bg-surface) radial-gradient(circle at 25% 25%, rgba(196, 164, 132, 0.1) 0, transparent 50%), radial-gradient(circle at 75% 75%, rgba(196, 164, 132, 0.05) 0, transparent 50%);
+  font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-size: calc(16px * var(--body-font-scale));
+  line-height: 1.6;
+  background: var(--color-bg-surface)
+    radial-gradient(circle at 25% 25%, rgba(196, 164, 132, 0.1) 0, transparent 50%),
+    radial-gradient(circle at 75% 75%, rgba(196, 164, 132, 0.05) 0, transparent 50%);
+}
+
+h1 {
+  font-size: 32px;
+  line-height: 1.3;
+}
+
+h2 {
+  font-size: 24px;
+  line-height: 1.3;
 }
 
 /* --- Layout & Grid --- */
@@ -102,6 +114,105 @@ body {
 
 .grid-auto-fit {
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+/* --- Modern Layout Enhancements --- */
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .main-grid {
+    grid-template-columns: 220px 1fr;
+  }
+}
+
+.sidebar {
+  position: sticky;
+  top: 1.5rem;
+  align-self: start;
+}
+
+.card {
+  background: var(--color-bg-layer);
+  background-image: linear-gradient(
+    135deg,
+    var(--color-bg-layer),
+    var(--color-bg-layer2)
+  );
+  border-radius: 0.5rem;
+  box-shadow: var(--shadow-md);
+  padding: 1rem;
+  transition: box-shadow 0.2s ease;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-lg);
+}
+
+.breadcrumb ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.breadcrumb-sep {
+  opacity: 0.6;
+}
+
+.collapse summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+}
+
+.collapse summary::-webkit-details-marker {
+  display: none;
+}
+
+.checklist ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.checklist input[type='checkbox'] {
+  accent-color: var(--color-accent);
+}
+
+.checklist input[type='checkbox'][disabled] {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+[data-tooltip] {
+  position: relative;
+  cursor: help;
+}
+
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translate(-50%, 0.5rem);
+  white-space: nowrap;
+  background: var(--color-bg-layer2);
+  color: var(--color-foreground);
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  opacity: 0;
+  pointer-events: none;
+  box-shadow: var(--shadow-sm);
+  transition: opacity 0.2s ease;
+  z-index: 10;
+}
+
+[data-tooltip]:hover::after {
+  opacity: 1;
 }
 
 /* --- Common Property Groupings --- */
