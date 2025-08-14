@@ -3,230 +3,29 @@
 // Data stored in KV using key pattern: user:<username>
 /* eslint-disable no-restricted-globals */
 
-const SKILLS = [
-    'attack', 'defence', 'strength', 'hitpoints', 'ranged', 'prayer', 'magic', 'cooking', 'woodcutting', 'fletching', 'fishing', 'firemaking', 'crafting', 'smithing', 'mining', 'herblore', 'agility', 'thieving', 'slayer', 'farming', 'runecraft', 'hunter', 'construction'
-];
+import {
+    SKILLS,
+    PLAYER_ACTIVITY_TYPES,
+    PLAYER_ARCHETYPES,
+    ARCHETYPE_TO_ACTIVITY_PROBABILITY,
+    SKILL_POPULARITY
+} from './constants.js';
+import {
+    weekendBonusMultiplier,
+    levelFromXp,
+    totalLevel,
+    totalXP,
+    weightedRandomChoice,
+    assignRandomArchetype,
+    sanitizeUsername,
+    fetchRandomWords
+} from './utils.js';
 
-// More granular activity types for a session
-const PLAYER_ACTIVITY_TYPES = {
-    INACTIVE: { xpRange: [0, 100] },
-    BANK_STANDING: { xpRange: [100, 500] },
-    CASUAL: { xpRange: [500, 3000] },
-    FOCUSED: { xpRange: [3000, 12000] },
-    HARDCORE: { xpRange: [12000, 50000] },
-    GRINDING: { xpRange: [50000, 150000] },
-    UNHEALTHY: { xpRange: [150000, 400000] },
-};
-
-// Player archetypes define long-term playstyle and are assigned once per user
-const PLAYER_ARCHETYPES = {
-    IDLER: { weight: 15 },
-    CASUAL: { weight: 45 },
-    FOCUSED: { weight: 25 },
-    HARDCORE: { weight: 10 },
-    ELITE_GRINDER: { weight: 5 },
-};
-
-// Determines the probability of a session activity based on a player's archetype
-const ARCHETYPE_TO_ACTIVITY_PROBABILITY = {
-    IDLER: { INACTIVE: 60, BANK_STANDING: 30, CASUAL: 10, FOCUSED: 0, HARDCORE: 0, GRINDING: 0, UNHEALTHY: 0 },
-    CASUAL: { INACTIVE: 20, BANK_STANDING: 40, CASUAL: 30, FOCUSED: 10, HARDCORE: 0, GRINDING: 0, UNHEALTHY: 0 },
-    FOCUSED: { INACTIVE: 5, BANK_STANDING: 15, CASUAL: 40, FOCUSED: 35, HARDCORE: 5, GRINDING: 0, UNHEALTHY: 0 },
-    HARDCORE: { INACTIVE: 1, BANK_STANDING: 4, CASUAL: 15, FOCUSED: 40, HARDCORE: 35, GRINDING: 5, UNHEALTHY: 0 },
-    ELITE_GRINDER: { INACTIVE: 0, BANK_STANDING: 1, CASUAL: 4, FOCUSED: 20, HARDCORE: 40, GRINDING: 30, UNHEALTHY: 5 },
-};
-
-const SKILL_POPULARITY = {
-    attack: 1.1, defence: 1.0, strength: 1.15, hitpoints: 1.05, ranged: 1.05, prayer: 0.6, magic: 1.1,
-    cooking: 0.9, woodcutting: 0.85, fletching: 0.75, fishing: 0.9, firemaking: 0.7, crafting: 0.65,
-    smithing: 0.7, mining: 0.85, herblore: 0.55, agility: 0.6, thieving: 0.7, slayer: 0.8, farming: 0.6,
-    runecraft: 0.4, hunter: 0.65, construction: 0.5
-};
-
-function weekendBonusMultiplier(date = new Date()) {
-    const day = date.getUTCDay();
-    return (day === 6 || day === 0) ? 1.15 : 1.0;
-}
-
-function levelFromXp(xp) {
-    let points = 0;
-    let output = 1;
-    for (let lvl = 1; lvl <= 99; lvl++) {
-        points += Math.floor(lvl + 300 * Math.pow(2, lvl / 7));
-        const exp = Math.floor(points / 4);
-        if (exp > xp) return lvl;
-        output = lvl;
-    }
-    return output;
-}
-
-function totalLevel(skills) { return SKILLS.reduce((sum, s) => sum + (skills[s]?.level || 1), 0); }
-function totalXP(skills) { return SKILLS.reduce((sum, s) => sum + (skills[s]?.xp || 0), 0); }
-function randomChoice(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-
-// Generic function to make a weighted random choice from an object of weights.
-function weightedRandomChoice(choices) {
-    const totalWeight = Object.values(choices).reduce((sum, weight) => sum + weight, 0);
-    if (totalWeight <= 0) return Object.keys(choices)[0] || null;
-    let r = Math.random() * totalWeight;
-    for (const [name, weight] of Object.entries(choices)) {
-        if ((r -= weight) <= 0) return name;
-    }
-    return Object.keys(choices)[0];
-}
-
-function assignRandomArchetype() {
-    const choices = Object.fromEntries(
-        Object.entries(PLAYER_ARCHETYPES).map(([name, data]) => [name, data.weight])
-    );
-    return weightedRandomChoice(choices);
-}
-
-async function fetchRandomWords(count = 2, existingUsernames = new Set()) {
-    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-    const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min; // inclusive
-    const randChoice = (arr) => arr[Math.floor(Math.random() * arr.length)];
-    const roll = (p) => Math.random() < p;
-
-    // --- heuristics to avoid gibberish ---
-    const isAlpha = (w) => /^[a-z]+$/i.test(w);
-    const hasVowel = (w) => /[aeiou]/i.test(w);
-    const noLongConsonantRuns = (w) => !/[bcdfghjklmnpqrstvwxyz]{4,}/i.test(w);
-    const looksLikeWord = (w) => isAlpha(w) && hasVowel(w) && noLongConsonantRuns(w);
-
-    // Accept words 3..12 chars (12 to allow single-word usernames that exactly fit)
-    const GOOD_MIN = 3;
-    const GOOD_MAX = 12;
-
-    function normalize(u) {
-        return u.toLowerCase();
-    }
-
-    async function fetchBatch(n) {
-        while (true) {
-            try {
-                const resp = await fetch(`https://random-word-api.herokuapp.com/word?number=${n}`, {
-                    cf: { cacheTtl: 60, cacheEverything: true }
-                });
-                if (!resp.ok) throw new Error("bad status");
-                const data = await resp.json();
-                if (Array.isArray(data) && data.length) return data.map(String);
-            } catch (_) {
-                // ignore and retry after a couple seconds
-            }
-            await sleep(2000);
-        }
-    }
-
-    function capFirst(w) {
-        return w.replace(/^[a-z]/, ch => ch.toUpperCase());
-    }
-
-    // Build without ever slicing inside a word.
-    // Return null if we can't make a clean <=12 username.
-    function buildName(w1, w2) {
-        // sanitize source words first
-        const a = String(w1 || "").trim();
-        const b = String(w2 || "").trim();
-
-        const pool = [a, b].filter(
-            w => w.length >= GOOD_MIN && w.length <= GOOD_MAX && looksLikeWord(w)
-        );
-        if (pool.length === 0) return null;
-
-        // maybe try two-word combo
-        const tryTwoWords = roll(0.5) && pool.length >= 2;
-        const joiners = ["", " ", "-", "_"];
-
-        // candidates list in preference order (shorter first helps fit within 12)
-        const words = [...new Set(pool.map(w => w.toLowerCase()))].sort((x, y) => x.length - y.length);
-
-        const combos = [];
-        if (tryTwoWords && words.length >= 2) {
-            const wA = words[0], wB = words[1];
-            for (const j of joiners) {
-                combos.push(capFirst(wA) + j + capFirst(wB));
-                combos.push(capFirst(wB) + j + capFirst(wA));
-            }
-        }
-
-        // always consider single-word options
-        for (const w of words) combos.push(capFirst(w));
-
-        // filter to <= 12 and not starting with a digit (we never prefix digits anyway)
-        const clean = combos.filter(c => c.length <= 12 && !/^\d/.test(c));
-        if (clean.length === 0) return null;
-
-        // maybe add a numeric suffix (never prefix), keep within 12
-        let base = randChoice(clean);
-        if (roll(0.25)) {
-            const suffix = String(randInt(1, 999));
-            if (base.length + suffix.length <= 12) base = base + suffix;
-        }
-
-        // Final guardrails: still mustn’t start with a digit, must be whole words (it is), <=12.
-        if (/^\d/.test(base) || base.length > 12) return null;
-
-        return base;
-    }
-
-    const results = [];
-    const maxAttempts = count * 20; // a bit more slack due to stricter filters
-    let attempts = 0;
-
-    while (results.length < count && attempts < maxAttempts) {
-        const need = Math.max(6, (count - results.length) * 6); // fetch larger batches to find good words
-        const batch = await fetchBatch(need);
-
-        // prefilter words once to reduce noise
-        const good = batch.filter(w =>
-            typeof w === "string" &&
-            looksLikeWord(w) &&
-            w.length >= GOOD_MIN &&
-            w.length <= GOOD_MAX
-        );
-
-        // walk pairs
-        for (let i = 0; i + 1 < good.length && results.length < count; i += 2) {
-            const w1 = good[i];
-            const w2 = good[i + 1];
-
-            const name = buildName(w1, w2);
-            if (!name) { attempts++; continue; }
-
-            const sanitizedName = sanitizeUsername(name);
-            const key = normalize(sanitizedName);
-            if (
-                sanitizedName &&
-                !/^\d/.test(sanitizedName) &&
-                sanitizedName.length <= 12 &&
-                !existingUsernames.has(key)
-            ) {
-                results.push(sanitizedName);
-                existingUsernames.add(key);
-            }
-            attempts++;
-        }
-    }
-
-    return results;
-}
-
-// keep it strict and short; no slicing mid-word happens before this point
-function sanitizeUsername(name) {
-    // allow letters, digits, underscore, space, hyphen
-    let n = String(name || "").replace(/[^a-zA-Z0-9_ -]/g, "");
-    // no leading spaces/hyphens/underscores
-    n = n.replace(/^[_\-\s]+/, "");
-    // hard cap (we already enforce complete words <=12)
-    return n.slice(0, 12);
-}
-
-// unchanged:
 function newUser(username) {
     const skills = {};
     SKILLS.forEach(s => { skills[s] = { xp: 0, level: 1 }; });
-    skills.hitpoints.level = 10; skills.hitpoints.xp = 1154; // OSRS starting HP
+    skills.hitpoints.level = 10;
+    skills.hitpoints.xp = 1154; // OSRS starting HP
     return {
         username,
         createdAt: Date.now(),
@@ -241,20 +40,46 @@ function newUser(username) {
     };
 }
 
-function recalcTotals(user) { user.totalLevel = totalLevel(user.skills); user.totalXP = totalXP(user.skills); }
-function applyXpGain(user, skill, gainedXp) { const s = user.skills[skill]; s.xp += Math.floor(gainedXp); const newLevel = levelFromXp(s.xp); if (newLevel !== s.level) s.level = newLevel; }
+function recalcTotals(user) {
+    user.totalLevel = totalLevel(user.skills);
+    user.totalXP = totalXP(user.skills);
+}
+
+function applyXpGain(user, skill, gainedXp) {
+    const s = user.skills[skill];
+    s.xp += Math.floor(gainedXp);
+    const newLevel = levelFromXp(s.xp);
+    if (newLevel !== s.level) s.level = newLevel;
+}
+
 function simulateUserProgress(user, activityName, date = new Date()) {
-    const act = PLAYER_ACTIVITY_TYPES[activityName]; if (!act || act.xpRange[1] === 0) return;
-    const [minXp, maxXp] = act.xpRange; const weekendMult = weekendBonusMultiplier(date); let budget = (Math.random() * (maxXp - minXp) + minXp) * weekendMult;
+    const act = PLAYER_ACTIVITY_TYPES[activityName];
+    if (!act || act.xpRange[1] === 0) return;
+    const [minXp, maxXp] = act.xpRange;
+    const weekendMult = weekendBonusMultiplier(date);
+    let budget = (Math.random() * (maxXp - minXp) + minXp) * weekendMult;
     const skillsChosen = [...SKILLS].sort(() => Math.random() - 0.5).slice(0, Math.ceil(Math.random() * 5));
     let totalWeight = skillsChosen.reduce((a, s) => a + (SKILL_POPULARITY[s] || 1), 0);
     for (const skill of skillsChosen) {
-        const w = SKILL_POPULARITY[skill] || 1; const portion = budget * (w / totalWeight) * (0.8 + Math.random() * 0.4); applyXpGain(user, skill, portion);
+        const w = SKILL_POPULARITY[skill] || 1;
+        const portion = budget * (w / totalWeight) * (0.8 + Math.random() * 0.4);
+        applyXpGain(user, skill, portion);
     }
-    user.updatedAt = Date.now(); recalcTotals(user);
+    user.updatedAt = Date.now();
+    recalcTotals(user);
 }
+
 function migrateHitpoints(user) {
-    const hp = user.skills.hitpoints; const correctLevel = levelFromXp(hp.xp); if (hp.level !== correctLevel) { hp.level = correctLevel; user.needsHpMigration = false; recalcTotals(user); return true; } else { user.needsHpMigration = false; return false; }
+    const hp = user.skills.hitpoints;
+    const correctLevel = levelFromXp(hp.xp);
+    if (hp.level !== correctLevel) {
+        hp.level = correctLevel;
+        user.needsHpMigration = false;
+        recalcTotals(user);
+        return true;
+    }
+    user.needsHpMigration = false;
+    return false;
 }
 
 async function getAllUsers(env) {
@@ -268,14 +93,23 @@ async function getAllUsers(env) {
         for (let i = 0; i < keys.length; i += chunkSize) {
             const slice = keys.slice(i, i + chunkSize);
             const values = await Promise.all(slice.map(k => env.HISCORES_KV.get(k)));
-            values.forEach(v => { if (v) { try { users.push(JSON.parse(v)); } catch (_) { } } });
+            values.forEach(v => { if (v) { try { users.push(JSON.parse(v)); } catch (_) {} } });
         }
         if (list.list_complete) break;
     } while (cursor);
     return users;
 }
-async function putUser(env, user) { await env.HISCORES_KV.put(`user:${user.username.toLowerCase()}`, JSON.stringify(user)); }
-async function getUser(env, username) { const raw = await env.HISCORES_KV.get(`user:${username.toLowerCase()}`); if (!raw) return null; try { return JSON.parse(raw); } catch (_) { return null; } }
+
+async function putUser(env, user) {
+    await env.HISCORES_KV.put(`user:${user.username.toLowerCase()}`, JSON.stringify(user));
+}
+
+async function getUser(env, username) {
+    const raw = await env.HISCORES_KV.get(`user:${username.toLowerCase()}`);
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch (_) { return null; }
+}
+
 async function ensureInitialData(env) {
     const existing = await env.HISCORES_KV.list({ prefix: 'user:', limit: 1 });
     if (existing.keys.length === 0) {
@@ -299,15 +133,73 @@ async function handleLeaderboard(env, url) {
     const HARD_CAP = 5000;
     if (limit > HARD_CAP) limit = HARD_CAP;
     const slice = users.slice(0, limit);
-    return jsonResponse({ generatedAt: Date.now(), totalPlayers: users.length, returned: slice.length, players: slice.map(u => ({ username: u.username, totalLevel: u.totalLevel, totalXP: u.totalXP, rank: u.rank, updatedAt: u.updatedAt })) }, { headers: { 'cache-control': 'public, max-age=30' } });
+    return jsonResponse({
+        generatedAt: Date.now(),
+        totalPlayers: users.length,
+        returned: slice.length,
+        players: slice.map(u => ({
+            username: u.username,
+            totalLevel: u.totalLevel,
+            totalXP: u.totalXP,
+            rank: u.rank,
+            updatedAt: u.updatedAt
+        }))
+    }, { headers: { 'cache-control': 'public, max-age=30' } });
 }
-async function handleUser(env, username) { const user = await getUser(env, username); if (!user) return notFound('User not found'); return jsonResponse(user, { headers: { 'cache-control': 'public, max-age=15' } }); }
-async function handleUsersList(env) { const users = await getAllUsers(env); return jsonResponse({ users: users.map(u => u.username).sort() }, { headers: { 'cache-control': 'public, max-age=120' } }); }
-async function handleSkillRankings(env) { const users = await getAllUsers(env); const rankings = {}; for (const skill of SKILLS) { const arr = users.map(u => ({ username: u.username, xp: u.skills[skill].xp, level: u.skills[skill].level })).sort((a, b) => b.xp - a.xp || a.username.localeCompare(b.username)); arr.forEach((r, i) => r.rank = i + 1); rankings[skill] = arr; } return jsonResponse({ generatedAt: Date.now(), rankings }, { headers: { 'cache-control': 'public, max-age=30' } }); }
-function handleHealth() { return jsonResponse({ status: 'ok', time: Date.now() }, { headers: { 'cache-control': 'no-store' } }); }
-async function handleCronTrigger(env) { const result = await runScheduled(env); return jsonResponse({ triggered: true, ...result }); }
-async function handleHitpointsMigration(env) { const users = await getAllUsers(env); let changed = 0; for (const u of users) { if (u.needsHpMigration) { if (migrateHitpoints(u)) changed++; await putUser(env, u); } } return jsonResponse({ migrated: changed }); }
-async function handleUserHpCheck(env, username) { const user = await getUser(env, username); if (!user) return notFound('User not found'); const hp = user.skills.hitpoints; const correct = levelFromXp(hp.xp); const needs = hp.level !== correct || user.needsHpMigration; return jsonResponse({ username: user.username, needsMigration: needs, currentLevel: hp.level, correctLevel: correct }); }
+
+async function handleUser(env, username) {
+    const user = await getUser(env, username);
+    if (!user) return notFound('User not found');
+    return jsonResponse(user, { headers: { 'cache-control': 'public, max-age=15' } });
+}
+
+async function handleUsersList(env) {
+    const users = await getAllUsers(env);
+    return jsonResponse({ users: users.map(u => u.username).sort() }, { headers: { 'cache-control': 'public, max-age=120' } });
+}
+
+async function handleSkillRankings(env) {
+    const users = await getAllUsers(env);
+    const rankings = {};
+    for (const skill of SKILLS) {
+        const arr = users
+            .map(u => ({ username: u.username, xp: u.skills[skill].xp, level: u.skills[skill].level }))
+            .sort((a, b) => b.xp - a.xp || a.username.localeCompare(b.username));
+        arr.forEach((r, i) => r.rank = i + 1);
+        rankings[skill] = arr;
+    }
+    return jsonResponse({ generatedAt: Date.now(), rankings }, { headers: { 'cache-control': 'public, max-age=30' } });
+}
+
+function handleHealth() {
+    return jsonResponse({ status: 'ok', time: Date.now() }, { headers: { 'cache-control': 'no-store' } });
+}
+
+async function handleCronTrigger(env) {
+    const result = await runScheduled(env);
+    return jsonResponse({ triggered: true, ...result });
+}
+
+async function handleHitpointsMigration(env) {
+    const users = await getAllUsers(env);
+    let changed = 0;
+    for (const u of users) {
+        if (u.needsHpMigration) {
+            if (migrateHitpoints(u)) changed++;
+            await putUser(env, u);
+        }
+    }
+    return jsonResponse({ migrated: changed });
+}
+
+async function handleUserHpCheck(env, username) {
+    const user = await getUser(env, username);
+    if (!user) return notFound('User not found');
+    const hp = user.skills.hitpoints;
+    const correct = levelFromXp(hp.xp);
+    const needs = hp.level !== correct || user.needsHpMigration;
+    return jsonResponse({ username: user.username, needsMigration: needs, currentLevel: hp.level, correctLevel: correct });
+}
 
 async function handleSeed(env, request) {
     if (!env.ADMIN_TOKEN || env.ADMIN_TOKEN === 'CHANGE_ME_ADMIN_TOKEN') {
@@ -336,19 +228,15 @@ async function handleSeed(env, request) {
     return jsonResponse({ seeded: results.filter(r => r.ok).length, total: results.length, results });
 }
 
-// Admin: delete users in batches (Worker version)
 async function handleDeleteUsersBatch(env, request) {
-    // Unprotected endpoint (requested). Use dryRun and limit as safety rails.
-    const url = new URL(request.url);
+    const url = new URL(request.url); // unused but kept for parity
     let payload = {};
-    try { if (request.headers.get('content-type')?.includes('application/json')) payload = await request.json(); } catch (_) { /* ignore */ }
+    try { if (request.headers.get('content-type')?.includes('application/json')) payload = await request.json(); } catch (_) {}
 
     const dryRun = Boolean(payload?.dryRun);
     const limitRaw = Number(payload?.limit);
     let limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.floor(limitRaw) : 100;
     const HARD_CAP = 1000; if (limit > HARD_CAP) limit = HARD_CAP;
-
-    // No date filter; we'll randomly sample users to delete
 
     const byUsernames = Array.isArray(payload?.usernames) ? payload.usernames : null;
 
@@ -370,17 +258,16 @@ async function handleDeleteUsersBatch(env, request) {
             if (keysToDelete.length >= limit) break;
         }
     } else {
-        // Randomly sample users across all user:* keys via reservoir sampling
-        let cursor; let seen = 0; const reservoir = [];
+        let cursor; let seenCount = 0; const reservoir = [];
         do {
             const page = await env.HISCORES_KV.list({ prefix: 'user:', limit: 1000, cursor });
             cursor = page.list_complete ? undefined : page.cursor;
             for (const k of page.keys) {
-                seen++;
+                seenCount++;
                 if (reservoir.length < limit) {
                     reservoir.push(k.name);
                 } else {
-                    const j = Math.floor(Math.random() * seen);
+                    const j = Math.floor(Math.random() * seenCount);
                     if (j < limit) reservoir[j] = k.name;
                 }
             }
@@ -396,9 +283,7 @@ async function handleDeleteUsersBatch(env, request) {
     const batches = chunk(keysToDelete, 50);
     let deleted = 0; let deletedRelated = 0;
     for (const b of batches) {
-        // Delete primary user keys
-        await Promise.all(b.map(k => env.HISCORES_KV.delete(k).then(() => { deleted++; }).catch(() => { })));
-        // Delete related keys with prefix user:<name>:
+        await Promise.all(b.map(k => env.HISCORES_KV.delete(k).then(() => { deleted++; }).catch(() => {})));
         for (const baseKey of b) {
             const relPrefix = baseKey + ':';
             let relCursor;
@@ -408,7 +293,7 @@ async function handleDeleteUsersBatch(env, request) {
                 if (rel.keys && rel.keys.length) {
                     const relBatches = chunk(rel.keys.map(x => x.name), 50);
                     for (const rb of relBatches) {
-                        await Promise.all(rb.map(rk => env.HISCORES_KV.delete(rk).then(() => { deletedRelated++; }).catch(() => { })));
+                        await Promise.all(rb.map(rk => env.HISCORES_KV.delete(rk).then(() => { deletedRelated++; }).catch(() => {})));
                     }
                 }
             } while (relCursor);
@@ -426,16 +311,12 @@ async function runScheduled(env) {
     const toUpdate = Math.max(1, Math.floor(users.length * fraction));
     const shuffled = [...users].sort(() => Math.random() - 0.5).slice(0, toUpdate);
     for (const u of shuffled) {
-        // Migration: If user has no archetype, assign one. This makes the change non-breaking.
         if (!u.archetype) {
             u.archetype = assignRandomArchetype();
-            u.version = 2; // Mark user object as updated to new schema
+            u.version = 2;
         }
-
-        // Determine session activity based on the player's long-term archetype
         const activityProbs = ARCHETYPE_TO_ACTIVITY_PROBABILITY[u.archetype] || ARCHETYPE_TO_ACTIVITY_PROBABILITY.CASUAL;
         const activity = weightedRandomChoice(activityProbs);
-
         u.activity = activity;
         simulateUserProgress(u, activity, now);
         if (Math.random() < 0.01) u.needsHpMigration = true;
@@ -466,7 +347,10 @@ function jsonResponse(obj, init = {}) {
     const provided = init.headers || {};
     return new Response(JSON.stringify(obj), { ...init, headers: { ...baseHeaders, ...provided } });
 }
-function notFound(message = 'Not found') { return jsonResponse({ error: message }, { status: 404 }); }
+
+function notFound(message = 'Not found') {
+    return jsonResponse({ error: message }, { status: 404 });
+}
 
 async function router(request, env) {
     const url = new URL(request.url); const path = url.pathname; const method = request.method.toUpperCase();
@@ -485,6 +369,14 @@ async function router(request, env) {
 }
 
 export default {
-    async fetch(request, env) { try { return await router(request, env); } catch (err) { return jsonResponse({ error: 'Internal error', detail: String(err) }, { status: 500 }); } },
-    async scheduled(_event, env, ctx) { ctx.waitUntil(runScheduled(env)); }
+    async fetch(request, env) {
+        try {
+            return await router(request, env);
+        } catch (err) {
+            return jsonResponse({ error: 'Internal error', detail: String(err) }, { status: 500 });
+        }
+    },
+    async scheduled(_event, env, ctx) {
+        ctx.waitUntil(runScheduled(env));
+    }
 };
