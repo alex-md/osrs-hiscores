@@ -98,8 +98,10 @@ h2 {
 
 .container-wrap {
   margin: 0 auto;
-  max-width: 1600px; /* widen overall page container */
-  padding: 0 1.5rem; /* a bit more side padding */
+  max-width: 1600px;
+  /* widen overall page container */
+  padding: 0 1.5rem;
+  /* a bit more side padding */
 }
 
 .skills-grid,
@@ -556,33 +558,49 @@ select {
   border: 2px solid var(--color-border-dark);
   overflow-x: auto;
   width: 100%;
-  max-width: clamp(1100px, 95vw, 1550px); /* default wider viewport usage */
+  max-width: clamp(1100px, 95vw, 1550px);
+  /* default wider viewport usage */
   margin: 0 auto 2rem;
   border-radius: .65rem;
-  padding: .4rem .5rem .75rem; /* scaled inner padding */
+  padding: .4rem .5rem .75rem;
+  /* scaled inner padding */
   box-shadow: var(--shadow-sm);
 }
 
 /* Home leaderboard can be even wider */
 /* Home leaderboard: allow it to span nearly entire container */
-.osrs-table.home-leaderboard { max-width: clamp(1500px,98vw,2100px); }
+.osrs-table.home-leaderboard {
+  max-width: clamp(1500px, 98vw, 2100px);
+}
 
 /* Stretch player column more on very wide screens */
-@media (min-width:1600px){
+@media (min-width:1600px) {
+
   .home-leaderboard table th:nth-child(2),
-  .home-leaderboard table td:nth-child(2){ width:45%; }
+  .home-leaderboard table td:nth-child(2) {
+    width: 45%;
+  }
 }
 
 /* Optional extreme width support */
-@media (min-width:2000px){
-  .osrs-table.home-leaderboard { max-width: 92vw; }
+@media (min-width:2000px) {
+  .osrs-table.home-leaderboard {
+    max-width: 92vw;
+  }
 }
 
 /* Optional full-width modifier if needed later */
-.osrs-table.full-width { max-width: none; width:100%; }
+.osrs-table.full-width {
+  max-width: none;
+  width: 100%;
+}
+
 /* Provide side padding on ultra-wide so content not glued to edges */
-@media (min-width:1600px){
-  .osrs-table.full-width { padding-left:1rem; padding-right:1rem; }
+@media (min-width:1600px) {
+  .osrs-table.full-width {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
 }
 
 .osrs-table table {
