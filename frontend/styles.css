@@ -51,8 +51,7 @@ body {
   font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   font-size: calc(16px * var(--body-font-scale));
   line-height: 1.6;
-  background: var(--color-bg-surface)
-    radial-gradient(circle at 25% 25%, rgba(196, 164, 132, 0.1) 0, transparent 50%),
+  background: var(--color-bg-surface) radial-gradient(circle at 25% 25%, rgba(196, 164, 132, 0.1) 0, transparent 50%),
     radial-gradient(circle at 75% 75%, rgba(196, 164, 132, 0.05) 0, transparent 50%);
 }
 
@@ -137,11 +136,9 @@ h2 {
 
 .card {
   background: var(--color-bg-layer);
-  background-image: linear-gradient(
-    135deg,
-    var(--color-bg-layer),
-    var(--color-bg-layer2)
-  );
+  background-image: linear-gradient(135deg,
+      var(--color-bg-layer),
+      var(--color-bg-layer2));
   border-radius: 0.5rem;
   box-shadow: var(--shadow-md);
   padding: 1rem;
@@ -415,6 +412,11 @@ table th {
   box-shadow: var(--shadow-sm);
 }
 
+.meta-badge--muted {
+  opacity: 0.7;
+  font-weight: 400;
+}
+
 #searchSuggest button,
 .nav-pill,
 .toast {
@@ -569,6 +571,20 @@ select {
   /* ensure wrapping fits container */
 }
 
+/* Scroll wrapper for tables with sticky header */
+.table-scroll {
+  max-height: 600px;
+  overflow-y: auto;
+  position: relative;
+}
+
+.leaderboard-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  box-shadow: 0 2px 0 var(--color-border-dark);
+}
+
 .osrs-table::before {
   top: 0;
   height: 3px;
@@ -635,6 +651,144 @@ tbody tr.clickable {
 tbody tr.overall-row {
   background: linear-gradient(90deg, rgba(255, 215, 0, 0.08), transparent 70%);
   border-top: 2px solid var(--color-border-dark);
+}
+
+/* Progress grid for user profile */
+.progress-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+
+.progress-item {
+  background: var(--color-bg-layer);
+  border: 1px solid var(--color-border);
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.65rem;
+  position: relative;
+}
+
+.progress-item .pi-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin-bottom: 4px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.pi-bar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pi-bar {
+  background: var(--color-bg-layer2);
+  height: 6px;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.pi-fill {
+  background: linear-gradient(90deg, var(--color-accent) 0, var(--color-accent-hover) 100%);
+  height: 100%;
+  transition: width .4s ease;
+}
+
+.pi-avg-marker {
+  position: absolute;
+  top: -2px;
+  width: 2px;
+  height: 10px;
+  background: var(--color-gold);
+  box-shadow: 0 0 4px rgba(0, 0, 0, .4);
+}
+
+.pi-meta-row {
+  margin-top: 4px;
+  display: flex;
+  justify-content: flex-end;
+  font-size: 0.55rem;
+  opacity: .75;
+}
+
+.pi-remaining {
+  font-variant-numeric: tabular-nums;
+}
+
+.pi-level {
+  font-size: 0.6rem;
+  color: var(--color-accent);
+}
+
+/* Achievements */
+.achievement-badge {
+  background: linear-gradient(135deg, var(--color-gold)10%, var(--color-accent)90%);
+  color: #1a1208;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.4rem;
+  font-size: 0.55rem;
+  font-weight: 700;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .2), 0 2px 4px rgba(0, 0, 0, .3);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+
+/* Filter bar small labels */
+.filter-bar label {
+  font-size: 0.55rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--color-muted);
+}
+
+/* Progress legend & toggle */
+.progress-legend .pl-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 6px;
+  border-radius: 4px;
+}
+
+.pl-swatch--you {
+  background: linear-gradient(90deg, var(--color-accent)0, var(--color-accent-hover)100%);
+}
+
+.pl-swatch--avg {
+  background: var(--color-gold);
+  opacity: .8;
+}
+
+.progress-toggle {
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.progress-toggle button {
+  background: var(--color-bg-layer);
+  border: 0;
+  padding: 4px 10px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--color-muted);
+  transition: .2s;
+}
+
+.progress-toggle button.active {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.progress-toggle button:not(.active):hover {
+  color: var(--color-foreground);
 }
 
 /* --- Components: Skill Display --- */

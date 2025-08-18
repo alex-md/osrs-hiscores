@@ -12,18 +12,28 @@ async function loadSkillRankings(force = false) {
 let currentSkill = "attack";
 let page = 1;
 let perPage = 50; // fixed page size; can be adjusted if needed
+let minLevel = null;
+let maxLevel = null;
+let minXp = null;
+let maxXp = null;
 
-function applyNameFilter(rows) {
-  const q = ($("#filterName")?.value || "").trim().toLowerCase();
-  if (!q) return rows;
-  return rows.filter((r) => r.username.toLowerCase().includes(q));
+function applyFilters(rows) {
+  const q = (($("#filterName"))?.value || "").trim().toLowerCase();
+  return rows.filter(r => {
+    if (q && !r.username.toLowerCase().includes(q)) return false;
+    if (minLevel != null && r.level < minLevel) return false;
+    if (maxLevel != null && r.level > maxLevel) return false;
+    if (minXp != null && r.xp < minXp) return false;
+    if (maxXp != null && r.xp > maxXp) return false;
+    return true;
+  });
 }
 
 function renderTable() {
   loadSkillRankings()
     .then((data) => {
       const rows = data.rankings[currentSkill];
-      const filtered = applyNameFilter(rows);
+      const filtered = applyFilters(rows);
       const tableBody = $("#skillTable tbody");
       tableBody.innerHTML = "";
       const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
@@ -91,7 +101,7 @@ document.addEventListener("click", (e) => {
   }
 });
 
-// name filter
+// filters (name + numeric)
 let filterDebounce;
 function queueFilterRender() {
   clearTimeout(filterDebounce);
@@ -101,7 +111,20 @@ function queueFilterRender() {
   }, 150);
 }
 $("#filterName").addEventListener("input", queueFilterRender);
-// removed min/max level filters
+['minLevel', 'maxLevel', 'minXp', 'maxXp'].forEach(id => {
+  const elInput = document.getElementById(id);
+  if (elInput) {
+    elInput.addEventListener('input', () => {
+      const v = elInput.value.trim();
+      const num = v === '' ? null : Number(v);
+      if (id === 'minLevel') minLevel = num;
+      if (id === 'maxLevel') maxLevel = num;
+      if (id === 'minXp') minXp = num;
+      if (id === 'maxXp') maxXp = num;
+      queueFilterRender();
+    });
+  }
+});
 
 function init() {
   // Check for skill parameter in URL hash or query params
@@ -111,6 +134,18 @@ function init() {
 
   if (skillParam && SKILLS.includes(skillParam)) {
     currentSkill = skillParam;
+  }
+
+  // Populate skill dropdown if present
+  const skillSelect = document.getElementById('skillSelect');
+  if (skillSelect) {
+    skillSelect.innerHTML = SKILLS.map(s => `<option value="${s}" ${s === currentSkill ? 'selected' : ''}>${s.charAt(0).toUpperCase() + s.slice(1)}</option>`).join('');
+    skillSelect.addEventListener('change', () => {
+      currentSkill = skillSelect.value;
+      page = 1;
+      renderTable();
+      history.replaceState({}, '', `?skill=${currentSkill}`);
+    });
   }
 
   const theme = localStorage.getItem("theme") || "dark";

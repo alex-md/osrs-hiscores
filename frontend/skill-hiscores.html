@@ -10,10 +10,7 @@
         <title>Skill Hiscores • OSRS Clone</title>
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link
-            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
-            rel="stylesheet"
-        />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
         <script>
             // Apply saved theme early (default: dark) to avoid flash
             (function () {
@@ -63,7 +60,8 @@
                         </svg>
                     </button>
 
-                    <!-- Search -->
+                    <!-- Search & Skill select -->
+                    <select id="skillSelect" class="bg-input border border-border text-sm min-w-32"></select>
                     <input id="filterName" placeholder="Search player..."
                         class="bg-input border border-border text-sm min-w-32" />
 
@@ -112,6 +110,18 @@
                         </details>
                     </aside>
                     <section class="space-y-6">
+                        <div class="flex flex-wrap gap-3 mb-4 text-xs filter-bar">
+                            <div class="flex flex-col"><label for="minLevel">Min Lv</label><input id="minLevel"
+                                    type="number" min="1" max="99" class="bg-input border border-border w-24"
+                                    placeholder="1" /></div>
+                            <div class="flex flex-col"><label for="maxLevel">Max Lv</label><input id="maxLevel"
+                                    type="number" min="1" max="99" class="bg-input border border-border w-24"
+                                    placeholder="99" /></div>
+                            <div class="flex flex-col"><label for="minXp">Min XP</label><input id="minXp" type="number"
+                                    min="0" class="bg-input border border-border w-28" placeholder="0" /></div>
+                            <div class="flex flex-col"><label for="maxXp">Max XP</label><input id="maxXp" type="number"
+                                    min="0" class="bg-input border border-border w-28" placeholder="200m" /></div>
+                        </div>
                         <div class="osrs-table">
                             <table class="min-w-full text-sm" id="skillTable">
                                 <thead>
