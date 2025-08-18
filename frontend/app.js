@@ -26,24 +26,7 @@ function formatRelativeTime(ts) {
   return `${year}y ago`;
 }
 
-// --- OSRS XP Formula Utilities ---
-// Experience to reach a given level L (1<=L<=126 in RS formulas, we cap at 99 here)
-// Experience = floor( (1/4) * sum_{l=1}^{L-1} floor( l + 300 * 2^{l/7} ) )
-const _xpLevelCache = { 1: 0 };
-function xpForLevel(L) {
-  if (L < 1) return 0;
-  if (L > 99) L = 99; // clamp for our purposes
-  if (_xpLevelCache[L] != null) return _xpLevelCache[L];
-  let lastComputed = Math.max(...Object.keys(_xpLevelCache).map(Number));
-  let acc = _xpLevelCache[lastComputed];
-  for (let lvl = lastComputed + 1; lvl <= L; lvl++) {
-    const term = Math.floor(lvl + 300 * Math.pow(2, lvl / 7));
-    acc += term;
-    _xpLevelCache[lvl] = Math.floor(acc / 4);
-  }
-  return _xpLevelCache[L];
-}
-const XP_AT_99 = xpForLevel(99); // denominator for progress bars
+// (Removed XP progress utilities – no longer needed after removing progress bars)
 
 // fetchJSON & API_BASE now provided by common.js
 async function loadLeaderboard(force = false) {
@@ -155,7 +138,9 @@ function renderHomeView() {
   section.appendChild(headerDiv);
 
   // Table wrapper with OSRS styling
-  const tableWrap = el("div", "osrs-table");
+  const tableWrap = el("div", "osrs-table home-leaderboard");
+  // Always treat home leaderboard as wide, rely on CSS media queries for padding
+  tableWrap.classList.add('full-width');
   // Scroll container to enable sticky header without stretching page
   const scrollWrap = el("div", "table-scroll");
   const table = el("table", "min-w-full leaderboard-table");
@@ -346,107 +331,96 @@ function renderUserView(username) {
         }
       });
 
-      // Achievements detection
-      const achievements = [];
-      SKILLS.forEach((s) => {
-        const sk = user.skills[s];
-        if (sk?.level >= 99) { achievements.push({ type: 'maxed-skill', skill: s, label: `99 ${s}` }); }
-        const rank = getUserSkillRank(skillRankings, username, s);
-        if (rank && rank <= 10) { achievements.push({ type: 'top-rank', skill: s, label: `Top ${rank} ${s}` }); }
-      });
-      if (SKILLS.every(s => (user.skills[s]?.level || 1) >= 50)) achievements.push({ type: 'milestone', label: 'All skills 50+' });
-      if (SKILLS.every(s => (user.skills[s]?.level || 1) >= 70)) achievements.push({ type: 'milestone', label: 'All skills 70+' });
-      if (SKILLS.every(s => (user.skills[s]?.level || 1) >= 99)) achievements.push({ type: 'milestone', label: 'Maxed Account' });
+      // --- Achievements detection (expanded) ---
+      function buildAchievements(user, skillRankings) {
+        const out = [];
+        const now = Date.now();
+        // Helper: push achievement
+        function add(obj) { out.push(obj); }
+        // Per-skill level thresholds (pick highest per skill)
+        const LEVEL_THRESHOLDS = [80, 90, 99];
+        SKILLS.forEach(s => {
+          const sk = user.skills[s];
+          if (!sk) return;
+          const lvl = sk.level || 1;
+          for (let i = LEVEL_THRESHOLDS.length - 1; i >= 0; i--) {
+            const t = LEVEL_THRESHOLDS[i];
+            if (lvl >= t) {
+              if (t === 99) {
+                add({ key: `skill-99-${s}`, icon: '🏅', label: `99 ${s}`, desc: `Reached level 99 in ${s}.`, category: 'skill', priority: 10 });
+              } else {
+                add({ key: `skill-${t}-${s}`, icon: '🆙', label: `${s} ${t}+`, desc: `Reached level ${t} or higher in ${s}.`, category: 'skill', priority: 30 + t });
+              }
+              break; // only highest threshold
+            }
+          }
+          // Rank achievements
+          const rank = getUserSkillRank(skillRankings, username, s);
+          if (rank) {
+            if (rank === 1) add({ key: `rank-1-${s}`, icon: '🥇', label: `#1 ${s}`, desc: `Rank 1 on the ${s} hiscores.`, category: 'rank', priority: 1 });
+            else if (rank <= 3) add({ key: `rank-top3-${s}`, icon: '🥉', label: `Top 3 ${s}`, desc: `Top 3 placement in ${s}.`, category: 'rank', priority: 2 });
+            else if (rank <= 10) add({ key: `rank-top10-${s}`, icon: '📈', label: `Top 10 ${s}`, desc: `Top 10 placement in ${s}.`, category: 'rank', priority: 3 });
+          }
+        });
+        // Account-wide level milestones
+        const allLevels = SKILLS.map(s => user.skills[s]?.level || 1);
+        const minLevel = Math.min(...allLevels);
+        const maxLevel = Math.max(...allLevels);
+        const totalLevel = allLevels.reduce((a, b) => a + b, 0);
+        const all99 = allLevels.every(l => l >= 99);
+        const milestones = [500, 1000, 1500, 2000];
+        for (let i = milestones.length - 1; i >= 0; i--) {
+          const m = milestones[i];
+          if (totalLevel >= m) { add({ key: `total-${m}`, icon: '📊', label: `Total ${m}+`, desc: `Reached a combined total level of ${m} or higher.`, category: 'account', priority: 50 + m }); break; }
+        }
+        if (all99) add({ key: 'maxed-account', icon: '👑', label: 'Maxed Account', desc: 'Achieved level 99 in every skill.', category: 'account', priority: 5 });
+        // Balanced vs Specialist
+        if (minLevel >= 40 && (maxLevel - minLevel) <= 30) {
+          add({ key: 'balanced', icon: '⚖️', label: 'Balanced', desc: 'Maintained relatively even progress across all skills.', category: 'style', priority: 60 });
+        }
+        const lowSkills = allLevels.filter(l => l < 50).length;
+        const has99 = allLevels.some(l => l >= 99);
+        if (has99 && lowSkills >= 5) {
+          add({ key: 'specialist', icon: '🎯', label: 'Specialist', desc: 'Has at least one 99 skill while many others remain under 50.', category: 'style', priority: 61 });
+        }
+        // Performance vs Average
+        const aboveAvg = SKILLS.filter(s => (user.skills[s]?.level || 1) > (averages[s]?.level || 1)).length;
+        const ratio = aboveAvg / SKILLS.length;
+        if (ratio >= 0.90) add({ key: 'elite', icon: '🚀', label: 'Elite', desc: `Above average in at least 90% of skills.`, category: 'performance', priority: 39 });
+        // Activity achievements
+        if (user.updatedAt) {
+          const updated = new Date(user.updatedAt).getTime();
+          const diffH = (now - updated) / 3600000;
+          if (diffH <= 24) add({ key: 'active-today', icon: '🕒', label: 'Active Today', desc: 'Account updated within the last 24 hours.', category: 'activity', priority: 70 });
+          else if (diffH <= 24 * 7) add({ key: 'active-week', icon: '🔄', label: 'Active This Week', desc: 'Account updated within the last 7 days.', category: 'activity', priority: 71 });
+        }
+        // Consolidate duplicates (keep highest priority = lowest number)
+        const map = new Map();
+        out.forEach(a => {
+          if (!map.has(a.key) || map.get(a.key).priority > a.priority) {
+            map.set(a.key, a);
+          }
+        });
+        // Sort by priority then label
+        return Array.from(map.values()).sort((a, b) => a.priority - b.priority || a.label.localeCompare(b.label));
+      }
+      const achievements = buildAchievements(user, skillRankings);
 
       // Achievements section
       if (achievements.length) {
         const achSection = el('div', 'flex flex-col gap-2');
-        achSection.appendChild(el('h4', 'font-semibold flex items-center gap-2', [text('🏅 Achievements')]));
+        achSection.appendChild(el('h4', 'font-semibold flex items-center gap-2', [text(`🏅 Achievements (${achievements.length})`)]));
         const wrapBadges = el('div', 'flex flex-wrap gap-2');
-        achievements.slice(0, 30).forEach(a => {
-          const badge = el('span', 'achievement-badge', [text(a.label)]);
+        achievements.slice(0, 50).forEach(a => {
+          const badge = el('span', `achievement-badge achievement-${a.category}`, [text(`${a.icon} ${a.label}`)]);
+          badge.setAttribute('data-tooltip', a.desc);
           wrapBadges.appendChild(badge);
         });
+        achSection.appendChild(wrapBadges);
         headerSection.appendChild(achSection);
       }
 
-      // Skill progress visualization grid (simple bar graphs)
-      const progressSection = el('section', 'flex flex-col gap-4');
-      progressSection.appendChild(el('h3', 'text-xl font-bold flex items-center gap-2', [text('📊 Skill Progress')]));
-      // Legend + toggle
-      const controlsRow = el('div', 'flex flex-wrap items-center gap-4');
-      controlsRow.innerHTML = `
-        <div class="progress-legend text-xs flex items-center gap-3">
-          <span class="pl-swatch pl-swatch--you"></span>You
-          <span class="pl-swatch pl-swatch--avg"></span>Average
-        </div>
-        <div class="progress-toggle" role="tablist" aria-label="Progress display mode">
-          <button type="button" class="active" data-mode="to99" aria-selected="true">To 99%</button>
-          <button type="button" data-mode="inlevel" aria-selected="false">In-Level%</button>
-        </div>`;
-      progressSection.appendChild(controlsRow);
-      const progGrid = el('div', 'progress-grid');
-      progressSection.appendChild(progGrid);
-      wrap.appendChild(progressSection);
-      let progressMode = 'to99';
-      function renderProgressGrid() {
-        progGrid.innerHTML = '';
-        SKILLS.forEach(s => {
-          const sk = user.skills[s];
-          const lvl = sk?.level || 1;
-          const avg = averages[s]?.level || 1;
-          const xp = sk?.xp || 0;
-          const avgXp = averages[s]?.xp || 0;
-          const nextLevel = Math.min(99, lvl + 1);
-          const curLevelFloorXp = xpForLevel(lvl);
-          const nextLevelFloorXp = xpForLevel(nextLevel);
-          const inLevelProgress = nextLevel > lvl ? ((xp - curLevelFloorXp) / (nextLevelFloorXp - curLevelFloorXp)) : 1;
-          const avgLevelFloor = Math.floor(avg);
-          const avgNextLevel = Math.min(99, avgLevelFloor + 1);
-          const avgFloorXp = xpForLevel(avgLevelFloor);
-          const avgNextFloorXp = xpForLevel(avgNextLevel);
-          const avgInLevelProgress = avgNextLevel > avgLevelFloor ? ((avgXp - avgFloorXp) / (avgNextFloorXp - avgFloorXp)) : 1;
-          const to99Pct = Math.min(100, (xp / XP_AT_99) * 100);
-          const avgTo99Pct = Math.min(100, (avgXp / XP_AT_99) * 100);
-          const chosenPct = progressMode === 'to99' ? to99Pct : (inLevelProgress * 100);
-          const avgChosenPct = progressMode === 'to99' ? avgTo99Pct : (avgInLevelProgress * 100);
-          const remainingXp = lvl >= 99 ? 0 : (nextLevelFloorXp - xp);
-          const bar = document.createElement('div');
-          bar.className = 'progress-item';
-          bar.innerHTML = `
-            <div class="pi-head"><img src="${getSkillIcon(s)}" alt="${s}" class="skill-icon skill-icon--xs"/><span>${s}</span><span class="pi-level" title="XP: ${xp.toLocaleString()} / ${XP_AT_99.toLocaleString()} (${to99Pct.toFixed(1)}%)">Lv. ${lvl}</span></div>
-            <div class="pi-bar-wrap" title="${progressMode === 'to99' ? to99Pct.toFixed(2) + '% to 99' : (inLevelProgress * 100).toFixed(2) + '% of current level'} | Avg ${avgChosenPct.toFixed(2)}% | Remaining ${remainingXp.toLocaleString()} XP">
-              <div class="pi-bar" data-mode="${progressMode}">
-                <div class="pi-fill" style="width:${chosenPct}%;"></div>
-                <div class="pi-avg-marker" style="left:${avgChosenPct}%;" title="Average ${avgChosenPct.toFixed(2)}%"></div>
-              </div>
-              <div class="pi-meta-row"><span class="pi-remaining" title="XP needed for next level">${remainingXp.toLocaleString()} XP left</span></div>
-            </div>
-          `;
-          progGrid.appendChild(bar);
-        });
-      }
-      renderProgressGrid();
-      controlsRow.addEventListener('click', (e) => {
-        const btn = e.target.closest('button[data-mode]');
-        if (!btn) return;
-        progressMode = btn.getAttribute('data-mode');
-        [...controlsRow.querySelectorAll('.progress-toggle button')].forEach(b => {
-          const active = b === btn;
-          b.classList.toggle('active', active);
-          b.setAttribute('aria-selected', active ? 'true' : 'false');
-        });
-        renderProgressGrid();
-      });
 
-      // Comparison summary
-      const compareSection = el('section', 'flex flex-col gap-2');
-      compareSection.appendChild(el('h3', 'text-xl font-bold flex items-center gap-2', [text('⚖️ Comparison')]));
-      const cmp = el('div', 'text-sm text-muted');
-      const higher = SKILLS.filter(s => (user.skills[s]?.level || 1) > (averages[s]?.level || 1)).length;
-      cmp.textContent = `${higher} / ${SKILLS.length} skills above average.`;
-      compareSection.appendChild(cmp);
-      wrap.appendChild(compareSection);
 
       // Hiscores table (column layout like OSRS)
       const section = el("section", "flex flex-col gap-4");

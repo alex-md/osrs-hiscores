@@ -44,15 +44,14 @@
 }
 
 html {
-  font-size: calc(16px * var(--root-font-scale));
+  font-size: clamp(16px, 1.2vw + 0.4rem, 19px);
 }
 
 body {
   font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  font-size: calc(16px * var(--body-font-scale));
-  line-height: 1.6;
-  background: var(--color-bg-surface) radial-gradient(circle at 25% 25%, rgba(196, 164, 132, 0.1) 0, transparent 50%),
-    radial-gradient(circle at 75% 75%, rgba(196, 164, 132, 0.05) 0, transparent 50%);
+  font-size: clamp(1rem, .5vw + .95rem, 1.18rem);
+  line-height: 1.7;
+  background: var(--color-bg-surface) radial-gradient(circle at 25% 25%, rgba(196, 164, 132, .1) 0, transparent 50%), radial-gradient(circle at 75% 75%, rgba(196, 164, 132, .05) 0, transparent 50%);
 }
 
 h1 {
@@ -99,6 +98,8 @@ h2 {
 
 .container-wrap {
   margin: 0 auto;
+  max-width: 1600px; /* widen overall page container */
+  padding: 0 1.5rem; /* a bit more side padding */
 }
 
 .skills-grid,
@@ -119,7 +120,8 @@ h2 {
 .main-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 1.5rem;
+  gap: 2rem;
+  align-items: start;
 }
 
 @media (min-width: 768px) {
@@ -129,9 +131,7 @@ h2 {
 }
 
 .sidebar {
-  position: sticky;
-  top: 1.5rem;
-  align-self: start;
+  position: static;
 }
 
 .card {
@@ -554,12 +554,35 @@ select {
 .osrs-table {
   background: var(--color-bg-layer);
   border: 2px solid var(--color-border-dark);
-  overflow-x: visible;
-  /* avoid horizontal scrolling */
-  /* Make leaderboards wider: center and use 70% of the viewport on desktops */
-  width: 70%;
-  margin-left: auto;
-  margin-right: auto;
+  overflow-x: auto;
+  width: 100%;
+  max-width: clamp(1100px, 95vw, 1550px); /* default wider viewport usage */
+  margin: 0 auto 2rem;
+  border-radius: .65rem;
+  padding: .4rem .5rem .75rem; /* scaled inner padding */
+  box-shadow: var(--shadow-sm);
+}
+
+/* Home leaderboard can be even wider */
+/* Home leaderboard: allow it to span nearly entire container */
+.osrs-table.home-leaderboard { max-width: clamp(1500px,98vw,2100px); }
+
+/* Stretch player column more on very wide screens */
+@media (min-width:1600px){
+  .home-leaderboard table th:nth-child(2),
+  .home-leaderboard table td:nth-child(2){ width:45%; }
+}
+
+/* Optional extreme width support */
+@media (min-width:2000px){
+  .osrs-table.home-leaderboard { max-width: 92vw; }
+}
+
+/* Optional full-width modifier if needed later */
+.osrs-table.full-width { max-width: none; width:100%; }
+/* Provide side padding on ultra-wide so content not glued to edges */
+@media (min-width:1600px){
+  .osrs-table.full-width { padding-left:1rem; padding-right:1rem; }
 }
 
 .osrs-table table {
@@ -567,22 +590,21 @@ select {
   height: fit-content;
   margin: 0 auto;
   border-collapse: collapse;
-  table-layout: fixed;
-  /* ensure wrapping fits container */
+  table-layout: auto;
+  /* let columns size naturally for improved readability */
+  font-size: .95rem;
+  /* larger base table font for readability */
 }
 
 /* Scroll wrapper for tables with sticky header */
 .table-scroll {
-  max-height: 600px;
-  overflow-y: auto;
-  position: relative;
+  overflow-x: auto;
+  max-height: none;
 }
 
 .leaderboard-table thead th {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  box-shadow: 0 2px 0 var(--color-border-dark);
+  position: static;
+  box-shadow: none;
 }
 
 .osrs-table::before {
@@ -592,18 +614,59 @@ select {
 
 table td,
 table th {
-  padding: 0.75rem 1rem;
+  padding: .8rem 1rem;
   border-bottom: 1px solid var(--color-border);
-  white-space: normal;
-  /* allow wrapping */
-  overflow-wrap: anywhere;
-  /* wrap long content like numbers/usernames */
-  word-break: break-word;
+  white-space: nowrap;
+  line-height: 1.5;
+  vertical-align: middle;
+}
+
+table td {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Allow wrapping only on very narrow screens */
+@media (max-width:620px) {
+
+  table td,
+  table th {
+    white-space: normal;
+  }
 }
 
 table th {
   background: linear-gradient(135deg, var(--color-bg-layer2) 0, var(--color-bg-layer) 100%);
   border-bottom: 2px solid var(--color-border-dark);
+  font-size: .75rem;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+/* Column sizing hints */
+.leaderboard-table th:first-child,
+.leaderboard-table td:first-child {
+  width: 60px;
+  text-align: center;
+}
+
+.leaderboard-table th:nth-child(3),
+.leaderboard-table td:nth-child(3) {
+  width: 120px;
+  text-align: center;
+}
+
+.leaderboard-table th:nth-child(4),
+.leaderboard-table td:nth-child(4) {
+  width: 170px;
+  text-align: right;
+}
+
+/* Player column flexible */
+.leaderboard-table th:nth-child(2),
+.leaderboard-table td:nth-child(2) {
+  width: auto;
 }
 
 th.sortable {
@@ -617,13 +680,13 @@ th.sortable::after {
 }
 
 table tbody tr:nth-child(2n) {
-  background: rgba(196, 164, 132, 0.05);
+  background: rgba(196, 164, 132, 0.04);
 }
 
 table tbody tr:hover {
-  background: linear-gradient(90deg, rgba(200, 16, 46, 0.1) 0, rgba(200, 16, 46, 0.05) 100%);
+  background: linear-gradient(90deg, rgba(200, 16, 46, 0.08) 0, rgba(200, 16, 46, 0.03) 100%);
   border-color: var(--color-accent);
-  transform: translateX(2px);
+  transform: translateX(1px);
 }
 
 tbody tr.rank-1 {
@@ -653,11 +716,11 @@ tbody tr.overall-row {
   border-top: 2px solid var(--color-border-dark);
 }
 
-/* Progress grid for user profile */
+/* (Progress grid left for potential future use) */
 .progress-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 1rem;
 }
 
 .progress-item {
@@ -736,6 +799,38 @@ tbody tr.overall-row {
   box-shadow: 0 0 0 1px rgba(0, 0, 0, .2), 0 2px 4px rgba(0, 0, 0, .3);
   text-transform: uppercase;
   letter-spacing: .5px;
+}
+
+/* Achievement category variants */
+.achievement-skill {
+  background: linear-gradient(135deg, #ffd700 0, #ffb347 100%);
+}
+
+.achievement-rank {
+  background: linear-gradient(135deg, #b5e48c 0, #52b69a 100%);
+}
+
+.achievement-account {
+  background: linear-gradient(135deg, #c9b6ff 0, #8e72ff 100%);
+}
+
+.achievement-style {
+  background: linear-gradient(135deg, #ffafcc 0, #ff5d8f 100%);
+}
+
+.achievement-performance {
+  background: linear-gradient(135deg, #a1c4fd 0, #4c8bf5 100%);
+}
+
+.achievement-activity {
+  background: linear-gradient(135deg, #fbc2eb 0, #a18cd1 100%);
+}
+
+.achievement-badge[data-tooltip]::after {
+  font-size: 0.65rem;
+  max-width: 220px;
+  white-space: normal;
+  line-height: 1.2;
 }
 
 /* Filter bar small labels */
@@ -875,11 +970,19 @@ th.sortable,
   margin-right: 4px;
 }
 
-.skill-name {
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+.skill-name,
+.skill-rank {
+  font-family: 'Press Start 2P';
+  font-size: .7rem;
+  /* larger retro font for readability */
 }
 
-/* Utility: capitalize text (for skill names) */
+/* Table headers inherit main font for clarity */
+table th {
+  font-family: inherit;
+}
+
+/* Utility: capitalize skill names */
 .text-capitalize {
   text-transform: capitalize;
 }
@@ -1040,10 +1143,19 @@ select:focus {
 
 /* Responsive adjustments */
 @media (max-width: 1024px) {
-
-  /* On tablets/phones, let the leaderboard nearly fill the screen */
   .osrs-table {
-    width: 95%;
+    width: 100%;
+  }
+
+  table td,
+  table th {
+    padding: .65rem .75rem;
+    font-size: .9rem;
+  }
+
+  .leaderboard-table th:first-child,
+  .leaderboard-table td:first-child {
+    width: 50px;
   }
 }
 
@@ -1066,11 +1178,39 @@ footer.site-footer .mt-2 {
   }
 }
 
-@media (min-width: 768px) {
+@media (min-width:768px) {
 
   table td,
   table th {
-    padding: 0.5rem 0.875rem;
+    padding: .85rem 1.05rem;
+  }
+}
+
+@media (max-width:520px) {
+  .main-grid {
+    gap: 1.25rem;
+  }
+
+  .sidebar {
+    padding: .75rem !important;
+  }
+
+  table td,
+  table th {
+    padding: .55rem .55rem;
+    font-size: .82rem;
+  }
+
+  .username-link {
+    font-size: .85rem;
+  }
+
+  h2 {
+    font-size: 1.3rem;
+  }
+
+  h3 {
+    font-size: 1.15rem;
   }
 }
 
