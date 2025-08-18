@@ -32,9 +32,17 @@ export const ARCHETYPE_TO_ACTIVITY_PROBABILITY = {
 };
 
 export const SKILL_POPULARITY = {
-  attack: 1.1, defence: 1.0, strength: 1.15, hitpoints: 1.05, ranged: 1.05,
-  prayer: 0.6, magic: 1.1, cooking: 0.9, woodcutting: 0.85, fletching: 0.75,
-  fishing: 0.9, firemaking: 0.7, crafting: 0.65, smithing: 0.7, mining: 0.85,
-  herblore: 0.55, agility: 0.6, thieving: 0.7, slayer: 0.8, farming: 0.6,
-  runecraft: 0.4, hunter: 0.65, construction: 0.5
+  attack: 1.20, defence: 1.05, strength: 1.25, hitpoints: 1.15, ranged: 1.20,
+  prayer: 0.70, magic: 1.20, cooking: 1.10, woodcutting: 1.00, fletching: 1.00,
+  fishing: 1.00, firemaking: 0.95, crafting: 0.85, smithing: 0.80, mining: 0.90,
+  herblore: 0.80, agility: 0.70, thieving: 0.90, slayer: 1.20, farming: 0.90,
+  runecraft: 0.75, hunter: 0.85, construction: 0.70
 };
+
+// export const SKILL_POPULARITY = {
+//   attack: 1.1, defence: 1.0, strength: 1.15, hitpoints: 1.05, ranged: 1.05,
+//   prayer: 0.6, magic: 1.1, cooking: 0.9, woodcutting: 0.85, fletching: 0.75,
+//   fishing: 0.9, firemaking: 0.7, crafting: 0.65, smithing: 0.7, mining: 0.85,
+//   herblore: 0.55, agility: 0.6, thieving: 0.7, slayer: 0.8, farming: 0.6,
+//   runecraft: 0.4, hunter: 0.65, construction: 0.5
+// };
