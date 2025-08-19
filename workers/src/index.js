@@ -412,6 +412,16 @@ function notFound(message = 'Not found') {
 async function router(request, env) {
     const url = new URL(request.url); const path = url.pathname; const method = request.method.toUpperCase();
     if (path === '/api/health') return handleHealth();
+    // Added debug endpoint for parity with Pages Functions implementation
+    if (path === '/api/debug') {
+        return jsonResponse({
+            path,
+            method,
+            hasKV: !!env.HISCORES_KV,
+            availableBindings: Object.keys(env || {}),
+            adminToken: Boolean(env.ADMIN_TOKEN)
+        });
+    }
     if (path === '/api/leaderboard' && method === 'GET') return handleLeaderboard(env, url);
     if (path === '/api/users' && method === 'GET') return handleUsersList(env);
     if (path === '/api/skill-rankings' && method === 'GET') return handleSkillRankings(env);
@@ -438,3 +448,11 @@ export default {
         ctx.waitUntil(runScheduled(env));
     }
 };
+
+// Named export so other runtimes (e.g. Pages Functions) can reuse identical logic
+export async function handleApiRequest(request, env) {
+    return router(request, env);
+}
+
+// Also export runScheduled for reuse in tests or alternative schedulers
+export { runScheduled };
