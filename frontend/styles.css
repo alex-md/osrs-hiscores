@@ -63,7 +63,7 @@ html {
 }
 
 body {
-  font-family: Outfit, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-family: Philosopher, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   font-size: clamp(1rem, .5vw + .95rem, 1.18rem);
   line-height: 1.7;
   background: var(--color-bg-surface) radial-gradient(circle at 25% 25%, rgba(196, 164, 132, .1) 0, transparent 50%), radial-gradient(circle at 75% 75%, rgba(196, 164, 132, .05) 0, transparent 50%)
