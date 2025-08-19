@@ -26,7 +26,6 @@ function formatRelativeTime(ts) {
   return `${year}y ago`;
 }
 
-// (Removed XP progress utilities – no longer needed after removing progress bars)
 
 // fetchJSON & API_BASE now provided by common.js
 async function loadLeaderboard(force = false) {
@@ -331,94 +330,203 @@ function renderUserView(username) {
         }
       });
 
-      // --- Achievements detection (expanded) ---
-      function buildAchievements(user, skillRankings) {
-        const out = [];
-        const now = Date.now();
-        // Helper: push achievement
-        function add(obj) { out.push(obj); }
-        // Per-skill level thresholds (pick highest per skill)
-        const LEVEL_THRESHOLDS = [80, 90, 99];
+      // --- Achievements System (refactored & expanded) ---
+      const LEVEL_THRESHOLDS = [80, 90, 99];
+      const TOTAL_LEVEL_MILESTONES = [500, 1000, 1500, 2000];
+      // Build full catalog of *possible* achievements (static list + skill generated)
+      function buildAchievementCatalog() {
+        const catalog = [];
+        // Skill level thresholds (one per threshold per skill; user only earns highest attained)
         SKILLS.forEach(s => {
-          const sk = user.skills[s];
-          if (!sk) return;
-          const lvl = sk.level || 1;
+          LEVEL_THRESHOLDS.forEach(t => {
+            catalog.push({ key: `skill-${t}-${s}`, icon: t === 99 ? '🏅' : '🆙', label: `${s} ${t}+`, desc: `Reach level ${t} in ${s}.`, category: 'skill', tier: t });
+          });
+          catalog.push({ key: `rank-1-${s}`, icon: '🥇', label: `#1 ${s}`, desc: `Hold rank 1 in ${s}.`, category: 'rank', rankTier: 1 });
+          catalog.push({ key: `rank-top3-${s}`, icon: '🥉', label: `Top 3 ${s}`, desc: `Place top 3 in ${s}.`, category: 'rank', rankTier: 3 });
+          catalog.push({ key: `rank-top10-${s}`, icon: '📈', label: `Top 10 ${s}`, desc: `Place top 10 in ${s}.`, category: 'rank', rankTier: 10 });
+          // Competitive firsts (client-side only: would need backend flags to be authoritative)
+          catalog.push({ key: `first-99-${s}`, icon: '⚡', label: `First 99 ${s}`, desc: `Be the first account to reach 99 ${s}.`, category: 'rank', competitive: true });
+          catalog.push({ key: `first-50m-${s}`, icon: '💥', label: `50M ${s}`, desc: `Reach 50,000,000 XP in ${s}.`, category: 'skill', ultra: true });
+          catalog.push({ key: `first-200m-${s}`, icon: '🔥', label: `200M ${s}`, desc: `Reach 200,000,000 XP in ${s}. (Extreme)`, category: 'skill', ultra: true });
+        });
+        TOTAL_LEVEL_MILESTONES.forEach(m => {
+          catalog.push({ key: `total-${m}`, icon: '📊', label: `Total ${m}+`, desc: `Reach total level ${m}.`, category: 'account' });
+        });
+        catalog.push({ key: 'maxed-account', icon: '👑', label: 'Maxed Account', desc: 'Reach 99 in every skill.', category: 'account' });
+        catalog.push({ key: 'first-maxed-account', icon: '🌟', label: 'First Maxed', desc: 'Be the first account to max (all 99s).', category: 'account', competitive: true });
+        catalog.push({ key: 'first-total-2277', icon: '🏆', label: 'First 2277', desc: 'Be first to total level 2277.', category: 'account', competitive: true });
+        catalog.push({ key: 'balanced', icon: '⚖️', label: 'Balanced', desc: 'Maintain min level 40; spread within 30 levels.', category: 'playstyle' });
+        catalog.push({ key: 'specialist', icon: '�', label: 'Specialist', desc: 'At least one 99 plus 5+ skills under 50.', category: 'playstyle' });
+        catalog.push({ key: 'elite', icon: '🚀', label: 'Elite', desc: 'Above-average in ≥90% of skills.', category: 'performance' });
+        // Activity achievements (prevalence not computed globally here)
+        catalog.push({ key: 'active-today', icon: '🕒', label: 'Active Today', desc: 'Updated within last 24h.', category: 'activity' });
+        catalog.push({ key: 'active-week', icon: '🔄', label: 'Active This Week', desc: 'Updated within last 7d.', category: 'activity' });
+        return catalog;
+      }
+      const ACHIEVEMENT_CATALOG = buildAchievementCatalog();
+
+      function deriveUserAchievements(user, averages) {
+        const now = Date.now();
+        const results = [];
+        const push = (a) => results.push(a);
+        // Per skill highest threshold
+        SKILLS.forEach(s => {
+          const lvl = user.skills[s]?.level || 1;
           for (let i = LEVEL_THRESHOLDS.length - 1; i >= 0; i--) {
             const t = LEVEL_THRESHOLDS[i];
-            if (lvl >= t) {
-              if (t === 99) {
-                add({ key: `skill-99-${s}`, icon: '🏅', label: `99 ${s}`, desc: `Reached level 99 in ${s}.`, category: 'skill', priority: 10 });
-              } else {
-                add({ key: `skill-${t}-${s}`, icon: '🆙', label: `${s} ${t}+`, desc: `Reached level ${t} or higher in ${s}.`, category: 'skill', priority: 30 + t });
-              }
-              break; // only highest threshold
-            }
+            if (lvl >= t) { push({ key: `skill-${t}-${s}` }); break; }
           }
-          // Rank achievements
-          const rank = getUserSkillRank(skillRankings, username, s);
+          const rank = getUserSkillRank(skillRankings, user.username, s);
           if (rank) {
-            if (rank === 1) add({ key: `rank-1-${s}`, icon: '🥇', label: `#1 ${s}`, desc: `Rank 1 on the ${s} hiscores.`, category: 'rank', priority: 1 });
-            else if (rank <= 3) add({ key: `rank-top3-${s}`, icon: '🥉', label: `Top 3 ${s}`, desc: `Top 3 placement in ${s}.`, category: 'rank', priority: 2 });
-            else if (rank <= 10) add({ key: `rank-top10-${s}`, icon: '📈', label: `Top 10 ${s}`, desc: `Top 10 placement in ${s}.`, category: 'rank', priority: 3 });
+            if (rank === 1) push({ key: `rank-1-${s}` });
+            else if (rank <= 3) push({ key: `rank-top3-${s}` });
+            else if (rank <= 10) push({ key: `rank-top10-${s}` });
           }
+          // XP mega milestones (client-side detection)
+          const xp = user.skills[s]?.xp || 0;
+          if (xp >= 50_000_000) push({ key: `first-50m-${s}` }); // treat as unlocked once reached (not necessarily first)
+          if (xp >= 200_000_000) push({ key: `first-200m-${s}` });
+          if (lvl >= 99) push({ key: `first-99-${s}` }); // placeholder (needs backend to know real first)
         });
-        // Account-wide level milestones
-        const allLevels = SKILLS.map(s => user.skills[s]?.level || 1);
-        const minLevel = Math.min(...allLevels);
-        const maxLevel = Math.max(...allLevels);
-        const totalLevel = allLevels.reduce((a, b) => a + b, 0);
-        const all99 = allLevels.every(l => l >= 99);
-        const milestones = [500, 1000, 1500, 2000];
-        for (let i = milestones.length - 1; i >= 0; i--) {
-          const m = milestones[i];
-          if (totalLevel >= m) { add({ key: `total-${m}`, icon: '📊', label: `Total ${m}+`, desc: `Reached a combined total level of ${m} or higher.`, category: 'account', priority: 50 + m }); break; }
+        const levels = SKILLS.map(s => user.skills[s]?.level || 1);
+        const total = levels.reduce((a, b) => a + b, 0);
+        for (let i = TOTAL_LEVEL_MILESTONES.length - 1; i >= 0; i--) {
+          const m = TOTAL_LEVEL_MILESTONES[i]; if (total >= m) { push({ key: `total-${m}` }); break; }
         }
-        if (all99) add({ key: 'maxed-account', icon: '👑', label: 'Maxed Account', desc: 'Achieved level 99 in every skill.', category: 'account', priority: 5 });
-        // Balanced vs Specialist
-        if (minLevel >= 40 && (maxLevel - minLevel) <= 30) {
-          add({ key: 'balanced', icon: '⚖️', label: 'Balanced', desc: 'Maintained relatively even progress across all skills.', category: 'style', priority: 60 });
-        }
-        const lowSkills = allLevels.filter(l => l < 50).length;
-        const has99 = allLevels.some(l => l >= 99);
-        if (has99 && lowSkills >= 5) {
-          add({ key: 'specialist', icon: '🎯', label: 'Specialist', desc: 'Has at least one 99 skill while many others remain under 50.', category: 'style', priority: 61 });
-        }
-        // Performance vs Average
+        if (levels.every(l => l >= 99)) push({ key: 'maxed-account' });
+        if (levels.every(l => l >= 99)) push({ key: 'first-maxed-account' }); // placeholder
+        if (total >= 2277) push({ key: 'first-total-2277' }); // placeholder
+        const minL = Math.min(...levels); const maxL = Math.max(...levels);
+        if (minL >= 40 && (maxL - minL) <= 30) push({ key: 'balanced' });
+        const lowCount = levels.filter(l => l < 50).length;
+        if (levels.some(l => l >= 99) && lowCount >= 5) push({ key: 'specialist' });
         const aboveAvg = SKILLS.filter(s => (user.skills[s]?.level || 1) > (averages[s]?.level || 1)).length;
-        const ratio = aboveAvg / SKILLS.length;
-        if (ratio >= 0.90) add({ key: 'elite', icon: '🚀', label: 'Elite', desc: `Above average in at least 90% of skills.`, category: 'performance', priority: 39 });
-        // Activity achievements
+        if (aboveAvg / SKILLS.length >= 0.90) push({ key: 'elite' });
         if (user.updatedAt) {
-          const updated = new Date(user.updatedAt).getTime();
-          const diffH = (now - updated) / 3600000;
-          if (diffH <= 24) add({ key: 'active-today', icon: '🕒', label: 'Active Today', desc: 'Account updated within the last 24 hours.', category: 'activity', priority: 70 });
-          else if (diffH <= 24 * 7) add({ key: 'active-week', icon: '🔄', label: 'Active This Week', desc: 'Account updated within the last 7 days.', category: 'activity', priority: 71 });
+          const diffH = (now - user.updatedAt) / 3600000;
+          if (diffH <= 24) push({ key: 'active-today' });
+          else if (diffH <= 24 * 7) push({ key: 'active-week' });
         }
-        // Consolidate duplicates (keep highest priority = lowest number)
-        const map = new Map();
-        out.forEach(a => {
-          if (!map.has(a.key) || map.get(a.key).priority > a.priority) {
-            map.set(a.key, a);
-          }
-        });
-        // Sort by priority then label
-        return Array.from(map.values()).sort((a, b) => a.priority - b.priority || a.label.localeCompare(b.label));
+        const uniq = [...new Set(results.map(r => r.key))];
+        return uniq;
       }
-      const achievements = buildAchievements(user, skillRankings);
 
-      // Achievements section
-      if (achievements.length) {
-        const achSection = el('div', 'flex flex-col gap-2');
-        achSection.appendChild(el('h4', 'font-semibold flex items-center gap-2', [text(`🏅 Achievements (${achievements.length})`)]));
-        const wrapBadges = el('div', 'flex flex-wrap gap-2');
-        achievements.slice(0, 50).forEach(a => {
-          const badge = el('span', `achievement-badge achievement-${a.category}`, [text(`${a.icon} ${a.label}`)]);
-          badge.setAttribute('data-tooltip', a.desc);
-          wrapBadges.appendChild(badge);
+      // Global prevalence estimation (client-side using skillRankings)
+      async function computeGlobalAchievementStats(skillRankings) {
+        if (window.__achievementStats) return window.__achievementStats;
+        const rankings = skillRankings.rankings || {};
+        // Reconstruct per-user levels (username -> {skill:level})
+        const userLevels = new Map();
+        SKILLS.forEach(s => {
+          (rankings[s] || []).forEach(entry => {
+            let obj = userLevels.get(entry.username);
+            if (!obj) { obj = { skills: {}, updatedAt: null }; userLevels.set(entry.username, obj); }
+            obj.skills[s] = entry.level;
+          });
         });
-        achSection.appendChild(wrapBadges);
-        headerSection.appendChild(achSection);
+        // Average per skill
+        const averagesTmp = {};
+        SKILLS.forEach(s => {
+          const arr = rankings[s] || [];
+          if (!arr.length) { averagesTmp[s] = { level: 1 }; return; }
+          const totalLvl = arr.reduce((sum, p) => sum + (p.level || 1), 0);
+          averagesTmp[s] = { level: totalLvl / arr.length };
+        });
+        const globalCounts = new Map();
+        const totalPlayers = userLevels.size;
+        // Helper to increment
+        function inc(key) { globalCounts.set(key, (globalCounts.get(key) || 0) + 1); }
+        // Pre-calc rank achievements directly from rankings arrays: ranking arrays are sorted by xp already.
+        SKILLS.forEach(s => {
+          const arr = rankings[s] || [];
+          if (arr[0]) inc(`rank-1-${s}`);
+          arr.slice(0, 3).forEach(e => { if (e && e.username) inc(`rank-top3-${s}`); });
+          arr.slice(0, 10).forEach(e => { if (e && e.username) inc(`rank-top10-${s}`); });
+        });
+        // For each user determine highest threshold, milestones, playstyle, performance
+        userLevels.forEach((data, uname) => {
+          const levels = SKILLS.map(s => data.skills[s] || 1);
+          // Highest threshold per skill
+          SKILLS.forEach(s => {
+            const lvl = data.skills[s] || 1;
+            for (let i = LEVEL_THRESHOLDS.length - 1; i >= 0; i--) { const t = LEVEL_THRESHOLDS[i]; if (lvl >= t) { inc(`skill-${t}-${s}`); break; } }
+          });
+          const total = levels.reduce((a, b) => a + b, 0);
+          for (let i = TOTAL_LEVEL_MILESTONES.length - 1; i >= 0; i--) { const m = TOTAL_LEVEL_MILESTONES[i]; if (total >= m) { inc(`total-${m}`); break; } }
+          if (levels.every(l => l >= 99)) inc('maxed-account');
+          const minL = Math.min(...levels); const maxL = Math.max(...levels);
+          if (minL >= 40 && (maxL - minL) <= 30) inc('balanced');
+          const lowCount = levels.filter(l => l < 50).length;
+          if (levels.some(l => l >= 99) && lowCount >= 5) inc('specialist');
+          const aboveAvg = SKILLS.filter(s => (data.skills[s] || 1) > (averagesTmp[s]?.level || 1)).length;
+          if (aboveAvg / SKILLS.length >= 0.90) inc('elite');
+          // activity skipped (needs updatedAt)
+        });
+        const stats = { counts: Object.fromEntries(globalCounts), totalPlayers, averages: averagesTmp };
+        window.__achievementStats = stats;
+        return stats;
       }
+
+      computeGlobalAchievementStats(skillRankings).then(globalStats => {
+        // Merge with existing averages (prefer more detailed if available)
+        const userAchievementKeys = deriveUserAchievements(user, globalStats.averages);
+        const unlockedSet = new Set(userAchievementKeys);
+        const categoriesOrder = ['skill', 'rank', 'account', 'playstyle', 'performance', 'activity'];
+        const categoryLabels = { skill: 'Skill Progress', rank: 'Skill Ranks', account: 'Account Milestones', playstyle: 'Playstyle', performance: 'Performance', activity: 'Activity' };
+        const catalogByCategory = categoriesOrder.map(cat => ({ cat, items: ACHIEVEMENT_CATALOG.filter(a => a.category === cat) }));
+        const totalPossible = ACHIEVEMENT_CATALOG.filter(a => a.category !== 'activity').length; // exclude dynamic activity from progress total
+        const unlockedNonActivity = userAchievementKeys.filter(k => !k.startsWith('active-')).length;
+
+        const achSection = el('div', 'flex flex-col gap-4 achievements-panel');
+        const header = el('div', 'flex items-center justify-between flex-wrap gap-2');
+        header.appendChild(el('h4', 'font-semibold flex items-center gap-2', [text('🏅 Achievements')]));
+        const progressSpan = el('div', 'text-sm text-muted', [text(`${unlockedNonActivity}/${totalPossible} unlocked`)]);
+        header.appendChild(progressSpan);
+        achSection.appendChild(header);
+
+        catalogByCategory.forEach(group => {
+          if (!group.items.length) return;
+          const catWrap = el('div', 'achievement-category flex flex-col gap-2');
+          const catHeader = el('div', 'flex items-center gap-2');
+          const toggleBtn = el('button', 'cat-toggle', [text('▼')]);
+          toggleBtn.setAttribute('aria-expanded', 'true');
+          const title = el('h5', 'font-semibold text-sm uppercase tracking-wide', [text(categoryLabels[group.cat] || group.cat)]);
+          catHeader.appendChild(toggleBtn); catHeader.appendChild(title);
+          catWrap.appendChild(catHeader);
+          const grid = el('div', 'achievement-grid');
+          group.items.forEach(item => {
+            const owned = unlockedSet.has(item.key);
+            const count = globalStats.counts[item.key];
+            let prevalence = '';
+            if (typeof count === 'number' && globalStats.totalPlayers) {
+              prevalence = `${count}/${globalStats.totalPlayers} (${Math.round(count / globalStats.totalPlayers * 100)}%)`;
+            }
+            if (item.category === 'activity') prevalence = 'Dynamic';
+            const badge = el('div', `achievement-card ${owned ? 'owned' : 'locked'} achievement-${item.category}`);
+            badge.innerHTML = `
+              <div class="ach-icon">${item.icon}</div>
+              <div class="ach-body">
+                <div class="ach-title">${item.label}</div>
+                <div class="ach-desc text-xs">${item.desc}</div>
+              </div>
+            `;
+            if (prevalence) badge.setAttribute('data-prevalence', prevalence);
+            if (!owned) badge.setAttribute('aria-disabled', 'true');
+            grid.appendChild(badge);
+          });
+          catWrap.appendChild(grid);
+          // toggle logic
+          toggleBtn.addEventListener('click', () => {
+            const expanded = toggleBtn.getAttribute('aria-expanded') === 'true';
+            toggleBtn.setAttribute('aria-expanded', String(!expanded));
+            toggleBtn.textContent = expanded ? '▶' : '▼';
+            grid.classList.toggle('collapsed');
+          });
+          achSection.appendChild(catWrap);
+        });
+
+        headerSection.appendChild(achSection);
+      });
 
 
 

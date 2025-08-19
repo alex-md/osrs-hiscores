@@ -93,7 +93,7 @@ async function getAllUsers(env) {
         for (let i = 0; i < keys.length; i += chunkSize) {
             const slice = keys.slice(i, i + chunkSize);
             const values = await Promise.all(slice.map(k => env.HISCORES_KV.get(k)));
-            values.forEach(v => { if (v) { try { users.push(JSON.parse(v)); } catch (_) {} } });
+            values.forEach(v => { if (v) { try { users.push(JSON.parse(v)); } catch (_) { } } });
         }
         if (list.list_complete) break;
     } while (cursor);
@@ -231,7 +231,7 @@ async function handleSeed(env, request) {
 async function handleDeleteUsersBatch(env, request) {
     const url = new URL(request.url); // unused but kept for parity
     let payload = {};
-    try { if (request.headers.get('content-type')?.includes('application/json')) payload = await request.json(); } catch (_) {}
+    try { if (request.headers.get('content-type')?.includes('application/json')) payload = await request.json(); } catch (_) { }
 
     const dryRun = Boolean(payload?.dryRun);
     const limitRaw = Number(payload?.limit);
@@ -283,7 +283,7 @@ async function handleDeleteUsersBatch(env, request) {
     const batches = chunk(keysToDelete, 50);
     let deleted = 0; let deletedRelated = 0;
     for (const b of batches) {
-        await Promise.all(b.map(k => env.HISCORES_KV.delete(k).then(() => { deleted++; }).catch(() => {})));
+        await Promise.all(b.map(k => env.HISCORES_KV.delete(k).then(() => { deleted++; }).catch(() => { })));
         for (const baseKey of b) {
             const relPrefix = baseKey + ':';
             let relCursor;
@@ -293,13 +293,70 @@ async function handleDeleteUsersBatch(env, request) {
                 if (rel.keys && rel.keys.length) {
                     const relBatches = chunk(rel.keys.map(x => x.name), 50);
                     for (const rb of relBatches) {
-                        await Promise.all(rb.map(rk => env.HISCORES_KV.delete(rk).then(() => { deletedRelated++; }).catch(() => {})));
+                        await Promise.all(rb.map(rk => env.HISCORES_KV.delete(rk).then(() => { deletedRelated++; }).catch(() => { })));
                     }
                 }
             } while (relCursor);
         }
     }
     return jsonResponse({ deleted, deletedRelated, requested: keysToDelete.length });
+}
+
+// Delete all users whose usernames match a "bad" regex.
+// Default pattern matches names that start with digits followed by letters OR
+// start with a capital letter and end with digits. (Hypocrite428, 910Plasmodiu, 533fluebulbo)
+// POST body: { dryRun?: true, pattern?: "regex", limit?: number }
+async function handleDeleteBadUsernames(env, request) {
+    let payload = {};
+    try { if (request.headers.get('content-type')?.includes('application/json')) payload = await request.json(); } catch (_) { }
+    const dryRun = Boolean(payload?.dryRun);
+    const limitRaw = Number(payload?.limit);
+    let limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.floor(limitRaw) : Infinity;
+    const HARD_CAP = 10000; if (limit > HARD_CAP) limit = HARD_CAP;
+    let patternSource = typeof payload?.pattern === 'string' && payload.pattern.trim() ? payload.pattern.trim() : null;
+    let matcher;
+    try {
+        if (patternSource) matcher = new RegExp(patternSource); else { patternSource = '^(?:[0-9]+[A-Za-z]+|[A-Z][A-Za-z]*[0-9]+)$'; matcher = new RegExp(patternSource); }
+    } catch (e) {
+        return jsonResponse({ error: 'Invalid regex pattern', detail: String(e) }, { status: 400 });
+    }
+    const matched = []; let scanned = 0; let cursor;
+    outer: do {
+        const list = await env.HISCORES_KV.list({ prefix: 'user:', cursor, limit: 1000 });
+        cursor = list.list_complete ? undefined : list.cursor;
+        const keys = list.keys.map(k => k.name);
+        const chunkSize = 50;
+        for (let i = 0; i < keys.length; i += chunkSize) {
+            const slice = keys.slice(i, i + chunkSize);
+            const values = await Promise.all(slice.map(k => env.HISCORES_KV.get(k)));
+            for (let j = 0; j < values.length; j++) {
+                const raw = values[j]; if (!raw) continue; let user; try { user = JSON.parse(raw); } catch (_) { continue; }
+                scanned++; const uname = user?.username || '';
+                if (typeof uname === 'string' && matcher.test(uname)) { matched.push({ username: uname, key: slice[j] }); if (matched.length >= limit) { cursor = undefined; break outer; } }
+            }
+        }
+    } while (cursor);
+    if (dryRun) return jsonResponse({ dryRun: true, pattern: patternSource, matched: matched.map(m => m.username), count: matched.length, scanned });
+    const keys = matched.map(m => m.key);
+    const chunk = (arr, n) => arr.reduce((acc, _, i) => (i % n ? acc : [...acc, arr.slice(i, i + n)]), []);
+    let deleted = 0; let deletedRelated = 0;
+    for (const batch of chunk(keys, 50)) {
+        await Promise.all(batch.map(k => env.HISCORES_KV.delete(k).then(() => { deleted++; }).catch(() => { })));
+        for (const baseKey of batch) {
+            const relPrefix = baseKey + ':'; let relCursor;
+            do {
+                const rel = await env.HISCORES_KV.list({ prefix: relPrefix, limit: 1000, cursor: relCursor });
+                relCursor = rel.list_complete ? undefined : rel.cursor;
+                if (rel.keys && rel.keys.length) {
+                    const relBatches = chunk(rel.keys.map(x => x.name), 50);
+                    for (const rb of relBatches) {
+                        await Promise.all(rb.map(rk => env.HISCORES_KV.delete(rk).then(() => { deletedRelated++; }).catch(() => { })));
+                    }
+                }
+            } while (relCursor);
+        }
+    }
+    return jsonResponse({ pattern: patternSource, deleted, deletedRelated, matched: matched.length, scanned });
 }
 
 async function runScheduled(env) {
@@ -362,6 +419,7 @@ async function router(request, env) {
     if (path === '/api/migrate/hitpoints' && method === 'POST') return handleHitpointsMigration(env);
     if (path === '/api/seed' && method === 'POST') return handleSeed(env, request);
     if (path === '/api/admin/users/delete-batch' && method === 'POST') return handleDeleteUsersBatch(env, request);
+    if (path === '/api/admin/users/delete-bad' && method === 'POST') return handleDeleteBadUsernames(env, request);
     const userMatch = path.match(/^\/api\/users\/([^\/]+)$/); if (userMatch && method === 'GET') return handleUser(env, decodeURIComponent(userMatch[1]));
     const hpCheckMatch = path.match(/^\/api\/users\/([^\/]+)\/hitpoints-check$/); if (hpCheckMatch && method === 'GET') return handleUserHpCheck(env, decodeURIComponent(hpCheckMatch[1]));
     if (method === 'OPTIONS') return new Response(null, { headers: { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET,POST,OPTIONS', 'access-control-allow-headers': 'Content-Type, X-Admin-Token' } });

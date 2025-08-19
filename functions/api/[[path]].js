@@ -35,11 +35,11 @@ const ARCHETYPE_TO_ACTIVITY_PROBABILITY = {
 };
 
 export const SKILL_POPULARITY = {
-  attack: 1.20, defence: 1.05, strength: 1.25, hitpoints: 1.15, ranged: 1.20,
-  prayer: 0.70, magic: 1.20, cooking: 1.10, woodcutting: 1.00, fletching: 1.00,
-  fishing: 1.00, firemaking: 0.95, crafting: 0.85, smithing: 0.80, mining: 0.90,
-  herblore: 0.80, agility: 0.70, thieving: 0.90, slayer: 1.20, farming: 0.90,
-  runecraft: 0.75, hunter: 0.85, construction: 0.70
+    attack: 1.20, defence: 1.05, strength: 1.25, hitpoints: 1.15, ranged: 1.20,
+    prayer: 0.70, magic: 1.20, cooking: 1.10, woodcutting: 1.00, fletching: 1.00,
+    fishing: 1.00, firemaking: 0.95, crafting: 0.85, smithing: 0.80, mining: 0.90,
+    herblore: 0.80, agility: 0.70, thieving: 0.90, slayer: 1.20, farming: 0.90,
+    runecraft: 0.75, hunter: 0.85, construction: 0.70
 };
 
 function weekendBonusMultiplier(date = new Date()) {
@@ -499,6 +499,91 @@ async function handleDeleteUsersBatch(env, request) {
     return jsonResponse({ deleted, deletedRelated, requested: keysToDelete.length });
 }
 
+// Delete all users whose usernames match a "bad" regex pattern.
+// Default pattern targets names that either:
+//  1. Start with digits followed by letters (e.g. 910Plasmodiu, 533fluebulbo)
+//  2. Start with a capital letter and end with one or more digits (e.g. Hypocrite428)
+// You can override the pattern by POSTing { pattern: "..." }. Provide dryRun: true to preview.
+async function handleDeleteBadUsernames(env, request) {
+    let payload = {};
+    try { if (request.headers.get('content-type')?.includes('application/json')) payload = await request.json(); } catch (_) { /* ignore */ }
+    const dryRun = Boolean(payload?.dryRun);
+    const limitRaw = Number(payload?.limit);
+    let limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.floor(limitRaw) : Infinity; // no limit by default
+    const HARD_CAP = 10000; // safety hard cap to avoid accidental full wipes
+    if (limit > HARD_CAP) limit = HARD_CAP;
+
+    // Allow a custom pattern, otherwise build a default combined pattern.
+    let patternSource = typeof payload?.pattern === 'string' && payload.pattern.trim() ? payload.pattern.trim() : null;
+    let matcher;
+    try {
+        if (patternSource) {
+            matcher = new RegExp(patternSource);
+        } else {
+            // Default: (^[0-9]+[A-Za-z]+$)|(^[A-Z][A-Za-z]*[0-9]+$)
+            patternSource = '^(?:[0-9]+[A-Za-z]+|[A-Z][A-Za-z]*[0-9]+)$';
+            matcher = new RegExp(patternSource);
+        }
+    } catch (e) {
+        return jsonResponse({ error: 'Invalid regex pattern', detail: String(e) }, { status: 400 });
+    }
+
+    const matched = [];
+    let scanned = 0;
+    let cursor;
+    outer: do {
+        const list = await env.HISCORES_KV.list({ prefix: 'user:', cursor, limit: 1000 });
+        cursor = list.list_complete ? undefined : list.cursor;
+        const keys = list.keys.map(k => k.name);
+        const chunkSize = 50;
+        for (let i = 0; i < keys.length; i += chunkSize) {
+            const slice = keys.slice(i, i + chunkSize);
+            const values = await Promise.all(slice.map(k => env.HISCORES_KV.get(k)));
+            for (let j = 0; j < values.length; j++) {
+                const raw = values[j];
+                if (!raw) continue;
+                let user;
+                try { user = JSON.parse(raw); } catch (_) { continue; }
+                scanned++;
+                const uname = user?.username || '';
+                if (typeof uname === 'string' && matcher.test(uname)) {
+                    matched.push({ username: uname, key: slice[j] });
+                    if (matched.length >= limit) { cursor = undefined; break outer; }
+                }
+            }
+        }
+    } while (cursor);
+
+    if (dryRun) {
+        return jsonResponse({ dryRun: true, pattern: patternSource, matched: matched.map(m => m.username), count: matched.length, scanned });
+    }
+
+    // Delete in batches
+    const keys = matched.map(m => m.key);
+    const chunk = (arr, n) => arr.reduce((acc, _, i) => (i % n ? acc : [...acc, arr.slice(i, i + n)]), []);
+    let deleted = 0; let deletedRelated = 0;
+    for (const batch of chunk(keys, 50)) {
+        await Promise.all(batch.map(k => env.HISCORES_KV.delete(k).then(() => { deleted++; }).catch(() => { })));
+        // remove related keys user:<name>:
+        for (const baseKey of batch) {
+            const relPrefix = baseKey + ':';
+            let relCursor;
+            do {
+                const rel = await env.HISCORES_KV.list({ prefix: relPrefix, limit: 1000, cursor: relCursor });
+                relCursor = rel.list_complete ? undefined : rel.cursor;
+                if (rel.keys && rel.keys.length) {
+                    const relBatches = chunk(rel.keys.map(x => x.name), 50);
+                    for (const rb of relBatches) {
+                        await Promise.all(rb.map(rk => env.HISCORES_KV.delete(rk).then(() => { deletedRelated++; }).catch(() => { })));
+                    }
+                }
+            } while (relCursor);
+        }
+    }
+
+    return jsonResponse({ pattern: patternSource, deleted, deletedRelated, matched: matched.length, scanned });
+}
+
 async function runScheduled(env) {
     await ensureInitialData(env);
     const users = await getAllUsers(env);
@@ -578,6 +663,7 @@ async function router(request, env) {
     if (path === '/migrate/hitpoints' && method === 'POST') return handleHitpointsMigration(env);
     if (path === '/seed' && method === 'POST') return handleSeed(env, request);
     if (path === '/admin/users/delete-batch' && method === 'POST') return handleDeleteUsersBatch(env, request);
+    if (path === '/admin/users/delete-bad' && method === 'POST') return handleDeleteBadUsernames(env, request);
 
     const userMatch = path.match(/^\/users\/([^\/]+)$/);
     if (userMatch && method === 'GET') return handleUser(env, decodeURIComponent(userMatch[1]));
