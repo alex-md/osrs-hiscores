@@ -477,138 +477,200 @@ function renderUserView(username) {
         const catalogByCategory = categoriesOrder.map(cat => ({ cat, items: ACHIEVEMENT_CATALOG.filter(a => a.category === cat && unlockedSet.has(a.key)) }));
         const unlockedVisible = [...unlockedSet].filter(k => ACHIEVEMENT_CATALOG.find(c => c.key === k)).length;
 
-        // Sidebar insertion (compact)
-        const panel = el('div', 'flex flex-col gap-3 achievements-panel achievements-panel--compact');
+        // Clean up existing panel
+        const existingPanel = document.getElementById('sidebarAchievements');
+        if (existingPanel) existingPanel.remove();
+
+        // Create main panel container
+        const panel = el('div', 'achievements-panel achievements-panel--compact');
         panel.id = 'sidebarAchievements';
-        const header = el('div', 'flex flex-col gap-2');
+
+        // Header section
+        const headerSection = el('div', 'achievements-header');
         const headerLine = el('div', 'flex items-center justify-between gap-2');
         headerLine.appendChild(el('h4', 'font-semibold flex items-center gap-2', [text(`🏅 Achievements (${unlockedVisible})`)]));
-        // Filter controls
-        const filterWrap = el('div', 'flex items-center gap-1 flex-wrap text-[10px]');
+
+        // Filter controls with better styling
+        const filterWrap = el('div', 'flex items-center gap-1 flex-wrap');
         function makeFilter(label, val, checked = true) {
-          const id = 'af-' + val;
-          const w = el('label', 'flex items-center gap-1 cursor-pointer select-none');
-          const inp = document.createElement('input'); inp.type = 'checkbox'; inp.checked = checked; inp.dataset.filter = val; inp.className = 'ach-filter';
-          w.appendChild(inp); w.appendChild(text(label));
-          return w;
+          const wrapper = el('label', 'filter-label');
+          const input = document.createElement('input');
+          input.type = 'checkbox';
+          input.checked = checked;
+          input.dataset.filter = val;
+          input.className = 'ach-filter';
+          wrapper.appendChild(input);
+          wrapper.appendChild(text(label));
+          return wrapper;
         }
+
         filterWrap.appendChild(makeFilter('Skill', 'skill'));
         filterWrap.appendChild(makeFilter('Rank', 'rank'));
         filterWrap.appendChild(makeFilter('Account', 'account'));
         filterWrap.appendChild(makeFilter('Style', 'playstyle'));
         filterWrap.appendChild(makeFilter('Perf', 'performance'));
         filterWrap.appendChild(makeFilter('Activity', 'activity', false));
-        filterWrap.appendChild(makeFilter('Competitive', 'competitive')); // competitive flag (firsts)
+        filterWrap.appendChild(makeFilter('Competitive', 'competitive'));
         filterWrap.appendChild(makeFilter('Ultra', 'ultra'));
 
-        header.appendChild(headerLine);
-        header.appendChild(filterWrap);
-        panel.appendChild(header);
+        headerSection.appendChild(headerLine);
+        headerSection.appendChild(filterWrap);
+        panel.appendChild(headerSection);
 
+        // Categories
         catalogByCategory.forEach(group => {
           if (!group.items.length) return;
-          const catWrap = el('div', 'achievement-category flex flex-col gap-2');
-          const catHeader = el('div', 'flex items-center gap-2');
+
+          const categorySection = el('div', 'achievement-category');
+
+          // Category header
+          const categoryHeader = el('div', 'category-header');
           const toggleBtn = el('button', 'cat-toggle', [text('▶')]);
           toggleBtn.setAttribute('aria-expanded', 'false');
-          const title = el('h5', 'font-semibold text-sm uppercase tracking-wide', [text(categoryLabels[group.cat] || group.cat)]);
-          catHeader.appendChild(toggleBtn); catHeader.appendChild(title);
-          catWrap.appendChild(catHeader);
-          const grid = el('div', 'achievement-grid collapsed anim-capable');
+          const title = el('h5', 'category-title', [text(categoryLabels[group.cat] || group.cat)]);
+
+          categoryHeader.appendChild(toggleBtn);
+          categoryHeader.appendChild(title);
+          categorySection.appendChild(categoryHeader);
+
+          // Achievement grid
+          const grid = el('div', 'achievement-grid collapsed');
+
           group.items.forEach(item => {
             const count = globalStats.counts[item.key];
             let prevalence = '';
-            if (typeof count === 'number' && globalStats.totalPlayers) prevalence = `${count}/${globalStats.totalPlayers} (${Math.round(count / globalStats.totalPlayers * 100)}%)`;
+            if (typeof count === 'number' && globalStats.totalPlayers) {
+              prevalence = `${count}/${globalStats.totalPlayers} (${Math.round(count / globalStats.totalPlayers * 100)}%)`;
+            }
             if (item.category === 'activity' && !prevalence) prevalence = 'Dynamic';
-            const badge = el('div', `achievement-card owned achievement-${item.category}`);
-            badge.innerHTML = `
-              <div class="ach-icon">${item.icon}</div>
-              <div class="ach-body">
-                <div class="ach-title">${item.label}</div>
-                <div class="ach-desc text-xs">${item.desc}</div>
-              </div>`;
-            if (prevalence) badge.setAttribute('data-prevalence', prevalence);
-            // Rarity tier classes based on prevalence percentage
+
+            const card = el('div', `achievement-card owned achievement-${item.category}`);
+
+            // Icon
+            const icon = el('div', 'ach-icon', [text(item.icon)]);
+
+            // Body content
+            const body = el('div', 'ach-body');
+            const titleEl = el('div', 'ach-title', [text(item.label)]);
+            const descEl = el('div', 'ach-desc', [text(item.desc)]);
+
+            body.appendChild(titleEl);
+            body.appendChild(descEl);
+            card.appendChild(icon);
+            card.appendChild(body);
+
+            if (prevalence) card.setAttribute('data-prevalence', prevalence);
+
+            // Rarity tier classes
             if (prevalence && /\((\d+)%\)/.test(prevalence)) {
               const pct = parseInt(prevalence.match(/\((\d+)%\)/)[1], 10);
-              if (pct <= 1) badge.classList.add('rarity-mythic');
-              else if (pct <= 5) badge.classList.add('rarity-legendary');
-              else if (pct <= 15) badge.classList.add('rarity-epic');
-              else if (pct <= 35) badge.classList.add('rarity-rare');
-              else badge.classList.add('rarity-common');
+              if (pct <= 1) card.classList.add('rarity-mythic');
+              else if (pct <= 5) card.classList.add('rarity-legendary');
+              else if (pct <= 15) card.classList.add('rarity-epic');
+              else if (pct <= 35) card.classList.add('rarity-rare');
+              else card.classList.add('rarity-common');
             }
-            if (item.competitive) badge.classList.add('ach-competitive');
-            if (item.ultra) badge.classList.add('ach-ultra');
-            badge.dataset.category = item.category;
-            if (item.competitive) badge.dataset.competitive = '1';
-            if (item.ultra) badge.dataset.ultra = '1';
-            grid.appendChild(badge);
+
+            // Special achievement flags
+            if (item.competitive) card.classList.add('ach-competitive');
+            if (item.ultra) card.classList.add('ach-ultra');
+            card.dataset.category = item.category;
+            if (item.competitive) card.dataset.competitive = '1';
+            if (item.ultra) card.dataset.ultra = '1';
+
+            grid.appendChild(card);
           });
-          catWrap.appendChild(grid);
-          toggleBtn.addEventListener('click', () => {
-            const expanded = toggleBtn.getAttribute('aria-expanded') === 'true';
-            toggleBtn.setAttribute('aria-expanded', String(!expanded));
-            toggleBtn.textContent = expanded ? '▶' : '▼';
-            if (grid.classList.contains('anim-capable')) {
-              if (expanded) {
-                grid.style.maxHeight = grid.scrollHeight + 'px';
-                requestAnimationFrame(() => {
-                  grid.classList.add('collapsed');
-                  grid.style.maxHeight = '0px';
-                  grid.style.opacity = '0';
-                });
-              } else {
-                grid.classList.remove('collapsed');
-                grid.style.maxHeight = '0px';
-                grid.style.opacity = '0';
-                requestAnimationFrame(() => {
-                  grid.style.maxHeight = grid.scrollHeight + 'px';
-                  grid.style.opacity = '1';
-                  setTimeout(() => { grid.style.maxHeight = ''; }, 400);
-                });
-              }
+
+          categorySection.appendChild(grid);
+
+          // Toggle functionality with smooth animation
+          categoryHeader.addEventListener('click', () => {
+            const isExpanded = toggleBtn.getAttribute('aria-expanded') === 'true';
+            toggleBtn.setAttribute('aria-expanded', String(!isExpanded));
+            toggleBtn.textContent = isExpanded ? '▶' : '▼';
+
+            if (isExpanded) {
+              // Collapse
+              grid.style.maxHeight = grid.scrollHeight + 'px';
+              requestAnimationFrame(() => {
+                grid.classList.add('collapsed');
+              });
             } else {
-              grid.classList.toggle('collapsed');
+              // Expand
+              grid.classList.remove('collapsed');
+              grid.style.maxHeight = grid.scrollHeight + 'px';
+
+              // Reset max-height after animation
+              const resetHeight = () => {
+                if (!grid.classList.contains('collapsed')) {
+                  grid.style.maxHeight = '';
+                }
+              };
+              setTimeout(resetHeight, 300);
             }
           });
-          panel.appendChild(catWrap);
+
+          panel.appendChild(categorySection);
         });
 
+        // Insert into sidebar
         const sidebar = document.querySelector('.sidebar');
         if (sidebar) {
           const summaryBlock = sidebar.querySelector('.summary');
-          if (summaryBlock) summaryBlock.insertAdjacentElement('afterend', panel); else sidebar.appendChild(panel);
-          // Inject summary line link
-          const summaryList = summaryBlock && summaryBlock.querySelector('ul');
-          if (summaryList) {
-            let achLine = document.getElementById('summaryAchievementsLine');
-            if (achLine) achLine.remove();
-            achLine = document.createElement('li');
-            achLine.id = 'summaryAchievementsLine';
-            achLine.className = 'flex items-center gap-2';
-            achLine.innerHTML = '<i data-lucide="medal" class="w-4 h-4"></i><span><button type="button" class="underline hover:text-accent text-left" id="openAllAchievements">Achievements: ' + unlockedVisible + '</button></span>';
-            summaryList.appendChild(achLine);
-            // wire up icon refresh
-            if (window.lucide) window.lucide.createIcons();
-            document.getElementById('openAllAchievements').addEventListener('click', () => {
-              // expand all categories & scroll into view
-              panel.querySelectorAll('.cat-toggle').forEach(btn => {
-                if (btn.getAttribute('aria-expanded') === 'false') btn.click();
+          if (summaryBlock) {
+            summaryBlock.insertAdjacentElement('afterend', panel);
+
+            // Add summary line link
+            const summaryList = summaryBlock.querySelector('ul');
+            if (summaryList) {
+              let achLine = document.getElementById('summaryAchievementsLine');
+              if (achLine) achLine.remove();
+
+              achLine = document.createElement('li');
+              achLine.id = 'summaryAchievementsLine';
+              achLine.className = 'flex items-center gap-2';
+              achLine.innerHTML = `
+                <i data-lucide="medal" class="w-4 h-4"></i>
+                <span>
+                  <button type="button" class="underline hover:text-accent text-left" id="openAllAchievements">
+                    Achievements: ${unlockedVisible}
+                  </button>
+                </span>
+              `;
+              summaryList.appendChild(achLine);
+
+              // Refresh Lucide icons
+              if (window.lucide) window.lucide.createIcons();
+
+              // Wire up expand all functionality
+              document.getElementById('openAllAchievements').addEventListener('click', () => {
+                panel.querySelectorAll('.cat-toggle[aria-expanded="false"]').forEach(btn => {
+                  btn.closest('.category-header').click();
+                });
+                panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
               });
-              panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            });
+            }
+          } else {
+            sidebar.appendChild(panel);
           }
         } else {
-          headerSection.appendChild(panel); // fallback
+          // Fallback: append to header section
+          headerSection.appendChild(panel);
         }
 
-        // Filter logic
+        // Filter functionality
         const filters = panel.querySelectorAll('.ach-filter');
         function applyFilters() {
           const activeCats = new Set();
           const showCompetitive = panel.querySelector('input[data-filter="competitive"]').checked;
           const showUltra = panel.querySelector('input[data-filter="ultra"]').checked;
-          filters.forEach(f => { if (f.dataset.filter && f.checked && !['competitive', 'ultra'].includes(f.dataset.filter)) activeCats.add(f.dataset.filter); });
+
+          filters.forEach(f => {
+            if (f.dataset.filter && f.checked && !['competitive', 'ultra'].includes(f.dataset.filter)) {
+              activeCats.add(f.dataset.filter);
+            }
+          });
+
           panel.querySelectorAll('.achievement-card').forEach(card => {
             const cat = card.dataset.category;
             const isComp = card.classList.contains('ach-competitive');
@@ -616,14 +678,14 @@ function renderUserView(username) {
             const catAllowed = activeCats.has(cat);
             const compAllowed = isComp ? showCompetitive : true;
             const ultraAllowed = isUltra ? showUltra : true;
+
             card.style.display = (catAllowed && compAllowed && ultraAllowed) ? '' : 'none';
           });
         }
+
         filters.forEach(f => f.addEventListener('change', applyFilters));
         applyFilters();
       });
-
-
 
       // Hiscores table (column layout like OSRS)
       const section = el("section", "flex flex-col gap-4");
