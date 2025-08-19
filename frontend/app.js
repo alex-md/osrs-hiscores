@@ -466,78 +466,136 @@ function renderUserView(username) {
         return stats;
       }
 
-      computeGlobalAchievementStats(skillRankings).then(globalStats => {
-        const userAchievementKeys = deriveUserAchievements(user, globalStats.averages);
-        const unlockedSet = new Set(userAchievementKeys);
-        if (!unlockedSet.size) {
-          // Add header section to wrap even without achievements
-          wrap.appendChild(headerSection);
-          return;
-        }
+      // Function to render achievements section with expand/collapse functionality
+      function renderAchievementsSection(container, achievements) {
+        container.innerHTML = ''; // Clear existing content
 
-        // Get unlocked achievements and sort by rarity (rarest first for showcase effect)
-        const unlockedAchievements = ACHIEVEMENT_CATALOG
-          .filter(a => unlockedSet.has(a.key))
-          .map(achievement => {
-            const prevalence = globalStats.counts[achievement.key] || 0;
-            const percentage = globalStats.totalPlayers > 0 ? (prevalence / globalStats.totalPlayers) * 100 : 0;
-            return { ...achievement, prevalence: percentage };
-          })
-          .sort((a, b) => a.prevalence - b.prevalence); // Rarest first
+        if (!achievements || achievements.length === 0) return;
 
-        // Create achievements section within the header
-        const achievementsSection = el('div', 'user-achievements mt-4 pt-4 border-t border-border');
+        // Create achievements section 
+        const achievementsSection = el('div', 'user-achievements mb-6 bg-layer2 p-4 rounded-lg border-2 border-border-dark');
 
         const achievementsHeader = el('div', 'flex items-center justify-between mb-3');
         achievementsHeader.appendChild(
-          el('h4', 'text-sm font-medium text-muted flex items-center gap-2',
-            [text(`🏅 Achievements (${unlockedAchievements.length})`)]
+          el('h4', 'text-lg font-medium text-foreground flex items-center gap-2',
+            [text(`🏅 Achievements (${achievements.length})`)]
           )
         );
 
         // Show top achievements in a clean grid (limit to prevent overwhelming)
-        const topAchievements = unlockedAchievements.slice(0, 8); // Show max 8 achievements
+        const maxVisible = 8;
+        const topAchievements = achievements.slice(0, maxVisible);
+
+        // Create grid container that will hold all achievements
         const achievementsGrid = el('div', 'achievements-inline-grid');
+        const expandableGrid = el('div', 'expandable-achievements-grid');
 
+        // Add visible achievements
         topAchievements.forEach(achievement => {
-          const prevalence = achievement.prevalence;
-          let rarityClass = 'common';
-          if (prevalence < 1) rarityClass = 'mythic';
-          else if (prevalence < 5) rarityClass = 'legendary';
-          else if (prevalence < 15) rarityClass = 'epic';
-          else if (prevalence < 35) rarityClass = 'rare';
-
-          const card = el('div', `achievement-inline-card ach-${rarityClass}`);
-          card.setAttribute('title', `${achievement.label}\n${achievement.desc}\n${prevalence.toFixed(1)}% of players have this`);
-
-          const icon = el('div', 'ach-inline-icon', [text(achievement.icon)]);
-          const content = el('div', 'ach-inline-content');
-          content.appendChild(el('div', 'ach-inline-name', [text(achievement.label)]));
-          content.appendChild(el('div', 'ach-inline-rarity', [text(`${prevalence.toFixed(1)}%`)]));
-
-          card.appendChild(icon);
-          card.appendChild(content);
-          achievementsGrid.appendChild(card);
+          const achievementCard = createAchievementCard(achievement);
+          achievementsGrid.appendChild(achievementCard);
         });
 
-        achievementsSection.appendChild(achievementsHeader);
-        achievementsSection.appendChild(achievementsGrid);
+        expandableGrid.appendChild(achievementsGrid);
 
-        // If there are more achievements, add a subtle indicator
-        if (unlockedAchievements.length > 8) {
-          const moreIndicator = el('div', 'text-xs text-muted mt-2 text-center');
-          moreIndicator.appendChild(text(`+${unlockedAchievements.length - 8} more achievements`));
-          achievementsSection.appendChild(moreIndicator);
+        // If there are more achievements, create the expandable section
+        if (achievements.length > maxVisible) {
+          const hiddenAchievements = achievements.slice(maxVisible);
+          const hiddenGrid = el('div', 'hidden-achievements-grid hidden');
+
+          hiddenAchievements.forEach(achievement => {
+            const achievementCard = createAchievementCard(achievement);
+            hiddenGrid.appendChild(achievementCard);
+          });
+
+          expandableGrid.appendChild(hiddenGrid);
+
+          // Create expandable indicator with hover and click functionality
+          const moreIndicator = el('div', 'achievements-expand-toggle text-sm text-muted mt-3 text-center cursor-pointer hover:text-accent transition-colors duration-200 select-none');
+          moreIndicator.appendChild(text(`+${hiddenAchievements.length} more achievements`));
+
+          let isExpanded = false;
+
+          moreIndicator.addEventListener('click', () => {
+            isExpanded = !isExpanded;
+
+            if (isExpanded) {
+              hiddenGrid.classList.remove('hidden');
+              moreIndicator.textContent = 'Show fewer achievements';
+            } else {
+              hiddenGrid.classList.add('hidden');
+              moreIndicator.textContent = `+${hiddenAchievements.length} more achievements`;
+            }
+          });
+
+          expandableGrid.appendChild(moreIndicator);
         }
 
-        headerSection.appendChild(achievementsSection);
-        wrap.appendChild(headerSection);
+        achievementsSection.appendChild(achievementsHeader);
+        achievementsSection.appendChild(expandableGrid);
+        container.appendChild(achievementsSection);
+      }
+
+      // Function to create an achievement card
+      function createAchievementCard(achievement) {
+        const prevalence = achievement.prevalence;
+        let rarityClass = 'common';
+        if (prevalence < 1) rarityClass = 'mythic';
+        else if (prevalence < 5) rarityClass = 'legendary';
+        else if (prevalence < 15) rarityClass = 'epic';
+        else if (prevalence < 35) rarityClass = 'rare';
+
+        const card = el('div', `achievement-inline-card ach-${rarityClass}`);
+        card.setAttribute('title', `${achievement.label}\n${achievement.desc}\n${prevalence.toFixed(1)}% of players have this`);
+
+        const icon = el('div', 'ach-inline-icon', [text(achievement.icon)]);
+        const content = el('div', 'ach-inline-content');
+        content.appendChild(el('div', 'ach-inline-name', [text(achievement.label)]));
+        content.appendChild(el('div', 'ach-inline-rarity', [text(`${prevalence.toFixed(1)}%`)]));
+
+        card.appendChild(icon);
+        card.appendChild(content);
+        return card;
+      }
+
+      // Add header section without achievements first
+      wrap.appendChild(headerSection);
+
+      // Store achievements data to be rendered above the hiscores table
+      let achievementsData = null;
+
+      computeGlobalAchievementStats(skillRankings).then(globalStats => {
+        const userAchievementKeys = deriveUserAchievements(user, globalStats.averages);
+        const unlockedSet = new Set(userAchievementKeys);
+
+        if (unlockedSet.size > 0) {
+          // Get unlocked achievements and sort by rarity (rarest first for showcase effect)
+          const unlockedAchievements = ACHIEVEMENT_CATALOG
+            .filter(a => unlockedSet.has(a.key))
+            .map(achievement => {
+              const prevalence = globalStats.counts[achievement.key] || 0;
+              const percentage = globalStats.totalPlayers > 0 ? (prevalence / globalStats.totalPlayers) * 100 : 0;
+              return { ...achievement, prevalence: percentage };
+            })
+            .sort((a, b) => a.prevalence - b.prevalence); // Rarest first
+
+          achievementsData = unlockedAchievements;
+
+          // Find the achievements section and render it
+          const existingAchievements = wrap.querySelector('.achievements-container');
+          if (existingAchievements) {
+            renderAchievementsSection(existingAchievements, achievementsData);
+          }
+        }
       }).catch(() => {
-        // On error, just add the header without achievements
-        wrap.appendChild(headerSection);
+        // On error, achievements will just not be rendered
       });
 
-      // Hiscores table (column layout like OSRS)
+      // Achievements container (positioned above hiscores table)
+      const achievementsContainer = el("div", "achievements-container");
+      wrap.appendChild(achievementsContainer);
+
+      // Hiscores table (column layout like OSRS)  
       const section = el("section", "flex flex-col gap-4");
       const headerRow = el("div", "flex items-center justify-between");
       headerRow.appendChild(

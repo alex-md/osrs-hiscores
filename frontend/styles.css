@@ -9,6 +9,11 @@ table td {
   font-variant-numeric: tabular-nums
 }
 
+.bg-layer2.p-6.rounded-lg.border-2.border-border-dark {
+  border-width: 2px;
+  box-shadow: 0 0 15px 0 #710b8b
+}
+
 :root[data-theme=light] {
   --color-bg-surface: #f4f2e8;
   --color-bg-layer: #ffffff;
@@ -58,7 +63,7 @@ html {
 }
 
 body {
-  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-family: Outfit, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   font-size: clamp(1rem, .5vw + .95rem, 1.18rem);
   line-height: 1.7;
   background: var(--color-bg-surface) radial-gradient(circle at 25% 25%, rgba(196, 164, 132, .1) 0, transparent 50%), radial-gradient(circle at 75% 75%, rgba(196, 164, 132, .05) 0, transparent 50%)
@@ -173,6 +178,8 @@ table th {
 .btn-sm:active,
 .btn:active,
 .icon-button,
+.meta-badge,
+.osrs-table,
 .skill-rank,
 .skill-row,
 [data-tooltip]::after {
@@ -275,6 +282,11 @@ table th {
   text-transform: uppercase
 }
 
+.progress-item .pi-head,
+.text-capitalize {
+  text-transform: capitalize
+}
+
 .badge,
 .skill-rank {
   background: 0 0;
@@ -286,6 +298,8 @@ table th {
 .bg-layer,
 .icon-button,
 .meta-badge,
+.osrs-table,
+.progress-item,
 input[type=number],
 input[type=text],
 select {
@@ -317,7 +331,8 @@ table th {
 }
 
 .btn-sm:active,
-.btn:active {
+.btn:active,
+.cat-toggle:active {
   transform: translateY(0)
 }
 
@@ -338,11 +353,6 @@ table th {
 .skill-row.clickable:active,
 .skill-row:hover {
   box-shadow: var(--shadow-md)
-}
-
-.meta-badge,
-.osrs-table {
-  box-shadow: var(--shadow-sm)
 }
 
 #searchSuggest,
@@ -446,6 +456,7 @@ table th {
   overflow: hidden
 }
 
+.cursor-pointer,
 .icon-button,
 tbody tr.clickable {
   cursor: pointer
@@ -466,6 +477,15 @@ tbody tr.clickable {
   background: var(--color-layer3);
   border-color: var(--color-border-light);
   box-shadow: 0 2px 8px rgba(0, 0, 0, .1)
+}
+
+h3.font-bold.text-foreground {
+  display: flex;
+  flex-direction: column;
+  align-content: stretch;
+  justify-content: center;
+  align-items: center;
+  padding-bottom: 1em
 }
 
 .ach-inline-icon {
@@ -556,7 +576,9 @@ table th {
 }
 
 #searchSuggest,
-.icon-button {
+.icon-button,
+.skill-row,
+.toast {
   border: 2px solid var(--color-border)
 }
 
@@ -647,11 +669,6 @@ select {
 .osrs-header {
   background: linear-gradient(135deg, var(--color-bg-header) 0, #1f1108 100%);
   border-bottom: 3px solid var(--color-border-dark)
-}
-
-.osrs-table,
-.progress-item {
-  background: var(--color-bg-layer)
 }
 
 .osrs-header::after {
@@ -840,8 +857,7 @@ tbody tr.overall-row {
   justify-content: space-between;
   gap: 4px;
   margin-bottom: 4px;
-  font-weight: 600;
-  text-transform: capitalize
+  font-weight: 600
 }
 
 .pi-bar-wrap {
@@ -1050,10 +1066,6 @@ tbody tr.overall-row {
 .cat-toggle:hover {
   background: var(--color-accent-hover);
   box-shadow: 0 4px 8px rgba(0, 0, 0, .25)
-}
-
-.cat-toggle:active {
-  transform: translateY(0)
 }
 
 .achievement-grid {
@@ -1422,11 +1434,6 @@ tbody tr.overall-row {
   overflow: hidden
 }
 
-.skill-row,
-.toast {
-  border: 2px solid var(--color-border)
-}
-
 .progress-toggle button {
   background: var(--color-bg-layer);
   border: 0;
@@ -1524,10 +1531,6 @@ th.sortable {
 .skill-rank {
   font-family: 'Press Start 2P';
   font-size: .7rem
-}
-
-.text-capitalize {
-  text-transform: capitalize
 }
 
 .skill-stats {
@@ -1730,4 +1733,37 @@ footer.site-footer .mt-2 {
   h3 {
     font-size: 1.15rem
   }
+}
+
+.achievements-expand-toggle {
+  padding: 6px 12px;
+  border-radius: 4px;
+  transition: .2s;
+  user-select: none
+}
+
+.achievements-expand-toggle:hover {
+  background-color: var(--bg-layer);
+  color: var(--text-accent);
+  cursor: pointer
+}
+
+.select-none {
+  user-select: none
+}
+
+.hidden {
+  display: none
+}
+
+.transition-colors {
+  transition-property: color
+}
+
+.duration-200 {
+  transition-duration: .2s
+}
+
+.hover\:text-accent:hover {
+  color: var(--text-accent)
 }
