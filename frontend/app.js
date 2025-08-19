@@ -468,64 +468,159 @@ function renderUserView(username) {
       }
 
       computeGlobalAchievementStats(skillRankings).then(globalStats => {
-        // Merge with existing averages (prefer more detailed if available)
         const userAchievementKeys = deriveUserAchievements(user, globalStats.averages);
         const unlockedSet = new Set(userAchievementKeys);
+        if (!unlockedSet.size) return; // nothing to show
         const categoriesOrder = ['skill', 'rank', 'account', 'playstyle', 'performance', 'activity'];
         const categoryLabels = { skill: 'Skill Progress', rank: 'Skill Ranks', account: 'Account Milestones', playstyle: 'Playstyle', performance: 'Performance', activity: 'Activity' };
-        const catalogByCategory = categoriesOrder.map(cat => ({ cat, items: ACHIEVEMENT_CATALOG.filter(a => a.category === cat) }));
-        const totalPossible = ACHIEVEMENT_CATALOG.filter(a => a.category !== 'activity').length; // exclude dynamic activity from progress total
-        const unlockedNonActivity = userAchievementKeys.filter(k => !k.startsWith('active-')).length;
+        // Only include unlocked items
+        const catalogByCategory = categoriesOrder.map(cat => ({ cat, items: ACHIEVEMENT_CATALOG.filter(a => a.category === cat && unlockedSet.has(a.key)) }));
+        const unlockedVisible = [...unlockedSet].filter(k => ACHIEVEMENT_CATALOG.find(c => c.key === k)).length;
 
-        const achSection = el('div', 'flex flex-col gap-4 achievements-panel');
-        const header = el('div', 'flex items-center justify-between flex-wrap gap-2');
-        header.appendChild(el('h4', 'font-semibold flex items-center gap-2', [text('🏅 Achievements')]));
-        const progressSpan = el('div', 'text-sm text-muted', [text(`${unlockedNonActivity}/${totalPossible} unlocked`)]);
-        header.appendChild(progressSpan);
-        achSection.appendChild(header);
+        // Sidebar insertion (compact)
+        const panel = el('div', 'flex flex-col gap-3 achievements-panel achievements-panel--compact');
+        panel.id = 'sidebarAchievements';
+        const header = el('div', 'flex flex-col gap-2');
+        const headerLine = el('div', 'flex items-center justify-between gap-2');
+        headerLine.appendChild(el('h4', 'font-semibold flex items-center gap-2', [text(`🏅 Achievements (${unlockedVisible})`)]));
+        // Filter controls
+        const filterWrap = el('div', 'flex items-center gap-1 flex-wrap text-[10px]');
+        function makeFilter(label, val, checked = true) {
+          const id = 'af-' + val;
+          const w = el('label', 'flex items-center gap-1 cursor-pointer select-none');
+          const inp = document.createElement('input'); inp.type = 'checkbox'; inp.checked = checked; inp.dataset.filter = val; inp.className = 'ach-filter';
+          w.appendChild(inp); w.appendChild(text(label));
+          return w;
+        }
+        filterWrap.appendChild(makeFilter('Skill', 'skill'));
+        filterWrap.appendChild(makeFilter('Rank', 'rank'));
+        filterWrap.appendChild(makeFilter('Account', 'account'));
+        filterWrap.appendChild(makeFilter('Style', 'playstyle'));
+        filterWrap.appendChild(makeFilter('Perf', 'performance'));
+        filterWrap.appendChild(makeFilter('Activity', 'activity', false));
+        filterWrap.appendChild(makeFilter('Competitive', 'competitive')); // competitive flag (firsts)
+        filterWrap.appendChild(makeFilter('Ultra', 'ultra'));
+
+        header.appendChild(headerLine);
+        header.appendChild(filterWrap);
+        panel.appendChild(header);
 
         catalogByCategory.forEach(group => {
           if (!group.items.length) return;
           const catWrap = el('div', 'achievement-category flex flex-col gap-2');
           const catHeader = el('div', 'flex items-center gap-2');
-          const toggleBtn = el('button', 'cat-toggle', [text('▼')]);
-          toggleBtn.setAttribute('aria-expanded', 'true');
+          const toggleBtn = el('button', 'cat-toggle', [text('▶')]);
+          toggleBtn.setAttribute('aria-expanded', 'false');
           const title = el('h5', 'font-semibold text-sm uppercase tracking-wide', [text(categoryLabels[group.cat] || group.cat)]);
           catHeader.appendChild(toggleBtn); catHeader.appendChild(title);
           catWrap.appendChild(catHeader);
-          const grid = el('div', 'achievement-grid');
+          const grid = el('div', 'achievement-grid collapsed anim-capable');
           group.items.forEach(item => {
-            const owned = unlockedSet.has(item.key);
             const count = globalStats.counts[item.key];
             let prevalence = '';
-            if (typeof count === 'number' && globalStats.totalPlayers) {
-              prevalence = `${count}/${globalStats.totalPlayers} (${Math.round(count / globalStats.totalPlayers * 100)}%)`;
-            }
-            if (item.category === 'activity') prevalence = 'Dynamic';
-            const badge = el('div', `achievement-card ${owned ? 'owned' : 'locked'} achievement-${item.category}`);
+            if (typeof count === 'number' && globalStats.totalPlayers) prevalence = `${count}/${globalStats.totalPlayers} (${Math.round(count / globalStats.totalPlayers * 100)}%)`;
+            if (item.category === 'activity' && !prevalence) prevalence = 'Dynamic';
+            const badge = el('div', `achievement-card owned achievement-${item.category}`);
             badge.innerHTML = `
               <div class="ach-icon">${item.icon}</div>
               <div class="ach-body">
                 <div class="ach-title">${item.label}</div>
                 <div class="ach-desc text-xs">${item.desc}</div>
-              </div>
-            `;
+              </div>`;
             if (prevalence) badge.setAttribute('data-prevalence', prevalence);
-            if (!owned) badge.setAttribute('aria-disabled', 'true');
+            // Rarity tier classes based on prevalence percentage
+            if (prevalence && /\((\d+)%\)/.test(prevalence)) {
+              const pct = parseInt(prevalence.match(/\((\d+)%\)/)[1], 10);
+              if (pct <= 1) badge.classList.add('rarity-mythic');
+              else if (pct <= 5) badge.classList.add('rarity-legendary');
+              else if (pct <= 15) badge.classList.add('rarity-epic');
+              else if (pct <= 35) badge.classList.add('rarity-rare');
+              else badge.classList.add('rarity-common');
+            }
+            if (item.competitive) badge.classList.add('ach-competitive');
+            if (item.ultra) badge.classList.add('ach-ultra');
+            badge.dataset.category = item.category;
+            if (item.competitive) badge.dataset.competitive = '1';
+            if (item.ultra) badge.dataset.ultra = '1';
             grid.appendChild(badge);
           });
           catWrap.appendChild(grid);
-          // toggle logic
           toggleBtn.addEventListener('click', () => {
             const expanded = toggleBtn.getAttribute('aria-expanded') === 'true';
             toggleBtn.setAttribute('aria-expanded', String(!expanded));
             toggleBtn.textContent = expanded ? '▶' : '▼';
-            grid.classList.toggle('collapsed');
+            if (grid.classList.contains('anim-capable')) {
+              if (expanded) {
+                grid.style.maxHeight = grid.scrollHeight + 'px';
+                requestAnimationFrame(() => {
+                  grid.classList.add('collapsed');
+                  grid.style.maxHeight = '0px';
+                  grid.style.opacity = '0';
+                });
+              } else {
+                grid.classList.remove('collapsed');
+                grid.style.maxHeight = '0px';
+                grid.style.opacity = '0';
+                requestAnimationFrame(() => {
+                  grid.style.maxHeight = grid.scrollHeight + 'px';
+                  grid.style.opacity = '1';
+                  setTimeout(() => { grid.style.maxHeight = ''; }, 400);
+                });
+              }
+            } else {
+              grid.classList.toggle('collapsed');
+            }
           });
-          achSection.appendChild(catWrap);
+          panel.appendChild(catWrap);
         });
 
-        headerSection.appendChild(achSection);
+        const sidebar = document.querySelector('.sidebar');
+        if (sidebar) {
+          const summaryBlock = sidebar.querySelector('.summary');
+          if (summaryBlock) summaryBlock.insertAdjacentElement('afterend', panel); else sidebar.appendChild(panel);
+          // Inject summary line link
+          const summaryList = summaryBlock && summaryBlock.querySelector('ul');
+          if (summaryList) {
+            let achLine = document.getElementById('summaryAchievementsLine');
+            if (achLine) achLine.remove();
+            achLine = document.createElement('li');
+            achLine.id = 'summaryAchievementsLine';
+            achLine.className = 'flex items-center gap-2';
+            achLine.innerHTML = '<i data-lucide="medal" class="w-4 h-4"></i><span><button type="button" class="underline hover:text-accent text-left" id="openAllAchievements">Achievements: ' + unlockedVisible + '</button></span>';
+            summaryList.appendChild(achLine);
+            // wire up icon refresh
+            if (window.lucide) window.lucide.createIcons();
+            document.getElementById('openAllAchievements').addEventListener('click', () => {
+              // expand all categories & scroll into view
+              panel.querySelectorAll('.cat-toggle').forEach(btn => {
+                if (btn.getAttribute('aria-expanded') === 'false') btn.click();
+              });
+              panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+          }
+        } else {
+          headerSection.appendChild(panel); // fallback
+        }
+
+        // Filter logic
+        const filters = panel.querySelectorAll('.ach-filter');
+        function applyFilters() {
+          const activeCats = new Set();
+          const showCompetitive = panel.querySelector('input[data-filter="competitive"]').checked;
+          const showUltra = panel.querySelector('input[data-filter="ultra"]').checked;
+          filters.forEach(f => { if (f.dataset.filter && f.checked && !['competitive', 'ultra'].includes(f.dataset.filter)) activeCats.add(f.dataset.filter); });
+          panel.querySelectorAll('.achievement-card').forEach(card => {
+            const cat = card.dataset.category;
+            const isComp = card.classList.contains('ach-competitive');
+            const isUltra = card.classList.contains('ach-ultra');
+            const catAllowed = activeCats.has(cat);
+            const compAllowed = isComp ? showCompetitive : true;
+            const ultraAllowed = isUltra ? showUltra : true;
+            card.style.display = (catAllowed && compAllowed && ultraAllowed) ? '' : 'none';
+          });
+        }
+        filters.forEach(f => f.addEventListener('change', applyFilters));
+        applyFilters();
       });
 
 

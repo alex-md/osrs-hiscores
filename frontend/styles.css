@@ -897,10 +897,26 @@ tbody tr.overall-row {
   display: flex;
   gap: .55rem;
   align-items: flex-start;
+  transition: max-height .35s ease, opacity .28s ease;
+  max-height: 1000px;
+  opacity: 1;
+  overflow: hidden;
   padding: .55rem .6rem .6rem;
   border: 1.5px solid var(--color-border);
   border-radius: .55rem;
   background: linear-gradient(135deg, var(--color-bg-layer) 0, var(--color-bg-layer2) 100%);
+
+  /* Animated collapse variant (if we swap strategy later) */
+  .achievement-grid.anim-capable.collapsed {
+    display: block;
+    max-height: 0;
+    opacity: 0;
+  }
+
+  .achievement-grid.anim-capable {
+    display: block;
+  }
+
   font-size: .6rem;
   line-height: 1.25;
   min-height: 54px;
