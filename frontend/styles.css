@@ -1,5 +1,15 @@
-/* --- Root Variables & Base Styles --- */
-:root[data-theme="light"] {
+h1,
+h2 {
+  line-height: 1.3
+}
+
+.ach-inline-rarity,
+.pi-remaining,
+table td {
+  font-variant-numeric: tabular-nums
+}
+
+:root[data-theme=light] {
   --color-bg-surface: #f4f2e8;
   --color-bg-layer: #ffffff;
   --color-bg-layer2: #f8f6eb;
@@ -18,10 +28,10 @@
   --body-font-scale: 1;
   --shadow-sm: 0 2px 4px rgba(45, 24, 16, 0.1), 0 0 0 1px rgba(196, 164, 132, 0.3);
   --shadow-md: 0 4px 6px rgba(45, 24, 16, 0.15), 0 2px 4px rgba(45, 24, 16, 0.06);
-  --shadow-lg: 0 10px 15px rgba(45, 24, 16, 0.15), 0 4px 6px rgba(45, 24, 16, 0.05);
+  --shadow-lg: 0 10px 15px rgba(45, 24, 16, 0.15), 0 4px 6px rgba(45, 24, 16, 0.05)
 }
 
-:root[data-theme="dark"] {
+:root[data-theme=dark] {
   --color-bg-surface: #1d1812;
   --color-bg-layer: #2d2419;
   --color-bg-layer2: #3d3226;
@@ -40,146 +50,163 @@
   --body-font-scale: 1;
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(92, 77, 58, 0.4);
   --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.2);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.4), 0 4px 6px rgba(0, 0, 0, 0.15);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.4), 0 4px 6px rgba(0, 0, 0, 0.15)
 }
 
 html {
-  font-size: clamp(16px, 1.2vw + 0.4rem, 19px);
+  font-size: clamp(16px, 1.2vw + .4rem, 19px)
 }
 
 body {
-  font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   font-size: clamp(1rem, .5vw + .95rem, 1.18rem);
   line-height: 1.7;
-  background: var(--color-bg-surface) radial-gradient(circle at 25% 25%, rgba(196, 164, 132, .1) 0, transparent 50%), radial-gradient(circle at 75% 75%, rgba(196, 164, 132, .05) 0, transparent 50%);
+  background: var(--color-bg-surface) radial-gradient(circle at 25% 25%, rgba(196, 164, 132, .1) 0, transparent 50%), radial-gradient(circle at 75% 75%, rgba(196, 164, 132, .05) 0, transparent 50%)
 }
 
 h1 {
-  font-size: 32px;
-  line-height: 1.3;
+  font-size: 32px
 }
 
 h2 {
-  font-size: 24px;
-  line-height: 1.3;
+  font-size: 24px
 }
 
-/* --- Layout & Grid --- */
-/* Navigation Pills (plain CSS to avoid Tailwind @apply dependency) */
 .nav-pill {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  /* gap-1 */
-  padding: 0.25rem 0.75rem;
-  /* py-1 px-3 */
-  border-radius: 0.375rem;
-  /* rounded-md */
-  font-weight: 600;
-  /* font-semibold */
-  font-size: 0.875rem;
-  /* text-sm */
+  gap: .25rem;
+  padding: .25rem .75rem;
+  border-radius: .375rem;
+  font-size: .875rem;
   line-height: 1.25rem;
-  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
   user-select: none;
-  text-decoration: none;
+  text-decoration: none
 }
 
 .nav-pill:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, .1)
 }
 
 .nav-pill.active {
   color: var(--color-gold);
   border-bottom: 2px solid var(--color-gold);
-  background: rgba(255, 215, 0, 0.1);
+  background: rgba(255, 215, 0, .1)
 }
 
+#searchSuggest button,
+.icon-button,
+.progress-toggle button:not(.active):hover,
+.skill-name,
+.text-foreground,
+.username-link,
+[data-tooltip]::after,
+input[type=number],
+input[type=text],
+select,
+table th {
+  color: var(--color-foreground)
+}
 
 .container-wrap {
   margin: 0 auto;
   max-width: 1600px;
-  /* widen overall page container */
-  padding: 0 1.5rem;
-  /* a bit more side padding */
+  padding: 0 1.5rem
 }
 
-.skills-grid,
-.grid-auto-fit {
+.grid-auto-fit,
+.skills-grid {
   display: grid;
-  gap: 0.75rem;
+  gap: .75rem
 }
 
 .skills-grid {
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr))
 }
 
 .grid-auto-fit {
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr))
 }
 
-/* --- Modern Layout Enhancements --- */
 .main-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: 2rem;
-  align-items: start;
-}
-
-@media (min-width: 768px) {
-  .main-grid {
-    grid-template-columns: 220px 1fr;
-  }
+  align-items: start
 }
 
 .sidebar {
-  position: static;
+  position: static
+}
+
+.osrs-header,
+.osrs-table,
+.pi-bar,
+.progress-item,
+.skill-info,
+.skill-row,
+.toast,
+.username-link,
+[data-tooltip],
+table th {
+  position: relative
 }
 
 .card {
   background: var(--color-bg-layer);
-  background-image: linear-gradient(135deg,
-      var(--color-bg-layer),
-      var(--color-bg-layer2));
-  border-radius: 0.5rem;
+  background-image: linear-gradient(135deg, var(--color-bg-layer), var(--color-bg-layer2));
+  border-radius: .5rem;
   box-shadow: var(--shadow-md);
   padding: 1rem;
-  transition: box-shadow 0.2s ease;
+  transition: box-shadow .2s
 }
 
-.card:hover {
-  box-shadow: var(--shadow-lg);
+#searchSuggest,
+.card:hover,
+.skill-row.clickable:hover,
+.toast {
+  box-shadow: var(--shadow-lg)
+}
+
+.btn,
+.btn-sm,
+.btn-sm:active,
+.btn:active,
+.icon-button,
+.skill-rank,
+.skill-row,
+[data-tooltip]::after {
+  box-shadow: var(--shadow-sm)
 }
 
 .breadcrumb ol {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: .5rem
 }
 
 .breadcrumb-sep {
-  opacity: 0.6;
+  opacity: .6
 }
 
 .collapse summary {
   list-style: none;
   display: flex;
-  align-items: center;
+  align-items: center
 }
 
 .collapse summary::-webkit-details-marker {
-  display: none;
+  display: none
 }
 
 .summary ul {
   list-style: none;
   padding: 0;
-  margin: 0;
+  margin: 0
 }
 
 [data-tooltip] {
-  position: relative;
-  cursor: help;
+  cursor: help
 }
 
 [data-tooltip]::after {
@@ -187,40 +214,20 @@ h2 {
   position: absolute;
   left: 50%;
   top: 100%;
-  transform: translate(-50%, 0.5rem);
+  transform: translate(-50%, .5rem);
   white-space: nowrap;
   background: var(--color-bg-layer2);
-  color: var(--color-foreground);
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.25rem;
-  font-size: 0.75rem;
+  padding: .25rem .5rem;
+  border-radius: .25rem;
+  font-size: .75rem;
   opacity: 0;
   pointer-events: none;
-  box-shadow: var(--shadow-sm);
-  transition: opacity 0.2s ease;
-  z-index: 10;
+  transition: opacity .2s;
+  z-index: 10
 }
 
 [data-tooltip]:hover::after {
-  opacity: 1;
-}
-
-/* --- Common Property Groupings --- */
-.osrs-header,
-.osrs-table,
-.skill-info,
-.skill-row,
-.toast,
-.username-link,
-table th {
-  position: relative;
-}
-
-#searchSuggest,
-.osrs-table,
-.skill-row,
-.toast {
-  overflow: hidden;
+  opacity: 1
 }
 
 .osrs-header::after,
@@ -229,7 +236,7 @@ table th {
 .toast::before,
 .username-link::after,
 th.sortable::after {
-  content: "";
+  content: ""
 }
 
 .osrs-header::after,
@@ -237,20 +244,20 @@ th.sortable::after {
 .skill-row::before,
 .toast::before,
 .username-link::after {
-  position: absolute;
+  position: absolute
 }
 
 .osrs-header::after,
 .osrs-table::before,
 .toast::before {
-  right: 0;
+  right: 0
 }
 
 .osrs-header::after,
 .osrs-table::before,
 .toast::before,
 .username-link::after {
-  left: 0;
+  left: 0
 }
 
 .badge,
@@ -258,128 +265,124 @@ th.sortable::after {
 .btn-sm,
 .skill-rank,
 table th {
-  text-transform: none;
+  text-transform: none
+}
+
+.achievement-badge,
+.achievement-category h5,
+.filter-bar label,
+table th {
+  text-transform: uppercase
 }
 
 .badge,
 .skill-rank {
-  background: transparent;
+  background: 0 0;
   border-radius: 0;
-  border: 0;
-}
-
-.btn,
-.btn-sm,
-.icon-button,
-#searchSuggest button,
-.nav-pill,
-.skill-icon,
-.skill-row,
-.username-link,
-input[type="number"],
-input[type="text"],
-select,
-tbody tr {
-  transition: 0.2s;
-}
-
-.badge,
-.btn,
-.btn-sm,
-.nav-pill,
-.skill-rank,
-table th {
-  letter-spacing: 0;
-}
-
-.btn,
-.btn-sm,
-.icon-button,
-.skill-rank,
-.skill-row {
-  box-shadow: var(--shadow-sm);
-}
-
-.btn:active,
-.btn-sm:active {
-  transform: translateY(0);
-  box-shadow: var(--shadow-sm);
-}
-
-.btn:hover,
-.btn-sm:hover,
-.icon-button:hover,
-.osrs-header,
-.osrs-table,
-.skill-row.clickable:active,
-.skill-row:hover {
-  box-shadow: var(--shadow-md);
-}
-
-#searchSuggest,
-.skill-row.clickable:hover,
-.toast {
-  box-shadow: var(--shadow-lg);
-}
-
-#searchSuggest,
-.osrs-table,
-.skill-row,
-.toast {
-  border-radius: 0.5rem;
-}
-
-.btn,
-.btn-sm,
-.icon-button,
-input[type="number"],
-input[type="text"],
-select {
-  border-radius: 0.375rem;
-}
-
-.icon-button,
-.skill-info,
-.skill-row,
-.skill-stats,
-.nav-pill,
-.nav-pills {
-  display: flex;
-  align-items: center;
+  border: 0
 }
 
 #searchSuggest,
 .bg-layer,
 .icon-button,
-input[type="number"],
-input[type="text"],
+.meta-badge,
+input[type=number],
+input[type=text],
 select {
-  background: var(--color-bg-layer);
+  background: var(--color-bg-layer)
 }
 
 #searchSuggest button,
+.btn,
+.btn-sm,
 .icon-button,
-.skill-name,
-.text-foreground,
+.nav-pill,
+.skill-icon,
+.skill-row,
 .username-link,
-input[type="number"],
-input[type="text"],
+input[type=number],
+input[type=text],
 select,
+tbody tr {
+  transition: .2s
+}
+
+.badge,
+.btn,
+.btn-sm,
+.nav-pill,
+.skill-rank,
 table th {
-  color: var(--color-foreground);
+  letter-spacing: 0
+}
+
+.btn-sm:active,
+.btn:active {
+  transform: translateY(0)
+}
+
+.achievement-inline-card:hover,
+.btn-sm:hover,
+.btn:hover,
+.cat-toggle:hover,
+.icon-button:hover,
+.skill-row.clickable:active {
+  transform: translateY(-1px)
+}
+
+.btn-sm:hover,
+.btn:hover,
+.icon-button:hover,
+.osrs-header,
+.osrs-table,
+.skill-row.clickable:active,
+.skill-row:hover {
+  box-shadow: var(--shadow-md)
+}
+
+.meta-badge,
+.osrs-table {
+  box-shadow: var(--shadow-sm)
+}
+
+#searchSuggest,
+.osrs-table,
+.skill-row,
+.toast {
+  overflow: hidden;
+  border-radius: .5rem
+}
+
+.btn,
+.btn-sm,
+.icon-button,
+input[type=number],
+input[type=text],
+select {
+  border-radius: .375rem
+}
+
+.icon-button,
+.nav-pill,
+.nav-pills,
+.skill-info,
+.skill-row,
+.skill-stats {
+  display: flex;
+  align-items: center
 }
 
 .badge,
 .skill-rank,
 .skill-xp,
 .text-muted {
-  color: var(--color-muted);
+  color: var(--color-muted)
 }
 
 .skill-level,
 .text-accent,
 .username-link:hover {
-  color: var(--color-accent);
+  color: var(--color-accent)
 }
 
 .btn,
@@ -388,141 +391,244 @@ table th {
 .skill-xp,
 table td,
 table th {
-  font-size: 0.8em;
+  font-size: .8em
 }
 
 .badge,
 .skill-rank {
-  font-size: 0.75em;
+  font-size: .75em
 }
 
-/* Compact inline badges for user header meta */
 .meta-badges {
-  gap: 0.5rem;
-  margin-top: 0.25rem;
+  gap: .5rem;
+  margin-top: .25rem
 }
 
 .meta-badge {
   display: inline-flex;
   align-items: center;
-  padding: 0.15rem 0.4rem;
+  padding: .15rem .4rem;
   border: 1.5px solid var(--color-border);
-  background: var(--color-bg-layer);
   color: var(--color-muted);
-  border-radius: 0.375rem;
-  line-height: 1;
-  box-shadow: var(--shadow-sm);
+  border-radius: .375rem;
+  line-height: 1
 }
 
 .meta-badge--muted {
-  opacity: 0.7;
-  font-weight: 400;
+  opacity: .7;
+  font-weight: 400
+}
+
+.user-achievements {
+  border-top: 1px solid var(--color-border);
+  padding-top: 1rem;
+  margin-top: 1rem
+}
+
+.achievements-inline-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: .75rem;
+  margin-top: .75rem
+}
+
+.achievement-inline-card {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .5rem .75rem;
+  background: var(--color-layer2);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  transition: .2s;
+  cursor: help;
+  position: relative;
+  overflow: hidden
+}
+
+.icon-button,
+tbody tr.clickable {
+  cursor: pointer
+}
+
+.achievement-inline-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--color-border);
+  transition: background .2s
+}
+
+.achievement-inline-card:hover {
+  background: var(--color-layer3);
+  border-color: var(--color-border-light);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .1)
+}
+
+.ach-inline-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  width: 1.5rem;
+  text-align: center
+}
+
+.ach-inline-content {
+  flex: 1;
+  min-width: 0
+}
+
+.ach-inline-name {
+  font-weight: 500;
+  font-size: .8rem;
+  color: var(--color-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis
+}
+
+.ach-inline-rarity {
+  font-size: .7rem;
+  color: var(--color-muted)
+}
+
+.achievement-inline-card.ach-mythic::before {
+  background: linear-gradient(45deg, #ff6b6b, orange)
+}
+
+.achievement-inline-card.ach-mythic .ach-inline-name {
+  color: #ff6b6b;
+  font-weight: 600
+}
+
+.achievement-inline-card.ach-legendary::before {
+  background: linear-gradient(45deg, #a855f7, #ec4899)
+}
+
+.achievement-inline-card.ach-legendary .ach-inline-name {
+  color: #a855f7;
+  font-weight: 600
+}
+
+.achievement-inline-card.ach-epic::before {
+  background: linear-gradient(45deg, #3b82f6, #06b6d4)
+}
+
+.achievement-inline-card.ach-epic .ach-inline-name {
+  color: #3b82f6;
+  font-weight: 500
+}
+
+.achievement-inline-card.ach-rare::before {
+  background: linear-gradient(45deg, #10b981, #059669)
+}
+
+.achievement-inline-card.ach-rare .ach-inline-name {
+  color: #10b981;
+  font-weight: 500
+}
+
+.achievement-inline-card.ach-common::before {
+  background: var(--color-border-light)
 }
 
 #searchSuggest button,
 .nav-pill,
 .toast {
-  font-weight: 600;
+  font-weight: 600
 }
 
 .skill-name,
 .skill-rank,
 table th {
   font-family: 'Press Start 2P';
-  font-size: xx-small;
+  font-size: xx-small
 }
 
-/* --- Components: Buttons, Inputs, Nav --- */
 .btn,
 .btn-sm {
   color: #fff;
-  padding: 0.6rem 1.2rem;
+  padding: .6rem 1.2rem;
   font-weight: 200;
-  border: 2px solid var(--color-accent-hover);
+  border: 2px solid var(--color-accent-hover)
+}
+
+#searchSuggest,
+.icon-button {
+  border: 2px solid var(--color-border)
 }
 
 .btn-sm {
-  padding: 0.4rem 0.8rem;
-  font-size: 0.65em;
+  padding: .4rem .8rem;
+  font-size: .65em
 }
 
 .btn,
 .btn-sm,
 .skill-row.clickable:hover {
-  background: linear-gradient(135deg, var(--color-accent) 0, var(--color-accent-hover) 100%);
+  background: linear-gradient(135deg, var(--color-accent) 0, var(--color-accent-hover) 100%)
 }
 
-.btn:hover,
-.btn-sm:hover {
-  background: linear-gradient(135deg, var(--color-accent-hover) 0, var(--color-accent) 100%);
-}
-
-.btn:hover,
 .btn-sm:hover,
-.icon-button:hover {
-  transform: translateY(-1px);
+.btn:hover {
+  background: linear-gradient(135deg, var(--color-accent-hover) 0, var(--color-accent) 100%)
 }
 
 .icon-button {
   width: 2.5rem;
   height: 2.5rem;
   justify-content: center;
-  border: 2px solid var(--color-border);
-  outline: none;
-  cursor: pointer;
-  user-select: none;
+  outline: 0;
+  user-select: none
 }
 
 .icon-button:hover {
   background: var(--color-bg-layer2);
-  border-color: var(--color-border-dark);
+  border-color: var(--color-border-dark)
 }
 
-input[type="number"],
-input[type="text"],
+input[type=number],
+input[type=text],
 select {
-  padding: 0.5rem 0.75rem;
-  font-size: 0.9em;
+  padding: .5rem .75rem;
+  font-size: .9em;
   font-weight: 500;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
-  border: 2px solid var(--color-border);
-}
-
-#searchSuggest {
-  border: 2px solid var(--color-border);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, .1);
+  border: 2px solid var(--color-border)
 }
 
 #searchSuggest button {
   width: 100%;
   text-align: left;
-  padding: 0.75rem 1rem;
+  padding: .75rem 1rem;
   border: none;
-  background: transparent;
+  background: 0 0
 }
 
 #searchSuggest button.active,
 #searchSuggest button:hover {
   background: linear-gradient(90deg, var(--color-accent) 0, var(--color-accent-hover) 100%);
   color: #fff;
-  transform: translateX(4px);
+  transform: translateX(4px)
 }
 
 .nav-pills {
   display: flex;
-  /* container helper if used */
-  gap: 0.5rem;
+  gap: .5rem;
   margin-bottom: 1.5rem;
   flex-direction: row;
-  flex-wrap: nowrap;
+  flex-wrap: nowrap
 }
 
 .username-link {
   font-weight: 300;
-  text-decoration: none;
+  text-decoration: none
 }
 
 .username-link:hover {
-  text-shadow: 0 1px 2px rgba(200, 16, 46, 0.3);
+  text-shadow: 0 1px 2px rgba(200, 16, 46, .3)
 }
 
 .username-link::after {
@@ -530,76 +636,69 @@ select {
   width: 0;
   height: 2px;
   background: var(--color-accent);
-  transition: width 0.2s;
+  transition: width .2s
 }
 
+.ach-body,
 .username-link:hover::after {
-  width: 100%;
+  width: 100%
 }
 
-/* --- Components: Table --- */
 .osrs-header {
   background: linear-gradient(135deg, var(--color-bg-header) 0, #1f1108 100%);
-  border-bottom: 3px solid var(--color-border-dark);
+  border-bottom: 3px solid var(--color-border-dark)
+}
+
+.osrs-table,
+.progress-item {
+  background: var(--color-bg-layer)
 }
 
 .osrs-header::after {
   bottom: -3px;
-  height: 2px;
+  height: 2px
 }
 
 .osrs-header::after,
 .osrs-table::before {
-  background: linear-gradient(90deg, var(--color-gold) 0, var(--color-accent) 50%, var(--color-gold) 100%);
+  background: linear-gradient(90deg, var(--color-gold) 0, var(--color-accent) 50%, var(--color-gold) 100%)
 }
 
 .osrs-table {
-  background: var(--color-bg-layer);
   border: 2px solid var(--color-border-dark);
   overflow-x: auto;
   width: 100%;
   max-width: clamp(1100px, 95vw, 1550px);
-  /* default wider viewport usage */
   margin: 0 auto 2rem;
   border-radius: .65rem;
-  padding: .4rem .5rem .75rem;
-  /* scaled inner padding */
-  box-shadow: var(--shadow-sm);
+  padding: .4rem .5rem .75rem
 }
 
-/* Home leaderboard can be even wider */
-/* Home leaderboard: allow it to span nearly entire container */
 .osrs-table.home-leaderboard {
-  max-width: clamp(1500px, 98vw, 2100px);
+  max-width: clamp(1500px, 98vw, 2100px)
 }
 
-/* Stretch player column more on very wide screens */
-@media (min-width:1600px) {
-
-  .home-leaderboard table th:nth-child(2),
-  .home-leaderboard table td:nth-child(2) {
-    width: 45%;
-  }
-}
-
-/* Optional extreme width support */
 @media (min-width:2000px) {
   .osrs-table.home-leaderboard {
-    max-width: 92vw;
+    max-width: 92vw
   }
 }
 
-/* Optional full-width modifier if needed later */
 .osrs-table.full-width {
   max-width: none;
-  width: 100%;
+  width: 100%
 }
 
-/* Provide side padding on ultra-wide so content not glued to edges */
 @media (min-width:1600px) {
+
+  .home-leaderboard table td:nth-child(2),
+  .home-leaderboard table th:nth-child(2) {
+    width: 45%
+  }
+
   .osrs-table.full-width {
     padding-left: 1rem;
-    padding-right: 1rem;
+    padding-right: 1rem
   }
 }
 
@@ -609,25 +708,22 @@ select {
   margin: 0 auto;
   border-collapse: collapse;
   table-layout: auto;
-  /* let columns size naturally for improved readability */
-  font-size: .95rem;
-  /* larger base table font for readability */
+  font-size: .95rem
 }
 
-/* Scroll wrapper for tables with sticky header */
 .table-scroll {
   overflow-x: auto;
-  max-height: none;
+  max-height: none
 }
 
 .leaderboard-table thead th {
   position: static;
-  box-shadow: none;
+  box-shadow: none
 }
 
 .osrs-table::before {
   top: 0;
-  height: 3px;
+  height: 3px
 }
 
 table td,
@@ -636,20 +732,18 @@ table th {
   border-bottom: 1px solid var(--color-border);
   white-space: nowrap;
   line-height: 1.5;
-  vertical-align: middle;
+  vertical-align: middle
 }
 
 table td {
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum";
+  font-feature-settings: "tnum"
 }
 
-/* Allow wrapping only on very narrow screens */
 @media (max-width:620px) {
 
   table td,
   table th {
-    white-space: normal;
+    white-space: normal
   }
 }
 
@@ -658,96 +752,86 @@ table th {
   border-bottom: 2px solid var(--color-border-dark);
   font-size: .75rem;
   letter-spacing: .09em;
-  text-transform: uppercase;
   font-weight: 600;
+  font-family: inherit
 }
 
-/* Column sizing hints */
-.leaderboard-table th:first-child,
-.leaderboard-table td:first-child {
+.leaderboard-table td:first-child,
+.leaderboard-table th:first-child {
   width: 60px;
-  text-align: center;
+  text-align: center
 }
 
-.leaderboard-table th:nth-child(3),
-.leaderboard-table td:nth-child(3) {
+.leaderboard-table td:nth-child(3),
+.leaderboard-table th:nth-child(3) {
   width: 120px;
-  text-align: center;
+  text-align: center
 }
 
-.leaderboard-table th:nth-child(4),
-.leaderboard-table td:nth-child(4) {
+.leaderboard-table td:nth-child(4),
+.leaderboard-table th:nth-child(4) {
   width: 170px;
-  text-align: right;
+  text-align: right
 }
 
-/* Player column flexible */
-.leaderboard-table th:nth-child(2),
-.leaderboard-table td:nth-child(2) {
-  width: auto;
+.leaderboard-table td:nth-child(2),
+.leaderboard-table th:nth-child(2) {
+  width: auto
 }
 
 th.sortable {
-  cursor: default;
   user-select: text;
-  transition: none;
+  transition: none
 }
 
 th.sortable::after {
-  margin: 0;
+  margin: 0
 }
 
 table tbody tr:nth-child(2n) {
-  background: rgba(196, 164, 132, 0.04);
+  background: rgba(196, 164, 132, .04)
 }
 
 table tbody tr:hover {
-  background: linear-gradient(90deg, rgba(200, 16, 46, 0.08) 0, rgba(200, 16, 46, 0.03) 100%);
+  background: linear-gradient(90deg, rgba(200, 16, 46, .08) 0, rgba(200, 16, 46, .03) 100%);
   border-color: var(--color-accent);
-  transform: translateX(1px);
+  transform: translateX(1px)
 }
 
 tbody tr.rank-1 {
-  background: linear-gradient(90deg, rgba(255, 215, 0, 0.15), transparent 70%);
+  background: linear-gradient(90deg, rgba(255, 215, 0, .15), transparent 70%)
 }
 
 tbody tr.rank-2 {
-  background: linear-gradient(90deg, rgba(192, 192, 192, 0.15), transparent 70%);
+  background: linear-gradient(90deg, rgba(192, 192, 192, .15), transparent 70%)
 }
 
 tbody tr.rank-3 {
-  background: linear-gradient(90deg, rgba(205, 127, 50, 0.15), transparent 70%);
+  background: linear-gradient(90deg, rgba(205, 127, 50, .15), transparent 70%)
 }
 
 tbody tr.rank-1 td:first-child,
 tbody tr.rank-2 td:first-child,
 tbody tr.rank-3 td:first-child {
-  font-weight: 800;
-}
-
-tbody tr.clickable {
-  cursor: pointer;
+  font-weight: 800
 }
 
 tbody tr.overall-row {
-  background: linear-gradient(90deg, rgba(255, 215, 0, 0.08), transparent 70%);
-  border-top: 2px solid var(--color-border-dark);
+  background: linear-gradient(90deg, rgba(255, 215, 0, .08), transparent 70%);
+  border-top: 2px solid var(--color-border-dark)
 }
 
-/* (Progress grid left for potential future use) */
 .progress-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 1rem;
+  gap: 1rem
 }
 
 .progress-item {
-  background: var(--color-bg-layer);
   border: 1px solid var(--color-border);
-  padding: 0.5rem;
-  border-radius: 0.5rem;
-  font-size: 0.65rem;
-  position: relative;
+  padding: .5rem;
+  border-radius: .5rem;
+  font-size: .65rem
 }
 
 .progress-item .pi-head {
@@ -757,27 +841,26 @@ tbody tr.overall-row {
   gap: 4px;
   margin-bottom: 4px;
   font-weight: 600;
-  text-transform: capitalize;
+  text-transform: capitalize
 }
 
 .pi-bar-wrap {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 3px
 }
 
 .pi-bar {
   background: var(--color-bg-layer2);
   height: 6px;
   border-radius: 4px;
-  overflow: hidden;
-  position: relative;
+  overflow: hidden
 }
 
 .pi-fill {
   background: linear-gradient(90deg, var(--color-accent) 0, var(--color-accent-hover) 100%);
   height: 100%;
-  transition: width .4s ease;
+  transition: width .4s
 }
 
 .pi-avg-marker {
@@ -786,228 +869,218 @@ tbody tr.overall-row {
   width: 2px;
   height: 10px;
   background: var(--color-gold);
-  box-shadow: 0 0 4px rgba(0, 0, 0, .4);
+  box-shadow: 0 0 4px rgba(0, 0, 0, .4)
 }
 
 .pi-meta-row {
   margin-top: 4px;
   display: flex;
   justify-content: flex-end;
-  font-size: 0.55rem;
-  opacity: .75;
+  font-size: .55rem;
+  opacity: .75
 }
 
-.pi-remaining {
-  font-variant-numeric: tabular-nums;
+.achievements-panel h4,
+.achievements-panel label {
+  align-items: center;
+  color: var(--color-foreground)
 }
 
 .pi-level {
-  font-size: 0.6rem;
-  color: var(--color-accent);
+  font-size: .6rem;
+  color: var(--color-accent)
 }
 
-/* Achievements */
 .achievement-badge {
   background: linear-gradient(135deg, var(--color-gold)10%, var(--color-accent)90%);
   color: #1a1208;
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.4rem;
-  font-size: 0.55rem;
+  padding: .25rem .5rem;
+  border-radius: .4rem;
+  font-size: .55rem;
   font-weight: 700;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, .2), 0 2px 4px rgba(0, 0, 0, .3);
-  text-transform: uppercase;
-  letter-spacing: .5px;
+  letter-spacing: .5px
 }
 
-/* New Achievements Panel - Completely Overhauled */
+.achievement-card.rarity-common,
+.achievement-category>div:first-child:hover,
 .achievements-panel {
-  background: linear-gradient(135deg, var(--color-bg-layer) 0, var(--color-bg-layer2) 100%);
+  background: linear-gradient(135deg, var(--color-bg-layer) 0, var(--color-bg-layer2) 100%)
+}
+
+.achievements-panel {
   border: 1px solid var(--color-border);
   border-radius: 12px;
   padding: 0;
   box-shadow: var(--shadow-sm);
   position: relative;
   overflow: hidden;
-  margin: 1.5rem 0;
+  margin: 1.5rem 0
 }
 
 .achievements-panel--compact {
   margin: 1rem 0;
-  border-radius: 8px;
+  border-radius: 8px
 }
 
 .achievements-panel h4 {
-  font-size: 0.875rem;
+  font-size: .875rem;
   font-weight: 600;
-  color: var(--color-foreground);
   margin: 0;
   padding: 0;
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  gap: .5rem
 }
 
-/* Panel Header */
+.achievements-panel label,
+.cat-toggle {
+  display: inline-flex;
+  transition: .2s;
+  cursor: pointer
+}
+
 .achievements-panel>div:first-child {
-  background: linear-gradient(135deg, var(--color-bg-header) 0, rgba(63, 34, 22, 0.9) 100%);
+  background: linear-gradient(135deg, var(--color-bg-header) 0, rgba(63, 34, 22, .9) 100%);
   padding: 1rem 1.25rem;
   border-bottom: 1px solid var(--color-border-dark);
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px)
 }
 
 .achievements-panel--compact>div:first-child {
-  padding: 0.75rem 1rem;
+  padding: .75rem 1rem
 }
 
-/* Filter Controls Redesign */
 .achievements-panel .flex.items-center.gap-1 {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.375rem;
-  margin-top: 0.75rem;
+  gap: .375rem;
+  margin-top: .75rem
 }
 
 .achievements-panel--compact .flex.items-center.gap-1 {
-  margin-top: 0.5rem;
-  gap: 0.25rem;
+  margin-top: .5rem;
+  gap: .25rem
 }
 
 .achievements-panel label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem 0.5rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  gap: .25rem;
+  padding: .25rem .5rem;
+  background: rgba(255, 255, 255, .05);
+  border: 1px solid rgba(255, 255, 255, .1);
   border-radius: 6px;
-  font-size: 0.6875rem;
+  font-size: .6875rem;
   font-weight: 500;
-  color: var(--color-foreground);
-  cursor: pointer;
-  transition: all 0.2s ease;
   user-select: none;
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px)
 }
 
 .achievements-panel label:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, .1);
   border-color: var(--color-accent);
-  transform: translateY(-1px);
+  transform: translateY(-1px)
 }
 
-.achievements-panel label input[type="checkbox"] {
-  width: 0.75rem;
-  height: 0.75rem;
+.achievements-panel label input[type=checkbox] {
+  width: .75rem;
+  height: .75rem;
   margin: 0;
-  cursor: pointer;
+  cursor: pointer
 }
 
-/* Category Redesign */
 .achievement-category {
   border: none;
-  background: transparent;
+  background: 0 0;
   padding: 0;
   border-radius: 0;
   box-shadow: none;
-  animation: fadeIn 0.3s ease;
-  margin: 0;
+  animation: .3s fadeIn;
+  margin: 0
 }
 
 .achievement-category+.achievement-category {
   border-top: 1px solid var(--color-border);
-  margin-top: 0;
+  margin-top: 0
 }
 
 .achievement-category>div:first-child {
-  padding: 1rem 1.25rem 0.75rem;
+  padding: 1rem 1.25rem .75rem;
   background: linear-gradient(135deg, var(--color-bg-layer2) 0, var(--color-bg-layer) 100%);
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: .75rem;
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: background .2s
 }
 
 .achievements-panel--compact .achievement-category>div:first-child {
-  padding: 0.75rem 1rem 0.5rem;
-}
-
-.achievement-category>div:first-child:hover {
-  background: linear-gradient(135deg, var(--color-bg-layer) 0, var(--color-bg-layer2) 100%);
+  padding: .75rem 1rem .5rem
 }
 
 .achievement-category h5 {
-  font-size: 0.75rem;
+  font-size: .75rem;
   font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  letter-spacing: .05em;
   color: var(--color-foreground);
-  opacity: 0.9;
+  opacity: .9;
   margin: 0;
-  flex-grow: 1;
+  flex-grow: 1
 }
 
 .cat-toggle {
   background: var(--color-accent);
-  color: white;
+  color: #fff;
   border: none;
   width: 1.5rem;
   height: 1.5rem;
-  display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  font-size: 0.75rem;
+  font-size: .75rem;
   font-weight: 700;
-  cursor: pointer;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  transition: all 0.2s ease;
-  flex-shrink: 0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, .2);
+  flex-shrink: 0
 }
 
 .achievements-panel--compact .cat-toggle {
   width: 1.25rem;
   height: 1.25rem;
-  font-size: 0.625rem;
+  font-size: .625rem
 }
 
 .cat-toggle:hover {
   background: var(--color-accent-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, .25)
 }
 
 .cat-toggle:active {
-  transform: translateY(0);
+  transform: translateY(0)
 }
 
-/* Grid Redesign */
 .achievement-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 1rem;
   padding: 1.25rem;
   background: var(--color-bg-surface);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: .3s cubic-bezier(.4, 0, .2, 1);
   max-height: 2000px;
   opacity: 1;
-  overflow: hidden;
+  overflow: hidden
 }
 
 .achievements-panel--compact .achievement-grid {
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 0.75rem;
-  padding: 1rem;
+  gap: .75rem;
+  padding: 1rem
 }
 
 .achievement-grid.collapsed {
   max-height: 0;
   opacity: 0;
   padding-top: 0;
-  padding-bottom: 0;
+  padding-bottom: 0
 }
 
-/* Card Complete Redesign */
 .achievement-card {
   position: relative;
   display: flex;
@@ -1019,24 +1092,24 @@ tbody tr.overall-row {
   border: 1px solid var(--color-border);
   border-radius: 12px;
   box-shadow: var(--shadow-sm);
-  transition: all 0.2s ease;
+  transition: .2s;
   cursor: default;
   overflow: hidden;
   min-height: auto;
-  font-size: 0.875rem;
-  line-height: 1.4;
+  font-size: .875rem;
+  line-height: 1.4
 }
 
 .achievements-panel--compact .achievement-card {
-  padding: 1rem 0.75rem;
+  padding: 1rem .75rem;
   border-radius: 8px;
-  font-size: 0.8125rem;
+  font-size: .8125rem
 }
 
 .achievement-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
-  border-color: var(--color-accent);
+  border-color: var(--color-accent)
 }
 
 .achievement-card::before {
@@ -1047,335 +1120,349 @@ tbody tr.overall-row {
   right: 0;
   height: 3px;
   background: var(--color-accent);
-  border-radius: 12px 12px 0 0;
+  border-radius: 12px 12px 0 0
 }
 
 .achievement-card.owned {
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 1px rgba(200, 16, 46, 0.2), var(--shadow-sm);
+  box-shadow: 0 0 0 1px rgba(200, 16, 46, .2), var(--shadow-sm)
 }
 
 .achievement-card.owned::before {
-  background: linear-gradient(90deg, var(--color-gold) 0%, var(--color-accent) 100%);
+  background: linear-gradient(90deg, var(--color-gold) 0, var(--color-accent) 100%)
 }
 
 .ach-icon {
   font-size: 2rem;
   line-height: 1;
-  margin-bottom: 0.75rem;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-  display: block;
+  margin-bottom: .75rem;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, .3);
+  display: block
 }
 
 .achievements-panel--compact .ach-icon {
   font-size: 1.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.ach-body {
-  width: 100%;
+  margin-bottom: .5rem
 }
 
 .ach-title {
   font-weight: 700;
-  font-size: 0.875rem;
+  font-size: .875rem;
   color: var(--color-foreground);
-  margin-bottom: 0.5rem;
-  line-height: 1.2;
+  margin-bottom: .5rem;
+  line-height: 1.2
 }
 
 .achievements-panel--compact .ach-title {
-  font-size: 0.75rem;
-  margin-bottom: 0.375rem;
+  font-size: .75rem;
+  margin-bottom: .375rem
 }
 
 .ach-desc {
   color: var(--color-muted);
-  font-size: 0.75rem;
+  font-size: .75rem;
   line-height: 1.3;
-  margin-bottom: 0.75rem;
+  margin-bottom: .75rem
 }
 
 .achievements-panel--compact .ach-desc {
-  font-size: 0.6875rem;
-  margin-bottom: 0.5rem;
+  font-size: .6875rem;
+  margin-bottom: .5rem
 }
 
-/* Category Colors */
 .achievement-card.achievement-skill::before {
-  background: linear-gradient(90deg, #ffb347, #ffd700);
+  background: linear-gradient(90deg, #ffb347, gold)
 }
 
 .achievement-card.achievement-rank::before {
-  background: linear-gradient(90deg, #52b69a, #b5e48c);
+  background: linear-gradient(90deg, #52b69a, #b5e48c)
 }
 
 .achievement-card.achievement-account::before {
-  background: linear-gradient(90deg, #8e72ff, #c9b6ff);
+  background: linear-gradient(90deg, #8e72ff, #c9b6ff)
 }
 
 .achievement-card.achievement-playstyle::before {
-  background: linear-gradient(90deg, #ff5d8f, #ffafcc);
+  background: linear-gradient(90deg, #ff5d8f, #ffafcc)
 }
 
 .achievement-card.achievement-performance::before {
-  background: linear-gradient(90deg, #4c8bf5, #a1c4fd);
+  background: linear-gradient(90deg, #4c8bf5, #a1c4fd)
 }
 
 .achievement-card.achievement-activity::before {
-  background: linear-gradient(90deg, #a18cd1, #fbc2eb);
+  background: linear-gradient(90deg, #a18cd1, #fbc2eb)
 }
 
-/* Rarity Tiers */
 .achievement-card.rarity-mythic {
-  background: linear-gradient(135deg, rgba(255, 215, 0, 0.1) 0%, var(--color-bg-layer2) 100%);
-  border-color: #ffd700;
-  box-shadow: 0 0 20px rgba(255, 215, 0, 0.3), var(--shadow-sm);
+  background: linear-gradient(135deg, rgba(255, 215, 0, .1) 0, var(--color-bg-layer2) 100%);
+  border-color: gold;
+  box-shadow: 0 0 20px rgba(255, 215, 0, .3), var(--shadow-sm)
 }
 
 .achievement-card.rarity-legendary {
-  background: linear-gradient(135deg, rgba(255, 165, 0, 0.08) 0%, var(--color-bg-layer2) 100%);
-  border-color: #ffa500;
-  box-shadow: 0 0 15px rgba(255, 165, 0, 0.2), var(--shadow-sm);
+  background: linear-gradient(135deg, rgba(255, 165, 0, .08) 0, var(--color-bg-layer2) 100%);
+  border-color: orange;
+  box-shadow: 0 0 15px rgba(255, 165, 0, .2), var(--shadow-sm)
 }
 
 .achievement-card.rarity-epic {
-  background: linear-gradient(135deg, rgba(128, 0, 128, 0.08) 0%, var(--color-bg-layer2) 100%);
-  border-color: #9966cc;
-  box-shadow: 0 0 10px rgba(153, 102, 204, 0.2), var(--shadow-sm);
+  background: linear-gradient(135deg, rgba(128, 0, 128, .08) 0, var(--color-bg-layer2) 100%);
+  border-color: #96c;
+  box-shadow: 0 0 10px rgba(153, 102, 204, .2), var(--shadow-sm)
 }
 
 .achievement-card.rarity-rare {
-  background: linear-gradient(135deg, rgba(0, 100, 200, 0.06) 0%, var(--color-bg-layer2) 100%);
-  border-color: #0064c8;
+  background: linear-gradient(135deg, rgba(0, 100, 200, .06) 0, var(--color-bg-layer2) 100%);
+  border-color: #0064c8
 }
 
-.achievement-card.rarity-common {
-  background: linear-gradient(135deg, var(--color-bg-layer) 0%, var(--color-bg-layer2) 100%);
-}
-
-/* Prevalence Badge Redesign */
 .achievement-card[data-prevalence]::after {
   content: attr(data-prevalence);
   position: absolute;
-  bottom: 0.75rem;
+  bottom: .75rem;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 0.625rem;
-  background: linear-gradient(135deg, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.6));
-  color: white;
-  padding: 0.25rem 0.5rem;
+  font-size: .625rem;
+  background: linear-gradient(135deg, rgba(0, 0, 0, .8), rgba(0, 0, 0, .6));
+  color: #fff;
+  padding: .25rem .5rem;
   border-radius: 12px;
   font-weight: 600;
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, .1);
   text-align: center;
-  min-width: 3rem;
+  min-width: 3rem
 }
 
 .achievements-panel--compact .achievement-card[data-prevalence]::after {
-  bottom: 0.5rem;
-  font-size: 0.5625rem;
-  padding: 0.1875rem 0.375rem;
+  bottom: .5rem;
+  font-size: .5625rem;
+  padding: .1875rem .375rem
 }
 
-/* Responsive Design */
-@media (max-width: 1024px) {
+@media (max-width:1024px) {
   .achievement-grid {
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 0.875rem;
+    gap: .875rem
   }
 
   .achievements-panel--compact .achievement-grid {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr))
+  }
+
+  .osrs-table {
+    width: 100%
+  }
+
+  table td,
+  table th {
+    padding: .65rem .75rem;
+    font-size: .9rem
+  }
+
+  .leaderboard-table td:first-child,
+  .leaderboard-table th:first-child {
+    width: 50px
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width:768px) {
+  .achievements-inline-grid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: .5rem
+  }
+
+  .achievement-inline-card {
+    padding: .4rem .6rem
+  }
+
+  .ach-inline-name {
+    font-size: .75rem
+  }
+
+  .ach-inline-rarity {
+    font-size: .65rem
+  }
+
   .achievements-panel {
     margin: 1rem 0;
-    border-radius: 8px;
+    border-radius: 8px
   }
 
   .achievement-grid {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 0.75rem;
-    padding: 1rem;
+    gap: .75rem;
+    padding: 1rem
   }
 
   .achievements-panel--compact .achievement-grid {
     grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-    gap: 0.625rem;
+    gap: .625rem
   }
 
   .achievement-card {
-    padding: 1rem 0.75rem;
+    padding: 1rem .75rem
   }
 
   .ach-icon {
     font-size: 1.75rem;
-    margin-bottom: 0.625rem;
+    margin-bottom: .625rem
   }
 
   .achievements-panel--compact .ach-icon {
-    font-size: 1.25rem;
+    font-size: 1.25rem
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width:640px) {
+  .achievements-inline-grid {
+    grid-template-columns: 1fr 1fr
+  }
+
   .achievement-grid {
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 0.625rem;
+    gap: .625rem
   }
 
   .achievements-panel--compact .achievement-grid {
     grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
+    gap: .5rem
   }
 
   .achievement-card {
-    padding: 0.875rem 0.625rem;
-    font-size: 0.8125rem;
+    padding: .875rem .625rem;
+    font-size: .8125rem
   }
 
   .ach-title {
-    font-size: 0.75rem;
+    font-size: .75rem
   }
 
   .ach-desc {
-    font-size: 0.6875rem;
+    font-size: .6875rem
   }
 
   .achievements-panel label {
-    font-size: 0.625rem;
-    padding: 0.1875rem 0.375rem;
+    font-size: .625rem;
+    padding: .1875rem .375rem
   }
 }
 
-@media (max-width: 480px) {
+@media (max-width:480px) {
+
+  .achievements-inline-grid,
   .achievements-panel--compact .achievement-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr
   }
 
   .achievement-card {
-    padding: 0.75rem 0.5rem;
+    padding: .75rem .5rem
   }
 }
 
-
-
-
-/* Achievement category variants */
 .achievement-skill {
-  background: linear-gradient(135deg, #ffd700 0, #ffb347 100%);
+  background: linear-gradient(135deg, gold 0, #ffb347 100%)
 }
 
 .achievement-rank {
-  background: linear-gradient(135deg, #b5e48c 0, #52b69a 100%);
+  background: linear-gradient(135deg, #b5e48c 0, #52b69a 100%)
 }
 
 .achievement-account {
-  background: linear-gradient(135deg, #c9b6ff 0, #8e72ff 100%);
+  background: linear-gradient(135deg, #c9b6ff 0, #8e72ff 100%)
 }
 
 .achievement-style {
-  background: linear-gradient(135deg, #ffafcc 0, #ff5d8f 100%);
+  background: linear-gradient(135deg, #ffafcc 0, #ff5d8f 100%)
 }
 
 .achievement-performance {
-  background: linear-gradient(135deg, #a1c4fd 0, #4c8bf5 100%);
+  background: linear-gradient(135deg, #a1c4fd 0, #4c8bf5 100%)
 }
 
 .achievement-activity {
-  background: linear-gradient(135deg, #fbc2eb 0, #a18cd1 100%);
+  background: linear-gradient(135deg, #fbc2eb 0, #a18cd1 100%)
 }
 
 .achievement-badge[data-tooltip]::after {
-  font-size: 0.65rem;
+  font-size: .65rem;
   max-width: 220px;
   white-space: normal;
-  line-height: 1.2;
+  line-height: 1.2
 }
 
-/* Filter bar small labels */
 .filter-bar label {
-  font-size: 0.55rem;
+  font-size: .55rem;
   font-weight: 600;
-  text-transform: uppercase;
   letter-spacing: .5px;
-  color: var(--color-muted);
+  color: var(--color-muted)
 }
 
-/* Progress legend & toggle */
 .progress-legend .pl-swatch {
   display: inline-block;
   width: 14px;
   height: 6px;
-  border-radius: 4px;
+  border-radius: 4px
 }
 
 .pl-swatch--you {
-  background: linear-gradient(90deg, var(--color-accent)0, var(--color-accent-hover)100%);
+  background: linear-gradient(90deg, var(--color-accent)0, var(--color-accent-hover)100%)
 }
 
 .pl-swatch--avg {
   background: var(--color-gold);
-  opacity: .8;
+  opacity: .8
 }
 
 .progress-toggle {
   display: inline-flex;
   border: 1px solid var(--color-border);
   border-radius: 6px;
-  overflow: hidden;
+  overflow: hidden
+}
+
+.skill-row,
+.toast {
+  border: 2px solid var(--color-border)
 }
 
 .progress-toggle button {
   background: var(--color-bg-layer);
   border: 0;
   padding: 4px 10px;
-  font-size: 0.6rem;
+  font-size: .6rem;
   font-weight: 600;
   cursor: pointer;
   color: var(--color-muted);
-  transition: .2s;
+  transition: .2s
 }
 
 .progress-toggle button.active {
   background: var(--color-accent);
-  color: #fff;
+  color: #fff
 }
 
-.progress-toggle button:not(.active):hover {
-  color: var(--color-foreground);
-}
-
-/* --- Components: Skill Display --- */
 .skill-row {
   padding: 1rem;
-  border: 2px solid var(--color-border);
-  background: linear-gradient(135deg, var(--color-bg-layer) 0, var(--color-bg-layer2) 100%);
+  background: linear-gradient(135deg, var(--color-bg-layer) 0, var(--color-bg-layer2) 100%)
 }
 
+.skill-row,
 .skill-row.clickable,
-th.sortable,
-.skill-row {
-  cursor: default;
+th.sortable {
+  cursor: default
 }
 
 .skill-row:hover {
   border-color: var(--color-border-dark);
-  transform: translateY(-2px);
+  transform: translateY(-2px)
 }
 
 .skill-row.clickable:hover {
   color: #fff;
   transform: translateY(-3px);
-  border-color: var(--color-accent);
-}
-
-.skill-row.clickable:active {
-  transform: translateY(-1px);
+  border-color: var(--color-accent)
 }
 
 .skill-row::before {
@@ -1383,299 +1470,264 @@ th.sortable,
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent 0, rgba(200, 16, 46, 0.1) 50%, transparent 100%);
-  transition: left 0.3s;
+  background: linear-gradient(90deg, transparent 0, rgba(200, 16, 46, .1) 50%, transparent 100%);
+  transition: left .3s
 }
 
 .skill-row:hover::before {
-  left: 100%;
+  left: 100%
 }
 
 .skill-row.clickable:hover .skill-level,
 .skill-row.clickable:hover .skill-rank,
 .skill-row.clickable:hover .skill-xp {
-  color: rgba(255, 255, 255, 0.95);
+  color: rgba(255, 255, 255, .95)
 }
 
 .skill-row.clickable:hover .skill-icon {
   transform: scale(1.1);
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3)) brightness(1.1);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .3)) brightness(1.1)
 }
 
 .skill-info {
   flex: 1;
   justify-content: space-between;
   min-width: 0;
-  z-index: 1;
+  z-index: 1
 }
 
 .skill-icon {
   width: 20px;
   height: 20px;
-  margin-right: 0.75rem;
+  margin-right: .75rem;
   vertical-align: middle;
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
   display: inline-block;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .2))
 }
 
-/* Consistent icon size variants to avoid inline styles */
 .skill-icon--sm {
   width: 18px;
   height: 18px;
-  margin-right: 6px;
+  margin-right: 6px
 }
 
 .skill-icon--xs {
   width: 16px;
   height: 16px;
-  margin-right: 4px;
+  margin-right: 4px
 }
 
 .skill-name,
 .skill-rank {
   font-family: 'Press Start 2P';
-  font-size: .7rem;
-  /* larger retro font for readability */
+  font-size: .7rem
 }
 
-/* Table headers inherit main font for clarity */
-table th {
-  font-family: inherit;
-}
-
-/* Utility: capitalize skill names */
 .text-capitalize {
-  text-transform: capitalize;
+  text-transform: capitalize
 }
 
 .skill-stats {
   gap: 1rem;
-  font-size: 0.85em;
-  flex-wrap: wrap;
+  font-size: .85em;
+  flex-wrap: wrap
 }
 
 .skill-level {
   font-weight: 700;
-  font-size: 0.9em;
-  text-shadow: 0 1px 2px rgba(200, 16, 46, 0.3);
+  font-size: .9em;
+  text-shadow: 0 1px 2px rgba(200, 16, 46, .3)
 }
 
 .skill-rank {
   font-weight: 400;
   white-space: nowrap;
-  padding: 0;
+  padding: 0
 }
 
 .skill-xp {
   font-family: "Press+Start+2P", monospace;
-  font-weight: 800;
+  font-weight: 800
 }
 
 .badge {
   padding: 0;
   font-weight: 500;
   box-shadow: none;
-  text-shadow: none;
+  text-shadow: none
 }
 
-/* --- Components: Toast & Other UI --- */
 .toast {
   background: linear-gradient(135deg, var(--color-bg-layer) 0, var(--color-bg-layer2) 100%);
-  border: 2px solid var(--color-border);
-  padding: 0.75rem 1rem;
-  font-size: 0.85em;
-  animation: 0.3s ease-out slideInRight;
+  padding: .75rem 1rem;
+  font-size: .85em;
+  animation: .3s ease-out slideInRight
 }
 
-/* Toast error state */
 .toast--error {
-  border-color: var(--color-danger);
+  border-color: var(--color-danger)
 }
 
-/* Size utilities */
 .min-w-32 {
-  /* ~8rem */
-  min-width: 8rem;
+  min-width: 8rem
 }
 
 .toast::before {
   top: 0;
   height: 3px;
-  background: var(--color-accent);
+  background: var(--color-accent)
 }
 
 .bg-surface {
-  background: var(--color-bg-surface);
+  background: var(--color-bg-surface)
 }
 
 .bg-layer2,
 .icon-button:hover {
-  background: var(--color-bg-layer2);
+  background: var(--color-bg-layer2)
 }
 
 .text-danger {
-  color: var(--color-danger);
+  color: var(--color-danger)
 }
 
 .text-gold {
-  color: var(--color-gold);
+  color: var(--color-gold)
 }
 
 .border-border {
-  border-color: var(--color-border);
+  border-color: var(--color-border)
 }
 
 .bg-input {
-  background: var(--color-input);
+  background: var(--color-input)
 }
 
 ::-webkit-scrollbar {
   width: 10px;
-  height: 10px;
+  height: 10px
 }
 
 ::-webkit-scrollbar-track {
-  background: 0 0;
+  background: 0 0
 }
 
 ::-webkit-scrollbar-thumb {
   background: var(--color-bg-layer2);
-  border-radius: 8px;
+  border-radius: 8px
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-bg-layer);
+  background: var(--color-bg-layer)
 }
 
-/* --- Focus States & Accessibility --- */
-.btn:focus,
 .btn-sm:focus,
+.btn:focus,
 .icon-button:focus,
 .nav-pill:focus,
 input:focus,
 select:focus {
   outline: 0;
-  box-shadow: 0 0 0 3px rgba(200, 16, 46, 0.25);
+  box-shadow: 0 0 0 3px rgba(200, 16, 46, .25)
 }
 
-input[type="number"]:focus,
-input[type="text"]:focus,
+input[type=number]:focus,
+input[type=text]:focus,
 select:focus {
   border-color: var(--color-accent);
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1), 0 0 0 3px rgba(200, 16, 46, 0.1);
-  background: var(--color-input);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, .1), 0 0 0 3px rgba(200, 16, 46, .1);
+  background: var(--color-input)
 }
 
-/* --- Keyframes & Animations --- */
 @keyframes slideInRight {
   from {
     opacity: 0;
-    transform: translateX(100px);
+    transform: translateX(100px)
   }
 
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateX(0)
   }
 }
 
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(-4px);
+    transform: translateY(-4px)
   }
 
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0)
   }
 }
 
-/* --- Media Queries & Reduced Motion --- */
-@media (prefers-reduced-motion: reduce) {
+@media (prefers-reduced-motion:reduce) {
 
   *,
-  *::before,
-  *::after {
+  ::after,
+  ::before {
     animation: none !important;
-    transition: none !important;
+    transition: none !important
   }
 }
 
-/* Responsive adjustments */
-@media (max-width: 1024px) {
-  .osrs-table {
-    width: 100%;
-  }
-
-  table td,
-  table th {
-    padding: .65rem .75rem;
-    font-size: .9rem;
-  }
-
-  .leaderboard-table th:first-child,
-  .leaderboard-table td:first-child {
-    width: 50px;
-  }
-}
-
-/* Footer: reduce footprint across pages */
 footer.site-footer {
-  font-size: 0.65em;
+  font-size: .65em;
   line-height: 1.25;
-  padding: 0.5rem;
-  /* overrides Tailwind p-4 */
+  padding: .5rem
 }
 
 footer.site-footer .mt-2 {
-  margin-top: 0.25rem;
+  margin-top: .25rem
 }
 
-@media (min-width: 640px) {
+@media (min-width:640px) {
   .skill-stats {
     gap: 1.25rem;
-    flex-wrap: nowrap;
+    flex-wrap: nowrap
   }
 }
 
 @media (min-width:768px) {
+  .main-grid {
+    grid-template-columns: 220px 1fr
+  }
 
   table td,
   table th {
-    padding: .85rem 1.05rem;
+    padding: .85rem 1.05rem
   }
 }
 
 @media (max-width:520px) {
   .main-grid {
-    gap: 1.25rem;
+    gap: 1.25rem
   }
 
   .sidebar {
-    padding: .75rem !important;
+    padding: .75rem !important
   }
 
   table td,
   table th {
-    padding: .55rem .55rem;
-    font-size: .82rem;
+    padding: .55rem;
+    font-size: .82rem
   }
 
   .username-link {
-    font-size: .85rem;
+    font-size: .85rem
   }
 
   h2 {
-    font-size: 1.3rem;
+    font-size: 1.3rem
   }
 
   h3 {
-    font-size: 1.15rem;
+    font-size: 1.15rem
   }
 }
-
-/* On very small screens keep wrapping enabled so no horizontal scroll */
