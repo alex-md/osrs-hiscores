@@ -63,7 +63,7 @@ html {
 }
 
 body {
-  font-family: Philosopher, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-family: Philospher, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   font-size: clamp(1rem, .5vw + .95rem, 1.18rem);
   line-height: 1.7;
   background: var(--color-bg-surface) radial-gradient(circle at 25% 25%, rgba(196, 164, 132, .1) 0, transparent 50%), radial-gradient(circle at 75% 75%, rgba(196, 164, 132, .05) 0, transparent 50%)
@@ -114,7 +114,7 @@ table th {
 }
 
 .container-wrap {
-  margin: 0 auto;
+  /* margin: 0 auto; */
   max-width: 1600px;
   padding: 0 1.5rem
 }
@@ -360,7 +360,7 @@ table th {
 .skill-row,
 .toast {
   overflow: hidden;
-  border-radius: .5rem
+
 }
 
 .btn,
@@ -439,8 +439,22 @@ table th {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: .75rem;
-  margin-top: .75rem
+  margin-top: .75rem;
+  justify-items: stretch;
 }
+
+.hidden-achievements-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: .75rem;
+  margin-top: .75rem;
+}
+
+.expandable-achievements-grid {
+  gap: 1em;
+}
+
+.achievements-container {}
 
 .achievement-inline-card {
   display: flex;
@@ -685,10 +699,10 @@ select {
   border: 2px solid var(--color-border-dark);
   overflow-x: auto;
   width: 100%;
+  min-width: fit-content;
+  border-radius: .65rem;
   max-width: clamp(1100px, 95vw, 1550px);
   margin: 0 auto 2rem;
-  border-radius: .65rem;
-  padding: .4rem .5rem .75rem
 }
 
 .osrs-table.home-leaderboard {
@@ -713,10 +727,6 @@ select {
     width: 45%
   }
 
-  .osrs-table.full-width {
-    padding-left: 1rem;
-    padding-right: 1rem
-  }
 }
 
 .osrs-table table {
@@ -738,10 +748,7 @@ select {
   box-shadow: none
 }
 
-.osrs-table::before {
-  top: 0;
-  height: 3px
-}
+
 
 table td,
 table th {
@@ -1094,9 +1101,8 @@ tbody tr.overall-row {
 }
 
 .achievement-card {
-  position: relative;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   text-align: center;
   padding: 1.25rem 1rem;
