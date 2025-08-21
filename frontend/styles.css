@@ -454,8 +454,6 @@ table th {
   gap: 1em;
 }
 
-.achievements-container {}
-
 .achievement-inline-card {
   display: flex;
   align-items: center;
