@@ -1,7 +1,7 @@
 // Pages Function wrapper for /api/generate/users/dry-run endpoint.
 // Delegates to the unified Worker implementation.
 
-import { handleApiRequest } from '../../../workers/src/index.js';
+import { handleApiRequest } from '../../../../workers/src/index.js';
 
 export async function onRequestGet(context) {
     const { request, env } = context;
