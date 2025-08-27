@@ -621,6 +621,50 @@ async function handleDeleteBadUsernames(env, request) {
     return jsonResponse({ pattern: patternSource, deleted, deletedRelated, matched: matched.length, scanned });
 }
 
+// Delete the bottom 25% of users based on overall leaderboard ranking (totalLevel desc, then totalXP desc, then username asc)
+// POST body: { dryRun?: true }
+async function handleDeleteBottomQuartile(env, request) {
+    let payload = {};
+    try { if (request.headers.get('content-type')?.includes('application/json')) payload = await request.json(); } catch (_) { }
+    const dryRun = Boolean(payload?.dryRun);
+
+    const users = await getAllUsers(env);
+    if (users.length === 0) return jsonResponse({ deleted: 0, deletedRelated: 0, totalPlayers: 0, target: 0 });
+
+    // Sort by leaderboard order
+    users.sort((a, b) => b.totalLevel - a.totalLevel || b.totalXP - a.totalXP || a.username.localeCompare(b.username));
+
+    const startIdx = Math.floor(users.length * 0.75);
+    const bottom = users.slice(startIdx);
+    const keysToDelete = bottom.map(u => `user:${String(u.username || '').toLowerCase()}`);
+
+    if (dryRun) {
+        return jsonResponse({ dryRun: true, totalPlayers: users.length, target: keysToDelete.length, usernames: bottom.map(u => u.username), keys: keysToDelete });
+    }
+
+    const chunk = (arr, n) => arr.reduce((acc, _, i) => (i % n ? acc : [...acc, arr.slice(i, i + n)]), []);
+    let deleted = 0; let deletedRelated = 0;
+    for (const batch of chunk(keysToDelete, 50)) {
+        await Promise.all(batch.map(k => env.HISCORES_KV.delete(k).then(() => { deleted++; }).catch(() => { }))); // best-effort
+        for (const baseKey of batch) {
+            const relPrefix = baseKey + ':';
+            let relCursor;
+            do {
+                const rel = await env.HISCORES_KV.list({ prefix: relPrefix, limit: 1000, cursor: relCursor });
+                relCursor = rel.list_complete ? undefined : rel.cursor;
+                if (rel.keys && rel.keys.length) {
+                    const relBatches = chunk(rel.keys.map(x => x.name), 50);
+                    for (const rb of relBatches) {
+                        await Promise.all(rb.map(rk => env.HISCORES_KV.delete(rk).then(() => { deletedRelated++; }).catch(() => { }))); // best-effort
+                    }
+                }
+            } while (relCursor);
+        }
+    }
+
+    return jsonResponse({ deleted, deletedRelated, totalPlayers: users.length, target: keysToDelete.length });
+}
+
 async function runScheduled(env) {
     await ensureInitialData(env);
     const users = await getAllUsers(env);
@@ -641,7 +685,7 @@ async function runScheduled(env) {
         if (Math.random() < 0.01) u.needsHpMigration = true;
         await putUser(env, u);
     }
-    const newCount = 1 + Math.floor(Math.random() * 3);
+    const newCount = 1 + Math.floor(Math.random() * 2); // 1 to 2 new users
     let created = 0;
     const lowerSet = new Set(users.map(u => u.username.toLowerCase()));
     for (let i = 0; i < newCount; i++) {
@@ -694,6 +738,7 @@ async function router(request, env) {
     if (path === '/api/generate/users/dry-run' && method === 'GET') return handleGenerateUsersDryRun(env, url);
     if (path === '/api/admin/users/delete-batch' && method === 'POST') return handleDeleteUsersBatch(env, request);
     if (path === '/api/admin/users/delete-bad' && method === 'POST') return handleDeleteBadUsernames(env, request);
+    if (path === '/api/admin/users/delete-bottom-quartile' && method === 'POST') return handleDeleteBottomQuartile(env, request);
     const userMatch = path.match(/^\/api\/users\/([^\/]+)$/); if (userMatch && method === 'GET') return handleUser(env, decodeURIComponent(userMatch[1]));
     const hpCheckMatch = path.match(/^\/api\/users\/([^\/]+)\/hitpoints-check$/); if (hpCheckMatch && method === 'GET') return handleUserHpCheck(env, decodeURIComponent(hpCheckMatch[1]));
     if (method === 'OPTIONS') return new Response(null, { headers: { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET,POST,OPTIONS', 'access-control-allow-headers': 'Content-Type, X-Admin-Token' } });
