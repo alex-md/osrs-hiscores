@@ -125,11 +125,10 @@ function renderHomeView() {
     "div",
     "flex items-center justify-between flex-wrap gap-4",
   );
-  headerDiv.appendChild(
-    el("h2", "text-2xl font-bold flex items-center gap-2 text-foreground", [
-      text("🏆 Overall Leaderboard"),
-    ]),
-  );
+  const titleEl = el("h2", "text-2xl font-bold flex items-center gap-2 text-foreground", [
+    text("🏆 Overall Leaderboard"),
+  ]);
+  headerDiv.appendChild(titleEl);
 
   const statsDiv = el("div", "flex gap-3 flex-wrap text-muted text-sm");
   // Will be updated after data load
@@ -169,6 +168,85 @@ function renderHomeView() {
     `;
   section.appendChild(controls);
 
+  // Preload skill rankings for achievement badges (best-effort)
+  let rankingsCache = null;
+  loadSkillRankings().then(r => { rankingsCache = r; if (cache.leaderboard) renderPage(cache.leaderboard); }).catch(() => { });
+
+  function buildTop1Counts(rankings) {
+    const map = new Map();
+    if (!rankings || !rankings.rankings) return map;
+    const R = rankings.rankings;
+    (window.SKILLS || []).forEach(s => {
+      const arr = R[s] || [];
+      if (arr[0] && arr[0].username) {
+        const u = arr[0].username;
+        map.set(u, (map.get(u) || 0) + 1);
+      }
+    });
+    return map;
+  }
+
+  function inferTierFromRank(rank, totalPlayers, top1Skills = 0) {
+    if (!rank || !totalPlayers) return null;
+    const p = rank / totalPlayers;
+    if (p <= 0.00001 || top1Skills >= 3) return 'Grandmaster';
+    if (p <= 0.0001) return 'Master';
+    if (p <= 0.001) return 'Diamond';
+    if (p <= 0.01) return 'Platinum';
+    if (p <= 0.05) return 'Gold';
+    if (p <= 0.20) return 'Silver';
+    if (p <= 0.50) return 'Bronze';
+    // fallbacks by level can be added if needed, but we keep UI concise here
+    return null;
+  }
+
+  function addMiniBadges(cell, player, rankings, totalPlayers) {
+    try {
+      const wrap = document.createElement('div');
+      wrap.className = 'mini-badges';
+      const add = (textContent, title, extraCls = '') => {
+        const b = document.createElement('span');
+        b.className = 'mini-badge' + (extraCls ? ' ' + extraCls : '');
+        b.textContent = textContent;
+        if (title) b.title = title;
+        wrap.appendChild(b);
+      };
+
+      // Pre-calc top1 count
+      let top1 = 0;
+      if (rankings) {
+        const map = buildTop1Counts(rankings);
+        top1 = map.get(player.username) || 0;
+      }
+
+      // Tier fallback if missing
+      const tier = player.tier || inferTierFromRank(player.rank, totalPlayers, top1);
+      if (tier && !player.tier) {
+        const tb = document.createElement('span');
+        tb.className = `tier-badge tier-${tier.toLowerCase()}`;
+        tb.textContent = tier;
+        tb.title = `${tier} • Overall #${player.rank}${top1 ? ` • #1 in ${top1} skills` : ''}`;
+        cell.appendChild(tb);
+      }
+
+      // Prestige badges (limit to avoid clutter)
+      let added = 0; const LIMIT = 3;
+      if (top1 >= 3 && added < LIMIT) { add('👑 Triple Crown', '#1 in 3+ skills', 'mini-badge--highlight'); added++; }
+      else if (top1 >= 1 && added < LIMIT) { add(`🥇 x${top1}`, 'Rank #1 in skills'); added++; }
+
+      if (player.totalLevel >= 2277 && added < LIMIT) { add('👑 Maxed', 'All skills 99'); added++; }
+      else if (player.totalLevel >= 2000 && added < LIMIT) { add('📈 2k+', 'Total level 2000+'); added++; }
+
+      if (player.updatedAt && added < LIMIT) {
+        const diffH = (Date.now() - player.updatedAt) / 3600000;
+        if (diffH <= 24) { add('🕒 Today', 'Updated within 24h'); added++; }
+        else if (diffH <= 168) { add('🔄 Week', 'Updated within 7 days'); added++; }
+      }
+
+      if (wrap.childNodes.length) cell.appendChild(wrap);
+    } catch (_) { }
+  }
+
   function renderPage(data) {
     const players = data.players || [];
     const total = players.length;
@@ -189,14 +267,21 @@ function renderHomeView() {
         if (p.rank === 1) tr.classList.add("rank-1");
         else if (p.rank === 2) tr.classList.add("rank-2");
         else if (p.rank === 3) tr.classList.add("rank-3");
+        const tierTitle = p.tierInfo && p.tierInfo.top1Skills != null ? ` title="${p.tier} • Overall #${p.rank}${p.tierInfo.top1Skills ? ` • #1 in ${p.tierInfo.top1Skills} skills` : ''}"` : '';
+        const tierBadge = p.tier ? `<span class="tier-badge tier-${p.tier.toLowerCase()}"${tierTitle}>${p.tier}</span>` : "";
         tr.innerHTML = `
               <td class="text-center font-bold">${rankDisplay}</td>
               <td>
                   <button class="username-link" data-user="${p.username}" aria-label="View ${p.username} stats">${p.username}</button>
+                  ${tierBadge}
               </td>
               <td class="text-center skill-level">${p.totalLevel}</td>
               <td class="text-right skill-xp">${p.totalXP.toLocaleString()}</td>`;
         tbody.appendChild(tr);
+
+        // Enhance player cell with client-side badges
+        const playerCell = tr.children[1];
+        addMiniBadges(playerCell, p, rankingsCache, (cache.leaderboard && cache.leaderboard.totalPlayers) || players.length);
       });
     }
     // Update footer controls & stats pill
@@ -226,6 +311,18 @@ function renderHomeView() {
         statsDiv.appendChild(
           el("div", "badge", [text(`${data.totalPlayers} total players`)]),
         );
+      }
+      // Tier prevalence quick pills
+      if (data.tiers) {
+        const tiers = data.tiers;
+        const order = ["Grandmaster", "Master", "Diamond", "Platinum", "Gold", "Silver", "Bronze"]; // show elites first
+        order.forEach(tn => {
+          if (tiers[tn] > 0) {
+            const pct = data.totalPlayers ? Math.round((tiers[tn] / data.totalPlayers) * 1000) / 10 : 0;
+            const pill = el("div", `badge tier-badge tier-${tn.toLowerCase()}`, [text(`${tn} ${pct}%`)]);
+            statsDiv.appendChild(pill);
+          }
+        });
       }
     })
     .catch((e) => {
@@ -265,9 +362,23 @@ function renderUserView(username) {
       );
 
       const userInfo = el("div", "flex items-center gap-3 flex-wrap");
-      userInfo.appendChild(
-        el("h3", "font-bold text-foreground", [text(`⚔️ ${user.username}`)]),
-      );
+      const nameWrap = el("h3", "font-bold text-foreground flex items-center gap-2");
+      nameWrap.appendChild(text(`⚔️ ${user.username}`));
+      // try to fetch leaderboard to display tier badge next to name
+      // (we have it from Promise.all)
+      if (leaderboard && leaderboard.players) {
+        const me = leaderboard.players.find(p => p.username === user.username);
+        if (me && me.tier) {
+          const b = document.createElement('span');
+          b.className = `tier-badge tier-${me.tier.toLowerCase()}`;
+          b.textContent = me.tier;
+          if (me.rank || (me.tierInfo && typeof me.tierInfo.top1Skills === 'number')) {
+            b.title = `${me.tier} • Overall #${me.rank}${me.tierInfo && me.tierInfo.top1Skills ? ` • #1 in ${me.tierInfo.top1Skills} skills` : ''}`;
+          }
+          nameWrap.appendChild(b);
+        }
+      }
+      userInfo.appendChild(nameWrap);
 
       // Calculate combat level (simplified)
       const attack = user.skills.attack.level;
@@ -292,6 +403,13 @@ function renderUserView(username) {
       meta.appendChild(
         el("span", "meta-badge", [text(`Combat Lv. ${combatLevel}`)]),
       );
+      // Overall rank meta badge (from leaderboard)
+      if (leaderboard && leaderboard.players) {
+        const me = leaderboard.players.find(p => p.username === user.username);
+        if (me && me.rank) {
+          meta.appendChild(el('span', 'meta-badge', [text(`Overall #${me.rank}`)]));
+        }
+      }
       {
         if (user.createdAt) {
           const createdStr = new Date(user.createdAt).toLocaleDateString();
@@ -335,6 +453,22 @@ function renderUserView(username) {
       // Build full catalog of *possible* achievements (static list + skill generated)
       function buildAchievementCatalog() {
         const catalog = [];
+        // Meta tier achievements
+        const tiers = [
+          { key: 'tier-grandmaster', icon: '👑', label: 'Grandmaster', desc: 'Ultra-elite: top 0.001% or #1 in 3+ skills.', category: 'tier' },
+          { key: 'tier-master', icon: '🏆', label: 'Master', desc: 'Top 0.01% overall.', category: 'tier' },
+          { key: 'tier-diamond', icon: '💎', label: 'Diamond', desc: 'Top 0.1% overall.', category: 'tier' },
+          { key: 'tier-platinum', icon: '🥈', label: 'Platinum', desc: 'Top 1% overall.', category: 'tier' },
+          { key: 'tier-gold', icon: '🥇', label: 'Gold', desc: 'Top 5% overall.', category: 'tier' },
+          { key: 'tier-silver', icon: '🥈', label: 'Silver', desc: 'Top 20% overall.', category: 'tier' },
+          { key: 'tier-bronze', icon: '🥉', label: 'Bronze', desc: 'Top 50% overall.', category: 'tier' },
+          { key: 'tier-expert', icon: '📜', label: 'Expert', desc: 'High total level prowess.', category: 'tier' },
+          { key: 'tier-adept', icon: '📘', label: 'Adept', desc: 'Solid progression.', category: 'tier' },
+          { key: 'tier-novice', icon: '📗', label: 'Novice', desc: 'Starting the journey.', category: 'tier' },
+        ];
+        tiers.forEach(t => catalog.push(t));
+        // Multi-top achievement
+        catalog.push({ key: 'triple-crown', icon: '👑', label: 'Triple Crown', desc: 'Hold #1 rank in 3 or more skills.', category: 'rank' });
         // Skill level thresholds (one per threshold per skill; user only earns highest attained)
         SKILLS.forEach(s => {
           LEVEL_THRESHOLDS.forEach(t => {
@@ -368,6 +502,21 @@ function renderUserView(username) {
         const now = Date.now();
         const results = [];
         const push = (a) => results.push(a);
+        // Tier-based achievement via leaderboard data
+        if (leaderboard && leaderboard.players) {
+          const me = leaderboard.players.find(p => p.username === user.username);
+          if (me && me.tier) {
+            const key = `tier-${me.tier.toLowerCase()}`;
+            push({ key });
+          }
+          if (me && me.tierInfo && typeof me.tierInfo.top1Skills === 'number' && me.tierInfo.top1Skills >= 3) {
+            push({ key: 'triple-crown' });
+          } else {
+            // Fallback using per-skill rankings
+            let c1 = 0; SKILLS.forEach(s => { const r = getUserSkillRank(skillRankings, user.username, s); if (r === 1) c1++; });
+            if (c1 >= 3) push({ key: 'triple-crown' });
+          }
+        }
         // Per skill highest threshold
         SKILLS.forEach(s => {
           const lvl = user.skills[s]?.level || 1;
@@ -411,7 +560,7 @@ function renderUserView(username) {
       }
 
       // Global prevalence estimation (client-side using skillRankings)
-      async function computeGlobalAchievementStats(skillRankings) {
+      async function computeGlobalAchievementStats(skillRankings, leaderboard) {
         if (window.__achievementStats) return window.__achievementStats;
         const rankings = skillRankings.rankings || {};
         // Reconstruct per-user levels (username -> {skill:level})
@@ -432,7 +581,8 @@ function renderUserView(username) {
           averagesTmp[s] = { level: totalLvl / arr.length };
         });
         const globalCounts = new Map();
-        const totalPlayers = userLevels.size;
+        // Prefer authoritative total player count from leaderboard
+        const totalPlayers = (leaderboard && leaderboard.totalPlayers) ? leaderboard.totalPlayers : userLevels.size;
         // Helper to increment
         function inc(key) { globalCounts.set(key, (globalCounts.get(key) || 0) + 1); }
         // Pre-calc rank achievements directly from rankings arrays: ranking arrays are sorted by xp already.
@@ -442,6 +592,33 @@ function renderUserView(username) {
           arr.slice(0, 3).forEach(e => { if (e && e.username) inc(`rank-top3-${s}`); });
           arr.slice(0, 10).forEach(e => { if (e && e.username) inc(`rank-top10-${s}`); });
         });
+        // Count users who hold #1 in at least 3 skills (approx using arr[0] only per skill)
+        const r1Map = new Map();
+        SKILLS.forEach(s => {
+          const arr = rankings[s] || [];
+          if (arr[0] && arr[0].username) {
+            const u = arr[0].username;
+            r1Map.set(u, (r1Map.get(u) || 0) + 1);
+          }
+        });
+        r1Map.forEach((cnt, u) => { if (cnt >= 3) inc('triple-crown'); });
+        // Tier achievements counts from leaderboard summary if available
+        if (leaderboard && leaderboard.tiers) {
+          const t = leaderboard.tiers;
+          const map = {
+            'tier-grandmaster': 'Grandmaster',
+            'tier-master': 'Master',
+            'tier-diamond': 'Diamond',
+            'tier-platinum': 'Platinum',
+            'tier-gold': 'Gold',
+            'tier-silver': 'Silver',
+            'tier-bronze': 'Bronze',
+            'tier-expert': 'Expert',
+            'tier-adept': 'Adept',
+            'tier-novice': 'Novice'
+          };
+          Object.entries(map).forEach(([k, v]) => { if (t[v]) globalCounts.set(k, (globalCounts.get(k) || 0) + t[v]); });
+        }
         // For each user determine highest threshold, milestones, playstyle, performance
         userLevels.forEach((data, uname) => {
           const levels = SKILLS.map(s => data.skills[s] || 1);
@@ -564,7 +741,7 @@ function renderUserView(username) {
       // Store achievements data to be rendered above the hiscores table
       let achievementsData = null;
 
-      computeGlobalAchievementStats(skillRankings).then(globalStats => {
+      computeGlobalAchievementStats(skillRankings, leaderboard).then(globalStats => {
         const userAchievementKeys = deriveUserAchievements(user, globalStats.averages);
         const unlockedSet = new Set(userAchievementKeys);
 

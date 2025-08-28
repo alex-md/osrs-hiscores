@@ -424,6 +424,95 @@ table th {
   line-height: 1
 }
 
+/* Tier badges */
+.tier-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  margin-left: .5rem;
+  padding: .1rem .4rem;
+  border-radius: .4rem;
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-layer2);
+}
+
+.tier-badge::before {
+  content: '★';
+  opacity: .9;
+}
+
+.tier-badge.tier-grandmaster {
+  color: #ffd700;
+  border-color: #e6c200;
+  background: linear-gradient(135deg, rgba(255, 215, 0, .12), transparent);
+}
+
+.tier-badge.tier-master {
+  color: #ffb300;
+  border-color: #cc8f00;
+  background: linear-gradient(135deg, rgba(255, 179, 0, .12), transparent);
+}
+
+.tier-badge.tier-diamond {
+  color: #7dd3fc;
+  border-color: #38bdf8;
+  background: linear-gradient(135deg, rgba(125, 211, 252, .12), transparent);
+}
+
+.tier-badge.tier-platinum {
+  color: #e5e7eb;
+  border-color: #cbd5e1;
+  background: linear-gradient(135deg, rgba(229, 231, 235, .12), transparent);
+}
+
+.tier-badge.tier-gold {
+  color: #f59e0b;
+  border-color: #d97706;
+  background: linear-gradient(135deg, rgba(245, 158, 11, .12), transparent);
+}
+
+.tier-badge.tier-silver {
+  color: #c0c7d1;
+  border-color: #9aa4b2;
+  background: linear-gradient(135deg, rgba(192, 199, 209, .12), transparent);
+}
+
+.tier-badge.tier-bronze {
+  color: #cd7f32;
+  border-color: #b26a29;
+  background: linear-gradient(135deg, rgba(205, 127, 50, .12), transparent);
+}
+
+/* Mini badges row under username on leaderboard */
+.mini-badges {
+  display: inline-flex;
+  gap: .35rem;
+  margin-left: .5rem;
+  flex-wrap: wrap;
+  vertical-align: middle;
+}
+
+.mini-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: .075rem .35rem;
+  border-radius: .35rem;
+  font-size: .68rem;
+  font-weight: 700;
+  color: var(--color-muted);
+  border: 1px solid var(--color-border);
+  background: rgba(0, 0, 0, .06);
+}
+
+.mini-badge--highlight {
+  color: #ffd700;
+  border-color: #e6c200;
+  background: linear-gradient(135deg, rgba(255, 215, 0, .12), transparent);
+}
+
 .meta-badge--muted {
   opacity: .7;
   font-weight: 400
@@ -659,6 +748,11 @@ select {
 .username-link {
   font-weight: 300;
   text-decoration: none
+}
+
+.username-link+.tier-badge {
+  margin-left: .4rem;
+  vertical-align: middle;
 }
 
 .username-link:hover {

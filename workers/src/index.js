@@ -21,6 +21,87 @@ import {
     fetchRandomWords
 } from './utils.js';
 
+// Lightweight per-isolate memory cache and throttling to lower KV pressure
+const __memCache = new Map(); // key -> { value, expires }
+const __inflight = new Map(); // key -> Promise
+
+function nowMs() { return Date.now(); }
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function memGet(key) {
+    const e = __memCache.get(key);
+    if (!e) return undefined;
+    if (e.expires <= nowMs()) { __memCache.delete(key); return undefined; }
+    return e.value;
+}
+
+function memSet(key, value, ttlSeconds = 10) {
+    const ttl = Math.max(0, Number(ttlSeconds) || 0);
+    if (ttl <= 0) { __memCache.delete(key); return; }
+    __memCache.set(key, { value, expires: nowMs() + ttl * 1000 });
+}
+
+async function withInflightDedup(key, fn) {
+    if (__inflight.has(key)) return __inflight.get(key);
+    const p = (async () => {
+        try { return await fn(); }
+        finally { __inflight.delete(key); }
+    })();
+    __inflight.set(key, p);
+    return p;
+}
+
+// KV get with brief per-isolate memoization and inflight dedupe
+async function kvGetCached(env, key, { ttlSeconds = 10 } = {}) {
+    const memKey = `kv:text:${key}`;
+    const cached = memGet(memKey);
+    if (cached !== undefined) return cached;
+    return withInflightDedup(memKey, async () => {
+        const raw = await env.HISCORES_KV.get(key);
+        memSet(memKey, raw, ttlSeconds);
+        return raw;
+    });
+}
+
+// Limit parallel async ops
+async function mapWithConcurrency(items, limit, mapper) {
+    const results = new Array(items.length);
+    let i = 0; let running = 0; let rejected = false;
+    return new Promise((resolve) => {
+        const pump = () => {
+            if (rejected) return;
+            while (running < limit && i < items.length) {
+                const idx = i++;
+                running++;
+                Promise.resolve(mapper(items[idx], idx))
+                    .then(v => { results[idx] = v; })
+                    .catch(err => { results[idx] = undefined; console.log('KV op error:', String(err)); })
+                    .finally(() => { running--; if (i >= items.length && running === 0) resolve(results); else pump(); });
+            }
+            if (i >= items.length && running === 0) resolve(results);
+        };
+        if (!items.length) resolve(results); else pump();
+    });
+}
+
+// Cache API wrapper for GET routes; respects response cache-control
+async function cacheResponseIfPossible(request, compute) {
+    if ((request.method || 'GET').toUpperCase() !== 'GET') return compute();
+    try {
+        const cache = caches.default;
+        const hit = await cache.match(request);
+        if (hit) return hit;
+        const resp = await compute();
+        const cc = (resp.headers.get('cache-control') || '').toLowerCase();
+        if (!cc.includes('no-store')) {
+            try { await cache.put(request, resp.clone()); } catch (_) { }
+        }
+        return resp;
+    } catch (_) {
+        return compute();
+    }
+}
+
 function newUser(username) {
     const skills = {};
     SKILLS.forEach(s => { skills[s] = { xp: 0, level: 1 }; });
@@ -43,6 +124,41 @@ function newUser(username) {
 function recalcTotals(user) {
     user.totalLevel = totalLevel(user.skills);
     user.totalXP = totalXP(user.skills);
+}
+
+// Meta tier inference prioritizing overall rank percentiles with fallbacks.
+// Returns an object { name, ordinal } where lower ordinal is higher prestige.
+function inferMetaTierWithContext(user, ctx) {
+    try {
+        const rank = Number(ctx?.rank) || Infinity;
+        const totalPlayers = Math.max(1, Number(ctx?.totalPlayers) || 1);
+        const top1SkillsCount = Math.max(0, Number(ctx?.top1SkillsCount) || 0);
+        const percentile = rank / totalPlayers; // 0..1
+
+        // Grandmaster: ultra-elite. Reserved for top 0.001% OR 3+ skills where user is #1.
+        if (percentile <= 0.00001 || top1SkillsCount >= 3) return { name: 'Grandmaster', ordinal: 0 };
+        // Master: top 0.01%
+        if (percentile <= 0.0001) return { name: 'Master', ordinal: 1 };
+        // Diamond: top 0.1%
+        if (percentile <= 0.001) return { name: 'Diamond', ordinal: 2 };
+        // Platinum: top 1%
+        if (percentile <= 0.01) return { name: 'Platinum', ordinal: 3 };
+        // Gold: top 5%
+        if (percentile <= 0.05) return { name: 'Gold', ordinal: 4 };
+        // Silver: top 20%
+        if (percentile <= 0.20) return { name: 'Silver', ordinal: 5 };
+        // Bronze: top 50%
+        if (percentile <= 0.50) return { name: 'Bronze', ordinal: 6 };
+
+        // Fallback by account maturity if no rank context available or below 50%
+        const levels = SKILLS.map(s => user.skills?.[s]?.level || 1);
+        const total = levels.reduce((a, b) => a + b, 0);
+        if (total >= 1700) return { name: 'Expert', ordinal: 5 };
+        if (total >= 900) return { name: 'Adept', ordinal: 6 };
+        return { name: 'Novice', ordinal: 7 };
+    } catch (_) {
+        return { name: 'Novice', ordinal: 7 };
+    }
 }
 
 function applyXpGain(user, skill, gainedXp) {
@@ -82,30 +198,43 @@ function migrateHitpoints(user) {
     return false;
 }
 
-async function getAllUsers(env) {
+async function getAllUsers(env, opts = {}) {
+    const { fresh = false } = opts;
+    const MEM_KEY = 'all-users:v2';
+    if (!fresh) {
+        const cached = memGet(MEM_KEY);
+        if (cached) return cached;
+    }
+
     const users = [];
     let cursor;
+    const perPageLimit = 1000;
+    const getConcurrency = Math.min(16, Math.max(1, Number(env.KV_GET_CONCURRENCY) || 8));
+    const betweenPageDelayMs = Math.max(0, Number(env.KV_LIST_PAGE_DELAY_MS) || 10);
     do {
-        const list = await env.HISCORES_KV.list({ prefix: 'user:', cursor, limit: 1000 });
-        cursor = list.cursor;
+        const list = await env.HISCORES_KV.list({ prefix: 'user:', cursor, limit: perPageLimit });
+        cursor = list.list_complete ? undefined : list.cursor;
         const keys = list.keys.map(k => k.name);
-        const chunkSize = 50;
-        for (let i = 0; i < keys.length; i += chunkSize) {
-            const slice = keys.slice(i, i + chunkSize);
-            const values = await Promise.all(slice.map(k => env.HISCORES_KV.get(k)));
-            values.forEach(v => { if (v) { try { users.push(JSON.parse(v)); } catch (_) { } } });
+        const values = await mapWithConcurrency(keys, getConcurrency, async (k) => kvGetCached(env, k, { ttlSeconds: 10 }));
+        for (const v of values) {
+            if (!v) continue;
+            try { users.push(JSON.parse(v)); } catch (_) { }
         }
-        if (list.list_complete) break;
+        if (cursor && betweenPageDelayMs) await sleep(betweenPageDelayMs);
     } while (cursor);
+    memSet(MEM_KEY, users, 10);
     return users;
 }
 
 async function putUser(env, user) {
     await env.HISCORES_KV.put(`user:${user.username.toLowerCase()}`, JSON.stringify(user));
+    // Invalidate memory caches best-effort
+    __memCache.delete('all-users:v2');
+    __memCache.delete(`kv:text:user:${user.username.toLowerCase()}`);
 }
 
 async function getUser(env, username) {
-    const raw = await env.HISCORES_KV.get(`user:${username.toLowerCase()}`);
+    const raw = await kvGetCached(env, `user:${username.toLowerCase()}`, { ttlSeconds: 15 });
     if (!raw) return null;
     try { return JSON.parse(raw); } catch (_) { return null; }
 }
@@ -125,26 +254,59 @@ async function ensureInitialData(env) {
 }
 
 async function handleLeaderboard(env, url) {
-    const users = await getAllUsers(env);
+    const users = await getAllUsers(env, { fresh: false });
+
+    // Precompute number of skills where each user is rank 1 (ties count as rank 1)
+    const top1ByUser = new Map();
+    for (const skill of SKILLS) {
+        let bestXp = -1;
+        for (const u of users) {
+            const xp = u?.skills?.[skill]?.xp || 0;
+            if (xp > bestXp) bestXp = xp;
+        }
+        if (bestXp <= 0) continue;
+        for (const u of users) {
+            const xp = u?.skills?.[skill]?.xp || 0;
+            if (xp === bestXp) {
+                const key = (u.username || '').toLowerCase();
+                top1ByUser.set(key, (top1ByUser.get(key) || 0) + 1);
+            }
+        }
+    }
+
     users.sort((a, b) => b.totalLevel - a.totalLevel || b.totalXP - a.totalXP || a.username.localeCompare(b.username));
     users.forEach((u, i) => u.rank = i + 1);
+
+    // Compute tier prevalence for quick frontend stats
+    const tierCounts = { Novice: 0, Bronze: 0, Silver: 0, Gold: 0, Platinum: 0, Diamond: 0, Master: 0, Grandmaster: 0, Adept: 0, Expert: 0 };
+    const playersOut = [];
+    for (const u of users) {
+        const ctx = { rank: u.rank, totalPlayers: users.length, top1SkillsCount: top1ByUser.get((u.username || '').toLowerCase()) || 0 };
+        const tierInfo = inferMetaTierWithContext(u, ctx);
+        tierCounts[tierInfo.name] = (tierCounts[tierInfo.name] || 0) + 1;
+        playersOut.push({
+            username: u.username,
+            totalLevel: u.totalLevel,
+            totalXP: u.totalXP,
+            rank: u.rank,
+            updatedAt: u.updatedAt,
+            archetype: u.archetype || null,
+            tier: tierInfo.name,
+            tierInfo: { ...tierInfo, top1Skills: ctx.top1SkillsCount }
+        });
+    }
     const limitParam = url.searchParams.get('limit');
     let limit = Number(limitParam);
     if (!Number.isFinite(limit) || limit <= 0) limit = users.length;
     const HARD_CAP = 5000;
     if (limit > HARD_CAP) limit = HARD_CAP;
-    const slice = users.slice(0, limit);
+    const slice = playersOut.slice(0, limit);
     return jsonResponse({
         generatedAt: Date.now(),
         totalPlayers: users.length,
+        tiers: tierCounts,
         returned: slice.length,
-        players: slice.map(u => ({
-            username: u.username,
-            totalLevel: u.totalLevel,
-            totalXP: u.totalXP,
-            rank: u.rank,
-            updatedAt: u.updatedAt
-        }))
+        players: slice
     }, { headers: { 'cache-control': 'public, max-age=30' } });
 }
 
@@ -155,12 +317,12 @@ async function handleUser(env, username) {
 }
 
 async function handleUsersList(env) {
-    const users = await getAllUsers(env);
+    const users = await getAllUsers(env, { fresh: false });
     return jsonResponse({ users: users.map(u => u.username).sort() }, { headers: { 'cache-control': 'public, max-age=120' } });
 }
 
 async function handleSkillRankings(env) {
-    const users = await getAllUsers(env);
+    const users = await getAllUsers(env, { fresh: false });
     const rankings = {};
     for (const skill of SKILLS) {
         const arr = users
@@ -345,7 +507,7 @@ async function handleGenerateUsersDryRun(env, url) {
     const actualCount = Math.min(Math.max(1, count), maxCount);
 
     // Get existing usernames to avoid collisions in dry run
-    const users = await getAllUsers(env);
+    const users = await getAllUsers(env, { fresh: false });
     const existingUsernames = new Set(users.map(u => u.username.toLowerCase()));
 
     const results = [];
@@ -443,7 +605,7 @@ async function handleCronTrigger(env) {
 }
 
 async function handleHitpointsMigration(env) {
-    const users = await getAllUsers(env);
+    const users = await getAllUsers(env, { fresh: true });
     let changed = 0;
     for (const u of users) {
         if (u.needsHpMigration) {
@@ -590,12 +752,14 @@ async function handleDeleteBadUsernames(env, request) {
         const chunkSize = 50;
         for (let i = 0; i < keys.length; i += chunkSize) {
             const slice = keys.slice(i, i + chunkSize);
-            const values = await Promise.all(slice.map(k => env.HISCORES_KV.get(k)));
+            const values = await mapWithConcurrency(slice, 8, (k) => kvGetCached(env, k, { ttlSeconds: 10 }));
             for (let j = 0; j < values.length; j++) {
                 const raw = values[j]; if (!raw) continue; let user; try { user = JSON.parse(raw); } catch (_) { continue; }
                 scanned++; const uname = user?.username || '';
                 if (typeof uname === 'string' && matcher.test(uname)) { matched.push({ username: uname, key: slice[j] }); if (matched.length >= limit) { cursor = undefined; break outer; } }
             }
+            // small pacing between chunks to avoid bursts
+            await sleep(5);
         }
     } while (cursor);
     if (dryRun) return jsonResponse({ dryRun: true, pattern: patternSource, matched: matched.map(m => m.username), count: matched.length, scanned });
@@ -628,7 +792,7 @@ async function handleDeleteBottomQuartile(env, request) {
     try { if (request.headers.get('content-type')?.includes('application/json')) payload = await request.json(); } catch (_) { }
     const dryRun = Boolean(payload?.dryRun);
 
-    const users = await getAllUsers(env);
+    const users = await getAllUsers(env, { fresh: true });
     if (users.length === 0) return jsonResponse({ deleted: 0, deletedRelated: 0, totalPlayers: 0, target: 0 });
 
     // Sort by leaderboard order
@@ -667,7 +831,7 @@ async function handleDeleteBottomQuartile(env, request) {
 
 async function runScheduled(env) {
     await ensureInitialData(env);
-    const users = await getAllUsers(env);
+    const users = await getAllUsers(env, { fresh: true });
     if (users.length === 0) return { processed: 0, newUsers: 0 };
     const now = new Date();
     const fraction = 0.10 + Math.random() * 0.25;
@@ -684,6 +848,8 @@ async function runScheduled(env) {
         simulateUserProgress(u, activity, now);
         if (Math.random() < 0.01) u.needsHpMigration = true;
         await putUser(env, u);
+        // gentle pacing for large batches to reduce write burst
+        if (toUpdate > 100 && Math.random() < 0.05) await sleep(2);
     }
     const newCount = 1 + Math.floor(Math.random() * 2); // 1 to 2 new users
     let created = 0;
@@ -695,6 +861,7 @@ async function runScheduled(env) {
         const u = newUser(username);
         await putUser(env, u);
         created++;
+        if (newCount > 1) await sleep(1);
     }
     return { processed: toUpdate, newUsers: created, totalPlayers: users.length + created };
 }
@@ -728,10 +895,10 @@ async function router(request, env) {
             adminToken: Boolean(env.ADMIN_TOKEN)
         });
     }
-    if (path === '/api/leaderboard' && method === 'GET') return handleLeaderboard(env, url);
-    if (path === '/api/users' && method === 'GET') return handleUsersList(env);
-    if (path === '/api/skill-rankings' && method === 'GET') return handleSkillRankings(env);
-    if (path === '/api/fake-word' && method === 'GET') return handleFakeWord(env);
+    if (path === '/api/leaderboard' && method === 'GET') return cacheResponseIfPossible(request, () => handleLeaderboard(env, url));
+    if (path === '/api/users' && method === 'GET') return cacheResponseIfPossible(request, () => handleUsersList(env));
+    if (path === '/api/skill-rankings' && method === 'GET') return cacheResponseIfPossible(request, () => handleSkillRankings(env));
+    if (path === '/api/fake-word' && method === 'GET') return cacheResponseIfPossible(request, () => handleFakeWord(env));
     if (path === '/api/cron/trigger' && method === 'POST') return handleCronTrigger(env);
     if (path === '/api/migrate/hitpoints' && method === 'POST') return handleHitpointsMigration(env);
     if (path === '/api/seed' && method === 'POST') return handleSeed(env, request);
@@ -739,7 +906,7 @@ async function router(request, env) {
     if (path === '/api/admin/users/delete-batch' && method === 'POST') return handleDeleteUsersBatch(env, request);
     if (path === '/api/admin/users/delete-bad' && method === 'POST') return handleDeleteBadUsernames(env, request);
     if (path === '/api/admin/users/delete-bottom-quartile' && method === 'POST') return handleDeleteBottomQuartile(env, request);
-    const userMatch = path.match(/^\/api\/users\/([^\/]+)$/); if (userMatch && method === 'GET') return handleUser(env, decodeURIComponent(userMatch[1]));
+    const userMatch = path.match(/^\/api\/users\/([^\/]+)$/); if (userMatch && method === 'GET') return cacheResponseIfPossible(request, () => handleUser(env, decodeURIComponent(userMatch[1])));
     const hpCheckMatch = path.match(/^\/api\/users\/([^\/]+)\/hitpoints-check$/); if (hpCheckMatch && method === 'GET') return handleUserHpCheck(env, decodeURIComponent(hpCheckMatch[1]));
     if (method === 'OPTIONS') return new Response(null, { headers: { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET,POST,OPTIONS', 'access-control-allow-headers': 'Content-Type, X-Admin-Token' } });
     return notFound();
