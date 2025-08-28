@@ -88,48 +88,51 @@
                     </ol>
                 </nav>
                 <div class="main-grid">
-                    <aside class="sidebar card">
-                        <nav class="flex flex-col gap-3">
-                            <a href="#" class="flex items-center gap-2 hover:text-accent">
-                                <i data-lucide="list" class="w-4 h-4"></i>
-                                Overview
-                            </a>
-                            <details class="group">
-                                <summary class="flex items-center gap-2 cursor-pointer hover:text-accent">
-                                    <i data-lucide="zap" class="w-4 h-4"></i>
-                                    Skills
+                    <div class="left-stack">
+                        <aside class="sidebar card">
+                            <nav class="flex flex-col gap-3">
+                                <a href="#" class="flex items-center gap-2 hover:text-accent">
+                                    <i data-lucide="list" class="w-4 h-4"></i>
+                                    Overview
+                                </a>
+                                <details class="group">
+                                    <summary class="flex items-center gap-2 cursor-pointer hover:text-accent">
+                                        <i data-lucide="zap" class="w-4 h-4"></i>
+                                        Skills
+                                    </summary>
+                                    <ul id="sidebarSkillList" class="mt-2 pl-6 flex flex-col gap-1 text-sm"></ul>
+                                </details>
+                            </nav>
+                            <details class="collapse mt-4">
+                                <summary class="font-semibold cursor-pointer flex items-center gap-2">
+                                    <i data-lucide="filter" class="w-4 h-4"></i>
+                                    Filters
                                 </summary>
-                                <ul id="sidebarSkillList" class="mt-2 pl-6 flex flex-col gap-1 text-sm"></ul>
+                                <div class="mt-2 text-sm space-y-1">
+                                    <label class="flex items-center gap-2">
+                                        <input type="checkbox" checked /> Ranked only
+                                    </label>
+                                    <label class="flex items-center gap-2">
+                                        <input type="checkbox" /> Include unranked
+                                    </label>
+                                </div>
                             </details>
-                        </nav>
-                        <details class="collapse mt-4">
-                            <summary class="font-semibold cursor-pointer flex items-center gap-2">
-                                <i data-lucide="filter" class="w-4 h-4"></i>
-                                Filters
-                            </summary>
-                            <div class="mt-2 text-sm space-y-1">
-                                <label class="flex items-center gap-2">
-                                    <input type="checkbox" checked /> Ranked only
-                                </label>
-                                <label class="flex items-center gap-2">
-                                    <input type="checkbox" /> Include unranked
-                                </label>
+                            <div class="summary mt-4">
+                                <h2 class="text-sm font-semibold mb-2">Summary</h2>
+                                <ul class="space-y-1 text-sm">
+                                    <li id="topRankSummary" class="flex items-center gap-2">
+                                        <i data-lucide="award" class="w-4 h-4"></i>
+                                        <span>Highest rank: —</span>
+                                    </li>
+                                    <li id="topLevelSummary" class="flex items-center gap-2">
+                                        <i data-lucide="star" class="w-4 h-4"></i>
+                                        <span>Highest level: —</span>
+                                    </li>
+                                </ul>
                             </div>
-                        </details>
-                        <div class="summary mt-4">
-                            <h2 class="text-sm font-semibold mb-2">Summary</h2>
-                            <ul class="space-y-1 text-sm">
-                                <li id="topRankSummary" class="flex items-center gap-2">
-                                    <i data-lucide="award" class="w-4 h-4"></i>
-                                    <span>Highest rank: —</span>
-                                </li>
-                                <li id="topLevelSummary" class="flex items-center gap-2">
-                                    <i data-lucide="star" class="w-4 h-4"></i>
-                                    <span>Highest level: —</span>
-                                </li>
-                            </ul>
-                        </div>
-                    </aside>
+                        </aside>
+                        <div id="leftStackExtras" class="left-stack-extras"></div>
+                    </div>
                     <section id="viewRoot" class="space-y-4"></section>
                 </div>
             </main>

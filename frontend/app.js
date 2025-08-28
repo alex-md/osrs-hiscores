@@ -117,6 +117,9 @@ function updateSummary(user, skillRankings) {
 function renderHomeView() {
   const root = $("#viewRoot");
   root.innerHTML = "";
+  // Clear any left-side extras when on home view
+  const leftExtras = document.querySelector('#leftStackExtras');
+  if (leftExtras) leftExtras.innerHTML = '';
 
   const section = el("section", "flex flex-col gap-6");
 
@@ -342,6 +345,9 @@ function renderUserView(username) {
   const root = $("#viewRoot");
   root.innerHTML =
     '<div class="text-center text-muted py-8">⏳ Loading player data...</div>';
+  // Clear left-side extras before loading new user content
+  const __leftExtrasInit = document.querySelector('#leftStackExtras');
+  if (__leftExtrasInit) __leftExtrasInit.innerHTML = '';
 
   Promise.all([
     loadUser(username),
@@ -354,7 +360,7 @@ function renderUserView(username) {
       // User header with enhanced styling
       const headerSection = el(
         "div",
-        "bg-layer2 p-6 rounded-lg border-2 border-border-dark",
+        "bg-layer2 p-6 rounded-lg border-2 border-border-dark primary-header-card",
       );
       const headerContent = el(
         "div",
@@ -735,10 +741,15 @@ function renderUserView(username) {
         return card;
       }
 
-      // Add header section without achievements first
-      wrap.appendChild(headerSection);
+      // Insert header section into the left-side stack under the sidebar
+      const leftExtras = document.querySelector('#leftStackExtras');
+      if (leftExtras) leftExtras.appendChild(headerSection);
 
-      // Store achievements data to be rendered above the hiscores table
+      // Achievements container (move to left stack beneath primary header)
+      const achievementsContainer = el("div", "achievements-container achievements-left-card");
+      if (leftExtras) leftExtras.appendChild(achievementsContainer);
+
+      // Store achievements data to be rendered in the left-side stack
       let achievementsData = null;
 
       computeGlobalAchievementStats(skillRankings, leaderboard).then(globalStats => {
@@ -758,19 +769,13 @@ function renderUserView(username) {
 
           achievementsData = unlockedAchievements;
 
-          // Find the achievements section and render it
-          const existingAchievements = wrap.querySelector('.achievements-container');
-          if (existingAchievements) {
-            renderAchievementsSection(existingAchievements, achievementsData);
-          }
+          // Render into the left-side achievements container
+          renderAchievementsSection(achievementsContainer, achievementsData);
         }
       }).catch(() => {
         // On error, achievements will just not be rendered
       });
 
-      // Achievements container (positioned above hiscores table)
-      const achievementsContainer = el("div", "achievements-container");
-      wrap.appendChild(achievementsContainer);
 
       // Hiscores table (column layout like OSRS)  
       const section = el("section", "flex flex-col gap-4");
@@ -877,6 +882,9 @@ function renderUserView(username) {
       root.appendChild(wrap);
     })
     .catch(() => {
+      // Clear left-side extras on error as well
+      const __leftExtrasErr = document.querySelector('#leftStackExtras');
+      if (__leftExtrasErr) __leftExtrasErr.innerHTML = '';
       root.innerHTML =
         '<div class="text-center py-8"><div class="text-danger text-xl font-semibold">❌ Player not found</div><div class="text-muted mt-2">The player you\'re looking for doesn\'t exist in our database.</div></div>';
       updateSummary(null);

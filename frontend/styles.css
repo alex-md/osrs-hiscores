@@ -1805,6 +1805,47 @@ footer.site-footer .mt-2 {
   }
 }
 
+/* Left stack layout for sidebar + primary + achievements */
+.left-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  /* consistent small gap between the three containers */
+}
+
+.left-stack>* {
+  /* ensure all stack items align edges */
+  width: 100%;
+}
+
+/* Constrain extras to sidebar width and visual alignment */
+.left-stack-extras {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Treat these as the two movable containers that go under the sidebar */
+.primary-header-card {
+  /* purple border container */
+  /* The element already has classes bg-layer2 p-6 rounded-lg border-2 border-border-dark */
+  /* We just ensure it doesn't exceed sidebar width */
+  max-width: 100%;
+}
+
+.achievements-left-card {
+  /* achievements container */
+  max-width: 100%;
+}
+
+/* Tighten the default sidebar width on large screens to be the reference width */
+@media (min-width: 768px) {
+  .sidebar {
+    width: 100%;
+  }
+}
+
 @media (max-width:520px) {
   .main-grid {
     gap: 1.25rem
