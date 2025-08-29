@@ -153,7 +153,7 @@
       const li = document.createElement("li");
       const link = document.createElement("a");
       link.href = `skill-hiscores.html?skill=${s}`;
-      link.className = "flex items-center gap-2 hover:text-accent";
+      link.className = "flex-items-center gap-2 hover:text-accent";
       if (active === s) link.classList.add("text-accent", "font-semibold");
       const icon = getSkillIcon(s);
       if (icon) {

@@ -73,7 +73,7 @@ export async function fetchRandomWords(count = 2, existingUsernames = new Set())
         if (!resp.ok) throw new Error('bad status');
         const data = await resp.json();
         if (Array.isArray(data) && data.length) return data.map(String);
-      } catch (_) {}
+      } catch (_) { }
       await sleep(2000);
     }
   }
@@ -119,25 +119,29 @@ export async function fetchRandomWords(count = 2, existingUsernames = new Set())
   }
 
   const results = [];
-  const maxAttempts = count * 20;
+  const maxAttempts = Math.max(40, count * 8); // Lower max attempts for faster exit
   let attempts = 0;
+  const maxTimeMs = 8000; // 8 seconds timeout
+  const startTime = Date.now();
 
-  while (results.length < count && attempts < maxAttempts) {
+  while (
+    results.length < count &&
+    attempts < maxAttempts &&
+    (Date.now() - startTime) < maxTimeMs
+  ) {
     const need = Math.max(6, (count - results.length) * 6);
     const batch = await fetchBatch(need);
-    const good = batch.filter(w =>
-      typeof w === 'string' &&
-      looksLikeWord(w) &&
-      w.length >= GOOD_MIN &&
-      w.length <= GOOD_MAX
-    );
+    const good = batch
+      .map(w => String(w || '').trim())
+      .filter(w => w.length >= GOOD_MIN && w.length <= GOOD_MAX && looksLikeWord(w));
 
-    for (let i = 0; i + 1 < good.length && results.length < count; i += 2) {
+    for (let i = 0; i + 1 < good.length && results.length < count && attempts < maxAttempts; i += 2) {
       const w1 = good[i];
       const w2 = good[i + 1];
 
       const name = buildName(w1, w2);
-      if (!name) { attempts++; continue; }
+      attempts++;
+      if (!name) continue;
 
       const sanitizedName = sanitizeUsername(name);
       const key = normalize(sanitizedName);
@@ -150,7 +154,26 @@ export async function fetchRandomWords(count = 2, existingUsernames = new Set())
         results.push(sanitizedName);
         existingUsernames.add(key);
       }
+    }
+
+    // Handle the last word if good.length is odd and more results are needed
+    if (good.length % 2 === 1 && results.length < count && attempts < maxAttempts) {
+      const w = good[good.length - 1];
+      const name = buildName(w, null);
       attempts++;
+      if (name) {
+        const sanitizedName = sanitizeUsername(name);
+        const key = normalize(sanitizedName);
+        if (
+          sanitizedName &&
+          !/^\d/.test(sanitizedName) &&
+          sanitizedName.length <= 12 &&
+          !existingUsernames.has(key)
+        ) {
+          results.push(sanitizedName);
+          existingUsernames.add(key);
+        }
+      }
     }
   }
 

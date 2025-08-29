@@ -126,9 +126,9 @@ function renderHomeView() {
   // Header section
   const headerDiv = el(
     "div",
-    "flex items-center justify-between flex-wrap gap-4",
+    "flex-between flex-wrap gap-4",
   );
-  const titleEl = el("h2", "text-2xl font-bold flex items-center gap-2 text-foreground", [
+  const titleEl = el("h2", "text-2xl font-bold flex-items-center gap-2 text-foreground", [
     text("🏆 Overall Leaderboard"),
   ]);
   headerDiv.appendChild(titleEl);
@@ -160,7 +160,7 @@ function renderHomeView() {
   const pageSize = 50; // show 50 at a time to avoid overwhelming UI
 
   // Controls UI
-  const controls = el("div", "flex items-center justify-between gap-4 flex-wrap text-sm bg-layer2 p-3 rounded border-2 border-border-dark");
+  const controls = el("div", "flex-between gap-4 flex-wrap text-sm bg-layer2 p-3 rounded border-2 border-border-dark");
   controls.innerHTML = `
       <div class="flex items-center gap-2">
         <button class="btn-sm" data-action="prev">← Prev</button>
@@ -364,11 +364,11 @@ function renderUserView(username) {
       );
       const headerContent = el(
         "div",
-        "flex items-center justify-between flex-wrap gap-4",
+        "flex-between flex-wrap gap-4",
       );
 
-      const userInfo = el("div", "flex items-center gap-3 flex-wrap");
-      const nameWrap = el("h3", "font-bold text-foreground flex items-center gap-2");
+      const userInfo = el("div", "flex-items-center gap-3 flex-wrap");
+      const nameWrap = el("h3", "font-bold text-foreground flex-items-center gap-2");
       nameWrap.appendChild(text(`⚔️ ${user.username}`));
       // try to fetch leaderboard to display tier badge next to name
       // (we have it from Promise.all)
@@ -378,7 +378,7 @@ function renderUserView(username) {
           const b = document.createElement('span');
           b.className = `tier-badge tier-${me.tier.toLowerCase()}`;
           b.textContent = me.tier;
-          if (me.rank || (me.tierInfo && typeof me.tierInfo.top1Skills === 'number')) {
+          if (me.rank || (me.tierInfo && me.tierInfo.top1Skills === 'number')) {
             b.title = `${me.tier} • Overall #${me.rank}${me.tierInfo && me.tierInfo.top1Skills ? ` • #1 in ${me.tierInfo.top1Skills} skills` : ''}`;
           }
           nameWrap.appendChild(b);
@@ -658,9 +658,9 @@ function renderUserView(username) {
         // Create achievements section 
         const achievementsSection = el('div', 'user-achievements mb-6 bg-layer2 p-4 rounded-lg border-2 border-border-dark');
 
-        const achievementsHeader = el('div', 'flex items-center justify-between mb-3');
+        const achievementsHeader = el('div', 'flex-between mb-3');
         achievementsHeader.appendChild(
-          el('h4', 'text-lg font-medium text-foreground flex items-center gap-2',
+          el('h4', 'text-lg font-medium text-foreground flex-items-center gap-2',
             [text(`🏅 Achievements (${achievements.length})`)]
           )
         );
@@ -778,8 +778,8 @@ function renderUserView(username) {
 
 
       // Hiscores table (column layout like OSRS)  
-      const section = el("section", "flex flex-col gap-4");
-      const headerRow = el("div", "flex items-center justify-between");
+      const section = el("section", "flex-col gap-4");
+      const headerRow = el("div", "flex-between");
       headerRow.appendChild(
         el("h3", "text-2xl font-bold text-foreground", [text("📜 Hiscores")]),
       );

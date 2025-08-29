@@ -10,8 +10,7 @@
         <title>OSRS Hiscores Clone</title>
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link href="https://fonts.googleapis.com/css2?family=Philosopher:wght@400;600;700&display=swap"
-            rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
         <script>
             // Apply saved theme early (default: dark) to avoid flash
             (function () {
@@ -26,26 +25,25 @@
         </script>
         <script src="https://cdn.tailwindcss.com"></script>
         <link rel="stylesheet" href="styles.css" />
-        <script defer src="https://unpkg.com/lucide@latest"></script>
+        <script async src="https://unpkg.com/lucide@latest"></script>
         <script defer src="common.js"></script>
         <script defer src="app.js"></script>
     </head>
 
     <body class="h-full bg-surface text-foreground transition-colors">
-        <div id="app" class="min-h-full flex flex-col">
-            <header
-                class="osrs-header px-6 py-4 flex items-center justify-between bg-dark/90 backdrop-blur-sm border-b border-gold/50">
+        <div id="app" class="min-h-full flex-col">
+            <header class="osrs-header px-6 py-4 flex-between bg-dark/90 backdrop-blur-sm border-b border-gold/50">
                 <!-- Left Section: Logo + Nav -->
-                <div class="flex items-center gap-8">
+                <div class="flex-items-center gap-8">
                     <!-- Brand -->
                     <a href="#"
-                        class="flex items-center gap-2 text-2xl font-extrabold leading-none hover:text-gold transition-colors">
+                        class="flex-items-center gap-2 text-2xl font-extrabold leading-none hover:text-gold transition-colors">
                         <span class="text-gold">⚔️ OSRS</span>
                         <span class="text-white">Hiscores</span>
                     </a>
 
                     <!-- Nav -->
-                    <nav class="flex items-center gap-4 text-base font-semibold">
+                    <nav class="flex-items-center gap-4 text-base font-semibold">
                         <a href="#" class="nav-pill active" data-view="home" data-tooltip="Overall rankings">
                             <i data-lucide="trophy" class="w-4 h-4"></i>
                             <span>Leaderboard</span>
@@ -58,13 +56,12 @@
                 </div>
 
                 <!-- Right Section: Search + Theme -->
-                <div class="flex items-center gap-3">
-                    <div class="relative flex items-center">
+                <div class="flex-items-center gap-3">
+                    <div class="relative flex-items-center">
                         <input id="playerSearch" type="text" placeholder="Search player..."
-                            class="px-4 py-2 h-10 rounded-md bg-input border border-border text-sm focus:outline-none focus:ring-2 focus:ring-gold"
+                            class="btn-input px-4 py-2 h-10 rounded-md focus:outline-none focus:ring-2 focus:ring-gold"
                             aria-label="Search player" autocomplete="off" />
-                        <div id="searchSuggest"
-                            class="absolute mt-1 w-full bg-layer border border-border rounded shadow hidden max-h-64 overflow-auto text-sm z-20">
+                        <div id="searchSuggest" class="search-suggestions hidden max-h-64 overflow-auto text-sm">
                         </div>
                     </div>
 
@@ -78,7 +75,7 @@
                 <nav aria-label="Breadcrumb" class="breadcrumb mb-4">
                     <ol>
                         <li>
-                            <a href="#" class="flex items-center gap-1 hover:text-accent">
+                            <a href="#" class="flex-items-center gap-1 hover:text-accent">
                                 <i data-lucide="home" class="w-4 h-4"></i>
                                 Home
                             </a>
@@ -90,41 +87,41 @@
                 <div class="main-grid">
                     <div class="left-stack">
                         <aside class="sidebar card">
-                            <nav class="flex flex-col gap-3">
-                                <a href="#" class="flex items-center gap-2 hover:text-accent">
+                            <nav class="flex-col gap-3">
+                                <a href="#" class="flex-items-center gap-2 hover:text-accent">
                                     <i data-lucide="list" class="w-4 h-4"></i>
                                     Overview
                                 </a>
                                 <details class="group">
-                                    <summary class="flex items-center gap-2 cursor-pointer hover:text-accent">
+                                    <summary class="flex-items-center gap-2 cursor-pointer hover:text-accent">
                                         <i data-lucide="zap" class="w-4 h-4"></i>
                                         Skills
                                     </summary>
-                                    <ul id="sidebarSkillList" class="mt-2 pl-6 flex flex-col gap-1 text-sm"></ul>
+                                    <ul id="sidebarSkillList" class="mt-2 pl-6 flex-col gap-1 text-sm"></ul>
                                 </details>
                             </nav>
                             <details class="collapse mt-4">
-                                <summary class="font-semibold cursor-pointer flex items-center gap-2">
+                                <summary class="font-semibold cursor-pointer flex-items-center gap-2">
                                     <i data-lucide="filter" class="w-4 h-4"></i>
                                     Filters
                                 </summary>
                                 <div class="mt-2 text-sm space-y-1">
-                                    <label class="flex items-center gap-2">
-                                        <input type="checkbox" checked /> Ranked only
+                                    <label class="flex-items-center gap-2">
+                                        <input type="radio" name="rankingFilter" value="ranked" checked /> Ranked only
                                     </label>
-                                    <label class="flex items-center gap-2">
-                                        <input type="checkbox" /> Include unranked
+                                    <label class="flex-items-center gap-2">
+                                        <input type="radio" name="rankingFilter" value="unranked" /> Include unranked
                                     </label>
                                 </div>
                             </details>
                             <div class="summary mt-4">
                                 <h2 class="text-sm font-semibold mb-2">Summary</h2>
                                 <ul class="space-y-1 text-sm">
-                                    <li id="topRankSummary" class="flex items-center gap-2">
+                                    <li id="topRankSummary" class="flex-items-center gap-2">
                                         <i data-lucide="award" class="w-4 h-4"></i>
                                         <span>Highest rank: —</span>
                                     </li>
-                                    <li id="topLevelSummary" class="flex items-center gap-2">
+                                    <li id="topLevelSummary" class="flex-items-center gap-2">
                                         <i data-lucide="star" class="w-4 h-4"></i>
                                         <span>Highest level: —</span>
                                     </li>
@@ -137,18 +134,18 @@
                 </div>
             </main>
             <footer class="p-4 text-xs text-muted text-center border-t-2 border-border-dark bg-layer site-footer">
-                <div class="flex items-center justify-center gap-4 flex-wrap">
+                <div class="flex-items-center justify-center gap-4 flex-wrap">
                     <span>⚔️ Mock OSRS Hiscores</span>
                     <span>•</span>
                     <span data-tooltip="Serverless platform">🌩️ Powered by Cloudflare Workers</span>
                     <span>•</span>
                     <a href="skill-hiscores.html" class="underline hover:text-accent">Skill Hiscores</a>
                 </div>
-                <div class="mt-2 opacity-60 text-xs">
+                <!-- <div class="mt-2 opacity-60 text-xs">
                     API: <span id="currentApiBase"></span>
                     <button onclick="window.setApiBase(prompt('Enter API base URL:', window.API_BASE))"
                         class="ml-2 underline hover:text-accent">Change</button>
-                </div>
+                </div> -->
             </footer>
         </div>
         <div id="toastContainer" class="fixed top-4 right-4 flex flex-col gap-2 z-50"></div>
