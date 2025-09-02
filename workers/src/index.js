@@ -666,11 +666,25 @@ async function handleDeleteUsersBatch(env, request) {
 
     const keysToDelete = [];
 
+    // Safety guard: never delete users in the current top N of the leaderboard
+    const PROTECTED_TOP_N = 50;
+    let protectedSet = new Set(); // lowercased usernames
+    let protectedList = []; // cased usernames for reporting
+    try {
+        const users = await getAllUsers(env, { fresh: true });
+        users.sort((a, b) => b.totalLevel - a.totalLevel || b.totalXP - a.totalXP || a.username.localeCompare(b.username));
+        const top = users.slice(0, PROTECTED_TOP_N);
+        protectedSet = new Set(top.map(u => String(u.username || '').toLowerCase()));
+        protectedList = top.map(u => u.username);
+    } catch (_) { /* best-effort guard; continue even if this fails */ }
+
     function kvKeyFromUsername(name) {
         const sanitized = sanitizeUsername(String(name || '').trim());
         if (!sanitized) return null;
         return `user:${sanitized.toLowerCase()}`;
     }
+
+    const skippedProtectedUsernames = [];
 
     if (byUsernames && byUsernames.length) {
         const seen = new Set();
@@ -678,21 +692,29 @@ async function handleDeleteUsersBatch(env, request) {
             const key = kvKeyFromUsername(raw);
             if (!key || seen.has(key)) continue;
             seen.add(key);
+            const unameLower = key.slice('user:'.length);
+            if (protectedSet.has(unameLower)) {
+                skippedProtectedUsernames.push(raw);
+                continue; // skip protected top-N users
+            }
             keysToDelete.push(key);
             if (keysToDelete.length >= limit) break;
         }
     } else {
-        let cursor; let seenCount = 0; const reservoir = [];
+        let cursor; let eligibleSeenCount = 0; const reservoir = [];
         do {
             const page = await env.HISCORES_KV.list({ prefix: 'user:', limit: 1000, cursor });
             cursor = page.list_complete ? undefined : page.cursor;
             for (const k of page.keys) {
-                seenCount++;
+                const keyName = k.name;
+                const unameLower = keyName.slice('user:'.length);
+                if (protectedSet.has(unameLower)) continue; // skip protected users from random selection
+                eligibleSeenCount++;
                 if (reservoir.length < limit) {
-                    reservoir.push(k.name);
+                    reservoir.push(keyName);
                 } else {
-                    const j = Math.floor(Math.random() * seenCount);
-                    if (j < limit) reservoir[j] = k.name;
+                    const j = Math.floor(Math.random() * eligibleSeenCount);
+                    if (j < limit) reservoir[j] = keyName;
                 }
             }
         } while (cursor);
@@ -700,15 +722,29 @@ async function handleDeleteUsersBatch(env, request) {
     }
 
     if (dryRun) {
-        return jsonResponse({ dryRun: true, count: keysToDelete.length, keys: keysToDelete });
+        return jsonResponse({
+            dryRun: true,
+            count: keysToDelete.length,
+            keys: keysToDelete,
+            protectedTopN: PROTECTED_TOP_N,
+            protectedUsernames: protectedList,
+            skippedProtectedUsernames
+        });
     }
 
     const chunk = (arr, n) => arr.reduce((acc, _, i) => (i % n ? acc : [...acc, arr.slice(i, i + n)]), []);
     const batches = chunk(keysToDelete, 50);
-    let deleted = 0; let deletedRelated = 0;
+    let deleted = 0; let deletedRelated = 0; let guardedSkips = 0;
     for (const b of batches) {
-        await Promise.all(b.map(k => env.HISCORES_KV.delete(k).then(() => { deleted++; }).catch(() => { })));
-        for (const baseKey of b) {
+        // Extra guard at deletion time
+        const toDelete = b.filter(k => {
+            const unameLower = k.slice('user:'.length);
+            const isProtected = protectedSet.has(unameLower);
+            if (isProtected) guardedSkips++;
+            return !isProtected;
+        });
+        await Promise.all(toDelete.map(k => env.HISCORES_KV.delete(k).then(() => { deleted++; }).catch(() => { })));
+        for (const baseKey of toDelete) {
             const relPrefix = baseKey + ':';
             let relCursor;
             do {
@@ -723,7 +759,7 @@ async function handleDeleteUsersBatch(env, request) {
             } while (relCursor);
         }
     }
-    return jsonResponse({ deleted, deletedRelated, requested: keysToDelete.length });
+    return jsonResponse({ deleted, deletedRelated, requested: keysToDelete.length, guardedTop50Skipped: guardedSkips, protectedTopN: PROTECTED_TOP_N });
 }
 
 // Delete all users whose usernames match a "bad" regex.

@@ -19,6 +19,18 @@
 			"type": "shell",
 			"command": "cd workers && npm install",
 			"group": "build"
+		},
+		{
+			"label": "Install Dependencies",
+			"type": "shell",
+			"command": "cd workers && npm install",
+			"group": "build"
+		},
+		{
+			"label": "Install Dependencies (PS)",
+			"type": "shell",
+			"command": "cd workers; npm install",
+			"group": "build"
 		}
 	]
 }
