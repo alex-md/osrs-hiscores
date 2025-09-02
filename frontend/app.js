@@ -28,6 +28,40 @@ function formatRelativeTime(ts) {
 
 
 // fetchJSON & API_BASE now provided by common.js
+// Compute global achievements prevalence and per-skill averages for frontend UI.
+// Returns: { counts: Record<string, number>, totalPlayers: number, averages: Record<skill,{level:number,xp:number}> }
+async function computeGlobalAchievementStats(skillRankings, leaderboard) {
+  // Compute averages locally from provided skillRankings
+  const averages = {};
+  try {
+    const all = (skillRankings && skillRankings.rankings) || {};
+    (window.SKILLS || []).forEach((s) => {
+      const arr = all[s] || [];
+      if (arr.length) {
+        const totalLvl = arr.reduce((sum, p) => sum + (p.level || 0), 0);
+        const totalXp = arr.reduce((sum, p) => sum + (p.xp || 0), 0);
+        averages[s] = { level: totalLvl / arr.length, xp: totalXp / arr.length };
+      } else {
+        averages[s] = { level: 1, xp: 0 };
+      }
+    });
+  } catch (_) {
+    // Default safe averages
+    (window.SKILLS || []).forEach((s) => (averages[s] = { level: 1, xp: 0 }));
+  }
+
+  // Prefer backend-provided prevalence counts for accuracy and performance
+  try {
+    const stats = await fetchJSON('/api/achievements/stats');
+    const counts = stats?.counts || {};
+    const totalPlayers = Number(stats?.totalPlayers) || leaderboard?.totalPlayers || (leaderboard?.players?.length || 0);
+    return { counts, totalPlayers, averages };
+  } catch (_) {
+    // Fallback: no counts available; return zeros so UI still renders
+    return { counts: {}, totalPlayers: leaderboard?.totalPlayers || (leaderboard?.players?.length || 0) || 0, averages };
+  }
+}
+
 async function loadLeaderboard(force = false) {
   if (cache.leaderboard && !force) {
     return cache.leaderboard;
@@ -389,7 +423,7 @@ function renderUserView(username) {
           const b = document.createElement('span');
           b.className = `tier-badge tier-${me.tier.toLowerCase()}`;
           b.textContent = me.tier;
-          if (me.rank || (me.tierInfo && me.tierInfo.top1Skills === 'number')) {
+          if (me.rank || (me.tierInfo && typeof me.tierInfo.top1Skills === 'number')) {
             b.title = `${me.tier} • Overall #${me.rank}${me.tierInfo && me.tierInfo.top1Skills ? ` • #1 in ${me.tierInfo.top1Skills} skills` : ''}`;
           }
           nameWrap.appendChild(b);
@@ -901,12 +935,18 @@ function renderUserView(username) {
       root.innerHTML = "";
       root.appendChild(wrap);
     })
-    .catch(() => {
+    .catch((err) => {
       // Clear left-side extras on error as well
       const __leftExtrasErr = document.querySelector('#leftStackExtras');
       if (__leftExtrasErr) __leftExtrasErr.innerHTML = '';
-      root.innerHTML =
-        '<div class="text-center py-8"><div class="text-danger text-xl font-semibold">❌ Player not found</div><div class="text-muted mt-2">The player you\'re looking for doesn\'t exist in our database.</div></div>';
+      const is404 = err && /404/.test(String(err.message || err));
+      const msg = is404
+        ? "❌ Player not found"
+        : "❌ Failed to load player data";
+      const hint = is404
+        ? "The player you're looking for doesn't exist in our database."
+        : "Something went wrong while loading this player. Check the console/network tab for details.";
+      root.innerHTML = `<div class="text-center py-8"><div class="text-danger text-xl font-semibold">${msg}</div><div class="text-muted mt-2">${hint}</div></div>`;
       updateSummary(null);
     });
 }
