@@ -1036,7 +1036,7 @@ function jsonResponse(obj, init = {}) {
 }
 
 function notFound(message = 'Not found') {
-    return jsonResponse({ error: message }, { status: 404 });
+    return jsonResponse({ error: message }, { status: 404, headers: { 'cache-control': 'no-store' } });
 }
 
 async function router(request, env) {
