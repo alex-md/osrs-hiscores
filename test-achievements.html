@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Achievement System Test</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link rel="stylesheet" href="styles.css" />
+    </head>
+
+    <body class="bg-surface text-foreground p-8">
+        <div class="max-w-4xl mx-auto">
+            <h1 class="text-3xl font-bold mb-8 text-center">🏆 Achievement System Test</h1>
+
+            <div class="mb-8">
+                <h2 class="text-xl font-semibold mb-4">Achievement Categories</h2>
+                <div id="categoriesContainer" class="space-y-6">
+                    <!-- Categories will be populated by JavaScript -->
+                </div>
+            </div>
+
+            <div class="mb-8">
+                <h2 class="text-xl font-semibold mb-4">Sample Achievement Badges</h2>
+                <div class="flex flex-wrap gap-2">
+                    <span class="mini-achievement-badge"
+                        data-tooltip="Skill Crowned\nAchieve rank #1 in any single skill"
+                        title="Skill Crowned">🥇</span>
+                    <span class="mini-achievement-badge" data-tooltip="Skill Master\nReach level 99 in this skill"
+                        title="Skill Master">💫</span>
+                    <span class="mini-achievement-badge" data-tooltip="Elite Skill\nReach level 90+ in this skill"
+                        title="Elite Skill">👑</span>
+                    <span class="mini-achievement-badge" data-tooltip="Expert Skill\nReach level 80+ in this skill"
+                        title="Expert Skill">⭐</span>
+                    <span class="mini-achievement-badge" data-tooltip="Top 10\nRank in top 10 for this skill"
+                        title="Top 10">🎯</span>
+                    <span class="mini-achievement-badge" data-tooltip="Elite Rank\nRank in top 50 for this skill"
+                        title="Elite Rank">🏅</span>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            // Test achievement catalog
+            const ACHIEVEMENT_CATALOG = [
+                { key: 'tier-grandmaster', icon: '👑', label: 'Grandmaster', desc: 'Ultra-elite: top 0.001% overall or #1 in 3+ skills.', category: 'tier', rarity: 'mythic' },
+                { key: 'triple-crown', icon: '👑', label: 'Triple Crown', desc: 'Hold rank #1 in 3 or more skills at once.', category: 'rank', rarity: 'legendary' },
+                { key: 'crowned-any', icon: '🥇', label: 'Skill Crowned', desc: 'Achieve rank #1 in any single skill.', category: 'rank', rarity: 'rare' },
+                { key: 'total-2000', icon: '📈', label: '2K Club', desc: 'Reach total level 2000 or higher.', category: 'account', rarity: 'epic' },
+                { key: 'maxed-account', icon: '👑', label: 'Maxed Account', desc: 'Reach level 99 in every skill.', category: 'account', rarity: 'mythic' },
+                { key: 'balanced', icon: '⚖️', label: 'Balanced Build', desc: 'All skills ≥40 with spread within 30 levels.', category: 'playstyle', rarity: 'rare' },
+                { key: 'elite', icon: '🚀', label: 'Polymath', desc: 'Above average in ≥90% of skills.', category: 'performance', rarity: 'legendary' },
+                { key: 'daily-grinder', icon: '🕒', label: 'Daily Grinder', desc: 'Updated within the last 24 hours.', category: 'activity', rarity: 'common' },
+            ];
+
+            const CATEGORY_INFO = {
+                tier: { name: 'Prestige Tiers', desc: 'Elite status based on overall ranking and skill dominance', color: 'tier-grandmaster' },
+                rank: { name: 'Competitive Rankings', desc: 'Achievements for dominating skill leaderboards', color: 'tier-diamond' },
+                account: { name: 'Account Progression', desc: 'Milestones in skill development and maxing', color: 'tier-platinum' },
+                playstyle: { name: 'Playstyle Specializations', desc: 'Unique character builds and strategies', color: 'tier-gold' },
+                performance: { name: 'Performance Excellence', desc: 'Outstanding performance across multiple skills', color: 'tier-silver' },
+                activity: { name: 'Activity & Dedication', desc: 'Consistency and recent activity', color: 'tier-bronze' }
+            };
+
+            function createAchievementCard(achievement) {
+                const card = document.createElement('div');
+                card.className = `achievement-card rarity-${achievement.rarity}`;
+                card.setAttribute('data-tooltip', `${achievement.label}\n${achievement.desc}`);
+
+                const icon = document.createElement('div');
+                icon.className = 'ach-icon';
+                icon.textContent = achievement.icon;
+
+                const title = document.createElement('div');
+                title.className = 'ach-title';
+                title.textContent = achievement.label;
+
+                const desc = document.createElement('div');
+                desc.className = 'ach-desc';
+                desc.textContent = achievement.desc;
+
+                card.appendChild(icon);
+                card.appendChild(title);
+                card.appendChild(desc);
+
+                return card;
+            }
+
+            function createCategorySection(categoryKey, achievements) {
+                const category = CATEGORY_INFO[categoryKey];
+                const section = document.createElement('div');
+                section.className = 'achievement-category';
+
+                const header = document.createElement('div');
+                header.className = 'achievement-category-header mb-4';
+
+                const title = document.createElement('h3');
+                title.className = 'text-2xl font-bold text-foreground flex-items-center gap-2';
+                title.textContent = category.name;
+
+                const desc = document.createElement('p');
+                desc.className = 'text-muted mt-1';
+                desc.textContent = category.desc;
+
+                header.appendChild(title);
+                header.appendChild(desc);
+
+                const grid = document.createElement('div');
+                grid.className = 'achievement-grid';
+                achievements.forEach(achievement => {
+                    grid.appendChild(createAchievementCard(achievement));
+                });
+
+                section.appendChild(header);
+                section.appendChild(grid);
+
+                return section;
+            }
+
+            function renderAchievementsTest() {
+                const container = document.getElementById('categoriesContainer');
+
+                // Group achievements by category
+                const categories = {};
+                ACHIEVEMENT_CATALOG.forEach(achievement => {
+                    if (!categories[achievement.category]) {
+                        categories[achievement.category] = [];
+                    }
+                    categories[achievement.category].push(achievement);
+                });
+
+                // Render each category
+                Object.keys(CATEGORY_INFO).forEach(categoryKey => {
+                    if (categories[categoryKey]) {
+                        container.appendChild(createCategorySection(categoryKey, categories[categoryKey]));
+                    }
+                });
+            }
+
+            // Initialize
+            document.addEventListener('DOMContentLoaded', renderAchievementsTest);
+        </script>
+    </body>
+
+</html>

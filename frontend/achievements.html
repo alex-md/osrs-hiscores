@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full" data-theme="dark" data-api-base="https://osrs-hiscores-clone.vs.workers.dev">
+
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="color-scheme" content="light dark" />
+        <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f2e8" />
+        <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1a1611" />
+        <title>Achievements • OSRS Hiscores</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+        <script>
+            // Apply saved theme early (default: dark) to avoid flash
+            (function () {
+                try {
+                    var saved = localStorage.getItem('theme');
+                    var t = saved || (matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+                    document.documentElement.setAttribute('data-theme', t);
+                } catch (_) {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                }
+            })();
+        </script>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link rel="stylesheet" href="styles.css" />
+        <script defer src="https://unpkg.com/lucide@latest"></script>
+        <script defer src="common.js"></script>
+        <script defer src="achievements.js"></script>
+    </head>
+
+    <body class="h-full bg-surface text-foreground">
+        <div class="min-h-full flex-col">
+            <header class="osrs-header p-4 flex-between flex-wrap gap-4">
+                <!-- Brand & Title -->
+                <div class="flex-items-center gap-4">
+                    <h1 class="flex-items-center gap-2 text-2xl font-extrabold text-white tracking-wide">
+                        <a href="index.html"
+                            class="brand-link flex-items-center gap-2 hover:text-gold transition-colors">
+                            <span class="text-gold">⚔️ OSRS</span>
+                            <span>Hiscores</span>
+                        </a>
+                    </h1>
+                    <div class="w-px h-6 bg-gold/50"></div>
+                    <span class="flex-items-center gap-2 text-xl font-semibold text-white/90">
+                        <i data-lucide="trophy" class="w-5 h-5"></i>
+                        Achievements
+                    </span>
+                </div>
+
+                <!-- Controls -->
+                <div class="flex-items-center gap-3">
+                    <!-- Theme Toggle -->
+                    <button id="themeToggle" class="icon-button" title="Toggle Theme">
+                        <i data-lucide="sun" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </header>
+            <main class="flex-1 p-6 container-wrap">
+                <nav aria-label="Breadcrumb" class="breadcrumb mb-4">
+                    <ol>
+                        <li>
+                            <a href="index.html" class="flex-items-center gap-1 hover:text-accent">
+                                <i data-lucide="home" class="w-4 h-4"></i>
+                                Home
+                            </a>
+                        </li>
+                        <li class="breadcrumb-sep">/</li>
+                        <li class="text-foreground">Achievements</li>
+                    </ol>
+                </nav>
+
+                <!-- Achievement Categories -->
+                <div class="space-y-6">
+                    <div class="text-center mb-8">
+                        <h2 class="text-3xl font-bold text-foreground mb-2">🏆 Achievement System</h2>
+                        <p class="text-muted text-lg max-w-2xl mx-auto">
+                            Unlock achievements by reaching milestones in your OSRS journey. These badges showcase your
+                            dedication and skill across different aspects of the game.
+                        </p>
+                    </div>
+
+                    <!-- Achievement Categories -->
+                    <div id="achievementsContainer" class="space-y-8">
+                        <!-- Categories will be populated by JavaScript -->
+                    </div>
+                </div>
+            </main>
+            <footer class="p-4 text-xs text-muted text-center border-t-2 border-border-dark bg-layer site-footer">
+                <div class="flex-items-center justify-center gap-4 flex-wrap">
+                    <span>⚔️ Mock OSRS Hiscores</span>
+                    <span>•</span>
+                    <span data-tooltip="Serverless platform">🌩️ Powered by Cloudflare Workers</span>
+                </div>
+                <div class="mt-2 opacity-60 text-xs">
+                    API: <span id="currentApiBase"></span>
+                    <button onclick="window.setApiBase(prompt('Enter API base URL:', window.API_BASE))"
+                        class="ml-2 underline hover:text-accent">Change</button>
+                </div>
+            </footer>
+        </div>
+        <div id="toastContainer" class="fixed top-4 right-4 flex flex-col gap-2 z-50"></div>
+    </body>
+
+</html>

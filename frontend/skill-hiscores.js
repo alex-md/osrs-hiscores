@@ -49,10 +49,15 @@ function renderTable() {
           if (r.rank === 1) tr.classList.add("rank-1");
           else if (r.rank === 2) tr.classList.add("rank-2");
           else if (r.rank === 3) tr.classList.add("rank-3");
+
+          // Create achievement badges for this player
+          const achievementBadges = createAchievementBadgesForSkillPlayer(r);
+
           tr.innerHTML = `
                     <td class="text-center">${r.rank}</td>
                     <td>
                         <a class="username-link" href="index.html#user/${encodeURIComponent(r.username)}" aria-label="View ${r.username} overall stats">${r.username}</a>
+                        ${achievementBadges}
                     </td>
                     <td class="text-center skill-level">${r.level}</td>
                     <td class="text-right skill-xp">${r.xp.toLocaleString()}</td>
@@ -162,6 +167,42 @@ function init() {
   }
 
   renderTable();
+}
+
+function createAchievementBadgesForSkillPlayer(player) {
+  const badges = [];
+
+  // Check if this player is #1 in this skill
+  if (player.rank === 1) {
+    badges.push('<span class="mini-achievement-badge" data-tooltip="Skill Crowned\nAchieve rank #1 in any single skill" title="Skill Crowned">🥇</span>');
+  }
+
+  // Check for max level in this skill
+  if (player.level >= 99) {
+    badges.push('<span class="mini-achievement-badge" data-tooltip="Skill Master\nReach level 99 in this skill" title="Skill Master">💫</span>');
+  }
+
+  // Check for elite level (90+)
+  if (player.level >= 90 && player.level < 99) {
+    badges.push('<span class="mini-achievement-badge" data-tooltip="Elite Skill\nReach level 90+ in this skill" title="Elite Skill">👑</span>');
+  }
+
+  // Check for high level (80+)
+  if (player.level >= 80 && player.level < 90) {
+    badges.push('<span class="mini-achievement-badge" data-tooltip="Expert Skill\nReach level 80+ in this skill" title="Expert Skill">⭐</span>');
+  }
+
+  // Check for very high XP (top 1% in skill)
+  if (player.rank && player.rank <= 10) {
+    badges.push('<span class="mini-achievement-badge" data-tooltip="Top 10\nRank in top 10 for this skill" title="Top 10">🎯</span>');
+  }
+
+  // Check for high XP (top 5% in skill)
+  if (player.rank && player.rank <= 50) {
+    badges.push('<span class="mini-achievement-badge" data-tooltip="Elite Rank\nRank in top 50 for this skill" title="Elite Rank">🏅</span>');
+  }
+
+  return badges.join('');
 }
 
 init();
