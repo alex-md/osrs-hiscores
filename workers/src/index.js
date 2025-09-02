@@ -11,6 +11,13 @@ import {
     SKILL_POPULARITY
 } from './constants.js';
 import {
+    computeAchievementContext,
+    evaluateAchievements,
+    mergeNewUnlocks,
+    computePrevalenceCounts,
+    ACHIEVEMENT_KEYS
+} from './achievements.js';
+import {
     weekendBonusMultiplier,
     levelFromXp,
     totalLevel,
@@ -116,6 +123,7 @@ function newUser(username) {
         totalXP: totalXP(skills),
         activity: 'INACTIVE',
         archetype: assignRandomArchetype(),
+        achievements: {}, // key -> timestamp ms
         needsHpMigration: false,
         version: 2
     };
@@ -253,6 +261,62 @@ async function ensureInitialData(env) {
     }
 }
 
+// Persist global achievements statistics and firsts mapping
+async function persistAchievementStats(env, users) {
+    try {
+        const ctx = computeAchievementContext(users);
+        // Evaluate and persist new unlocks per user
+        const firstsRaw = await env.HISCORES_KV.get('ach:firsts');
+        let firsts = {};
+        if (firstsRaw) {
+            try { firsts = JSON.parse(firstsRaw) || {}; } catch (_) { firsts = {}; }
+        }
+        const events = [];
+        const updatedUsers = [];
+        const now = Date.now();
+        for (const u of users) {
+            const got = evaluateAchievements(u, ctx);
+            const newly = mergeNewUnlocks(u, got, now);
+            if (newly.length) {
+                updatedUsers.push(u);
+                for (const key of newly) {
+                    if (!firsts[key]) {
+                        firsts[key] = { username: u.username, timestamp: now };
+                        events.push({ key, username: u.username, timestamp: now });
+                    }
+                }
+            }
+        }
+        // Persist users that changed
+        for (const u of updatedUsers) {
+            await putUser(env, u);
+        }
+        // Prevalence counts
+        const countsMap = computePrevalenceCounts(users, ctx);
+        const countsObj = Object.fromEntries(ACHIEVEMENT_KEYS.map(k => [k, countsMap.get(k) || 0]));
+        await env.HISCORES_KV.put('stats:achievements:prevalence', JSON.stringify({
+            updatedAt: Date.now(),
+            totalPlayers: users.length,
+            counts: countsObj
+        }));
+        // Save firsts mapping
+        await env.HISCORES_KV.put('ach:firsts', JSON.stringify(firsts));
+        // Append to events list (trimmed)
+        if (events.length) {
+            let log = { updatedAt: now, events: [] };
+            try {
+                const raw = await env.HISCORES_KV.get('ach:events');
+                if (raw) log = JSON.parse(raw) || log;
+            } catch (_) { }
+            log.events = [...events, ...(Array.isArray(log.events) ? log.events : [])].slice(0, 100);
+            log.updatedAt = now;
+            await env.HISCORES_KV.put('ach:events', JSON.stringify(log));
+        }
+    } catch (err) {
+        console.log('persistAchievementStats error:', String(err));
+    }
+}
+
 async function handleLeaderboard(env, url) {
     const users = await getAllUsers(env, { fresh: false });
 
@@ -336,6 +400,58 @@ async function handleSkillRankings(env) {
 
 function handleHealth() {
     return jsonResponse({ status: 'ok', time: Date.now() }, { headers: { 'cache-control': 'no-store' } });
+}
+
+async function handleUserAchievements(env, username) {
+    const user = await getUser(env, username);
+    if (!user) return notFound('User not found');
+    return jsonResponse({ username: user.username, achievements: user.achievements || {}, generatedAt: Date.now() }, { headers: { 'cache-control': 'public, max-age=30' } });
+}
+
+async function handleAchievementsStats(env) {
+    let raw = await env.HISCORES_KV.get('stats:achievements:prevalence');
+    let payload = null;
+    try { if (raw) payload = JSON.parse(raw); } catch (_) { }
+    if (!payload) {
+        // Compute on-demand as a fallback
+        try {
+            const users = await getAllUsers(env, { fresh: true });
+            const ctx = computeAchievementContext(users);
+            const countsMap = computePrevalenceCounts(users, ctx);
+            const countsObj = Object.fromEntries(ACHIEVEMENT_KEYS.map(k => [k, countsMap.get(k) || 0]));
+            payload = { updatedAt: Date.now(), totalPlayers: users.length, counts: countsObj };
+            await env.HISCORES_KV.put('stats:achievements:prevalence', JSON.stringify(payload));
+        } catch (_) {
+            payload = { updatedAt: 0, totalPlayers: 0, counts: {} };
+        }
+    }
+    return jsonResponse(payload, { headers: { 'cache-control': 'public, max-age=30' } });
+}
+
+async function handleAchievementsFirsts(env) {
+    let raw = await env.HISCORES_KV.get('ach:firsts');
+    let firsts = null;
+    try { if (raw) firsts = JSON.parse(raw) || {}; } catch (_) { firsts = null; }
+    if (!firsts) {
+        // Derive firsts by scanning users' achievement timestamps (best-effort)
+        try {
+            const users = await getAllUsers(env, { fresh: true });
+            const best = {};
+            for (const u of users) {
+                const ach = u?.achievements || {};
+                for (const [k, ts] of Object.entries(ach)) {
+                    if (!best[k] || (Number(ts) || 0) < best[k].timestamp) {
+                        best[k] = { username: u.username, timestamp: Number(ts) || 0 };
+                    }
+                }
+            }
+            firsts = best;
+            await env.HISCORES_KV.put('ach:firsts', JSON.stringify(firsts));
+        } catch (_) {
+            firsts = {};
+        }
+    }
+    return jsonResponse({ updatedAt: Date.now(), firsts }, { headers: { 'cache-control': 'public, max-age=30' } });
 }
 
 async function handleFakeWord(env) {
@@ -899,6 +1015,11 @@ async function runScheduled(env) {
         created++;
         if (newCount > 1) await sleep(1);
     }
+    // Re-fetch latest users and update achievements + stats in one pass
+    try {
+        const all = await getAllUsers(env, { fresh: true });
+        await persistAchievementStats(env, all);
+    } catch (e) { console.log('runScheduled stats error:', String(e)); }
     return { processed: toUpdate, newUsers: created, totalPlayers: users.length + created };
 }
 
@@ -935,6 +1056,8 @@ async function router(request, env) {
     if (path === '/api/users' && method === 'GET') return cacheResponseIfPossible(request, () => handleUsersList(env));
     if (path === '/api/skill-rankings' && method === 'GET') return cacheResponseIfPossible(request, () => handleSkillRankings(env));
     if (path === '/api/fake-word' && method === 'GET') return cacheResponseIfPossible(request, () => handleFakeWord(env));
+    if (path === '/api/achievements/stats' && method === 'GET') return cacheResponseIfPossible(request, () => handleAchievementsStats(env));
+    if (path === '/api/achievements/firsts' && method === 'GET') return cacheResponseIfPossible(request, () => handleAchievementsFirsts(env));
     if (path === '/api/cron/trigger' && method === 'POST') return handleCronTrigger(env);
     if (path === '/api/migrate/hitpoints' && method === 'POST') return handleHitpointsMigration(env);
     if (path === '/api/seed' && method === 'POST') return handleSeed(env, request);
@@ -943,6 +1066,7 @@ async function router(request, env) {
     if (path === '/api/admin/users/delete-bad' && method === 'POST') return handleDeleteBadUsernames(env, request);
     if (path === '/api/admin/users/delete-bottom-quartile' && method === 'POST') return handleDeleteBottomQuartile(env, request);
     const userMatch = path.match(/^\/api\/users\/([^\/]+)$/); if (userMatch && method === 'GET') return cacheResponseIfPossible(request, () => handleUser(env, decodeURIComponent(userMatch[1])));
+    const userAchMatch = path.match(/^\/api\/users\/([^\/]+)\/achievements$/); if (userAchMatch && method === 'GET') return cacheResponseIfPossible(request, () => handleUserAchievements(env, decodeURIComponent(userAchMatch[1])));
     const hpCheckMatch = path.match(/^\/api\/users\/([^\/]+)\/hitpoints-check$/); if (hpCheckMatch && method === 'GET') return handleUserHpCheck(env, decodeURIComponent(hpCheckMatch[1]));
     if (method === 'OPTIONS') return new Response(null, { headers: { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET,POST,OPTIONS', 'access-control-allow-headers': 'Content-Type, X-Admin-Token' } });
     return notFound();
