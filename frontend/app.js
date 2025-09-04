@@ -223,18 +223,48 @@ function renderHomeView() {
     return map;
   }
 
-  function inferTierFromRank(rank, totalPlayers, top1Skills = 0) {
-    if (!rank || !totalPlayers) return null;
-    const p = rank / totalPlayers;
-    if (p <= 0.00001 || top1Skills >= 3) return 'Grandmaster';
-    if (p <= 0.0001) return 'Master';
-    if (p <= 0.001) return 'Diamond';
-    if (p <= 0.01) return 'Platinum';
-    if (p <= 0.05) return 'Gold';
-    if (p <= 0.20) return 'Silver';
-    if (p <= 0.50) return 'Bronze';
-    // fallbacks by level can be added if needed, but we keep UI concise here
-    return null;
+  // Context-aware meta tier inference for frontend-only fallback when server tier is missing
+  function inferMetaTierWithContextLocal(user, ctx) {
+    try {
+      const rank = Number(ctx?.rank) || Infinity;
+      const totalPlayers = Math.max(1, Number(ctx?.totalPlayers) || 1);
+      const top1SkillsCount = Math.max(0, Number(ctx?.top1SkillsCount) || 0);
+
+      // Grandmaster: absolute top or heavy dominance
+      if (rank === 1 || top1SkillsCount >= 3) {
+        return { name: 'Grandmaster', ordinal: 0 };
+      }
+
+      if (totalPlayers <= 500) {
+        // Absolute rank thresholds for small ladders
+        if (rank <= 2) return { name: 'Master', ordinal: 1 };
+        if (rank <= 5) return { name: 'Diamond', ordinal: 2 };
+        if (rank <= 15) return { name: 'Platinum', ordinal: 3 };
+
+        // Scaled thresholds for the broader tiers
+        if (rank <= Math.ceil(totalPlayers * 0.05)) return { name: 'Gold', ordinal: 4 };
+        if (rank <= Math.ceil(totalPlayers * 0.20)) return { name: 'Silver', ordinal: 5 };
+        if (rank <= Math.ceil(totalPlayers * 0.50)) return { name: 'Bronze', ordinal: 6 };
+      } else {
+        // Percentile thresholds for larger ladders
+        const percentile = rank / totalPlayers;
+        if (percentile <= 0.0001) return { name: 'Master', ordinal: 1 };
+        if (percentile <= 0.001) return { name: 'Diamond', ordinal: 2 };
+        if (percentile <= 0.01) return { name: 'Platinum', ordinal: 3 };
+        if (percentile <= 0.05) return { name: 'Gold', ordinal: 4 };
+        if (percentile <= 0.20) return { name: 'Silver', ordinal: 5 };
+        if (percentile <= 0.50) return { name: 'Bronze', ordinal: 6 };
+      }
+
+      // Fallback by skill total if we have user context; keep UI concise
+      const levels = (window.SKILLS || []).map(s => user?.skills?.[s]?.level || 1);
+      const total = levels.reduce((a, b) => a + b, 0);
+      if (total >= 1700) return { name: 'Expert', ordinal: 5 };
+      if (total >= 900) return { name: 'Adept', ordinal: 6 };
+      return { name: 'Novice', ordinal: 7 };
+    } catch (_) {
+      return { name: 'Novice', ordinal: 7 };
+    }
   }
 
   function addMiniBadges(cell, player, rankings, totalPlayers) {
@@ -256,13 +286,20 @@ function renderHomeView() {
         top1 = map.get(player.username) || 0;
       }
 
-      // Tier badge (existing)
-      const tier = player.tier || inferTierFromRank(player.rank, totalPlayers, top1);
+      // Tier badge (existing; infer client-side only if server didn't set one)
+      let tier = player.tier;
+      let inferred = null;
+      if (!tier) {
+        inferred = inferMetaTierWithContextLocal(player, { rank: player.rank, totalPlayers, top1SkillsCount: top1 });
+        tier = inferred?.name || null;
+      }
       if (tier && !player.tier) {
         const tb = document.createElement('span');
-        tb.className = `tier-badge tier-${tier.toLowerCase()}`;
-        tb.textContent = tier;
-        tb.title = `${tier} • Overall #${player.rank}${top1 ? ` • #1 in ${top1} skills` : ''}`;
+        tb.className = `tier-badge tier-${tier.toLowerCase()} tier--icon-only`;
+        const tip = `${tier} • Overall #${player.rank}${top1 ? ` • #1 in ${top1} skills` : ''}`;
+        tb.setAttribute('title', tip);
+        tb.setAttribute('data-tooltip', tip);
+        tb.setAttribute('aria-label', tier);
         cell.appendChild(tb);
       }
 
@@ -279,7 +316,7 @@ function renderHomeView() {
 
       // Prestige badges (existing)
       let added = 0; const LIMIT = 3;
-      if (top1 >= 3 && added < LIMIT) { add('👑 Triple Crown', '#1 in 3+ skills', 'mini-badge--highlight'); added++; }
+      if (top1 >= 3 && added < LIMIT) { add('👑 Three #1 Skills', '#1 in 3+ skills', 'mini-badge--highlight'); added++; }
       else if (top1 >= 1 && added < LIMIT) { add(`🥇 x${top1}`, 'Rank #1 in skills'); added++; }
 
       if (player.totalLevel >= 2277 && added < LIMIT) { add('👑 Maxed', 'All skills 99'); added++; }
@@ -315,8 +352,15 @@ function renderHomeView() {
         if (p.rank === 1) tr.classList.add("rank-1");
         else if (p.rank === 2) tr.classList.add("rank-2");
         else if (p.rank === 3) tr.classList.add("rank-3");
-        const tierTitle = p.tierInfo && p.tierInfo.top1Skills != null ? ` title="${p.tier} • Overall #${p.rank}${p.tierInfo.top1Skills ? ` • #1 in ${p.tierInfo.top1Skills} skills` : ''}"` : '';
-        const tierBadge = p.tier ? `<span class="tier-badge tier-${p.tier.toLowerCase()}"${tierTitle}>${p.tier}</span>` : "";
+        // Build a subtle, icon-only tier chip with an accessible tooltip (no text label on main leaderboard)
+        let tierAttrs = '';
+        if (p.tier) {
+          const tip = (p.tierInfo && p.tierInfo.top1Skills != null)
+            ? `${p.tier} • Overall #${p.rank}${p.tierInfo.top1Skills ? ` • #1 in ${p.tierInfo.top1Skills} skills` : ''}`
+            : p.tier;
+          tierAttrs = ` title="${tip}" data-tooltip="${tip}" aria-label="${p.tier}"`;
+        }
+        const tierBadge = p.tier ? `<span class="tier-badge tier-${p.tier.toLowerCase()} tier--icon-only"${tierAttrs}></span>` : "";
         tr.innerHTML = `
               <td class="text-center font-bold">${rankDisplay}</td>
               <td>
@@ -501,71 +545,71 @@ function renderUserView(username) {
       // --- Achievements System (curated set) ---
       // Curated list (~10) of achievements to foster competition and clarity
       const ACHIEVEMENT_CATALOG = [
-        // Meta tier (prestige)
-        { key: 'tier-grandmaster', icon: '👑', label: 'Grandmaster', desc: 'Ultra-elite: top 0.001% overall or #1 in 3+ skills.', category: 'tier', rarity: 'mythic' },
-        { key: 'tier-master', icon: '🏆', label: 'Master', desc: 'Elite: top 0.01% overall.', category: 'tier', rarity: 'legendary' },
-        { key: 'tier-diamond', icon: '💎', label: 'Diamond', desc: 'Top 0.1% overall.', category: 'tier', rarity: 'epic' },
-        // Competitive rankers
-        { key: 'triple-crown', icon: '👑', label: 'Triple Crown', desc: 'Hold rank #1 in 3 or more skills at once.', category: 'rank', rarity: 'legendary' },
-        { key: 'crowned-any', icon: '🥇', label: 'Skill Crowned', desc: 'Achieve rank #1 in any single skill.', category: 'rank', rarity: 'rare' },
-        { key: 'top-10-any', icon: '🎯', label: 'Elite Contender', desc: 'Reach top 10 in any skill.', category: 'rank', rarity: 'rare' },
-        { key: 'top-100-any', icon: '⭐', label: 'Rising Star', desc: 'Reach top 100 in any skill.', category: 'rank', rarity: 'common' },
-        // Account progression
-        { key: 'total-2000', icon: '📈', label: '2K Club', desc: 'Reach total level 2000 or higher.', category: 'account', rarity: 'epic' },
-        { key: 'total-1500', icon: '📊', label: '1.5K Milestone', desc: 'Reach total level 1500 or higher.', category: 'account', rarity: 'rare' },
-        { key: 'maxed-account', icon: '👑', label: 'Maxed Account', desc: 'Reach level 99 in every skill.', category: 'account', rarity: 'mythic' },
-        { key: 'seven-99s', icon: '💫', label: 'Seven Seals', desc: 'Reach level 99 in seven or more skills.', category: 'account', rarity: 'rare' },
-        { key: 'five-99s', icon: '✨', label: 'Five Star', desc: 'Reach level 99 in five or more skills.', category: 'account', rarity: 'common' },
-        { key: 'combat-maxed', icon: '⚔️', label: 'Combat Master', desc: 'Max all combat skills (Attack, Strength, Defence, Hitpoints, Ranged, Magic, Prayer).', category: 'account', rarity: 'epic' },
-        // Skill mastery
-        { key: 'skill-master-attack', icon: '🗡️', label: 'Attack Master', desc: 'Reach level 99 in Attack.', category: 'skill-mastery', rarity: 'rare' },
-        { key: 'skill-master-strength', icon: '💪', label: 'Strength Master', desc: 'Reach level 99 in Strength.', category: 'skill-mastery', rarity: 'rare' },
-        { key: 'skill-master-defence', icon: '🛡️', label: 'Defence Master', desc: 'Reach level 99 in Defence.', category: 'skill-mastery', rarity: 'rare' },
-        { key: 'skill-master-hitpoints', icon: '❤️', label: 'Constitution Master', desc: 'Reach level 99 in Hitpoints.', category: 'skill-mastery', rarity: 'rare' },
-        { key: 'skill-master-ranged', icon: '🏹', label: 'Ranged Master', desc: 'Reach level 99 in Ranged.', category: 'skill-mastery', rarity: 'rare' },
-        { key: 'skill-master-magic', icon: '🔮', label: 'Magic Master', desc: 'Reach level 99 in Magic.', category: 'skill-mastery', rarity: 'rare' },
-        { key: 'skill-master-prayer', icon: '🙏', label: 'Prayer Master', desc: 'Reach level 99 in Prayer.', category: 'skill-mastery', rarity: 'rare' },
-        // Gathering skills
-        { key: 'gathering-elite', icon: '🪓', label: 'Resource Baron', desc: 'Reach level 90+ in Woodcutting, Fishing, and Mining.', category: 'gathering', rarity: 'epic' },
-        { key: 'woodcutting-expert', icon: '🌳', label: 'Lumberjack', desc: 'Reach level 85+ in Woodcutting.', category: 'gathering', rarity: 'common' },
-        { key: 'fishing-expert', icon: '🎣', label: 'Angler', desc: 'Reach level 85+ in Fishing.', category: 'gathering', rarity: 'common' },
-        { key: 'mining-expert', icon: '⛏️', label: 'Miner', desc: 'Reach level 85+ in Mining.', category: 'gathering', rarity: 'common' },
+        // Meta tier (prestige) - neutral, descriptive titles
+        { key: 'tier-grandmaster', icon: '👑', label: 'Grandmaster: rank #1 or #1 in 3+ skills', desc: 'Rank #1 overall or #1 in 3+ skills.', category: 'tier', rarity: 'mythic' },
+        { key: 'tier-master', icon: '🏆', label: 'Master: top 0.01% overall', desc: 'Be in the top 0.01% overall.', category: 'tier', rarity: 'legendary' },
+        { key: 'tier-diamond', icon: '💎', label: 'Diamond: top 0.1% overall', desc: 'Be in the top 0.1% overall.', category: 'tier', rarity: 'epic' },
+        // Competitive rankers - clear labels
+        { key: 'triple-crown', icon: '👑', label: 'Three #1 Skill Ranks', desc: 'Hold #1 rank in 3 or more skills at once.', category: 'rank', rarity: 'legendary' },
+        { key: 'crowned-any', icon: '🥇', label: '#1 Rank (Any Skill)', desc: 'Achieve #1 rank in any single skill.', category: 'rank', rarity: 'rare' },
+        { key: 'top-10-any', icon: '🎯', label: 'Top 10 (Any Skill)', desc: 'Reach top 10 in any skill.', category: 'rank', rarity: 'rare' },
+        { key: 'top-100-any', icon: '⭐', label: 'Top 100 (Any Skill)', desc: 'Reach top 100 in any skill.', category: 'rank', rarity: 'common' },
+        // Account progression - straightforward
+        { key: 'total-2000', icon: '📈', label: 'Total Level 2000+', desc: 'Reach total level 2000 or higher.', category: 'account', rarity: 'epic' },
+        { key: 'total-1500', icon: '📊', label: 'Total Level 1500+', desc: 'Reach total level 1500 or higher.', category: 'account', rarity: 'rare' },
+        { key: 'maxed-account', icon: '👑', label: 'All Skills 99', desc: 'Reach level 99 in every skill.', category: 'account', rarity: 'mythic' },
+        { key: 'seven-99s', icon: '💫', label: 'Seven 99s', desc: 'Reach level 99 in seven or more skills.', category: 'account', rarity: 'rare' },
+        { key: 'five-99s', icon: '✨', label: 'Five 99s', desc: 'Reach level 99 in five or more skills.', category: 'account', rarity: 'common' },
+        { key: 'combat-maxed', icon: '⚔️', label: 'All Combat Skills 99', desc: 'Attack, Strength, Defence, Hitpoints, Ranged, Magic, Prayer at 99.', category: 'account', rarity: 'epic' },
+        // Skill mastery - plain
+        { key: 'skill-master-attack', icon: '🗡️', label: '99 Attack', desc: 'Reach level 99 in Attack.', category: 'skill-mastery', rarity: 'rare' },
+        { key: 'skill-master-strength', icon: '💪', label: '99 Strength', desc: 'Reach level 99 in Strength.', category: 'skill-mastery', rarity: 'rare' },
+        { key: 'skill-master-defence', icon: '🛡️', label: '99 Defence', desc: 'Reach level 99 in Defence.', category: 'skill-mastery', rarity: 'rare' },
+        { key: 'skill-master-hitpoints', icon: '❤️', label: '99 Hitpoints', desc: 'Reach level 99 in Hitpoints.', category: 'skill-mastery', rarity: 'rare' },
+        { key: 'skill-master-ranged', icon: '🏹', label: '99 Ranged', desc: 'Reach level 99 in Ranged.', category: 'skill-mastery', rarity: 'rare' },
+        { key: 'skill-master-magic', icon: '🔮', label: '99 Magic', desc: 'Reach level 99 in Magic.', category: 'skill-mastery', rarity: 'rare' },
+        { key: 'skill-master-prayer', icon: '🙏', label: '99 Prayer', desc: 'Reach level 99 in Prayer.', category: 'skill-mastery', rarity: 'rare' },
+        // Gathering skills - describe thresholds
+        { key: 'gathering-elite', icon: '🪓', label: '90+ Woodcutting, Fishing, Mining', desc: 'Woodcutting, Fishing, and Mining at level 90+.', category: 'gathering', rarity: 'epic' },
+        { key: 'woodcutting-expert', icon: '🌳', label: '85+ Woodcutting', desc: 'Reach level 85+ in Woodcutting.', category: 'gathering', rarity: 'common' },
+        { key: 'fishing-expert', icon: '🎣', label: '85+ Fishing', desc: 'Reach level 85+ in Fishing.', category: 'gathering', rarity: 'common' },
+        { key: 'mining-expert', icon: '⛏️', label: '85+ Mining', desc: 'Reach level 85+ in Mining.', category: 'gathering', rarity: 'common' },
         // Artisan skills
-        { key: 'artisan-elite', icon: '🔨', label: 'Master Craftsman', desc: 'Reach level 90+ in Smithing, Crafting, and Fletching.', category: 'artisan', rarity: 'epic' },
-        { key: 'cooking-expert', icon: '👨‍🍳', label: 'Chef', desc: 'Reach level 85+ in Cooking.', category: 'artisan', rarity: 'common' },
-        { key: 'firemaking-expert', icon: '🔥', label: 'Pyromancer', desc: 'Reach level 85+ in Firemaking.', category: 'artisan', rarity: 'common' },
-        { key: 'smithing-expert', icon: '⚒️', label: 'Blacksmith', desc: 'Reach level 85+ in Smithing.', category: 'artisan', rarity: 'common' },
+        { key: 'artisan-elite', icon: '🔨', label: '90+ Smithing, Crafting, Fletching', desc: 'Smithing, Crafting, and Fletching at level 90+.', category: 'artisan', rarity: 'epic' },
+        { key: 'cooking-expert', icon: '👨‍🍳', label: '85+ Cooking', desc: 'Reach level 85+ in Cooking.', category: 'artisan', rarity: 'common' },
+        { key: 'firemaking-expert', icon: '🔥', label: '85+ Firemaking', desc: 'Reach level 85+ in Firemaking.', category: 'artisan', rarity: 'common' },
+        { key: 'smithing-expert', icon: '⚒️', label: '85+ Smithing', desc: 'Reach level 85+ in Smithing.', category: 'artisan', rarity: 'common' },
         // Support skills
-        { key: 'support-elite', icon: '🧪', label: 'Utility Expert', desc: 'Reach level 90+ in Herblore, Runecraft, and Slayer.', category: 'support', rarity: 'epic' },
-        { key: 'herblore-expert', icon: '🌿', label: 'Herbalist', desc: 'Reach level 85+ in Herblore.', category: 'support', rarity: 'common' },
-        { key: 'agility-expert', icon: '🏃', label: 'Acrobat', desc: 'Reach level 85+ in Agility.', category: 'support', rarity: 'common' },
-        { key: 'thieving-expert', icon: '🕵️', label: 'Thief', desc: 'Reach level 85+ in Thieving.', category: 'support', rarity: 'common' },
+        { key: 'support-elite', icon: '🧪', label: '90+ Herblore, Runecraft, Slayer', desc: 'Herblore, Runecraft, and Slayer at level 90+.', category: 'support', rarity: 'epic' },
+        { key: 'herblore-expert', icon: '🌿', label: '85+ Herblore', desc: 'Reach level 85+ in Herblore.', category: 'support', rarity: 'common' },
+        { key: 'agility-expert', icon: '🏃', label: '85+ Agility', desc: 'Reach level 85+ in Agility.', category: 'support', rarity: 'common' },
+        { key: 'thieving-expert', icon: '🕵️', label: '85+ Thieving', desc: 'Reach level 85+ in Thieving.', category: 'support', rarity: 'common' },
         // Playstyle
-        { key: 'balanced', icon: '⚖️', label: 'Balanced Build', desc: 'All skills ≥40 with spread within 30 levels.', category: 'playstyle', rarity: 'rare' },
-        { key: 'glass-cannon', icon: '💥', label: 'Glass Cannon', desc: 'Offense 180+ (Atk+Str) with Defence ≤60.', category: 'playstyle', rarity: 'epic' },
-        { key: 'tank', icon: '🛡️', label: 'Tank', desc: 'Defence 90+ with Hitpoints 85+.', category: 'playstyle', rarity: 'rare' },
-        { key: 'skiller', icon: '🎯', label: 'Pure Skiller', desc: 'Non-combat skills average 70+ while combat skills ≤50.', category: 'playstyle', rarity: 'epic' },
-        { key: 'combat-pure', icon: '⚔️', label: 'Combat Pure', desc: 'Combat skills 80+ while non-combat skills ≤30.', category: 'playstyle', rarity: 'rare' },
+        { key: 'balanced', icon: '⚖️', label: 'Balanced Levels', desc: 'All skills ≥40 with spread ≤30 levels.', category: 'playstyle', rarity: 'rare' },
+        { key: 'glass-cannon', icon: '💥', label: 'High Offense, Low Defence', desc: 'Atk+Str ≥180 and Defence ≤60.', category: 'playstyle', rarity: 'epic' },
+        { key: 'tank', icon: '🛡️', label: 'High Defence and Hitpoints', desc: 'Defence ≥90 and Hitpoints ≥85.', category: 'playstyle', rarity: 'rare' },
+        { key: 'skiller', icon: '🎯', label: 'Non-Combat Focused', desc: 'Non-combat skills avg ≥70; combat skills avg ≤50.', category: 'playstyle', rarity: 'epic' },
+        { key: 'combat-pure', icon: '⚔️', label: 'Combat Focused', desc: 'Combat skills avg ≥80; non-combat skills avg ≤30.', category: 'playstyle', rarity: 'rare' },
         // Performance
-        { key: 'elite', icon: '🚀', label: 'Polymath', desc: 'Above average in ≥90% of skills.', category: 'performance', rarity: 'legendary' },
-        { key: 'versatile', icon: '🎭', label: 'Versatile', desc: 'Above average in ≥75% of skills.', category: 'performance', rarity: 'epic' },
-        { key: 'consistent', icon: '📊', label: 'Consistent', desc: 'Above average in ≥50% of skills.', category: 'performance', rarity: 'rare' },
-        { key: 'xp-millionaire', icon: '💰', label: 'XP Millionaire', desc: 'Accumulate 1,000,000+ total XP.', category: 'performance', rarity: 'epic' },
-        { key: 'xp-billionaire', icon: '🏦', label: 'XP Billionaire', desc: 'Accumulate 1,000,000,000+ total XP.', category: 'performance', rarity: 'legendary' },
+        { key: 'elite', icon: '🚀', label: 'Above Avg in 90%+ Skills', desc: 'Be above the population average in ≥90% of skills.', category: 'performance', rarity: 'legendary' },
+        { key: 'versatile', icon: '🎭', label: 'Above Avg in 75%+ Skills', desc: 'Be above the population average in ≥75% of skills.', category: 'performance', rarity: 'epic' },
+        { key: 'consistent', icon: '📊', label: 'Above Avg in 50%+ Skills', desc: 'Be above the population average in ≥50% of skills.', category: 'performance', rarity: 'rare' },
+        { key: 'xp-millionaire', icon: '💰', label: '1,000,000+ Total XP', desc: 'Accumulate 1,000,000 or more total XP.', category: 'performance', rarity: 'epic' },
+        { key: 'xp-billionaire', icon: '🏦', label: '1,000,000,000+ Total XP', desc: 'Accumulate 1,000,000,000 or more total XP.', category: 'performance', rarity: 'legendary' },
         // Activity
-        { key: 'daily-grinder', icon: '🕒', label: 'Daily Grinder', desc: 'Updated within the last 24 hours.', category: 'activity', rarity: 'common' },
-        { key: 'weekly-active', icon: '📅', label: 'Weekly Warrior', desc: 'Updated within the last 7 days.', category: 'activity', rarity: 'common' },
-        { key: 'monthly-active', icon: '🗓️', label: 'Monthly Maven', desc: 'Updated within the last 30 days.', category: 'activity', rarity: 'common' },
-        { key: 'dedicated', icon: '🔥', label: 'Dedicated', desc: 'Updated within the last 3 days.', category: 'activity', rarity: 'common' },
+        { key: 'daily-grinder', icon: '🕒', label: 'Updated in Last 24h', desc: 'Profile updated within the last 24 hours.', category: 'activity', rarity: 'common' },
+        { key: 'weekly-active', icon: '📅', label: 'Updated in Last 7d', desc: 'Profile updated within the last 7 days.', category: 'activity', rarity: 'common' },
+        { key: 'monthly-active', icon: '🗓️', label: 'Updated in Last 30d', desc: 'Profile updated within the last 30 days.', category: 'activity', rarity: 'common' },
+        { key: 'dedicated', icon: '🔥', label: 'Updated in Last 3d', desc: 'Profile updated within the last 3 days.', category: 'activity', rarity: 'common' },
         // Milestones
-        { key: 'level-50-average', icon: '🎯', label: 'Halfway Hero', desc: 'Average level of 50+ across all skills.', category: 'milestone', rarity: 'common' },
-        { key: 'level-75-average', icon: '⭐', label: 'Three-Quarter Champion', desc: 'Average level of 75+ across all skills.', category: 'milestone', rarity: 'rare' },
-        { key: 'level-90-average', icon: '👑', label: 'Elite Average', desc: 'Average level of 90+ across all skills.', category: 'milestone', rarity: 'epic' },
+        { key: 'level-50-average', icon: '🎯', label: 'Average Level 50+', desc: 'Average level of 50+ across all skills.', category: 'milestone', rarity: 'common' },
+        { key: 'level-75-average', icon: '⭐', label: 'Average Level 75+', desc: 'Average level of 75+ across all skills.', category: 'milestone', rarity: 'rare' },
+        { key: 'level-90-average', icon: '👑', label: 'Average Level 90+', desc: 'Average level of 90+ across all skills.', category: 'milestone', rarity: 'epic' },
         // Special combinations
-        { key: 'magic-ranged', icon: '🧙‍♂️', label: 'Hybrid Mage', desc: 'Both Magic and Ranged at level 80+.', category: 'special', rarity: 'rare' },
-        { key: 'melee-specialist', icon: '⚔️', label: 'Melee Specialist', desc: 'Attack, Strength, and Defence all 85+.', category: 'special', rarity: 'rare' },
-        { key: 'support-master', icon: '🛠️', label: 'Support Master', desc: 'Prayer, Herblore, and Runecraft all 80+.', category: 'special', rarity: 'rare' },
-        { key: 'gathering-master', icon: '📦', label: 'Gathering Master', desc: 'Woodcutting, Fishing, and Mining all 80+.', category: 'special', rarity: 'rare' }
+        { key: 'magic-ranged', icon: '🧙‍♂️', label: '80+ Magic and Ranged', desc: 'Both Magic and Ranged at level 80+.', category: 'special', rarity: 'rare' },
+        { key: 'melee-specialist', icon: '⚔️', label: '85+ Atk, Str, Def', desc: 'Attack, Strength, and Defence all at 85+.', category: 'special', rarity: 'rare' },
+        { key: 'support-master', icon: '🛠️', label: '80+ Prayer, Herblore, Runecraft', desc: 'Prayer, Herblore, and Runecraft all at 80+.', category: 'special', rarity: 'rare' },
+        { key: 'gathering-master', icon: '📦', label: '80+ WC, Fishing, Mining', desc: 'Woodcutting, Fishing, and Mining all at 80+.', category: 'special', rarity: 'rare' }
       ];
 
       function deriveUserAchievements(user, averages) {
@@ -702,94 +746,96 @@ function renderUserView(username) {
         return uniq;
       }
 
-      // Function to render achievements section with expand/collapse functionality
-      function renderAchievementsSection(container, achievements) {
-        container.innerHTML = ''; // Clear existing content
-
+      // Achievements hero (featured above hiscores)
+      function renderAchievementsHero(container, me, achievements) {
+        container.innerHTML = '';
         if (!achievements || achievements.length === 0) return;
 
-        // Create achievements section 
-        const achievementsSection = el('div', 'user-achievements mb-6 bg-layer2 p-4 rounded-lg border-2 border-border-dark');
+        // Section wrapper
+        const section = el('section', 'bg-layer2 p-6 rounded-lg border-2 border-border-dark achievements-hero');
 
-        const achievementsHeader = el('div', 'flex-between mb-3');
-        achievementsHeader.appendChild(
-          el('h4', 'text-lg font-medium text-foreground flex-items-center gap-2',
-            [text(`🏅 Achievements (${achievements.length})`)]
-          )
-        );
+        // Header with prestige badge (if any)
+        const header = el('div', 'flex-between flex-wrap gap-3 mb-4');
+        const title = el('h3', 'text-2xl font-bold text-foreground flex-items-center gap-2', [text('🏅 Achievements')]);
+        header.appendChild(title);
+        if (me && me.tier) {
+          const tier = el('span', `tier-badge tier-${me.tier.toLowerCase()}`);
+          tier.textContent = me.tier;
+          if (me.rank || (me.tierInfo && typeof me.tierInfo.top1Skills === 'number')) {
+            tier.title = `${me.tier} • Overall #${me.rank}${me.tierInfo && me.tierInfo.top1Skills ? ` • #1 in ${me.tierInfo.top1Skills} skills` : ''}`;
+          }
+          header.appendChild(tier);
+        }
+        section.appendChild(header);
 
-        // Show top achievements in a clean grid (limit to prevent overwhelming)
-        const maxVisible = 8;
-        const topAchievements = achievements.slice(0, maxVisible);
+        // Featured (3 rarest) centered
+        const featured = achievements.slice(0, 3);
+        const featuredWrap = el('div', 'featured-grid');
+        featured.forEach(a => featuredWrap.appendChild(createFeaturedAchievementCard(a)));
+        section.appendChild(featuredWrap);
 
-        // Create grid container that will hold all achievements
-        const achievementsGrid = el('div', 'achievements-inline-grid');
-        const expandableGrid = el('div', 'expandable-achievements-grid');
+        // Remaining achievements behind a toggle (View all / View fewer)
+        if (achievements.length > 3) {
+          const rest = achievements.slice(3);
+          const toggleRow = el('div', 'flex-center mt-4');
+          const toggleBtn = el('button', 'btn-sm', [text('View all')]);
+          toggleBtn.setAttribute('aria-expanded', 'false');
+          toggleBtn.type = 'button';
+          toggleRow.appendChild(toggleBtn);
+          section.appendChild(toggleRow);
 
-        // Add visible achievements
-        topAchievements.forEach(achievement => {
-          const achievementCard = createAchievementCard(achievement);
-          achievementsGrid.appendChild(achievementCard);
-        });
+          const allWrap = el('div', 'achievements-inline-grid mt-3 hidden');
+          rest.forEach(a => allWrap.appendChild(createInlineAchievementChip(a)));
+          section.appendChild(allWrap);
 
-        expandableGrid.appendChild(achievementsGrid);
-
-        // If there are more achievements, create the expandable section
-        if (achievements.length > maxVisible) {
-          const hiddenAchievements = achievements.slice(maxVisible);
-          const hiddenGrid = el('div', 'hidden-achievements-grid hidden');
-
-          hiddenAchievements.forEach(achievement => {
-            const achievementCard = createAchievementCard(achievement);
-            hiddenGrid.appendChild(achievementCard);
-          });
-
-          expandableGrid.appendChild(hiddenGrid);
-
-          // Create expandable indicator with hover and click functionality
-          const moreIndicator = el('div', 'achievements-expand-toggle text-sm text-muted mt-3 text-center cursor-pointer hover:text-accent transition-colors duration-200 select-none');
-          moreIndicator.appendChild(text(`+${hiddenAchievements.length} more achievements`));
-
-          let isExpanded = false;
-
-          moreIndicator.addEventListener('click', () => {
-            isExpanded = !isExpanded;
-
-            if (isExpanded) {
-              hiddenGrid.classList.remove('hidden');
-              moreIndicator.textContent = 'Show fewer achievements';
+          toggleBtn.addEventListener('click', () => {
+            const open = allWrap.classList.contains('hidden');
+            if (open) {
+              allWrap.classList.remove('hidden');
+              toggleBtn.textContent = 'View fewer';
+              toggleBtn.setAttribute('aria-expanded', 'true');
             } else {
-              hiddenGrid.classList.add('hidden');
-              moreIndicator.textContent = `+${hiddenAchievements.length} more achievements`;
+              allWrap.classList.add('hidden');
+              toggleBtn.textContent = 'View all';
+              toggleBtn.setAttribute('aria-expanded', 'false');
             }
           });
-
-          expandableGrid.appendChild(moreIndicator);
         }
 
-        achievementsSection.appendChild(achievementsHeader);
-        achievementsSection.appendChild(expandableGrid);
-        container.appendChild(achievementsSection);
+        container.appendChild(section);
       }
 
-      // Function to create an achievement card
-      function createAchievementCard(achievement) {
-        const prevalence = achievement.prevalence;
+      function createFeaturedAchievementCard(achievement) {
+        // Use existing achievement-card styling for a prestigious look
+        const card = el('div', `achievement-card rarity-${achievement.rarity}`);
+        card.setAttribute('data-tooltip', `${achievement.label}\n${achievement.desc}`);
+        if (typeof achievement.prevalence === 'number') {
+          card.setAttribute('data-prevalence', `${achievement.prevalence.toFixed(1)}%`);
+        }
+        const icon = el('div', 'ach-icon', [text(achievement.icon)]);
+        const title = el('div', 'ach-title', [text(achievement.label)]);
+        const desc = el('div', 'ach-desc', [text(achievement.desc)]);
+        card.appendChild(icon);
+        card.appendChild(title);
+        card.appendChild(desc);
+        return card;
+      }
+
+      function createInlineAchievementChip(achievement) {
+        const prevalence = achievement.prevalence ?? 100;
         let rarityClass = 'common';
         if (prevalence < 1) rarityClass = 'mythic';
         else if (prevalence < 5) rarityClass = 'legendary';
         else if (prevalence < 15) rarityClass = 'epic';
         else if (prevalence < 35) rarityClass = 'rare';
-
         const card = el('div', `achievement-inline-card ach-${rarityClass}`);
-        card.setAttribute('data-tooltip', `${achievement.label}\n${achievement.desc}\n${prevalence.toFixed(1)}% of players have this`);
-        card.setAttribute('title', `${achievement.label}: ${achievement.desc} (${prevalence.toFixed(1)}% of players)`);
-
+        card.setAttribute('data-tooltip', `${achievement.label}\n${achievement.desc}${typeof prevalence === 'number' ? `\n${prevalence.toFixed(1)}% of players` : ''}`);
         const icon = el('div', 'ach-inline-icon', [text(achievement.icon)]);
         const content = el('div', 'ach-inline-content');
         content.appendChild(el('div', 'ach-inline-name', [text(achievement.label)]));
-        content.appendChild(el('div', 'ach-inline-rarity', [text(`${prevalence.toFixed(1)}%`)]));
-
+        if (typeof prevalence === 'number') {
+          content.appendChild(el('div', 'ach-inline-rarity', [text(`${prevalence.toFixed(1)}%`)]));
+        }
         card.appendChild(icon);
         card.appendChild(content);
         return card;
@@ -799,12 +845,12 @@ function renderUserView(username) {
       const leftExtras = document.querySelector('#leftStackExtras');
       if (leftExtras) leftExtras.appendChild(headerSection);
 
-      // Achievements container (move to left stack beneath primary header)
-      const achievementsContainer = el("div", "achievements-container achievements-left-card");
-      if (leftExtras) leftExtras.appendChild(achievementsContainer);
-
       // Store achievements data to be rendered in the left-side stack
       let achievementsData = null;
+
+      // Create a mount point above the hiscores to render achievements hero
+      const achievementsMount = el('div', '');
+      // We'll append this to the main content wrapper before the hiscores section later
 
       computeGlobalAchievementStats(skillRankings, leaderboard).then(globalStats => {
         const userAchievementKeys = deriveUserAchievements(user, globalStats.averages);
@@ -823,11 +869,21 @@ function renderUserView(username) {
 
           achievementsData = unlockedAchievements;
 
-          // Render into the left-side achievements container
-          renderAchievementsSection(achievementsContainer, achievementsData);
+          // Render a prestigious Achievements hero above the hiscores
+          const me = (leaderboard && leaderboard.players) ? leaderboard.players.find(p => p.username === user.username) : null;
+          renderAchievementsHero(achievementsMount, me, achievementsData);
         }
       }).catch(() => {
-        // On error, achievements will just not be rendered
+        // Fallback: render achievements without prevalence using local averages
+        try {
+          const userAchievementKeys = deriveUserAchievements(user, averages);
+          if (userAchievementKeys && userAchievementKeys.length) {
+            const unlockedAchievements = ACHIEVEMENT_CATALOG
+              .filter(a => userAchievementKeys.includes(a.key));
+            const me = (leaderboard && leaderboard.players) ? leaderboard.players.find(p => p.username === user.username) : null;
+            renderAchievementsHero(achievementsMount, me, unlockedAchievements);
+          }
+        } catch (_) { }
       });
 
 
@@ -854,6 +910,10 @@ function renderUserView(username) {
         `;
       tableWrap.appendChild(table);
       section.appendChild(tableWrap);
+
+      // Build main content order: Achievements hero (if any) above the hiscores table
+      // Append achievements mount first (it may be empty if none/unavailable)
+      wrap.appendChild(achievementsMount);
       wrap.appendChild(section);
 
       const tbody = table.querySelector("tbody");
@@ -1116,11 +1176,23 @@ window.addEventListener("hashchange", handleRoute);
 })();
 
 function deriveAchievementsForPlayer(player, rankings, totalPlayers) {
-  const achievements = [];
-  const push = (key) => {
-    const achievement = ACHIEVEMENT_CATALOG.find(a => a.key === key);
-    if (achievement) achievements.push(achievement);
+  // Minimal, local catalog for leaderboard mini-badges
+  const CATALOG = {
+    'tier-grandmaster': { key: 'tier-grandmaster', icon: '👑', label: 'Grandmaster', desc: 'Rank #1 overall or #1 in 3+ skills.', rarity: 'mythic' },
+    'tier-master': { key: 'tier-master', icon: '🏆', label: 'Master', desc: 'Top 0.01% overall.', rarity: 'legendary' },
+    'tier-diamond': { key: 'tier-diamond', icon: '💎', label: 'Diamond', desc: 'Top 0.1% overall.', rarity: 'epic' },
+    'triple-crown': { key: 'triple-crown', icon: '👑', label: 'Triple Crown', desc: '#1 in 3+ skills.', rarity: 'legendary' },
+    'crowned-any': { key: 'crowned-any', icon: '🥇', label: '#1 in a Skill', desc: '#1 rank in any skill.', rarity: 'rare' },
+    'maxed-account': { key: 'maxed-account', icon: '👑', label: 'Maxed', desc: 'All skills 99.', rarity: 'mythic' },
+    'total-2000': { key: 'total-2000', icon: '📈', label: 'Total 2000+', desc: 'Total level 2000 or higher.', rarity: 'epic' },
+    'total-1500': { key: 'total-1500', icon: '📊', label: 'Total 1500+', desc: 'Total level 1500 or higher.', rarity: 'rare' },
+    'daily-grinder': { key: 'daily-grinder', icon: '🕒', label: 'Updated 24h', desc: 'Updated within last 24 hours.', rarity: 'common' },
+    'dedicated': { key: 'dedicated', icon: '🔥', label: 'Updated 3d', desc: 'Updated within last 3 days.', rarity: 'common' },
+    'weekly-active': { key: 'weekly-active', icon: '📅', label: 'Updated 7d', desc: 'Updated within last 7 days.', rarity: 'common' },
+    'monthly-active': { key: 'monthly-active', icon: '🗓️', label: 'Updated 30d', desc: 'Updated within last 30 days.', rarity: 'common' }
   };
+  const achievements = [];
+  const push = (key) => { const a = CATALOG[key]; if (a) achievements.push(a); };
 
   // Tier-based prestige
   if (player.tier === 'Grandmaster') push('tier-grandmaster');

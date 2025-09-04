@@ -40,16 +40,34 @@ function inferMetaTierWithContextLocal(user, ctx) {
         const rank = Number(ctx?.rank) || Infinity;
         const totalPlayers = Math.max(1, Number(ctx?.totalPlayers) || 1);
         const top1SkillsCount = Math.max(0, Number(ctx?.top1SkillsCount) || 0);
-        const percentile = rank / totalPlayers; // 0..1
 
-        if (percentile <= 0.00001 || top1SkillsCount >= 3) return { name: 'Grandmaster', ordinal: 0 };
-        if (percentile <= 0.0001) return { name: 'Master', ordinal: 1 };
-        if (percentile <= 0.001) return { name: 'Diamond', ordinal: 2 };
-        if (percentile <= 0.01) return { name: 'Platinum', ordinal: 3 };
-        if (percentile <= 0.05) return { name: 'Gold', ordinal: 4 };
-        if (percentile <= 0.20) return { name: 'Silver', ordinal: 5 };
-        if (percentile <= 0.50) return { name: 'Bronze', ordinal: 6 };
+        // Grandmaster: absolute #1 or triple skill dominance
+        if (rank === 1 || top1SkillsCount >= 3) {
+            return { name: 'Grandmaster', ordinal: 0 };
+        }
 
+        if (totalPlayers <= 500) {
+            // Absolute thresholds for small ladders
+            if (rank <= 2) return { name: 'Master', ordinal: 1 };
+            if (rank <= 5) return { name: 'Diamond', ordinal: 2 };
+            if (rank <= 15) return { name: 'Platinum', ordinal: 3 };
+
+            // Scaled broader tiers
+            if (rank <= Math.ceil(totalPlayers * 0.05)) return { name: 'Gold', ordinal: 4 };
+            if (rank <= Math.ceil(totalPlayers * 0.20)) return { name: 'Silver', ordinal: 5 };
+            if (rank <= Math.ceil(totalPlayers * 0.50)) return { name: 'Bronze', ordinal: 6 };
+        } else {
+            // Percentile thresholds for big ladders
+            const percentile = rank / totalPlayers;
+            if (percentile <= 0.0001) return { name: 'Master', ordinal: 1 };
+            if (percentile <= 0.001) return { name: 'Diamond', ordinal: 2 };
+            if (percentile <= 0.01) return { name: 'Platinum', ordinal: 3 };
+            if (percentile <= 0.05) return { name: 'Gold', ordinal: 4 };
+            if (percentile <= 0.20) return { name: 'Silver', ordinal: 5 };
+            if (percentile <= 0.50) return { name: 'Bronze', ordinal: 6 };
+        }
+
+        // Fallback by account maturity
         const levels = SKILLS.map(s => user.skills?.[s]?.level || 1);
         const total = levels.reduce((a, b) => a + b, 0);
         if (total >= 1700) return { name: 'Expert', ordinal: 5 };
