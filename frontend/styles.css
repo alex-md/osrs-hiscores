@@ -2228,6 +2228,28 @@ footer.site-footer .mt-2 {
   --category-color: #6366f1;
 }
 
+.leaderboard-table [data-tooltip]::after {
+  top: auto;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.9);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+  z-index: 2000;
+  white-space: normal;
+}
+
+.leaderboard-table .mini-achievement-badge[data-tooltip]:hover::after,
+.leaderboard-table .mini-badge[data-tooltip]:hover::after,
+.leaderboard-table .tier-badge[data-tooltip]:hover::after {
+  background: rgba(0, 0, 0, 0.9);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -2270,6 +2292,13 @@ footer.site-footer .mt-2 {
     font-size: .7rem;
     left: 0;
     transform: translate(0, .5rem);
+  }
+
+  .leaderboard-table [data-tooltip]::after {
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(100% + 6px);
+    max-width: 240px;
   }
 }
 
@@ -2482,43 +2511,5 @@ footer.site-footer .mt-2 {
   ::before {
     animation: none !important;
     transition: none !important;
-  }
-}
-
-/* Leaderboard tooltip readability improvements */
-/* Make tooltip popovers over badges easier to read and avoid overlapping rows */
-.leaderboard-table [data-tooltip]::after {
-  /* Place above the badge to avoid covering neighboring cells/rows */
-  top: auto;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
-
-  /* Stronger, opaque background for contrast */
-  background: rgba(0, 0, 0, 0.9);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
-  z-index: 2000;
-  white-space: normal;
-}
-
-/* Ensure mini badges specifically inherit the stronger styling on hover */
-.leaderboard-table .mini-achievement-badge[data-tooltip]:hover::after,
-.leaderboard-table .mini-badge[data-tooltip]:hover::after,
-.leaderboard-table .tier-badge[data-tooltip]:hover::after {
-  background: rgba(0, 0, 0, 0.9);
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.15);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
-}
-
-/* Keep readability on small screens as well */
-@media (max-width: 768px) {
-  .leaderboard-table [data-tooltip]::after {
-    left: 50%;
-    transform: translateX(-50%);
-    bottom: calc(100% + 6px);
-    max-width: 240px;
   }
 }
