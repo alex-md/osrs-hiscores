@@ -34,6 +34,59 @@ export const ACHIEVEMENT_KEYS = [
 function sum(arr) { return arr.reduce((a, b) => a + b, 0); }
 function avg(arr) { return arr.length ? sum(arr) / arr.length : 0; }
 
+// Lightweight fixed-size min-heap for top-K selection
+class MinHeap {
+    constructor(compareFn) {
+        this._a = [];
+        this._cmp = compareFn || ((x, y) => x - y);
+    }
+    size() { return this._a.length; }
+    peek() { return this._a[0]; }
+    toArray() { return this._a.slice(); }
+    push(v) { this._a.push(v); this._siftUp(this._a.length - 1); }
+    pop() {
+        const a = this._a;
+        if (a.length === 0) return undefined;
+        const top = a[0];
+        const last = a.pop();
+        if (a.length) { a[0] = last; this._siftDown(0); }
+        return top;
+    }
+    _siftUp(i) {
+        const a = this._a, cmp = this._cmp; let p;
+        while (i > 0 && cmp(a[i], a[p = ((i - 1) >> 1)]) < 0) { [a[i], a[p]] = [a[p], a[i]]; i = p; }
+    }
+    _siftDown(i) {
+        const a = this._a, cmp = this._cmp; const n = a.length;
+        while (true) {
+            let l = (i << 1) + 1, r = l + 1, m = i;
+            if (l < n && cmp(a[l], a[m]) < 0) m = l;
+            if (r < n && cmp(a[r], a[m]) < 0) m = r;
+            if (m === i) break;
+            [a[i], a[m]] = [a[m], a[i]]; i = m;
+        }
+    }
+}
+
+// Simple cache for achievement context (opt-in)
+const __achievementsContextCache = { key: null, value: null };
+function buildUsersSignature(users) {
+    try {
+        let maxUpdatedAt = 0;
+        let acc = 0;
+        for (let i = 0; i < users.length; i++) {
+            const u = users[i] || {};
+            const up = Number(u.updatedAt || 0);
+            if (up > maxUpdatedAt) maxUpdatedAt = up;
+            acc = (acc + (u.username ? u.username.length : 0) + (u.totalLevel || 0) + (u.totalXP || 0)) >>> 0;
+        }
+        return `${users.length}:${maxUpdatedAt}:${acc}`;
+    } catch (_) {
+        // Fallback to non-cached path if anything goes wrong
+        return `nocache:${Date.now()}`;
+    }
+}
+
 // Local copy of tier inference to avoid circular imports
 function inferMetaTierWithContextLocal(user, ctx) {
     try {
@@ -80,8 +133,15 @@ function inferMetaTierWithContextLocal(user, ctx) {
 
 // Compute global context needed for some achievements
 // users: array of user objects
-export function computeAchievementContext(users) {
+export function computeAchievementContext(users, opts = undefined) {
     const usernameLower = (u) => String(u?.username || '').toLowerCase();
+    const options = opts || {};
+    if (options.useCache) {
+        const key = options.cacheKey || buildUsersSignature(users);
+        if (__achievementsContextCache.key === key && __achievementsContextCache.value) {
+            return __achievementsContextCache.value;
+        }
+    }
 
     // Overall rank mapping
     const sorted = [...users].sort((a, b) => b.totalLevel - a.totalLevel || b.totalXP - a.totalXP || a.username.localeCompare(b.username));
@@ -94,37 +154,74 @@ export function computeAchievementContext(users) {
     const top100BySkill = new Map();
     const skillAvgLevel = new Map();
 
+    // Heap comparator: order by "worse" first so heap is a min-heap of the top entries
+    // Worse = lower xp, or same xp and lexicographically GREATER name
+    const heapCompare = (a, b) => {
+        if (a.xp !== b.xp) return a.xp - b.xp; // lower xp is worse (smaller)
+        if (a.nameLower === b.nameLower) return 0;
+        return a.nameLower > b.nameLower ? -1 : 1; // greater name is worse (smaller)
+    };
+
     for (const skill of SKILLS) {
-        const arr = users.map(u => ({ u, level: u?.skills?.[skill]?.level || 1, xp: u?.skills?.[skill]?.xp || 0 }));
-        arr.sort((a, b) => b.xp - a.xp || a.u.username.localeCompare(b.u.username));
+        const heap100 = new MinHeap(heapCompare);
+        let levelSum = 0;
+        let maxXp = -1;
+        let leaders = new Set(); // usernames (lower) with max xp (>0)
+
+        for (const u of users) {
+            const level = u?.skills?.[skill]?.level || 1;
+            const xp = u?.skills?.[skill]?.xp || 0;
+            const unameLower = usernameLower(u);
+            levelSum += level;
+
+            // Track leaders (ties included, xp must be > 0)
+            if (xp > maxXp) {
+                maxXp = xp;
+                leaders.clear();
+                if (xp > 0) leaders.add(unameLower);
+            } else if (xp === maxXp && xp > 0) {
+                leaders.add(unameLower);
+            }
+
+            // Maintain top-100 via min-heap
+            const entry = { xp, nameLower: unameLower };
+            if (heap100.size() < 100) {
+                heap100.push(entry);
+            } else if (heapCompare(entry, heap100.peek()) > 0) {
+                heap100.pop();
+                heap100.push(entry);
+            }
+        }
+
+        // Update top1 skill counts
+        if (maxXp > 0 && leaders.size > 0) {
+            for (const name of leaders) {
+                top1SkillsByUserCount.set(name, (top1SkillsByUserCount.get(name) || 0) + 1);
+            }
+        }
+
+        // Derive top-100 and top-10 sets from heap (sort small array)
+        const topArr = heap100.toArray().sort((a, b) => {
+            if (b.xp !== a.xp) return b.xp - a.xp; // desc xp
+            return a.nameLower.localeCompare(b.nameLower); // asc name
+        });
         const top10 = new Set();
         const top100 = new Set();
-        for (let i = 0; i < arr.length && i < 100; i++) {
-            const unameLower = usernameLower(arr[i].u);
-            if (i < 10) top10.add(unameLower);
-            top100.add(unameLower);
+        for (let i = 0; i < topArr.length; i++) {
+            const name = topArr[i].nameLower;
+            if (i < 10) top10.add(name);
+            top100.add(name);
         }
         top10BySkill.set(skill, top10);
         top100BySkill.set(skill, top100);
 
-        // Count top1s (ties included)
-        let bestXp = arr.length ? arr[0].xp : -1;
-        for (const row of arr) {
-            if (row.xp === bestXp && bestXp > 0) {
-                const key = usernameLower(row.u);
-                top1SkillsByUserCount.set(key, (top1SkillsByUserCount.get(key) || 0) + 1);
-            } else {
-                break;
-            }
-        }
-
         // Average level per skill
-        skillAvgLevel.set(skill, avg(arr.map(x => x.level)));
+        skillAvgLevel.set(skill, users.length ? (levelSum / users.length) : 0);
     }
 
     // Average level per skill is already computed. For performance achievements, we compare levels vs averages.
 
-    return {
+    const result = {
         rankByUser,
         top1SkillsByUserCount,
         top10BySkill,
@@ -132,6 +229,13 @@ export function computeAchievementContext(users) {
         skillAvgLevel,
         totalPlayers: users.length
     };
+
+    if (options.useCache) {
+        __achievementsContextCache.key = options.cacheKey || buildUsersSignature(users);
+        __achievementsContextCache.value = result;
+    }
+
+    return result;
 }
 
 // Evaluate which achievements a user meets right now.

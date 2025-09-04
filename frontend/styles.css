@@ -1398,6 +1398,222 @@ tbody tr.overall-row {
   line-height: 1.2;
 }
 
+/* --- Achievements: Insights and Matrix --- */
+.insights-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.insight-card {
+  background: linear-gradient(135deg, var(--color-bg-layer) 0, var(--color-bg-layer2) 100%);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 1rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.insight-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 .75rem 0;
+  color: var(--color-foreground);
+}
+
+.insight-list {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+
+.insight-row {
+  display: grid;
+  grid-template-columns: 24px 1fr minmax(120px, 180px);
+  gap: .5rem;
+  align-items: center;
+}
+
+.insight-rank {
+  font-weight: 800;
+  text-align: center;
+}
+
+.insight-user,
+.insight-ach {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  min-width: 0;
+}
+
+.insight-icon {
+  font-size: 1.2rem;
+  text-align: center;
+}
+
+.ach-name {
+  font-weight: 600;
+  font-size: .85rem;
+  color: var(--color-foreground);
+}
+
+.ach-desc {
+  font-size: .7rem;
+  color: var(--color-muted);
+}
+
+.insight-bar-wrap {
+  position: relative;
+  background: var(--color-bg-layer2);
+  border: 1px solid var(--color-border);
+  height: 16px;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.insight-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 0%;
+  background: linear-gradient(90deg, var(--color-accent) 0, var(--color-accent-hover) 100%);
+}
+
+.insight-bar-label {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: .7rem;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .5);
+}
+
+.insight-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  padding: .25rem .5rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-layer);
+  color: var(--color-muted);
+  border-radius: 999px;
+  font-size: .75rem;
+  font-weight: 600;
+}
+
+.matrix {
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--color-border-dark);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.matrix-row {
+  display: grid;
+  grid-template-columns: 180px repeat(var(--matrix-cols, 8), 1fr);
+}
+
+.matrix-header {
+  background: linear-gradient(135deg, var(--color-bg-layer2), var(--color-bg-layer));
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.matrix-cell {
+  border-bottom: 1px solid var(--color-border);
+  border-right: 1px solid var(--color-border);
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .75rem;
+}
+
+.matrix-cell.fixed {
+  justify-content: flex-start;
+  padding: 0 .5rem;
+  background: var(--color-bg-layer2);
+  position: sticky;
+  left: 0;
+  z-index: 2;
+}
+
+.matrix-cell.cell--corner {
+  background: var(--color-bg-layer2);
+  font-weight: 700;
+}
+
+.matrix-ach {
+  font-size: 1rem;
+}
+
+.matrix-prev {
+  font-size: .65rem;
+  color: var(--color-muted);
+}
+
+.matrix-cell.hit {
+  background: rgba(16, 185, 129, .35);
+  box-shadow: inset 0 0 0 1px rgba(16, 185, 129, .4);
+}
+
+.matrix-cell.miss {
+  background: rgba(107, 114, 128, .15);
+}
+
+.matrix-legend {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  color: var(--color-muted);
+  font-size: .8rem;
+  margin-top: .5rem;
+}
+
+.legend-swatch {
+  width: 16px;
+  height: 10px;
+  display: inline-block;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+}
+
+.legend-swatch.hit {
+  background: rgba(16, 185, 129, .6);
+  border-color: rgba(16, 185, 129, .7);
+}
+
+.legend-swatch.miss {
+  background: rgba(107, 114, 128, .25);
+}
+
+.ach-catalog {
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--color-bg-layer);
+}
+
+.ach-catalog__summary {
+  cursor: pointer;
+  padding: .75rem 1rem;
+  font-weight: 700;
+  border-bottom: 1px solid var(--color-border);
+  background: linear-gradient(135deg, var(--color-bg-header) 0, rgba(63, 34, 22, .9) 100%);
+  color: var(--color-foreground);
+}
+
 .filter-bar label {
   font-size: .55rem;
   font-weight: 600;

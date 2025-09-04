@@ -144,24 +144,247 @@ function createCategorySection(categoryKey, achievements) {
     return section;
 }
 
-function renderAchievementsPage() {
+// --- Insights and relationships ---
+function pickTop(arr, n, keyFn) {
+    return [...arr].sort((a, b) => keyFn(b) - keyFn(a)).slice(0, n);
+}
+
+function computePlayerUnlocks(players, skillRankings) {
+    const rankings = skillRankings?.rankings || {};
+    // Build a map of username -> count of #1 skills
+    const top1 = new Map();
+    try {
+        (window.SKILLS || []).forEach(s => {
+            const arr = rankings[s] || [];
+            if (arr[0]?.username) {
+                const u = arr[0].username;
+                top1.set(u, (top1.get(u) || 0) + 1);
+            }
+        });
+    } catch (_) { }
+
+    const map = new Map();
+    players.forEach(p => {
+        const set = new Set();
+        // Tier-based
+        if (p.tier === 'Grandmaster') set.add('tier-grandmaster');
+        if (p.tier === 'Master') set.add('tier-master');
+        if (p.tier === 'Diamond') set.add('tier-diamond');
+        // Top ranks in skills
+        const c = top1.get(p.username) || 0;
+        if (c >= 3) set.add('triple-crown');
+        if (c >= 1) set.add('crowned-any');
+        // Account progression
+        if (p.totalLevel >= 2277) set.add('maxed-account');
+        else if (p.totalLevel >= 2000) set.add('total-2000');
+        else if (p.totalLevel >= 1500) set.add('total-1500');
+        // Activity recency
+        if (p.updatedAt) {
+            const diffH = (Date.now() - p.updatedAt) / 3600000;
+            if (diffH <= 24) set.add('daily-grinder');
+            else if (diffH <= 72) set.add('dedicated');
+            else if (diffH <= 168) set.add('weekly-active');
+            else if (diffH <= 720) set.add('monthly-active');
+        }
+        map.set(p.username, set);
+    });
+    return map; // username => Set(keys)
+}
+
+function prevalenceForKeys(totalPlayers, counts) {
+    const map = new Map();
+    ACHIEVEMENT_CATALOG.forEach(a => {
+        const c = counts?.[a.key] || 0;
+        const pct = totalPlayers > 0 ? (c / totalPlayers) * 100 : 0;
+        map.set(a.key, pct);
+    });
+    return map;
+}
+
+function renderInsights(globalStats, leaderboard, skillRankings) {
+    const wrap = $('#insightsContainer');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+
+    const players = leaderboard?.players || [];
+    const totalPlayers = globalStats?.totalPlayers || players.length || 0;
+    const counts = globalStats?.counts || {};
+    const prevalence = prevalenceForKeys(totalPlayers, counts);
+    const unlocks = computePlayerUnlocks(players, skillRankings);
+
+    // Top players by unlock count
+    const topPlayers = pickTop(players, 5, p => unlocks.get(p.username)?.size || 0);
+
+    const topPlayersCard = el('div', 'insight-card');
+    topPlayersCard.innerHTML = '<h3 class="insight-title">Most Achievements Unlocked</h3>';
+    const tpList = el('div', 'insight-list');
+    topPlayers.forEach((p, idx) => {
+        const size = unlocks.get(p.username)?.size || 0;
+        const row = el('div', 'insight-row');
+        row.innerHTML = `
+            <div class="insight-rank">${idx + 1}</div>
+            <div class="insight-user">
+                <button class="username-link" data-user="${p.username}">${p.username}</button>
+                ${p.tier ? `<span class="tier-badge tier-${p.tier.toLowerCase()}">${p.tier}</span>` : ''}
+            </div>
+            <div class="insight-bar-wrap" title="${size} achievements">
+                <div class="insight-bar" style="width:${Math.min(100, (size / 25) * 100)}%"></div>
+                <span class="insight-bar-label">${size}</span>
+            </div>`;
+        tpList.appendChild(row);
+    });
+    topPlayersCard.appendChild(tpList);
+
+    // Most/least common achievements
+    const withPrev = ACHIEVEMENT_CATALOG.map(a => ({
+        ...a,
+        prevalence: prevalence.get(a.key) || 0
+    }));
+    const mostCommon = pickTop(withPrev, 5, a => a.prevalence);
+    const leastCommon = pickTop(withPrev, 5, a => -a.prevalence);
+
+    function makeAchList(title, list) {
+        const card = el('div', 'insight-card');
+        card.appendChild(el('h3', 'insight-title', [text(title)]));
+        const container = el('div', 'insight-list');
+        list.forEach(a => {
+            const item = el('div', 'insight-row');
+            item.innerHTML = `
+                <div class="insight-icon" title="${a.label}\n${a.desc}">${a.icon}</div>
+                <div class="insight-ach">
+                    <div class="ach-name">${a.label}</div>
+                    <div class="ach-desc">${a.desc}</div>
+                </div>
+                <div class="insight-bar-wrap" title="${a.prevalence.toFixed(1)}% of players">
+                    <div class="insight-bar" style="width:${a.prevalence}%"></div>
+                    <span class="insight-bar-label">${a.prevalence.toFixed(1)}%</span>
+                </div>`;
+            container.appendChild(item);
+        });
+        card.appendChild(container);
+        return card;
+    }
+
+    const grid = el('div', 'insights-grid');
+    grid.appendChild(topPlayersCard);
+    grid.appendChild(makeAchList('Most Common Achievements', mostCommon));
+    grid.appendChild(makeAchList('Rarest Achievements', leastCommon));
+    wrap.appendChild(grid);
+
+    // Summary chips
+    const chips = el('div', 'insight-chips');
+    const totalUnlockedEvents = Object.values(counts).reduce((a, b) => a + (b || 0), 0);
+    chips.innerHTML = `
+        <span class="chip">${totalPlayers} players</span>
+        <span class="chip">${ACHIEVEMENT_CATALOG.length} achievements</span>
+        <span class="chip">${totalUnlockedEvents.toLocaleString()} unlocks (all-time)</span>`;
+    wrap.appendChild(chips);
+}
+
+function renderRelationshipMatrix(globalStats, leaderboard, skillRankings) {
+    const mount = $('#relationshipMatrix');
+    if (!mount) return;
+    mount.innerHTML = '';
+
+    const players = (leaderboard?.players || []).slice(0, 12); // cap for readability
+    if (!players.length) return;
+
+    const unlocks = computePlayerUnlocks(players, skillRankings);
+    const prevalence = prevalenceForKeys(globalStats?.totalPlayers || 0, globalStats?.counts || {});
+
+    // Choose columns: 12 most informative achievements (high variance)
+    const withPrev = ACHIEVEMENT_CATALOG.map(a => ({
+        ...a,
+        prevalence: prevalence.get(a.key) || 0
+    }));
+    // score by closeness to 50% (most informative binary split)
+    const columns = pickTop(withPrev, 12, a => 50 - Math.abs(50 - a.prevalence));
+
+    const table = el('div', 'matrix');
+    // Header row
+    const header = el('div', 'matrix-row matrix-header');
+    header.appendChild(el('div', 'matrix-cell fixed cell--corner', [text('Player')]));
+    columns.forEach(a => {
+        const cell = el('div', 'matrix-cell');
+        cell.innerHTML = `<div class="matrix-ach" title="${a.label}\n${a.desc}">${a.icon}</div>
+                          <div class="matrix-prev">${a.prevalence.toFixed(0)}%</div>`;
+        header.appendChild(cell);
+    });
+    table.appendChild(header);
+
+    // Rows per player
+    players.forEach(p => {
+        const row = el('div', 'matrix-row');
+        const left = el('div', 'matrix-cell fixed');
+        left.innerHTML = `<button class="username-link" data-user="${p.username}">${p.username}</button>`;
+        row.appendChild(left);
+        const set = unlocks.get(p.username) || new Set();
+        columns.forEach(a => {
+            const has = set.has(a.key);
+            const cell = el('div', `matrix-cell ${has ? 'hit' : 'miss'}`);
+            cell.setAttribute('title', `${p.username} ${has ? 'has' : 'does not have'} ${a.label}`);
+            row.appendChild(cell);
+        });
+        table.appendChild(row);
+    });
+
+    // Legend
+    const legend = el('div', 'matrix-legend');
+    legend.innerHTML = `<span class="legend-swatch hit"></span> Unlocked <span class="legend-swatch miss"></span> Not unlocked`;
+
+    const headerEl = el('h3', 'insight-title');
+    headerEl.textContent = 'Players × Achievements';
+    mount.appendChild(headerEl);
+    // Set CSS var for column count
+    mount.style.setProperty('--matrix-cols', String(columns.length));
+    mount.appendChild(table);
+    mount.appendChild(legend);
+}
+
+async function renderAchievementsPage() {
+    // Render insights first, then catalog
     const container = $('#achievementsContainer');
+    const insightsWrap = $('#insightsContainer');
+    const matrixWrap = $('#relationshipMatrix');
 
-    // Group achievements by category
-    const categories = {};
-    ACHIEVEMENT_CATALOG.forEach(achievement => {
-        if (!categories[achievement.category]) {
-            categories[achievement.category] = [];
-        }
-        categories[achievement.category].push(achievement);
-    });
+    // Load data needed for insights
+    let leaderboard = null, skillRankings = null, globalStats = null;
+    try {
+        leaderboard = await window.fetchJSON('/api/leaderboard?limit=200');
+    } catch (_) { }
+    try {
+        skillRankings = await window.fetchJSON('/api/skill-rankings');
+    } catch (_) { }
+    try {
+        const stats = await window.fetchJSON('/api/achievements/stats');
+        globalStats = {
+            counts: stats?.counts || {},
+            totalPlayers: Number(stats?.totalPlayers) || leaderboard?.totalPlayers || leaderboard?.players?.length || 0
+        };
+    } catch (_) {
+        globalStats = { counts: {}, totalPlayers: leaderboard?.totalPlayers || leaderboard?.players?.length || 0 };
+    }
 
-    // Render each category
-    Object.keys(CATEGORY_INFO).forEach(categoryKey => {
-        if (categories[categoryKey]) {
-            container.appendChild(createCategorySection(categoryKey, categories[categoryKey]));
-        }
-    });
+    // Render insights and matrix
+    try { renderInsights(globalStats, leaderboard, skillRankings); } catch (_) { }
+    try { renderRelationshipMatrix(globalStats, leaderboard, skillRankings); } catch (_) { }
+
+    // Group achievements by category for catalog
+    if (container) {
+        container.innerHTML = '';
+        const categories = {};
+        ACHIEVEMENT_CATALOG.forEach(achievement => {
+            if (!categories[achievement.category]) {
+                categories[achievement.category] = [];
+            }
+            categories[achievement.category].push(achievement);
+        });
+        Object.keys(CATEGORY_INFO).forEach(categoryKey => {
+            if (categories[categoryKey]) {
+                container.appendChild(createCategorySection(categoryKey, categories[categoryKey]));
+            }
+        });
+    }
 }
 
 function init() {
@@ -176,7 +399,13 @@ function init() {
         apiSpan.textContent = displayBase;
     }
 
-    renderAchievementsPage();
+    renderAchievementsPage().then(() => {
+        // Validate that key visuals exist; if not, surface a subtle toast
+        const ok = !!document.querySelector('.insights-grid') && !!document.querySelector('.matrix');
+        if (!ok) {
+            try { toast('Note: Some insights could not be rendered (missing data). Showing catalog.', 'info', 4000); } catch (_) { }
+        }
+    });
 }
 
 init();

@@ -71,20 +71,36 @@
                     </ol>
                 </nav>
 
-                <!-- Achievement Categories -->
-                <div class="space-y-6">
-                    <div class="text-center mb-8">
-                        <h2 class="text-3xl font-bold text-foreground mb-2">🏆 Achievement System</h2>
-                        <p class="text-muted text-lg max-w-2xl mx-auto">
-                            Unlock achievements by reaching milestones in your OSRS journey. These badges showcase your
-                            dedication and skill across different aspects of the game.
+                <!-- Achievement Insights -->
+                <div class="space-y-8">
+                    <div class="text-center mb-4">
+                        <h2 class="text-3xl font-bold text-foreground mb-2">🕸️ Achievement Network</h2>
+                        <p class="text-muted text-lg max-w-3xl mx-auto">
+                            Explore how players and achievements connect. See who unlocks the most, which badges are
+                            common or rare, and how achievements cluster across the top players.
                         </p>
                     </div>
 
-                    <!-- Achievement Categories -->
-                    <div id="achievementsContainer" class="space-y-8">
-                        <!-- Categories will be populated by JavaScript -->
-                    </div>
+                    <!-- Dynamic Insights: top players, common/rare, summary -->
+                    <section id="insightsContainer" class="space-y-6">
+                        <!-- Populated by achievements.js -->
+                    </section>
+
+                    <!-- Relationship Matrix (Players × Achievements) -->
+                    <section id="relationshipMatrix" class="space-y-3">
+                        <!-- Populated by achievements.js -->
+                    </section>
+
+                    <!-- Collapsible Catalog (secondary) -->
+                    <details id="catalogWrap" class="ach-catalog" open>
+                        <summary class="ach-catalog__summary">
+                            <span class="flex-items-center gap-2"><i data-lucide="grid" class="w-4 h-4"></i> Explore
+                                Achievement Catalog</span>
+                        </summary>
+                        <div id="achievementsContainer" class="space-y-8 mt-3">
+                            <!-- Categories will be populated by JavaScript -->
+                        </div>
+                    </details>
                 </div>
             </main>
             <footer class="p-4 text-xs text-muted text-center border-t-2 border-border-dark bg-layer site-footer">
