@@ -154,25 +154,31 @@ export function evaluateAchievements(user, ctx) {
         else if (tier.name === 'Diamond') out.add('tier-diamond');
     }
 
-    // Ranking achievements
+    // Ranking achievements (keep only highest per sub-family)
     if (ctx) {
-        const top1Any = SKILLS.some(s => ctx.top10BySkill?.get(s)?.has(unameLower) && (() => false)()); // placeholder to avoid eslint
         const top10Any = SKILLS.some(s => ctx.top10BySkill?.get(s)?.has(unameLower));
         const top100Any = SKILLS.some(s => ctx.top100BySkill?.get(s)?.has(unameLower));
         const top1Count = ctx.top1SkillsByUserCount?.get(unameLower) || 0;
-        if (top1Count >= 1) out.add('crowned-any');
+        // Crown family: triple-crown > crowned-any
         if (top1Count >= 3) out.add('triple-crown');
+        else if (top1Count >= 1) out.add('crowned-any');
+        // Top-any family: top-10-any > top-100-any
         if (top10Any) out.add('top-10-any');
-        if (top100Any) out.add('top-100-any');
+        else if (top100Any) out.add('top-100-any');
     }
 
-    // Account progression
-    if (totalLvl >= 2000) out.add('total-2000');
-    if (totalLvl >= 1500) out.add('total-1500');
+    // Account progression (total level milestones) — keep only the highest milestone
+    // If additional milestones are added (e.g., total-1000), this logic will still only select the highest one.
+    if (totalLvl >= 2000) {
+        out.add('total-2000');
+    } else if (totalLvl >= 1500) {
+        out.add('total-1500');
+    }
     const count99 = SKILLS.filter(s => levels[s] >= 99).length;
+    // 99s family: maxed-account > seven-99s > five-99s
     if (count99 >= SKILLS.length) out.add('maxed-account');
-    if (count99 >= 7) out.add('seven-99s');
-    if (count99 >= 5) out.add('five-99s');
+    else if (count99 >= 7) out.add('seven-99s');
+    else if (count99 >= 5) out.add('five-99s');
     const combatSkills = ['attack', 'strength', 'defence', 'hitpoints', 'ranged', 'magic', 'prayer'];
     if (combatSkills.every(s => levels[s] >= 99)) out.add('combat-maxed');
 
@@ -223,27 +229,31 @@ export function evaluateAchievements(user, ctx) {
         let above = 0;
         for (const s of SKILLS) if (levels[s] > (ctx.skillAvgLevel.get(s) || 0)) above++;
         const ratio = above / SKILLS.length;
+        // Performance family: elite > versatile > consistent
         if (ratio >= 0.90) out.add('elite');
-        if (ratio >= 0.75) out.add('versatile');
-        if (ratio >= 0.50) out.add('consistent');
+        else if (ratio >= 0.75) out.add('versatile');
+        else if (ratio >= 0.50) out.add('consistent');
     }
 
     // XP thresholds
-    if (totalXp >= 1_000_000) out.add('xp-millionaire');
+    // XP thresholds family: xp-billionaire > xp-millionaire
     if (totalXp >= 1_000_000_000) out.add('xp-billionaire');
+    else if (totalXp >= 1_000_000) out.add('xp-millionaire');
 
     // Activity (timestamps in ms)
     const ageMs = now - Number(user.updatedAt || 0);
+    // Activity family: daily-grinder > dedicated > weekly-active > monthly-active
     if (ageMs <= 24 * 3600 * 1000) out.add('daily-grinder');
-    if (ageMs <= 3 * 24 * 3600 * 1000) out.add('dedicated');
-    if (ageMs <= 7 * 24 * 3600 * 1000) out.add('weekly-active');
-    if (ageMs <= 30 * 24 * 3600 * 1000) out.add('monthly-active');
+    else if (ageMs <= 3 * 24 * 3600 * 1000) out.add('dedicated');
+    else if (ageMs <= 7 * 24 * 3600 * 1000) out.add('weekly-active');
+    else if (ageMs <= 30 * 24 * 3600 * 1000) out.add('monthly-active');
 
     // Average level milestones
     const avgLevel = totalLvl / SKILLS.length;
+    // Average level milestones family: 90 > 75 > 50
     if (avgLevel >= 90) out.add('level-90-average');
-    if (avgLevel >= 75) out.add('level-75-average');
-    if (avgLevel >= 50) out.add('level-50-average');
+    else if (avgLevel >= 75) out.add('level-75-average');
+    else if (avgLevel >= 50) out.add('level-50-average');
 
     // Special combinations
     if (levels.magic >= 80 && levels.ranged >= 80) out.add('magic-ranged');
@@ -275,4 +285,53 @@ export function mergeNewUnlocks(user, unlockedSet, timestampMs = Date.now()) {
         newlyUnlocked.push(key);
     }
     return newlyUnlocked;
+}
+
+// Prune redundant achievements within families so only the highest in the family remains.
+// Currently implemented for total level milestones: keep only the highest 'total-*' key present.
+export function pruneAchievementFamilies(user) {
+    if (!user || !user.achievements || typeof user.achievements !== 'object') return [];
+    const removed = [];
+    const entries = Object.entries(user.achievements);
+    const totalKeys = entries
+        .map(([k, ts]) => ({ k, ts }))
+        .filter(e => typeof e.k === 'string' && e.k.startsWith('total-'));
+    if (totalKeys.length > 1) {
+        // Pick the highest numeric threshold from keys like 'total-1500', 'total-2000'
+        const withVal = totalKeys
+            .map(e => ({ ...e, val: parseInt(e.k.split('-')[1], 10) }))
+            .filter(e => Number.isFinite(e.val))
+            .sort((a, b) => b.val - a.val);
+        const keepKey = withVal.length ? withVal[0].k : null;
+        if (keepKey) {
+            for (const { k } of totalKeys) {
+                if (k !== keepKey) {
+                    delete user.achievements[k];
+                    removed.push(k);
+                }
+            }
+        }
+    }
+    // Generic family pruner by priority order (keep highest = first present)
+    const pruneByOrder = (keysInPriorityOrder) => {
+        const present = keysInPriorityOrder.filter(k => user.achievements[k]);
+        if (present.length > 1) {
+            const keep = present[0];
+            for (const k of present.slice(1)) { delete user.achievements[k]; removed.push(k); }
+        }
+    };
+    // 99s family
+    pruneByOrder(['maxed-account', 'seven-99s', 'five-99s']);
+    // Activity family
+    pruneByOrder(['daily-grinder', 'dedicated', 'weekly-active', 'monthly-active']);
+    // Performance family
+    pruneByOrder(['elite', 'versatile', 'consistent']);
+    // Average level family
+    pruneByOrder(['level-90-average', 'level-75-average', 'level-50-average']);
+    // Ranking sub-families
+    pruneByOrder(['triple-crown', 'crowned-any']);
+    pruneByOrder(['top-10-any', 'top-100-any']);
+    // XP thresholds
+    pruneByOrder(['xp-billionaire', 'xp-millionaire']);
+    return removed;
 }

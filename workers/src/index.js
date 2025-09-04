@@ -15,6 +15,7 @@ import {
     evaluateAchievements,
     mergeNewUnlocks,
     computePrevalenceCounts,
+    pruneAchievementFamilies,
     ACHIEVEMENT_KEYS
 } from './achievements.js';
 import {
@@ -285,6 +286,8 @@ async function persistAchievementStats(env, users) {
         for (const u of users) {
             const got = evaluateAchievements(u, ctx);
             const newly = mergeNewUnlocks(u, got, now);
+            // Always prune achievement families to keep only the highest per category (e.g., total level milestones)
+            const pruned = pruneAchievementFamilies(u);
             if (newly.length) {
                 updatedUsers.push(u);
                 for (const key of newly) {
@@ -293,6 +296,10 @@ async function persistAchievementStats(env, users) {
                         events.push({ key, username: u.username, timestamp: now });
                     }
                 }
+            }
+            // If pruning removed any keys, persist as well
+            if (pruned && pruned.length && !updatedUsers.includes(u)) {
+                updatedUsers.push(u);
             }
         }
         // Persist users that changed
@@ -413,7 +420,20 @@ function handleHealth() {
 async function handleUserAchievements(env, username) {
     const user = await getUser(env, username);
     if (!user) return notFound('User not found');
-    return jsonResponse({ username: user.username, achievements: user.achievements || {}, generatedAt: Date.now() }, { headers: { 'cache-control': 'public, max-age=30' } });
+    // Prepare a filtered view that keeps only the highest total-* milestone
+    const ach = { ...(user.achievements || {}) };
+    const totalKeys = Object.keys(ach).filter(k => typeof k === 'string' && k.startsWith('total-'));
+    if (totalKeys.length > 1) {
+        const withVal = totalKeys
+            .map(k => ({ k, val: parseInt(k.split('-')[1], 10) }))
+            .filter(e => Number.isFinite(e.val))
+            .sort((a, b) => b.val - a.val);
+        const keep = withVal.length ? withVal[0].k : null;
+        if (keep) {
+            for (const k of totalKeys) { if (k !== keep) delete ach[k]; }
+        }
+    }
+    return jsonResponse({ username: user.username, achievements: ach, generatedAt: Date.now() }, { headers: { 'cache-control': 'public, max-age=30' } });
 }
 
 async function handleAchievementsStats(env) {

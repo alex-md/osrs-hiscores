@@ -632,7 +632,7 @@ function renderUserView(username) {
         const levels = SKILLS.map(s => user.skills[s]?.level || 1);
         const total = levels.reduce((a, b) => a + b, 0);
         if (total >= 2000) push('total-2000');
-        if (total >= 1500) push('total-1500');
+        else if (total >= 1500) push('total-1500');
         const count99 = levels.filter(l => l >= 99).length;
         if (levels.every(l => l >= 99)) push('maxed-account');
         if (count99 >= 7) push('seven-99s');
@@ -708,30 +708,31 @@ function renderUserView(username) {
         // Combat Pure: high combat, low non-combat
         if (avgCombat >= 80 && avgNonCombat <= 30) push('combat-pure');
 
-        // Performance
+        // Performance family: elite > versatile > consistent
         const aboveAvg = SKILLS.filter(s => (user.skills[s]?.level || 1) > (averages[s]?.level || 1)).length;
-        if (aboveAvg / SKILLS.length >= 0.90) push('elite');
-        if (aboveAvg / SKILLS.length >= 0.75) push('versatile');
-        if (aboveAvg / SKILLS.length >= 0.50) push('consistent');
-        // XP achievements
+        const ratio = aboveAvg / SKILLS.length;
+        if (ratio >= 0.90) push('elite');
+        else if (ratio >= 0.75) push('versatile');
+        else if (ratio >= 0.50) push('consistent');
+        // XP achievements family: xp-billionaire > xp-millionaire
         const totalXP = SKILLS.reduce((sum, s) => sum + (user.skills[s]?.xp || 0), 0);
         if (totalXP >= 1000000000) push('xp-billionaire');
-        if (totalXP >= 1000000) push('xp-millionaire');
+        else if (totalXP >= 1000000) push('xp-millionaire');
 
-        // Activity
+        // Activity family: daily > 3d > 7d > 30d
         if (user.updatedAt) {
           const diffH = (now - user.updatedAt) / 3600000;
           if (diffH <= 24) push('daily-grinder');
-          if (diffH <= 72) push('dedicated');
-          if (diffH <= 168) push('weekly-active');
-          if (diffH <= 720) push('monthly-active');
+          else if (diffH <= 72) push('dedicated');
+          else if (diffH <= 168) push('weekly-active');
+          else if (diffH <= 720) push('monthly-active');
         }
 
-        // Level milestones
+        // Level milestones family: 90 > 75 > 50
         const avgLevel = total / SKILLS.length;
         if (avgLevel >= 90) push('level-90-average');
-        if (avgLevel >= 75) push('level-75-average');
-        if (avgLevel >= 50) push('level-50-average');
+        else if (avgLevel >= 75) push('level-75-average');
+        else if (avgLevel >= 50) push('level-50-average');
 
         // Special combinations
         const ranged = user.skills.ranged?.level || 1;
@@ -1215,7 +1216,7 @@ function deriveAchievementsForPlayer(player, rankings, totalPlayers) {
   // Totals and maxing
   if (player.totalLevel >= 2277) push('maxed-account'); // Assuming max total is 2277
   if (player.totalLevel >= 2000) push('total-2000');
-  if (player.totalLevel >= 1500) push('total-1500');
+  else if (player.totalLevel >= 1500) push('total-1500');
 
   // Activity
   if (player.updatedAt) {
