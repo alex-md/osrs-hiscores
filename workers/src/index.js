@@ -26,7 +26,8 @@ import {
     weightedRandomChoice,
     assignRandomArchetype,
     sanitizeUsername,
-    fetchRandomWords
+    fetchRandomWords,
+    inferMetaTierWithContext
 } from './utils.js';
 
 // Lightweight per-isolate memory cache and throttling to lower KV pressure
@@ -74,10 +75,9 @@ async function kvGetCached(env, key, { ttlSeconds = 10 } = {}) {
 // Limit parallel async ops
 async function mapWithConcurrency(items, limit, mapper) {
     const results = new Array(items.length);
-    let i = 0; let running = 0; let rejected = false;
+    let i = 0; let running = 0;
     return new Promise((resolve) => {
         const pump = () => {
-            if (rejected) return;
             while (running < limit && i < items.length) {
                 const idx = i++;
                 running++;
@@ -112,95 +112,53 @@ async function cacheResponseIfPossible(request, compute) {
 
 __name(cacheResponseIfPossible, "cacheResponseIfPossible");
 function newUser(username) {
-  const skills = {};
-  const MIN_XP = 1154;
-  const MAX_XP = 2000000;
+    const skills = {};
+    const MIN_XP = 1154;
+    const MAX_XP = 2000000;
 
-  function xpToLevel(xp) {
-    let points = 0;
-    for (let lvl = 1; lvl < 99; lvl++) {
-      points += Math.floor(lvl + 300 * Math.pow(2, lvl / 7));
-      const expAtNext = Math.floor(points / 4);
-      if (expAtNext > xp) return lvl;
+    function xpToLevel(xp) {
+        let points = 0;
+        for (let lvl = 1; lvl < 99; lvl++) {
+            points += Math.floor(lvl + 300 * Math.pow(2, lvl / 7));
+            const expAtNext = Math.floor(points / 4);
+            if (expAtNext > xp) return lvl;
+        }
+        return 99;
     }
-    return 99;
-  }
 
-  function randInt(min, max) {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
-  }
+    function randInt(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
 
-  SKILLS.forEach((s) => {
-    const xp = randInt(MIN_XP, MAX_XP);
-    skills[s] = { xp, level: xpToLevel(xp) };
-  });
+    SKILLS.forEach((s) => {
+        const xp = randInt(MIN_XP, MAX_XP);
+        skills[s] = { xp, level: xpToLevel(xp) };
+    });
 
-  // Preserve original hitpoints behavior
-  skills.hitpoints.level = 10;
-  skills.hitpoints.xp = 1154;
+    // Preserve original hitpoints behavior
+    skills.hitpoints.level = 10;
+    skills.hitpoints.xp = 1154;
 
-  return {
-    username,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-    skills,
-    totalLevel: totalLevel(skills),
-    totalXP: totalXP(skills),
-    activity: "INACTIVE",
-    archetype: assignRandomArchetype(),
-    achievements: {},
-    // key -> timestamp ms
-    needsHpMigration: false,
-    version: 2
-  };
+    return {
+        username,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        skills,
+        totalLevel: totalLevel(skills),
+        totalXP: totalXP(skills),
+        activity: "INACTIVE",
+        archetype: assignRandomArchetype(),
+        achievements: {},
+        // key -> timestamp ms
+        needsHpMigration: false,
+        version: 2
+    };
 }
 function recalcTotals(user) {
     user.totalLevel = totalLevel(user.skills);
     user.totalXP = totalXP(user.skills);
 }
 
-// Meta tier inference prioritizing overall rank percentiles with fallbacks.
-// Returns an object { name, ordinal } where lower ordinal is higher prestige.
-function inferMetaTierWithContext(user, ctx) {
-    try {
-        const rank = Number(ctx?.rank) || Infinity;
-        const totalPlayers = Math.max(1, Number(ctx?.totalPlayers) || 1);
-        const top1SkillsCount = Math.max(0, Number(ctx?.top1SkillsCount) || 0);
-
-        // Grandmaster: absolute #1 or #1 in 3+ skills
-        if (rank === 1 || top1SkillsCount >= 3) return { name: 'Grandmaster', ordinal: 0 };
-
-        if (totalPlayers <= 500) {
-            // Absolute thresholds for small ladders
-            if (rank <= 2) return { name: 'Master', ordinal: 1 };
-            if (rank <= 5) return { name: 'Diamond', ordinal: 2 };
-            if (rank <= 15) return { name: 'Platinum', ordinal: 3 };
-
-            // Scaled broader tiers
-            if (rank <= Math.ceil(totalPlayers * 0.05)) return { name: 'Gold', ordinal: 4 };
-            if (rank <= Math.ceil(totalPlayers * 0.20)) return { name: 'Silver', ordinal: 5 };
-            if (rank <= Math.ceil(totalPlayers * 0.50)) return { name: 'Bronze', ordinal: 6 };
-        } else {
-            // Percentile thresholds for big ladders
-            const percentile = rank / totalPlayers; // 0..1
-            if (percentile <= 0.0001) return { name: 'Master', ordinal: 1 };
-            if (percentile <= 0.001) return { name: 'Diamond', ordinal: 2 };
-            if (percentile <= 0.01) return { name: 'Platinum', ordinal: 3 };
-            if (percentile <= 0.05) return { name: 'Gold', ordinal: 4 };
-            if (percentile <= 0.20) return { name: 'Silver', ordinal: 5 };
-            if (percentile <= 0.50) return { name: 'Bronze', ordinal: 6 };
-        }
-
-        // Fallback by account maturity if no rank context available or below 50%
-        const levels = SKILLS.map(s => user.skills?.[s]?.level || 1);
-        const total = levels.reduce((a, b) => a + b, 0);
-        if (total >= 1700) return { name: 'Expert', ordinal: 5 };
-        if (total >= 900) return { name: 'Adept', ordinal: 6 };
-        return { name: 'Novice', ordinal: 7 };
-    } catch (_) {
-        return { name: 'Novice', ordinal: 7 };
-    }
-}
 
 function applyXpGain(user, skill, gainedXp) {
     const s = user.skills[skill];
@@ -358,34 +316,19 @@ async function persistAchievementStats(env, users) {
 
 async function handleLeaderboard(env, url) {
     const users = await getAllUsers(env, { fresh: false });
-
-    // Precompute number of skills where each user is rank 1 (ties count as rank 1)
-    const top1ByUser = new Map();
-    for (const skill of SKILLS) {
-        let bestXp = -1;
-        for (const u of users) {
-            const xp = u?.skills?.[skill]?.xp || 0;
-            if (xp > bestXp) bestXp = xp;
-        }
-        if (bestXp <= 0) continue;
-        for (const u of users) {
-            const xp = u?.skills?.[skill]?.xp || 0;
-            if (xp === bestXp) {
-                const key = (u.username || '').toLowerCase();
-                top1ByUser.set(key, (top1ByUser.get(key) || 0) + 1);
-            }
-        }
-    }
-
+    // Use achievement context to avoid recomputing per-skill scans
+    const ctx = computeAchievementContext(users, { useCache: true });
+    const top1ByUser = ctx.top1SkillsByUserCount || new Map();
+    // Ensure rank on each user aligns with context
     users.sort((a, b) => b.totalLevel - a.totalLevel || b.totalXP - a.totalXP || a.username.localeCompare(b.username));
-    users.forEach((u, i) => u.rank = i + 1);
+    users.forEach((u) => { u.rank = ctx.rankByUser?.get(String(u.username || '').toLowerCase()) || u.rank || 0; });
 
     // Compute tier prevalence for quick frontend stats
     const tierCounts = { Novice: 0, Bronze: 0, Silver: 0, Gold: 0, Platinum: 0, Diamond: 0, Master: 0, Grandmaster: 0, Adept: 0, Expert: 0 };
     const playersOut = [];
     for (const u of users) {
-        const ctx = { rank: u.rank, totalPlayers: users.length, top1SkillsCount: top1ByUser.get((u.username || '').toLowerCase()) || 0 };
-        const tierInfo = inferMetaTierWithContext(u, ctx);
+        const perUserCtx = { rank: u.rank, totalPlayers: users.length, top1SkillsCount: top1ByUser.get((u.username || '').toLowerCase()) || 0 };
+        const tierInfo = inferMetaTierWithContext(u, perUserCtx);
         tierCounts[tierInfo.name] = (tierCounts[tierInfo.name] || 0) + 1;
         playersOut.push({
             username: u.username,
@@ -395,7 +338,7 @@ async function handleLeaderboard(env, url) {
             updatedAt: u.updatedAt,
             archetype: u.archetype || null,
             tier: tierInfo.name,
-            tierInfo: { ...tierInfo, top1Skills: ctx.top1SkillsCount }
+            tierInfo: { ...tierInfo, top1Skills: perUserCtx.top1SkillsCount }
         });
     }
     const limitParam = url.searchParams.get('limit');
@@ -683,76 +626,27 @@ async function handleGenerateUsersDryRun(env, url) {
 
     for (let i = 0; i < actualCount; i++) {
         const startTime = Date.now();
-        let source = 'unknown';
+        let source = 'generateUsername';
         let error = null;
-
+        let username;
         try {
-            // Test TWDNE scraping first
-            const SCRAPING_ENABLED = env.ALLOW_TWODNE_SCRAPE !== 'false';
-            let username = null;
-
-            if (SCRAPING_ENABLED) {
-                try {
-                    const word = await scrapeWordFromTWDNE();
-                    if (word) {
-                        const sanitized = sanitizeUsername(word.charAt(0).toUpperCase() + word.slice(1));
-                        if (sanitized && !existingUsernames.has(sanitized.toLowerCase())) {
-                            username = sanitized;
-                            source = 'twdne';
-                        }
-                    }
-                } catch (err) {
-                    // Will fall through to fetchRandomWords
-                }
-            } else {
-                source = 'twdne_disabled';
-            }
-
-            // Fallback to fetchRandomWords
-            if (!username) {
-                try {
-                    const words = await fetchRandomWords(2, existingUsernames);
-                    if (words.length > 0) {
-                        username = words[0];
-                        source = 'fetchRandomWords';
-                    }
-                } catch (err) {
-                    error = `fetchRandomWords failed: ${err.message}`;
-                }
-            }
-
-            // Ultimate fallback
-            if (!username) {
-                const prefixes = ['Player', 'User', 'Hero', 'Warrior'];
-                const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
-                let candidate;
-                let attempts = 0;
-                do {
-                    candidate = prefix + Math.floor(Math.random() * 10000);
-                    attempts++;
-                } while (existingUsernames.has(candidate.toLowerCase()) && attempts < 20);
-                username = candidate;
+            // Reuse generateUsername to avoid duplication; it respects existingUsernames set
+            username = await generateUsername(env, existingUsernames);
+            if (!username || existingUsernames.has(String(username).toLowerCase())) {
+                // Ultimate fallback if a collision somehow happens
+                const fallback = 'Player' + Math.floor(Math.random() * 10000);
+                username = sanitizeUsername(fallback);
                 source = 'fallback';
             }
-
-            // Add to existing set to prevent duplicates in this dry run
-            existingUsernames.add(username.toLowerCase());
+            existingUsernames.add(String(username).toLowerCase());
             results.push(username);
-
         } catch (err) {
             error = `Generation failed: ${err.message}`;
             results.push(`Error${i}`);
             source = 'error';
         }
-
         const duration = Date.now() - startTime;
-        generationDetails.push({
-            index: i + 1,
-            username: results[results.length - 1],
-            source,
-            duration: `${duration}ms`,
-            error
-        });
+        generationDetails.push({ index: i + 1, username: results[results.length - 1], source, duration: `${duration}ms`, error });
     }
 
     return jsonResponse({
@@ -911,23 +805,19 @@ async function handleDeleteUsersBatch(env, request) {
             if (isProtected) guardedSkips++;
             return !isProtected;
         });
-        await Promise.all(toDelete.map(k => env.HISCORES_KV.delete(k).then(() => { deleted++; }).catch(() => { })));
         for (const baseKey of toDelete) {
-            const relPrefix = baseKey + ':';
-            let relCursor;
-            do {
-                const rel = await env.HISCORES_KV.list({ prefix: relPrefix, limit: 1000, cursor: relCursor });
-                relCursor = rel.list_complete ? undefined : rel.cursor;
-                if (rel.keys && rel.keys.length) {
-                    const relBatches = chunk(rel.keys.map(x => x.name), 50);
-                    for (const rb of relBatches) {
-                        await Promise.all(rb.map(rk => env.HISCORES_KV.delete(rk).then(() => { deletedRelated++; }).catch(() => { })));
-                    }
-                }
-            } while (relCursor);
+            const res = await deleteUserAndData(env, baseKey);
+            deleted += res.deleted;
+            deletedRelated += res.deletedRelated;
         }
     }
-    return jsonResponse({ deleted, deletedRelated, requested: keysToDelete.length, guardedTop50Skipped: guardedSkips, protectedTopN: PROTECTED_TOP_N });
+    return jsonResponse({
+        deleted,
+        deletedRelated,
+        requested: keysToDelete.length,
+        [`guardedTop${PROTECTED_TOP_N}Skipped`]: guardedSkips,
+        protectedTopN: PROTECTED_TOP_N
+    });
 }
 
 // Delete all users whose usernames match a "bad" regex.
@@ -944,7 +834,7 @@ async function handleDeleteBadUsernames(env, request) {
     let patternSource = typeof payload?.pattern === 'string' && payload.pattern.trim() ? payload.pattern.trim() : null;
     let matcher;
     try {
-        if (patternSource) matcher = new RegExp(patternSource); else { patternSource = '^(?:[0-9]+[A-Za-z]+|[A-Z][A-Za-z]*[0-9]+)$'; matcher = new RegExp(patternSource); }
+        if (patternSource) matcher = new RegExp(patternSource, 'i'); else { patternSource = '^(?:[0-9]+[A-Za-z]+|[A-Z][A-Za-z]*[0-9]+)$'; matcher = new RegExp(patternSource, 'i'); }
     } catch (e) {
         return jsonResponse({ error: 'Invalid regex pattern', detail: String(e) }, { status: 400 });
     }
@@ -952,38 +842,27 @@ async function handleDeleteBadUsernames(env, request) {
     outer: do {
         const list = await env.HISCORES_KV.list({ prefix: 'user:', cursor, limit: 1000 });
         cursor = list.list_complete ? undefined : list.cursor;
-        const keys = list.keys.map(k => k.name);
-        const chunkSize = 50;
-        for (let i = 0; i < keys.length; i += chunkSize) {
-            const slice = keys.slice(i, i + chunkSize);
-            const values = await mapWithConcurrency(slice, 8, (k) => kvGetCached(env, k, { ttlSeconds: 10 }));
-            for (let j = 0; j < values.length; j++) {
-                const raw = values[j]; if (!raw) continue; let user; try { user = JSON.parse(raw); } catch (_) { continue; }
-                scanned++; const uname = user?.username || '';
-                if (typeof uname === 'string' && matcher.test(uname)) { matched.push({ username: uname, key: slice[j] }); if (matched.length >= limit) { cursor = undefined; break outer; } }
+        for (const k of list.keys) {
+            const keyName = k.name; // e.g., 'user:SomeName'
+            const uname = keyName.slice('user:'.length);
+            scanned++;
+            if (typeof uname === 'string' && matcher.test(uname)) {
+                matched.push({ username: uname, key: keyName });
+                if (matched.length >= limit) { cursor = undefined; break outer; }
             }
-            // small pacing between chunks to avoid bursts
-            await sleep(5);
         }
+        // small pacing between pages to avoid bursts
+        await sleep(5);
     } while (cursor);
     if (dryRun) return jsonResponse({ dryRun: true, pattern: patternSource, matched: matched.map(m => m.username), count: matched.length, scanned });
     const keys = matched.map(m => m.key);
     const chunk = (arr, n) => arr.reduce((acc, _, i) => (i % n ? acc : [...acc, arr.slice(i, i + n)]), []);
     let deleted = 0; let deletedRelated = 0;
     for (const batch of chunk(keys, 50)) {
-        await Promise.all(batch.map(k => env.HISCORES_KV.delete(k).then(() => { deleted++; }).catch(() => { })));
         for (const baseKey of batch) {
-            const relPrefix = baseKey + ':'; let relCursor;
-            do {
-                const rel = await env.HISCORES_KV.list({ prefix: relPrefix, limit: 1000, cursor: relCursor });
-                relCursor = rel.list_complete ? undefined : rel.cursor;
-                if (rel.keys && rel.keys.length) {
-                    const relBatches = chunk(rel.keys.map(x => x.name), 50);
-                    for (const rb of relBatches) {
-                        await Promise.all(rb.map(rk => env.HISCORES_KV.delete(rk).then(() => { deletedRelated++; }).catch(() => { })));
-                    }
-                }
-            } while (relCursor);
+            const res = await deleteUserAndData(env, baseKey);
+            deleted += res.deleted;
+            deletedRelated += res.deletedRelated;
         }
     }
     return jsonResponse({ pattern: patternSource, deleted, deletedRelated, matched: matched.length, scanned });
@@ -1013,24 +892,36 @@ async function handleDeleteBottomQuartile(env, request) {
     const chunk = (arr, n) => arr.reduce((acc, _, i) => (i % n ? acc : [...acc, arr.slice(i, i + n)]), []);
     let deleted = 0; let deletedRelated = 0;
     for (const batch of chunk(keysToDelete, 50)) {
-        await Promise.all(batch.map(k => env.HISCORES_KV.delete(k).then(() => { deleted++; }).catch(() => { }))); // best-effort
         for (const baseKey of batch) {
-            const relPrefix = baseKey + ':';
-            let relCursor;
-            do {
-                const rel = await env.HISCORES_KV.list({ prefix: relPrefix, limit: 1000, cursor: relCursor });
-                relCursor = rel.list_complete ? undefined : rel.cursor;
-                if (rel.keys && rel.keys.length) {
-                    const relBatches = chunk(rel.keys.map(x => x.name), 50);
-                    for (const rb of relBatches) {
-                        await Promise.all(rb.map(rk => env.HISCORES_KV.delete(rk).then(() => { deletedRelated++; }).catch(() => { }))); // best-effort
-                    }
-                }
-            } while (relCursor);
+            const res = await deleteUserAndData(env, baseKey);
+            deleted += res.deleted;
+            deletedRelated += res.deletedRelated;
         }
     }
 
     return jsonResponse({ deleted, deletedRelated, totalPlayers: users.length, target: keysToDelete.length });
+}
+
+// Utility: delete a user key and all related keys under the prefix `${userKey}:*`
+async function deleteUserAndData(env, userKvKey) {
+    const chunk = (arr, n) => arr.reduce((acc, _, i) => (i % n ? acc : [...acc, arr.slice(i, i + n)]), []);
+    let deleted = 0; let deletedRelated = 0;
+    // Delete the base user key
+    try { await env.HISCORES_KV.delete(userKvKey); deleted++; } catch (_) { }
+    // Delete related keys with prefix
+    const relPrefix = userKvKey + ':';
+    let relCursor;
+    do {
+        const rel = await env.HISCORES_KV.list({ prefix: relPrefix, limit: 1000, cursor: relCursor });
+        relCursor = rel.list_complete ? undefined : rel.cursor;
+        if (rel.keys && rel.keys.length) {
+            const relBatches = chunk(rel.keys.map(x => x.name), 50);
+            for (const rb of relBatches) {
+                await Promise.all(rb.map(rk => env.HISCORES_KV.delete(rk).then(() => { deletedRelated++; }).catch(() => { })));
+            }
+        }
+    } while (relCursor);
+    return { deleted, deletedRelated };
 }
 
 async function runScheduled(env) {

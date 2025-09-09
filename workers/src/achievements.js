@@ -2,6 +2,7 @@
 // Stores unlock timestamps per user and supports global stats + first-to-achieve logging
 
 import { SKILLS } from './constants.js';
+import { inferMetaTierWithContext } from './utils.js';
 
 // Catalog keys we can evaluate on the backend (subset aligns with frontend)
 export const ACHIEVEMENT_KEYS = [
@@ -87,49 +88,6 @@ function buildUsersSignature(users) {
     }
 }
 
-// Local copy of tier inference to avoid circular imports
-function inferMetaTierWithContextLocal(user, ctx) {
-    try {
-        const rank = Number(ctx?.rank) || Infinity;
-        const totalPlayers = Math.max(1, Number(ctx?.totalPlayers) || 1);
-        const top1SkillsCount = Math.max(0, Number(ctx?.top1SkillsCount) || 0);
-
-        // Grandmaster: absolute #1 or triple skill dominance
-        if (rank === 1 || top1SkillsCount >= 3) {
-            return { name: 'Grandmaster', ordinal: 0 };
-        }
-
-        if (totalPlayers <= 500) {
-            // Absolute thresholds for small ladders
-            if (rank <= 2) return { name: 'Master', ordinal: 1 };
-            if (rank <= 5) return { name: 'Diamond', ordinal: 2 };
-            if (rank <= 15) return { name: 'Platinum', ordinal: 3 };
-
-            // Scaled broader tiers
-            if (rank <= Math.ceil(totalPlayers * 0.05)) return { name: 'Gold', ordinal: 4 };
-            if (rank <= Math.ceil(totalPlayers * 0.20)) return { name: 'Silver', ordinal: 5 };
-            if (rank <= Math.ceil(totalPlayers * 0.50)) return { name: 'Bronze', ordinal: 6 };
-        } else {
-            // Percentile thresholds for big ladders
-            const percentile = rank / totalPlayers;
-            if (percentile <= 0.0001) return { name: 'Master', ordinal: 1 };
-            if (percentile <= 0.001) return { name: 'Diamond', ordinal: 2 };
-            if (percentile <= 0.01) return { name: 'Platinum', ordinal: 3 };
-            if (percentile <= 0.05) return { name: 'Gold', ordinal: 4 };
-            if (percentile <= 0.20) return { name: 'Silver', ordinal: 5 };
-            if (percentile <= 0.50) return { name: 'Bronze', ordinal: 6 };
-        }
-
-        // Fallback by account maturity
-        const levels = SKILLS.map(s => user.skills?.[s]?.level || 1);
-        const total = levels.reduce((a, b) => a + b, 0);
-        if (total >= 1700) return { name: 'Expert', ordinal: 5 };
-        if (total >= 900) return { name: 'Adept', ordinal: 6 };
-        return { name: 'Novice', ordinal: 7 };
-    } catch (_) {
-        return { name: 'Novice', ordinal: 7 };
-    }
-}
 
 // Compute global context needed for some achievements
 // users: array of user objects
@@ -252,7 +210,7 @@ export function evaluateAchievements(user, ctx) {
     if (ctx) {
         const rank = ctx.rankByUser?.get(unameLower) || Infinity;
         const top1Count = ctx.top1SkillsByUserCount?.get(unameLower) || 0;
-        const tier = inferMetaTierWithContextLocal(user, { rank, totalPlayers: ctx.totalPlayers || 1, top1SkillsCount: top1Count });
+        const tier = inferMetaTierWithContext(user, { rank, totalPlayers: ctx.totalPlayers || 1, top1SkillsCount: top1Count });
         if (tier.name === 'Grandmaster') out.add('tier-grandmaster');
         else if (tier.name === 'Master') out.add('tier-master');
         else if (tier.name === 'Diamond') out.add('tier-diamond');
