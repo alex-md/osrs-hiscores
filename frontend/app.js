@@ -9,28 +9,7 @@ function formatRelativeTime(ts) {
   return sec < 5 ? 'just now' : sec < 60 ? `${sec}s ago` : min < 60 ? `${min}m ago` : hr < 24 ? `${hr}h ago` : day < 30 ? `${day}d ago` : month < 12 ? `${month}mo ago` : `${year}y ago`;
 }
 async function computeGlobalAchievementStats(skillRankings, leaderboard) {
-  let averages = {};
-  try {
-    let all = skillRankings && skillRankings.rankings || {};
-    (window.SKILLS || []).forEach((s) => {
-      let arr = all[s] || [];
-      if (arr.length) {
-        let totalLvl = arr.reduce((sum, p) => sum + (p.level || 0), 0), totalXp = arr.reduce((sum, p) => sum + (p.xp || 0), 0);
-        averages[s] = {
-          level: totalLvl / arr.length,
-          xp: totalXp / arr.length
-        };
-      } else averages[s] = {
-        level: 1,
-        xp: 0
-      };
-    });
-  } catch (_) {
-    (window.SKILLS || []).forEach((s) => averages[s] = {
-      level: 1,
-      xp: 0
-    });
-  }
+  const averages = computeSkillAverages(skillRankings);
   try {
     let stats = await fetchJSON('/api/achievements/stats'), counts = stats?.counts || {}, totalPlayers = Number(stats?.totalPlayers) || leaderboard?.totalPlayers || leaderboard?.players?.length || 0;
     return {
@@ -83,6 +62,59 @@ function updateSummary(user, skillRankings) {
     let name = bestLevelSkill.charAt(0).toUpperCase() + bestLevelSkill.slice(1);
     levelEl.textContent = `Highest level: ${name} (Lv. ${bestLevel}, ${bestXp.toLocaleString()} XP)`;
   } else levelEl.textContent = "Highest level: —";
+}
+
+// Compute average level/xp per skill from skillRankings
+function computeSkillAverages(skillRankings) {
+  const averages = {};
+  try {
+    const all = (skillRankings && skillRankings.rankings) || {};
+    (window.SKILLS || []).forEach((s) => {
+      const arr = all[s] || [];
+      if (arr.length) {
+        const totalLvl = arr.reduce((sum, p) => sum + (p.level || 0), 0);
+        const totalXp = arr.reduce((sum, p) => sum + (p.xp || 0), 0);
+        averages[s] = { level: totalLvl / arr.length, xp: totalXp / arr.length };
+      } else {
+        averages[s] = { level: 1, xp: 0 };
+      }
+    });
+  } catch (_) {
+    (window.SKILLS || []).forEach((s) => (averages[s] = { level: 1, xp: 0 }));
+  }
+  return averages;
+}
+
+// Local copy of tier inference for client-only usage
+function inferMetaTierWithContextFrontend(user, ctx) {
+  try {
+    const rank = Number(ctx?.rank) || Infinity;
+    const totalPlayers = Math.max(1, Number(ctx?.totalPlayers) || 1);
+    const top1SkillsCount = Math.max(0, Number(ctx?.top1SkillsCount) || 0);
+    if (rank === 1 || top1SkillsCount >= 3) return { name: 'Grandmaster', ordinal: 0 };
+    if (totalPlayers <= 500) {
+      if (rank <= 2) return { name: 'Master', ordinal: 1 };
+      if (rank <= 5) return { name: 'Diamond', ordinal: 2 };
+      if (rank <= 15) return { name: 'Platinum', ordinal: 3 };
+      if (rank <= Math.ceil(totalPlayers * 0.05)) return { name: 'Gold', ordinal: 4 };
+      if (rank <= Math.ceil(totalPlayers * 0.20)) return { name: 'Silver', ordinal: 5 };
+      if (rank <= Math.ceil(totalPlayers * 0.50)) return { name: 'Bronze', ordinal: 6 };
+    } else {
+      const percentile = rank / totalPlayers;
+      if (percentile <= 0.0001) return { name: 'Master', ordinal: 1 };
+      if (percentile <= 0.001) return { name: 'Diamond', ordinal: 2 };
+      if (percentile <= 0.01) return { name: 'Platinum', ordinal: 3 };
+      if (percentile <= 0.05) return { name: 'Gold', ordinal: 4 };
+      if (percentile <= 0.20) return { name: 'Silver', ordinal: 5 };
+      if (percentile <= 0.50) return { name: 'Bronze', ordinal: 6 };
+    }
+    const total = (window.SKILLS || []).map(s => user?.skills?.[s]?.level || 1).reduce((a, b) => a + b, 0);
+    if (total >= 1700) return { name: 'Expert', ordinal: 5 };
+    if (total >= 900) return { name: 'Adept', ordinal: 6 };
+    return { name: 'Novice', ordinal: 7 };
+  } catch (_) {
+    return { name: 'Novice', ordinal: 7 };
+  }
 }
 function renderHomeView() {
   let root = $("#viewRoot");
@@ -144,104 +176,19 @@ function renderHomeView() {
             b.className = 'mini-badge' + (extraCls ? ' ' + extraCls : ''), b.textContent = textContent, title && (b.title = title), wrap.appendChild(b);
           }, top1 = 0;
           if (rankings) {
-            let map = void 0;
-            top1 = (function (rankings) {
-              let map = new Map();
-              if (!rankings || !rankings.rankings) return map;
-              let R = rankings.rankings;
-              return (window.SKILLS || []).forEach((s) => {
-                let arr = R[s] || [];
-                if (arr[0] && arr[0].username) {
-                  let u = arr[0].username;
-                  map.set(u, (map.get(u) || 0) + 1);
-                }
-              }), map;
-            })(rankings).get(player.username) || 0;
+            top1 = buildTop1Counts(rankings).get(player.username) || 0;
           }
           let tier = player.tier, inferred = null;
-          if (tier || (inferred = function (user, ctx) {
-            try {
-              let rank = Number(ctx?.rank) || 1 / 0, totalPlayers = Math.max(1, Number(ctx?.totalPlayers) || 1), top1SkillsCount = Math.max(0, Number(ctx?.top1SkillsCount) || 0);
-              if (1 === rank || top1SkillsCount >= 3) return {
-                name: 'Grandmaster',
-                ordinal: 0
-              };
-              if (totalPlayers <= 500) {
-                if (rank <= 2) return {
-                  name: 'Master',
-                  ordinal: 1
-                };
-                if (rank <= 5) return {
-                  name: 'Diamond',
-                  ordinal: 2
-                };
-                if (rank <= 15) return {
-                  name: 'Platinum',
-                  ordinal: 3
-                };
-                if (rank <= Math.ceil(0.05 * totalPlayers)) return {
-                  name: 'Gold',
-                  ordinal: 4
-                };
-                if (rank <= Math.ceil(0.20 * totalPlayers)) return {
-                  name: 'Silver',
-                  ordinal: 5
-                };
-                if (rank <= Math.ceil(0.50 * totalPlayers)) return {
-                  name: 'Bronze',
-                  ordinal: 6
-                };
-              } else {
-                let percentile = rank / totalPlayers;
-                if (percentile <= 0.0001) return {
-                  name: 'Master',
-                  ordinal: 1
-                };
-                if (percentile <= 0.001) return {
-                  name: 'Diamond',
-                  ordinal: 2
-                };
-                if (percentile <= 0.01) return {
-                  name: 'Platinum',
-                  ordinal: 3
-                };
-                if (percentile <= 0.05) return {
-                  name: 'Gold',
-                  ordinal: 4
-                };
-                if (percentile <= 0.20) return {
-                  name: 'Silver',
-                  ordinal: 5
-                };
-                if (percentile <= 0.50) return {
-                  name: 'Bronze',
-                  ordinal: 6
-                };
-              }
-              let levels = void 0, total = (window.SKILLS || []).map((s) => user?.skills?.[s]?.level || 1).reduce((a, b) => a + b, 0);
-              if (total >= 1700) return {
-                name: 'Expert',
-                ordinal: 5
-              };
-              if (total >= 900) return {
-                name: 'Adept',
-                ordinal: 6
-              };
-              return {
-                name: 'Novice',
-                ordinal: 7
-              };
-            } catch (_) {
-              return {
-                name: 'Novice',
-                ordinal: 7
-              };
-            }
-          }(player, {
-            rank: player.rank,
-            totalPlayers,
-            top1SkillsCount: top1
-          }), tier = inferred?.name || null), tier && !player.tier) {
+          if (
+            tier ||
+            (inferred = inferMetaTierWithContextFrontend(player, {
+              rank: player.rank,
+              totalPlayers,
+              top1SkillsCount: top1
+            })),
+            tier = inferred?.name || null,
+            tier && !player.tier
+          ) {
             let tb = document.createElement('span');
             tb.className = `tier-badge tier-${tier.toLowerCase()} tier--icon-only`;
             let tip = `${tier} • Overall #${player.rank}${top1 ? ` • #1 in ${top1} skills` : ''}`;
@@ -346,20 +293,7 @@ function renderUserView(username) {
       badge.setAttribute('title', `Updated ${updatedStr}`), meta.appendChild(badge);
     }
     userInfo.appendChild(meta), headerContent.appendChild(userInfo), headerSection.appendChild(headerContent);
-    let allSkillRankings = skillRankings.rankings || {}, averages = {};
-    SKILLS.forEach((s) => {
-      let arr = allSkillRankings[s] || [];
-      if (arr.length) {
-        let totalLvl = arr.reduce((sum, p) => sum + (p.level || 0), 0), totalXp = arr.reduce((sum, p) => sum + (p.xp || 0), 0);
-        averages[s] = {
-          level: totalLvl / arr.length,
-          xp: totalXp / arr.length
-        };
-      } else averages[s] = {
-        level: 1,
-        xp: 0
-      };
-    });
+    const averages = computeSkillAverages(skillRankings);
     let ACHIEVEMENT_CATALOG = [
       {
         key: 'tier-grandmaster',
@@ -1078,6 +1012,21 @@ let RARITY_ORDER = {
   rare: 3,
   common: 4
 };
+
+// Helper: compute a map of username -> number of skills where they are rank #1
+function buildTop1Counts(rankings) {
+  const map = new Map();
+  if (!rankings || !rankings.rankings) return map;
+  const R = rankings.rankings;
+  (window.SKILLS || []).forEach((s) => {
+    const arr = R[s] || [];
+    if (arr[0] && arr[0].username) {
+      const u = arr[0].username;
+      map.set(u, (map.get(u) || 0) + 1);
+    }
+  });
+  return map;
+}
 function deriveAchievementsForPlayer(player, rankings, totalPlayers) {
   let CATALOG = {
     'tier-grandmaster': {

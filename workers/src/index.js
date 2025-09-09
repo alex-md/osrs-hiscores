@@ -16,6 +16,7 @@ import {
     mergeNewUnlocks,
     computePrevalenceCounts,
     pruneAchievementFamilies,
+    pruneTotalMilestones,
     ACHIEVEMENT_KEYS
 } from './achievements.js';
 import {
@@ -36,6 +37,9 @@ const __inflight = new Map(); // key -> Promise
 
 function nowMs() { return Date.now(); }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// Shared small utility to split an array into chunks of size n
+const chunk = (arr, n) => arr.reduce((acc, _, i) => (i % n ? acc : [...acc, arr.slice(i, i + n)]), []);
 
 function memGet(key) {
     const e = __memCache.get(key);
@@ -116,23 +120,13 @@ function newUser(username) {
     const MIN_XP = 1154;
     const MAX_XP = 2000000;
 
-    function xpToLevel(xp) {
-        let points = 0;
-        for (let lvl = 1; lvl < 99; lvl++) {
-            points += Math.floor(lvl + 300 * Math.pow(2, lvl / 7));
-            const expAtNext = Math.floor(points / 4);
-            if (expAtNext > xp) return lvl;
-        }
-        return 99;
-    }
-
     function randInt(min, max) {
         return Math.floor(Math.random() * (max - min + 1)) + min;
     }
 
     SKILLS.forEach((s) => {
         const xp = randInt(MIN_XP, MAX_XP);
-        skills[s] = { xp, level: xpToLevel(xp) };
+        skills[s] = { xp, level: levelFromXp(xp) };
     });
 
     // Preserve original hitpoints behavior
@@ -387,19 +381,8 @@ function handleHealth() {
 async function handleUserAchievements(env, username) {
     const user = await getUser(env, username);
     if (!user) return notFound('User not found');
-    // Prepare a filtered view that keeps only the highest total-* milestone
-    const ach = { ...(user.achievements || {}) };
-    const totalKeys = Object.keys(ach).filter(k => typeof k === 'string' && k.startsWith('total-'));
-    if (totalKeys.length > 1) {
-        const withVal = totalKeys
-            .map(k => ({ k, val: parseInt(k.split('-')[1], 10) }))
-            .filter(e => Number.isFinite(e.val))
-            .sort((a, b) => b.val - a.val);
-        const keep = withVal.length ? withVal[0].k : null;
-        if (keep) {
-            for (const k of totalKeys) { if (k !== keep) delete ach[k]; }
-        }
-    }
+    // Prepare a filtered view that keeps only the highest total-* milestone (non-mutating)
+    const ach = pruneTotalMilestones(user.achievements || {});
     return jsonResponse({ username: user.username, achievements: ach, generatedAt: Date.now() }, { headers: { 'cache-control': 'public, max-age=30' } });
 }
 
@@ -794,7 +777,6 @@ async function handleDeleteUsersBatch(env, request) {
         });
     }
 
-    const chunk = (arr, n) => arr.reduce((acc, _, i) => (i % n ? acc : [...acc, arr.slice(i, i + n)]), []);
     const batches = chunk(keysToDelete, 50);
     let deleted = 0; let deletedRelated = 0; let guardedSkips = 0;
     for (const b of batches) {
@@ -856,7 +838,6 @@ async function handleDeleteBadUsernames(env, request) {
     } while (cursor);
     if (dryRun) return jsonResponse({ dryRun: true, pattern: patternSource, matched: matched.map(m => m.username), count: matched.length, scanned });
     const keys = matched.map(m => m.key);
-    const chunk = (arr, n) => arr.reduce((acc, _, i) => (i % n ? acc : [...acc, arr.slice(i, i + n)]), []);
     let deleted = 0; let deletedRelated = 0;
     for (const batch of chunk(keys, 50)) {
         for (const baseKey of batch) {
@@ -889,7 +870,6 @@ async function handleDeleteBottomQuartile(env, request) {
         return jsonResponse({ dryRun: true, totalPlayers: users.length, target: keysToDelete.length, usernames: bottom.map(u => u.username), keys: keysToDelete });
     }
 
-    const chunk = (arr, n) => arr.reduce((acc, _, i) => (i % n ? acc : [...acc, arr.slice(i, i + n)]), []);
     let deleted = 0; let deletedRelated = 0;
     for (const batch of chunk(keysToDelete, 50)) {
         for (const baseKey of batch) {
@@ -904,7 +884,6 @@ async function handleDeleteBottomQuartile(env, request) {
 
 // Utility: delete a user key and all related keys under the prefix `${userKey}:*`
 async function deleteUserAndData(env, userKvKey) {
-    const chunk = (arr, n) => arr.reduce((acc, _, i) => (i % n ? acc : [...acc, arr.slice(i, i + n)]), []);
     let deleted = 0; let deletedRelated = 0;
     // Delete the base user key
     try { await env.HISCORES_KV.delete(userKvKey); deleted++; } catch (_) { }

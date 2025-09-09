@@ -397,3 +397,24 @@ export function pruneAchievementFamilies(user) {
     pruneByOrder(['xp-billionaire', 'xp-millionaire']);
     return removed;
 }
+
+// Non-mutating helper for pruning only total-* milestones on a plain achievements object.
+// Returns a shallow-cloned object with redundant total-* keys removed, preserving other keys.
+export function pruneTotalMilestones(achievementsObj) {
+    if (!achievementsObj || typeof achievementsObj !== 'object') return {};
+    const result = { ...achievementsObj };
+    const totalKeys = Object.keys(result).filter(k => typeof k === 'string' && k.startsWith('total-'));
+    if (totalKeys.length > 1) {
+        const withVal = totalKeys
+            .map(k => ({ k, val: parseInt(k.split('-')[1], 10) }))
+            .filter(e => Number.isFinite(e.val))
+            .sort((a, b) => b.val - a.val);
+        const keep = withVal.length ? withVal[0].k : null;
+        if (keep) {
+            for (const k of totalKeys) {
+                if (k !== keep) delete result[k];
+            }
+        }
+    }
+    return result;
+}
