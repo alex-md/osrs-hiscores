@@ -110,26 +110,50 @@ async function cacheResponseIfPossible(request, compute) {
     }
 }
 
+__name(cacheResponseIfPossible, "cacheResponseIfPossible");
 function newUser(username) {
-    const skills = {};
-    SKILLS.forEach(s => { skills[s] = { xp: 0, level: 1 }; });
-    skills.hitpoints.level = 10;
-    skills.hitpoints.xp = 1154; // OSRS starting HP
-    return {
-        username,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        skills,
-        totalLevel: totalLevel(skills),
-        totalXP: totalXP(skills),
-        activity: 'INACTIVE',
-        archetype: assignRandomArchetype(),
-        achievements: {}, // key -> timestamp ms
-        needsHpMigration: false,
-        version: 2
-    };
-}
+  const skills = {};
+  const MIN_XP = 1154;
+  const MAX_XP = 2000000;
 
+  function xpToLevel(xp) {
+    let points = 0;
+    for (let lvl = 1; lvl < 99; lvl++) {
+      points += Math.floor(lvl + 300 * Math.pow(2, lvl / 7));
+      const expAtNext = Math.floor(points / 4);
+      if (expAtNext > xp) return lvl;
+    }
+    return 99;
+  }
+
+  function randInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  SKILLS.forEach((s) => {
+    const xp = randInt(MIN_XP, MAX_XP);
+    skills[s] = { xp, level: xpToLevel(xp) };
+  });
+
+  // Preserve original hitpoints behavior
+  skills.hitpoints.level = 10;
+  skills.hitpoints.xp = 1154;
+
+  return {
+    username,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    skills,
+    totalLevel: totalLevel(skills),
+    totalXP: totalXP(skills),
+    activity: "INACTIVE",
+    archetype: assignRandomArchetype(),
+    achievements: {},
+    // key -> timestamp ms
+    needsHpMigration: false,
+    version: 2
+  };
+}
 function recalcTotals(user) {
     user.totalLevel = totalLevel(user.skills);
     user.totalXP = totalXP(user.skills);
