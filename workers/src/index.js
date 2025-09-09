@@ -811,7 +811,7 @@ async function handleDeleteUsersBatch(env, request) {
     const keysToDelete = [];
 
     // Safety guard: never delete users in the current top N of the leaderboard
-    const PROTECTED_TOP_N = 50;
+    const PROTECTED_TOP_N = 20;
     let protectedSet = new Set(); // lowercased usernames
     let protectedList = []; // cased usernames for reporting
     try {
