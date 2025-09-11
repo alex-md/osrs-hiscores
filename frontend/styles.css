@@ -24,6 +24,13 @@ table td {
   --color-bg-surface: #f4f2e8;
   --color-bg-layer: #ffffff;
   --color-bg-layer2: #f8f6eb;
+  /* New elevated tiers to better visually separate foreground containers */
+  --color-bg-elevated-1: #ffffff;
+  /* base cards */
+  --color-bg-elevated-2: #fcfaf3;
+  /* secondary grouping (panels) */
+  --color-bg-elevated-3: #f6f2e6;
+  /* high emphasis (sticky headers) */
   --color-bg-header: #3f2216;
   --color-border: #c4a484;
   --color-border-dark: #8b6f47;
@@ -47,6 +54,13 @@ table td {
   --color-bg-surface: #1d1812;
   --color-bg-layer: #2d2419;
   --color-bg-layer2: #3d3226;
+  /* New elevated tiers to better visually separate foreground containers */
+  --color-bg-elevated-1: #2d2419;
+  /* base cards */
+  --color-bg-elevated-2: #352a1e;
+  /* secondary grouping (panels) */
+  --color-bg-elevated-3: #3e3225;
+  /* high emphasis (sticky headers) */
   --color-bg-header: #0f0b08;
   --color-border: #5c4d3a;
   --color-border-dark: #3d2f1f;
@@ -165,19 +179,23 @@ table th {
 }
 
 .card {
-  background: var(--color-bg-layer);
-  background-image: linear-gradient(135deg, var(--color-bg-layer), var(--color-bg-layer2));
-  border-radius: .5rem;
-  box-shadow: var(--shadow-md);
-  padding: 1rem;
-  transition: box-shadow .2s;
+  /* Updated card styling for clearer separation */
+  background: var(--color-bg-elevated-1);
+  background-image: linear-gradient(145deg, var(--color-bg-elevated-1) 0%, var(--color-bg-layer2) 140%);
+  border-radius: .75rem;
+  box-shadow: var(--shadow-sm), 0 0 0 1px rgba(0, 0, 0, .25), 0 4px 12px -2px rgba(0, 0, 0, .35);
+  padding: 1.1rem 1.15rem;
+  transition: box-shadow .2s, transform .2s, background .3s;
+  position: relative;
+  isolation: isolate;
+  /* ensure inner shadows/clipping don't bleed */
 }
 
 #searchSuggest,
 .card:hover,
 .skill-row.clickable:hover,
 .toast {
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-lg), 0 0 0 1px rgba(0, 0, 0, .3), 0 6px 22px -4px rgba(0, 0, 0, .5);
 }
 
 .btn,
@@ -827,13 +845,15 @@ select {
 }
 
 .osrs-table {
-  border: 2px solid var(--color-border-dark);
-  overflow-x: auto;
+  border: 1px solid var(--color-border-dark);
+  overflow: hidden;
   width: 100%;
   min-width: fit-content;
-  border-radius: .65rem;
+  border-radius: 1rem;
   max-width: clamp(1100px, 95vw, 1550px);
-  margin: 0 auto 2rem;
+  margin: 0 auto 2.25rem;
+  background: linear-gradient(145deg, var(--color-bg-elevated-2) 0%, var(--color-bg-layer) 120%);
+  box-shadow: var(--shadow-md), 0 0 0 1px rgba(0, 0, 0, .4), 0 3px 10px -2px rgba(0, 0, 0, .55);
 }
 
 .osrs-table.home-leaderboard {
@@ -939,9 +959,11 @@ tbody tr.overall-row {
 
 .progress-item {
   border: 1px solid var(--color-border);
-  padding: .5rem;
-  border-radius: .5rem;
+  padding: .65rem .6rem .55rem;
+  border-radius: .55rem;
   font-size: .65rem;
+  background: linear-gradient(145deg, var(--color-bg-elevated-2) 0%, var(--color-bg-layer2) 140%);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .25), var(--shadow-sm);
 }
 
 .progress-item .pi-head {
@@ -1191,12 +1213,12 @@ tbody tr.overall-row {
   flex-direction: row;
   align-items: center;
   text-align: left;
-  padding: 1.25rem 1rem;
-  background: linear-gradient(135deg, var(--color-bg-layer) 0, var(--color-bg-layer2) 100%);
+  padding: 1.2rem .95rem 1.15rem;
+  background: linear-gradient(150deg, var(--color-bg-elevated-1) 0, var(--color-bg-layer2) 110%);
   border: 1px solid var(--color-border);
-  border-radius: 12px;
-  box-shadow: var(--shadow-sm);
-  transition: all 0.3s ease;
+  border-radius: 14px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .25), var(--shadow-sm);
+  transition: all 0.35s cubic-bezier(.4, .2, .2, 1);
   cursor: default;
   overflow: hidden;
   min-height: auto;
@@ -1211,8 +1233,8 @@ tbody tr.overall-row {
 }
 
 .achievement-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+  transform: translateY(-5px) scale(1.01);
+  box-shadow: 0 10px 28px -4px rgba(0, 0, 0, .45), 0 0 0 1px rgba(0, 0, 0, .35);
 }
 
 .achievement-card::before {
@@ -1406,11 +1428,12 @@ tbody tr.overall-row {
 }
 
 .insight-card {
-  background: linear-gradient(135deg, var(--color-bg-layer) 0, var(--color-bg-layer2) 100%);
+  background: linear-gradient(150deg, var(--color-bg-elevated-2) 0, var(--color-bg-layer2) 120%);
   border: 1px solid var(--color-border);
-  border-radius: 12px;
-  padding: 1rem;
-  box-shadow: var(--shadow-sm);
+  border-radius: 14px;
+  padding: 1.05rem 1.05rem .95rem;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .25), var(--shadow-sm);
+  position: relative;
 }
 
 .insight-title {
@@ -1571,6 +1594,21 @@ tbody tr.overall-row {
   background: rgba(107, 114, 128, .15);
 }
 
+/* Historical (superseded) achievement state */
+.matrix-cell.superseded {
+  background: repeating-linear-gradient(45deg, rgba(234, 179, 8, .25) 0, rgba(234, 179, 8, .25) 6px, rgba(107, 114, 128, .15) 6px, rgba(107, 114, 128, .15) 12px);
+  box-shadow: inset 0 0 0 1px rgba(234, 179, 8, .4);
+  position: relative;
+}
+
+.matrix-cell.superseded::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(234, 179, 8, .18), rgba(0, 0, 0, 0));
+  pointer-events: none;
+}
+
 .matrix-legend {
   display: flex;
   align-items: center;
@@ -1595,6 +1633,11 @@ tbody tr.overall-row {
 
 .legend-swatch.miss {
   background: rgba(107, 114, 128, .25);
+}
+
+.legend-swatch.superseded {
+  background: linear-gradient(135deg, rgba(234, 179, 8, .5), rgba(107, 114, 128, .25));
+  border-color: rgba(234, 179, 8, .6);
 }
 
 .ach-catalog {
@@ -1661,7 +1704,9 @@ tbody tr.overall-row {
 
 .skill-row {
   padding: 1rem;
-  background: linear-gradient(135deg, var(--color-bg-layer) 0, var(--color-bg-layer2) 100%);
+  background: linear-gradient(140deg, var(--color-bg-elevated-1) 0, var(--color-bg-layer2) 130%);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .3), var(--shadow-sm);
+  border-radius: .65rem;
 }
 
 .skill-row,
@@ -1780,10 +1825,98 @@ section.flex.flex-col.gap-6 {
 }
 
 .toast {
-  background: linear-gradient(135deg, var(--color-bg-layer) 0, var(--color-bg-layer2) 100%);
-  padding: .75rem 1rem;
+  background: linear-gradient(140deg, var(--color-bg-elevated-2) 0, var(--color-bg-layer2) 120%);
+  padding: .85rem 1.05rem;
   font-size: .85em;
   animation: .3s ease-out slideInRight;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .35), var(--shadow-md);
+  border-radius: .75rem;
+}
+
+/* --- Utility Classes for Foreground / Background Separation --- */
+.surface-contrast {
+  background: var(--color-bg-layer2);
+}
+
+.surface-elevated {
+  background: var(--color-bg-elevated-1);
+}
+
+.surface-elevated-2 {
+  background: var(--color-bg-elevated-2);
+}
+
+.surface-elevated-3 {
+  background: var(--color-bg-elevated-3);
+}
+
+.elevation-0 {
+  box-shadow: none !important;
+}
+
+.elevation-1 {
+  box-shadow: var(--shadow-sm), 0 0 0 1px rgba(0, 0, 0, .25) !important;
+}
+
+.elevation-2 {
+  box-shadow: var(--shadow-md), 0 0 0 1px rgba(0, 0, 0, .3) !important;
+}
+
+.elevation-3 {
+  box-shadow: var(--shadow-lg), 0 0 0 1px rgba(0, 0, 0, .35) !important;
+}
+
+/* Card section divider helper */
+.card-section-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--color-border-dark) 40%, var(--color-border-dark) 60%, transparent);
+  margin: .85rem 0;
+  opacity: .6;
+}
+
+/* Subtle outline for grouped stacks */
+.stack-group {
+  position: relative;
+}
+
+.stack-group::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--color-border-dark);
+  border-radius: .9rem;
+  pointer-events: none;
+  opacity: .55;
+}
+
+/* Sidebar adjustments */
+aside.sidebar.card {
+  padding-top: 1.25rem;
+  padding-bottom: 1.25rem;
+}
+
+aside.sidebar.card nav>a,
+aside.sidebar.card summary {
+  font-weight: 600;
+}
+
+/* Improve visual separation of breadcrumb from content */
+nav.breadcrumb {
+  padding: .6rem .85rem;
+  background: linear-gradient(120deg, var(--color-bg-elevated-2) 0, var(--color-bg-layer) 130%);
+  border: 1px solid var(--color-border-dark);
+  border-radius: .65rem;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .35), var(--shadow-sm);
+}
+
+nav.breadcrumb+.main-grid,
+nav.breadcrumb+.space-y-8 {
+  margin-top: 1.25rem;
+}
+
+/* Optional: accent ring utility */
+.ring-accent {
+  box-shadow: 0 0 0 3px rgba(200, 16, 46, .25) !important;
 }
 
 .toast--error {
@@ -2835,4 +2968,3 @@ footer.site-footer .mt-2 {
   margin: 10vh auto;
   box-shadow: var(--shadow-lg);
 }
-
