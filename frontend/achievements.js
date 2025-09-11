@@ -439,12 +439,12 @@ function renderInsights(globalStats, leaderboard, skillRankings) {
     // Top players by unlock count
     const topPlayers = pickTop(players, 5, p => unlocks.get(p.username)?.size || 0);
 
-    const topPlayersCard = el('div', 'insight-card');
-    topPlayersCard.innerHTML = '<h3 class="insight-title">Most Achievements Unlocked</h3>';
-    const tpList = el('div', 'insight-list');
+    const topPlayersCard = el('div', 'insight-card insight-card--top-players');
+    topPlayersCard.innerHTML = '<h3 class="insight-title insight-title--section">Most Achievements Unlocked</h3>';
+    const tpList = el('div', 'insight-list top-players-list');
     topPlayers.forEach((p, idx) => {
         const size = unlocks.get(p.username)?.size || 0;
-        const row = el('div', 'insight-row');
+        const row = el('div', 'insight-row top-player-row');
         row.innerHTML = `
             <div class="insight-rank">${idx + 1}</div>
             <div class="insight-user">
@@ -467,12 +467,12 @@ function renderInsights(globalStats, leaderboard, skillRankings) {
     const mostCommon = pickTop(withPrev, 5, a => a.prevalence);
     const leastCommon = pickTop(withPrev, 5, a => -a.prevalence);
 
-    function makeAchList(title, list) {
-        const card = el('div', 'insight-card');
+    function makeAchList(title, list, type) {
+        const card = el('div', `insight-card insight-card--${type || 'generic'}`);
         card.appendChild(el('h3', 'insight-title', [text(title)]));
-        const container = el('div', 'insight-list');
+        const container = el('div', `insight-list ${type ? type + '-list' : ''}`.trim());
         list.forEach(a => {
-            const item = el('div', 'insight-row');
+            const item = el('div', `insight-row ${type ? type + '-row' : ''}`.trim());
             item.innerHTML = `
                 <div class="insight-icon" title="${a.label}\n${a.desc}">${a.icon}</div>
                 <div class="insight-ach">
@@ -483,6 +483,10 @@ function renderInsights(globalStats, leaderboard, skillRankings) {
                     <div class="insight-bar" style="width:${a.prevalence}%"></div>
                     <span class="insight-bar-label">${a.prevalence.toFixed(1)}%</span>
                 </div>`;
+            if (a.prevalence <= 0.5) {
+                // Flag very low prevalence (<=0.5%) for patterned track visibility
+                item.querySelector('.insight-bar-wrap')?.classList.add('zero');
+            }
             container.appendChild(item);
         });
         card.appendChild(container);
@@ -491,8 +495,8 @@ function renderInsights(globalStats, leaderboard, skillRankings) {
 
     const grid = el('div', 'insights-grid');
     grid.appendChild(topPlayersCard);
-    grid.appendChild(makeAchList('Most Common Achievements', mostCommon));
-    grid.appendChild(makeAchList('Rarest Achievements', leastCommon));
+    grid.appendChild(makeAchList('Most Common Achievements', mostCommon, 'most-common'));
+    grid.appendChild(makeAchList('Rarest Achievements', leastCommon, 'rarest'));
     wrap.appendChild(grid);
 
     // Summary chips

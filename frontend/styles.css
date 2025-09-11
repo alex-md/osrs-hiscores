@@ -1443,6 +1443,229 @@ tbody tr.overall-row {
   color: var(--color-foreground);
 }
 
+/* --- Design Refresh: Achievement Insights Tweaks --- */
+/* Section heading emphasis */
+.insight-title--section {
+  font-size: 1.05rem;
+  letter-spacing: .5px;
+}
+
+/* Top Players list adjustments */
+.insight-card--top-players .top-players-list {
+  gap: .65rem;
+}
+
+.top-player-row {
+  grid-template-columns: 30px minmax(0, 1fr) 135px;
+  align-items: center;
+  column-gap: .5rem;
+}
+
+.top-player-row .insight-user {
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.top-player-row .insight-user .username-link {
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: unset;
+  max-width: none;
+}
+
+.top-player-row .tier-badge.tier--icon-only {
+  margin-left: .4rem;
+}
+
+.top-player-row .tier-badge {
+  flex-shrink: 0;
+}
+
+.top-player-row .insight-bar-wrap {
+  min-width: 120px;
+}
+
+@media (max-width:620px) {
+  .top-player-row {
+    grid-template-columns: 26px minmax(0, 1fr) 110px;
+  }
+
+  .top-player-row .insight-bar-wrap {
+    min-width: 100px;
+  }
+}
+
+.top-player-row {
+  position: relative;
+}
+
+.top-player-row .insight-rank {
+  text-align: left;
+  font-size: .55rem;
+  font-weight: 700;
+  opacity: .45;
+  letter-spacing: .5px;
+  padding-left: .15rem;
+  display: flex;
+  align-items: center;
+  line-height: 1;
+}
+
+.top-player-row .insight-rank::after {
+  content: '.';
+  margin-left: 1px;
+  opacity: .6;
+}
+
+.top-player-row:hover .insight-rank {
+  opacity: .6;
+}
+
+.top-player-row .insight-user button.username-link {
+  font-weight: 600;
+  font-size: .8rem;
+}
+
+.top-player-row .tier-badge {
+  margin-left: .35rem;
+  padding: .12rem .5rem;
+  font-size: .58rem;
+  letter-spacing: .5px;
+}
+
+.insight-card--top-players .insight-bar-wrap {
+  height: 12px;
+  border-radius: 4px;
+}
+
+.insight-card--top-players .insight-bar-label {
+  font-size: .55rem;
+}
+
+/* Increase row spacing */
+.insight-list .insight-row {
+  margin-bottom: 2px;
+}
+
+.insight-list .insight-row+.insight-row {
+  margin-top: 2px;
+}
+
+.insight-card--top-players .top-player-row {
+  padding: 2px 4px;
+  border-radius: 6px;
+}
+
+.insight-card--top-players .top-player-row:hover {
+  background: var(--color-bg-layer2);
+}
+
+/* Common & Rare achievement lists */
+.most-common-list .most-common-row,
+.rarest-list .rarest-row {
+  grid-template-columns: 42px 1fr 130px;
+  align-items: start;
+}
+
+.most-common-row .insight-icon,
+.rarest-row .insight-icon {
+  font-size: 1rem;
+  width: 1.75rem;
+  text-align: left;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .25));
+}
+
+.most-common-row .ach-name,
+.rarest-row .ach-name {
+  font-weight: 700;
+  font-size: .75rem;
+}
+
+.most-common-row .ach-desc,
+.rarest-row .ach-desc {
+  font-size: .62rem;
+  line-height: 1.25;
+}
+
+.most-common-row .insight-bar-wrap,
+.rarest-row .insight-bar-wrap {
+  height: 12px;
+  border-radius: 5px;
+  background: var(--color-bg-layer);
+}
+
+.most-common-row .insight-bar,
+.rarest-row .insight-bar {
+  background: linear-gradient(90deg, var(--color-accent) 0%, var(--color-accent-hover) 100%);
+}
+
+.rarest-row .insight-bar {
+  background: linear-gradient(90deg, var(--color-gold) 0%, var(--color-accent) 100%);
+}
+
+.most-common-row .insight-bar-label,
+.rarest-row .insight-bar-label {
+  font-size: .55rem;
+  font-weight: 600;
+}
+
+.rarest-list .rarest-row+.rarest-row {
+  position: relative;
+}
+
+.rarest-list .rarest-row+.rarest-row::before {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--color-border) 40%, var(--color-border) 60%, transparent);
+  opacity: .4;
+}
+
+/* Subtle pattern / gradient for zero-prevalence bars */
+.insight-bar-wrap.zero {
+  background: repeating-linear-gradient(120deg, var(--color-bg-layer2) -3px 6px, var(--color-bg-layer) 6px 10px);
+}
+
+.insight-bar-wrap.zero .insight-bar {
+  background: linear-gradient(90deg, var(--color-accent) 0, var(--color-accent-hover) 100%);
+  opacity: .35;
+}
+
+/* General alignment and padding consistency */
+.insights-grid {
+  align-items: start;
+}
+
+.insight-card {
+  padding-top: 1.15rem;
+}
+
+/* Progress bars modern rounding */
+.insight-bar-wrap,
+.insight-bar {
+  border-radius: 6px;
+}
+
+/* Accessibility: ensure contrast for progress track */
+.insight-bar-wrap {
+  background: color-mix(in srgb, var(--color-bg-layer2) 70%, #000 10%);
+}
+
+/* Trophy/crown emphasis (apply to emojis via filter if present) */
+.rarest-row .insight-icon {
+  color: var(--color-gold);
+}
+
+/* Slightly larger section headings at top (already using modifier) */
+section#insightsContainer h3.insight-title {
+  font-size: 1.05rem;
+}
+
 .insight-list {
   display: flex;
   flex-direction: column;
