@@ -114,7 +114,6 @@ async function cacheResponseIfPossible(request, compute) {
     }
 }
 
-__name(cacheResponseIfPossible, "cacheResponseIfPossible");
 function newUser(username) {
     const skills = {};
     const MIN_XP = 1154;
