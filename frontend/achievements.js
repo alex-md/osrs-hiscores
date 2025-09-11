@@ -93,6 +93,37 @@ const CATEGORY_INFO = {
     special: { name: 'Special Combinations', desc: 'Unique skill combinations and hybrid builds', color: 'tier-diamond' }
 };
 
+// Tier metadata for richer tooltip & SVG badges
+const TIER_META = {
+    Grandmaster: {
+        key: 'tier-grandmaster',
+        label: 'Grandmaster',
+        desc: 'Rank #1 overall or #1 in 3+ skills',
+        svg: '<svg viewBox="0 0 24 24" aria-hidden="true" class="tier-svg tier-svg--grandmaster"><path d="M12 2.5 9.7 8.2H3.5l5 3.9-1.9 6 5.4-3.6 5.4 3.6-1.9-6 5-3.9h-6.2z" fill="currentColor"/></svg>'
+    },
+    Master: {
+        key: 'tier-master',
+        label: 'Master',
+        desc: 'Top 0.01% overall (or near top)',
+        svg: '<svg viewBox="0 0 24 24" aria-hidden="true" class="tier-svg tier-svg--master"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" fill="none"/><path d="M8 13.5 11 9l2.5 3L16 9l-2 6H8z" fill="currentColor"/></svg>'
+    },
+    Diamond: {
+        key: 'tier-diamond',
+        label: 'Diamond',
+        desc: 'Top 0.1% overall',
+        svg: '<svg viewBox="0 0 24 24" aria-hidden="true" class="tier-svg tier-svg--diamond"><path d="M4 9 12 3l8 6-8 12L4 9z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M12 3v18" stroke="currentColor" stroke-width="1"/></svg>'
+    }
+};
+
+function buildTierBadge(tierName) {
+    if (!tierName || !TIER_META[tierName]) return '';
+    const meta = TIER_META[tierName];
+    // Compact symbol-only variant: single letter (G/M/D) plus visually hidden SVG for sharpness
+    const symbolMap = { Grandmaster: 'G', Master: 'M', Diamond: 'D' };
+    const letter = symbolMap[tierName] || meta.label.charAt(0);
+    return `<span class="tier-badge tier--mini tier-${tierName.toLowerCase()}" data-tooltip="${meta.label}: ${meta.desc}" aria-label="${meta.label}" title="${meta.label}"><span class="tier-mini-letter">${letter}</span></span>`;
+}
+
 // ---------- Frontend full evaluation (mirrors worker logic) ----------
 // We replicate enough of backend logic so matrix can represent ALL achievements, not just rank & coarse milestones.
 function evaluateAchievementsFrontend(user, ctx) {
@@ -445,11 +476,12 @@ function renderInsights(globalStats, leaderboard, skillRankings) {
     topPlayers.forEach((p, idx) => {
         const size = unlocks.get(p.username)?.size || 0;
         const row = el('div', 'insight-row top-player-row');
+        const tierBadge = buildTierBadge(p.tier);
         row.innerHTML = `
             <div class="insight-rank">${idx + 1}</div>
             <div class="insight-user">
                 <button class="username-link" data-user="${p.username}">${p.username}</button>
-                ${p.tier ? `<span class="tier-badge tier-${p.tier.toLowerCase()}">${p.tier}</span>` : ''}
+                ${tierBadge}
             </div>
             <div class="insight-bar-wrap" title="${size} achievements">
                 <div class="insight-bar" style="width:${Math.min(100, (size / 25) * 100)}%"></div>
@@ -467,12 +499,12 @@ function renderInsights(globalStats, leaderboard, skillRankings) {
     const mostCommon = pickTop(withPrev, 5, a => a.prevalence);
     const leastCommon = pickTop(withPrev, 5, a => -a.prevalence);
 
-    function makeAchList(title, list, type) {
-        const card = el('div', `insight-card insight-card--${type || 'generic'}`);
+    function makeAchList(title, list) {
+        const card = el('div', 'insight-card');
         card.appendChild(el('h3', 'insight-title', [text(title)]));
-        const container = el('div', `insight-list ${type ? type + '-list' : ''}`.trim());
+        const container = el('div', 'insight-list');
         list.forEach(a => {
-            const item = el('div', `insight-row ${type ? type + '-row' : ''}`.trim());
+            const item = el('div', 'insight-row');
             item.innerHTML = `
                 <div class="insight-icon" title="${a.label}\n${a.desc}">${a.icon}</div>
                 <div class="insight-ach">
@@ -483,10 +515,6 @@ function renderInsights(globalStats, leaderboard, skillRankings) {
                     <div class="insight-bar" style="width:${a.prevalence}%"></div>
                     <span class="insight-bar-label">${a.prevalence.toFixed(1)}%</span>
                 </div>`;
-            if (a.prevalence <= 0.5) {
-                // Flag very low prevalence (<=0.5%) for patterned track visibility
-                item.querySelector('.insight-bar-wrap')?.classList.add('zero');
-            }
             container.appendChild(item);
         });
         card.appendChild(container);
@@ -495,8 +523,8 @@ function renderInsights(globalStats, leaderboard, skillRankings) {
 
     const grid = el('div', 'insights-grid');
     grid.appendChild(topPlayersCard);
-    grid.appendChild(makeAchList('Most Common Achievements', mostCommon, 'most-common'));
-    grid.appendChild(makeAchList('Rarest Achievements', leastCommon, 'rarest'));
+    grid.appendChild(makeAchList('Most Common Achievements', mostCommon));
+    grid.appendChild(makeAchList('Rarest Achievements', leastCommon));
     wrap.appendChild(grid);
 
     // Summary chips

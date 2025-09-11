@@ -484,6 +484,77 @@ table th {
   border-radius: 999px;
 }
 
+/* SVG tier badge refinements */
+.tier-badge.tier--icon-only .tier-svg {
+  width: .9rem;
+  height: .9rem;
+  display: block;
+}
+
+.tier-svg--grandmaster {
+  color: gold;
+  filter: drop-shadow(0 0 3px rgba(255, 215, 0, .5));
+}
+
+.tier-svg--master {
+  color: #ffb300;
+}
+
+.tier-svg--diamond {
+  color: #7dd3fc;
+}
+
+.top-player-row .tier-badge[data-tooltip]::after {
+  white-space: normal;
+}
+
+/* Ultra-compact tier symbol variant */
+.tier-badge.tier--mini {
+  width: 0.95rem;
+  height: 0.95rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .58rem;
+  font-weight: 700;
+  border-radius: 3px;
+  letter-spacing: .25px;
+  line-height: 1;
+  border: 1px solid var(--color-border-light);
+  background: var(--color-bg-layer2);
+  position: relative;
+}
+
+.tier-badge.tier--mini::before {
+  display: none;
+  content: none;
+}
+
+.tier-badge.tier--mini.tier-grandmaster {
+  border-color: gold;
+  color: gold;
+}
+
+.tier-badge.tier--mini.tier-master {
+  border-color: #ffb300;
+  color: #ffb300;
+}
+
+.tier-badge.tier--mini.tier-diamond {
+  border-color: #38bdf8;
+  color: #38bdf8;
+}
+
+.tier-badge.tier--mini .tier-mini-letter {
+  display: block;
+}
+
+.top-player-row .tier-badge.tier--mini {
+  margin-left: .35rem;
+  transform: translateY(-1px);
+}
+
 .tier-badge.tier--icon-only::before {
   content: '★';
   font-size: .8rem;
@@ -1628,7 +1699,7 @@ tbody tr.overall-row {
 
 /* Subtle pattern / gradient for zero-prevalence bars */
 .insight-bar-wrap.zero {
-  background: repeating-linear-gradient(120deg, var(--color-bg-layer2) -3px 6px, var(--color-bg-layer) 6px 10px);
+  background: repeating-linear-gradient(45deg, var(--color-bg-layer2) 0 6px, var(--color-bg-layer) 6px 12px);
 }
 
 .insight-bar-wrap.zero .insight-bar {
@@ -1692,8 +1763,13 @@ section#insightsContainer h3.insight-title {
 }
 
 .insight-icon {
-  font-size: 1.2rem;
-  text-align: center;
+  /* font-size: 1.2rem; */
+  /* display: flex; */
+  /* justify-content: flex-start; */
+  /* flex-direction: row; */
+  /* flex-wrap: nowrap; */
+  /* max-width: 0.1em; */
+  max-height: 1.1em;
 }
 
 .ach-name {
@@ -1703,8 +1779,10 @@ section#insightsContainer h3.insight-title {
 }
 
 .ach-desc {
-  font-size: .7rem;
+  font-size: 0.6rem;
   color: var(--color-muted);
+  text-align: right;
+  margin: 0 auto;
 }
 
 .insight-bar-wrap {
