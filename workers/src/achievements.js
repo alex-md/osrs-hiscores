@@ -117,7 +117,7 @@ export function computeAchievementContext(users, opts = undefined) {
     const heapCompare = (a, b) => {
         if (a.xp !== b.xp) return a.xp - b.xp; // lower xp is worse (smaller)
         if (a.nameLower === b.nameLower) return 0;
-        return a.nameLower > b.nameLower ? -1 : 1; // greater name is worse (smaller)
+        return a.nameLower < b.nameLower ? -1 : 1; // lesser name is worse (smaller)
     };
 
     for (const skill of SKILLS) {

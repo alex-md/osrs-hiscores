@@ -696,7 +696,92 @@ function init() {
         if (!ok) {
             try { toast('Note: Some insights could not be rendered (missing data). Showing catalog.', 'info', 4000); } catch (_) { }
         }
+
+        // Enhance tooltips for leaderboard badges with a portal (fixed) tooltip to avoid clipping
+        try { setupPortalTooltips(); } catch (_) { }
     });
+}
+
+// Portal tooltip implementation to bypass stacking/overflow issues
+let __portalTooltipEl = null;
+function ensurePortalTooltip() {
+    if (!__portalTooltipEl) {
+        const elDiv = document.createElement('div');
+        elDiv.id = 'portal-tooltip';
+        elDiv.style.position = 'fixed';
+        elDiv.style.zIndex = '999999';
+        elDiv.style.pointerEvents = 'none';
+        elDiv.style.opacity = '0';
+        elDiv.style.transition = 'opacity .12s';
+        elDiv.style.maxWidth = '260px';
+        elDiv.style.fontSize = '.7rem';
+        elDiv.style.lineHeight = '1.3';
+        elDiv.style.fontWeight = '500';
+        elDiv.style.padding = '.55rem .7rem';
+        elDiv.style.borderRadius = '8px';
+        elDiv.style.background = 'rgba(12,12,12,.92)';
+        elDiv.style.border = '1px solid rgba(255,255,255,.15)';
+        elDiv.style.boxShadow = '0 8px 22px -4px rgba(0,0,0,.6)';
+        elDiv.style.backdropFilter = 'blur(3px)';
+        elDiv.setAttribute('role', 'tooltip');
+        document.body.appendChild(elDiv);
+        __portalTooltipEl = elDiv;
+    }
+    return __portalTooltipEl;
+}
+
+function positionPortalTooltip(target) {
+    const tip = ensurePortalTooltip();
+    const rect = target.getBoundingClientRect();
+    const gap = 8;
+    const content = target.getAttribute('data-tooltip') || '';
+    // Replace \n with <br>
+    tip.innerHTML = content.replace(/\n/g, '<br>');
+    tip.style.opacity = '1';
+    tip.style.display = 'block';
+    // Temporarily set left for width measurement
+    tip.style.left = '0px';
+    tip.style.top = '0px';
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const desiredX = rect.left + rect.width / 2;
+    let left = desiredX - tip.offsetWidth / 2;
+    left = Math.max(8, Math.min(vw - tip.offsetWidth - 8, left));
+    let top = rect.top - tip.offsetHeight - gap;
+    if (top < 4) top = rect.bottom + gap; // flip below if not enough space
+    tip.style.left = left + 'px';
+    tip.style.top = top + 'px';
+}
+
+function hidePortalTooltip() {
+    if (!__portalTooltipEl) return;
+    __portalTooltipEl.style.opacity = '0';
+    // Delay hide to allow fade-out
+    setTimeout(() => { if (__portalTooltipEl && __portalTooltipEl.style.opacity === '0') __portalTooltipEl.style.display = 'none'; }, 130);
+}
+
+function setupPortalTooltips() {
+    const selector = '.leaderboard-table .tier-badge[data-tooltip], .leaderboard-table .mini-badge[data-tooltip], .leaderboard-table .mini-achievement-badge[data-tooltip]';
+    const root = document.querySelector('.leaderboard-table');
+    if (!root) return;
+    root.addEventListener('mouseenter', (e) => {
+        const t = e.target.closest(selector);
+        if (!t) return;
+        positionPortalTooltip(t);
+    }, true);
+    root.addEventListener('mousemove', (e) => {
+        const t = e.target.closest(selector);
+        if (!t) return;
+        positionPortalTooltip(t);
+    }, true);
+    root.addEventListener('mouseleave', (e) => {
+        const t = e.target.closest(selector);
+        if (!t) return;
+        hidePortalTooltip();
+    }, true);
+    // Also hide on scroll / resize for correctness
+    window.addEventListener('scroll', hidePortalTooltip, true);
+    window.addEventListener('resize', hidePortalTooltip, true);
 }
 
 init();

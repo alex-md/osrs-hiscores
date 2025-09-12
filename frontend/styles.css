@@ -2,35 +2,31 @@
 .skill-icon,
 table td,
 table th {
-  vertical-align: middle;
+  vertical-align: middle
 }
 
 h1,
 h2 {
-  line-height: 1.3;
+  line-height: 1.3
 }
 
 .ach-inline-rarity,
 .pi-remaining,
 table td {
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: tabular-nums
 }
 
 .bg-layer2.p-6.rounded-lg.border-2.border-border-dark {
-  box-shadow: 0 0 15px 0 #710b8b;
+  box-shadow: 0 0 15px 0 #710b8b
 }
 
 :root[data-theme=light] {
   --color-bg-surface: #f4f2e8;
   --color-bg-layer: #ffffff;
   --color-bg-layer2: #f8f6eb;
-  /* New elevated tiers to better visually separate foreground containers */
   --color-bg-elevated-1: #ffffff;
-  /* base cards */
   --color-bg-elevated-2: #fcfaf3;
-  /* secondary grouping (panels) */
   --color-bg-elevated-3: #f6f2e6;
-  /* high emphasis (sticky headers) */
   --color-bg-header: #3f2216;
   --color-border: #c4a484;
   --color-border-dark: #8b6f47;
@@ -47,20 +43,16 @@ table td {
   --body-font-scale: 1;
   --shadow-sm: 0 2px 4px rgba(45, 24, 16, 0.1), 0 0 0 1px rgba(196, 164, 132, 0.3);
   --shadow-md: 0 4px 6px rgba(45, 24, 16, 0.15), 0 2px 4px rgba(45, 24, 16, 0.06);
-  --shadow-lg: 0 10px 15px rgba(45, 24, 16, 0.15), 0 4px 6px rgba(45, 24, 16, 0.05);
+  --shadow-lg: 0 10px 15px rgba(45, 24, 16, 0.15), 0 4px 6px rgba(45, 24, 16, 0.05)
 }
 
 :root[data-theme=dark] {
   --color-bg-surface: #1d1812;
   --color-bg-layer: #2d2419;
   --color-bg-layer2: #3d3226;
-  /* New elevated tiers to better visually separate foreground containers */
   --color-bg-elevated-1: #2d2419;
-  /* base cards */
   --color-bg-elevated-2: #352a1e;
-  /* secondary grouping (panels) */
   --color-bg-elevated-3: #3e3225;
-  /* high emphasis (sticky headers) */
   --color-bg-header: #0f0b08;
   --color-border: #5c4d3a;
   --color-border-dark: #3d2f1f;
@@ -77,26 +69,26 @@ table td {
   --body-font-scale: 1;
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(92, 77, 58, 0.4);
   --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.2);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.4), 0 4px 6px rgba(0, 0, 0, 0.15);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.4), 0 4px 6px rgba(0, 0, 0, 0.15)
 }
 
 html {
-  font-size: clamp(16px, 1.2vw + .4rem, 19px);
+  font-size: clamp(16px, 1.2vw + .4rem, 19px)
 }
 
 body {
   font-family: 'Inter', sans-serif;
   font-size: clamp(1rem, .5vw + .95rem, 1.18rem);
   line-height: 1.7;
-  background: var(--color-bg-surface) radial-gradient(circle at 25% 25%, rgba(196, 164, 132, .1) 0, transparent 50%), radial-gradient(circle at 75% 75%, rgba(196, 164, 132, .05) 0, transparent 50%);
+  background: var(--color-bg-surface) radial-gradient(circle at 25% 25%, rgba(196, 164, 132, .1) 0, transparent 50%), radial-gradient(circle at 75% 75%, rgba(196, 164, 132, .05) 0, transparent 50%)
 }
 
 h1 {
-  font-size: 32px;
+  font-size: 32px
 }
 
 h2 {
-  font-size: 24px;
+  font-size: 24px
 }
 
 .nav-pill {
@@ -108,17 +100,17 @@ h2 {
   font-size: .875rem;
   line-height: 1.25rem;
   user-select: none;
-  text-decoration: none;
+  text-decoration: none
 }
 
 .nav-pill:hover {
-  background: rgba(255, 255, 255, .1);
+  background: rgba(255, 255, 255, .1)
 }
 
 .nav-pill.active {
   color: var(--color-gold);
   border-bottom: 2px solid var(--color-gold);
-  background: rgba(255, 215, 0, .1);
+  background: rgba(255, 215, 0, .1)
 }
 
 #searchSuggest button,
@@ -132,37 +124,37 @@ input[type=number],
 input[type=text],
 select,
 table th {
-  color: var(--color-foreground);
+  color: var(--color-foreground)
 }
 
 .container-wrap {
   max-width: 1600px;
-  padding: 0 1.5rem;
+  padding: 0 1.5rem
 }
 
 .grid-auto-fit,
 .skills-grid {
   display: grid;
-  gap: .75rem;
+  gap: .75rem
 }
 
 .skills-grid {
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr))
 }
 
 .grid-auto-fit {
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr))
 }
 
 .main-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: 2rem;
-  align-items: start;
+  align-items: start
 }
 
 .sidebar {
-  position: static;
+  position: static
 }
 
 .osrs-header,
@@ -175,11 +167,10 @@ table th {
 .username-link,
 [data-tooltip],
 table th {
-  position: relative;
+  position: relative
 }
 
 .card {
-  /* Updated card styling for clearer separation */
   background: var(--color-bg-elevated-1);
   background-image: linear-gradient(145deg, var(--color-bg-elevated-1) 0%, var(--color-bg-layer2) 140%);
   border-radius: .75rem;
@@ -187,15 +178,14 @@ table th {
   padding: 1.1rem 1.15rem;
   transition: box-shadow .2s, transform .2s, background .3s;
   position: relative;
-  isolation: isolate;
-  /* ensure inner shadows/clipping don't bleed */
+  isolation: isolate
 }
 
 #searchSuggest,
 .card:hover,
 .skill-row.clickable:hover,
 .toast {
-  box-shadow: var(--shadow-lg), 0 0 0 1px rgba(0, 0, 0, .3), 0 6px 22px -4px rgba(0, 0, 0, .5);
+  box-shadow: var(--shadow-lg), 0 0 0 1px rgba(0, 0, 0, .3), 0 6px 22px -4px rgba(0, 0, 0, .5)
 }
 
 .btn,
@@ -208,38 +198,38 @@ table th {
 .skill-rank,
 .skill-row,
 [data-tooltip]::after {
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-sm)
 }
 
 .breadcrumb ol {
   display: flex;
   flex-wrap: wrap;
-  gap: .5rem;
+  gap: .5rem
 }
 
 .breadcrumb-sep {
-  opacity: .6;
+  opacity: .6
 }
 
 .collapse summary {
   list-style: none;
   display: flex;
-  align-items: center;
+  align-items: center
 }
 
 .collapse summary::-webkit-details-marker {
-  display: none;
+  display: none
 }
 
 .summary ul {
   list-style: none;
   padding: 0;
-  margin: 0;
+  margin: 0
 }
 
-[data-tooltip] {
+[data-tooltip]::after {
   cursor: help;
-  position: relative;
+  position: relative
 }
 
 [data-tooltip]::after {
@@ -251,7 +241,7 @@ table th {
   white-space: pre-line;
   background: var(--color-bg-layer2);
   padding: .5rem .75rem;
-  border-radius: .25rem;
+  z-index: 4000;
   font-size: .75rem;
   opacity: 0;
   pointer-events: none;
@@ -261,11 +251,11 @@ table th {
   box-shadow: var(--shadow-md);
   max-width: 250px;
   text-align: center;
-  line-height: 1.4;
+  line-height: 1.4
 }
 
 [data-tooltip]:hover::after {
-  opacity: 1;
+  opacity: 1
 }
 
 .osrs-header::after,
@@ -274,7 +264,7 @@ table th {
 .toast::before,
 .username-link::after,
 th.sortable::after {
-  content: "";
+  content: ""
 }
 
 .osrs-header::after,
@@ -282,20 +272,20 @@ th.sortable::after {
 .skill-row::before,
 .toast::before,
 .username-link::after {
-  position: absolute;
+  position: absolute
 }
 
 .osrs-header::after,
 .osrs-table::before,
 .toast::before {
-  right: 0;
+  right: 0
 }
 
 .osrs-header::after,
 .osrs-table::before,
 .toast::before,
 .username-link::after {
-  left: 0;
+  left: 0
 }
 
 .badge,
@@ -303,19 +293,19 @@ th.sortable::after {
 .btn-sm,
 .skill-rank,
 table th {
-  text-transform: none;
+  text-transform: none
 }
 
 .achievement-badge,
 .achievement-category h5,
 .filter-bar label,
 table th {
-  text-transform: uppercase;
+  text-transform: uppercase
 }
 
 .progress-item .pi-head,
 .text-capitalize {
-  text-transform: capitalize;
+  text-transform: capitalize
 }
 
 .badge,
@@ -323,7 +313,7 @@ table th {
   background: 0 0;
   border-radius: 0;
   border: 0;
-  font-size: .75em;
+  font-size: .75em
 }
 
 #searchSuggest,
@@ -335,7 +325,7 @@ table th {
 input[type=number],
 input[type=text],
 select {
-  background: var(--color-bg-layer);
+  background: var(--color-bg-layer)
 }
 
 #searchSuggest button,
@@ -350,7 +340,7 @@ input[type=number],
 input[type=text],
 select,
 tbody tr {
-  transition: .2s;
+  transition: .2s
 }
 
 .badge,
@@ -359,13 +349,13 @@ tbody tr {
 .nav-pill,
 .skill-rank,
 table th {
-  letter-spacing: 0;
+  letter-spacing: 0
 }
 
 .btn-sm:active,
 .btn:active,
 .cat-toggle:active {
-  transform: translateY(0);
+  transform: translateY(0)
 }
 
 .achievement-inline-card:hover,
@@ -374,7 +364,7 @@ table th {
 .cat-toggle:hover,
 .icon-button:hover,
 .skill-row.clickable:active {
-  transform: translateY(-1px);
+  transform: translateY(-1px)
 }
 
 .btn-sm:hover,
@@ -384,14 +374,14 @@ table th {
 .osrs-table,
 .skill-row.clickable:active,
 .skill-row:hover {
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-md)
 }
 
 #searchSuggest,
 .osrs-table,
 .skill-row,
 .toast {
-  overflow: hidden;
+  overflow: hidden
 }
 
 .btn,
@@ -400,7 +390,7 @@ table th {
 input[type=number],
 input[type=text],
 select {
-  border-radius: .375rem;
+  border-radius: .375rem
 }
 
 .icon-button,
@@ -410,26 +400,26 @@ select {
 .skill-row,
 .skill-stats {
   display: flex;
-  align-items: center;
+  align-items: center
 }
 
 .meta-badge,
 .mini-badge,
 .mini-badges,
 .tier-badge {
-  display: inline-flex;
+  display: inline-flex
 }
 
 .badge,
 .skill-rank,
 .skill-xp,
 .text-muted {
-  color: var(--color-muted);
+  color: var(--color-muted)
 }
 
 .text-accent,
 .username-link:hover {
-  color: var(--color-accent);
+  color: var(--color-accent)
 }
 
 .btn,
@@ -438,12 +428,12 @@ select {
 .skill-xp,
 table td,
 table th {
-  font-size: .8em;
+  font-size: .8em
 }
 
 .meta-badges {
   gap: .5rem;
-  margin-top: .25rem;
+  margin-top: .25rem
 }
 
 .meta-badge {
@@ -452,7 +442,7 @@ table th {
   border: 1.5px solid var(--color-border);
   color: var(--color-muted);
   border-radius: .375rem;
-  line-height: 1;
+  line-height: 1
 }
 
 .tier-badge {
@@ -465,12 +455,12 @@ table th {
   font-weight: 700;
   letter-spacing: .02em;
   border: 1px solid var(--color-border);
-  background: var(--color-bg-layer2);
+  background: var(--color-bg-layer2)
 }
 
 .tier-badge::before {
   content: '★';
-  opacity: .9;
+  opacity: .9
 }
 
 .tier-badge.tier--icon-only {
@@ -480,34 +470,32 @@ table th {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
+  border-radius: 999px
 }
 
-/* SVG tier badge refinements */
 .tier-badge.tier--icon-only .tier-svg {
   width: .9rem;
   height: .9rem;
-  display: block;
+  display: block
 }
 
 .tier-svg--grandmaster {
   color: gold;
-  filter: drop-shadow(0 0 3px rgba(255, 215, 0, .5));
+  filter: drop-shadow(0 0 3px rgba(255, 215, 0, .5))
 }
 
 .tier-svg--master {
-  color: #ffb300;
+  color: #ffb300
 }
 
 .tier-svg--diamond {
-  color: #7dd3fc;
+  color: #7dd3fc
 }
 
 .top-player-row .tier-badge[data-tooltip]::after {
-  white-space: normal;
+  white-space: normal
 }
 
-/* Ultra-compact tier symbol variant */
 .tier-badge.tier--mini {
   width: 0.95rem;
   height: 0.95rem;
@@ -522,114 +510,118 @@ table th {
   line-height: 1;
   border: 1px solid var(--color-border-light);
   background: var(--color-bg-layer2);
-  position: relative;
+  position: relative
 }
 
 .tier-badge.tier--mini::before {
   display: none;
-  content: none;
+  content: none
 }
 
 .tier-badge.tier--mini.tier-grandmaster {
   border-color: gold;
-  color: gold;
+  color: gold
 }
 
 .tier-badge.tier--mini.tier-master {
   border-color: #ffb300;
-  color: #ffb300;
+  color: #ffb300
 }
 
 .tier-badge.tier--mini.tier-diamond {
   border-color: #38bdf8;
-  color: #38bdf8;
+  color: #38bdf8
 }
 
 .tier-badge.tier--mini .tier-mini-letter {
-  display: block;
+  display: block
 }
 
 .top-player-row .tier-badge.tier--mini {
   margin-left: .35rem;
-  transform: translateY(-1px);
+  transform: translateY(-1px)
 }
 
-/* Ensure mini tier badge tooltip appears on top of neighboring elements */
 .tier-badge.tier--mini {
-  z-index: 10;
+  z-index: 20;
+  position: relative
+}
+
+.tier-badge.tier--mini:hover {
+  z-index: 6000
 }
 
 .tier-badge.tier--mini[data-tooltip]::after {
-  z-index: 1002;
-  pointer-events: none;
+  z-index: 6500;
+  pointer-events: none
 }
 
 .top-player-row .tier-badge.tier--mini[data-tooltip]::after {
-  z-index: 1003;
+  z-index: 6600
 }
 
 .tier-badge.tier--icon-only::before {
   content: '★';
   font-size: .8rem;
-  line-height: 1;
+  line-height: 1
 }
 
 .mini-badge--highlight,
 .tier-badge.tier-grandmaster {
   color: gold;
   border-color: #e6c200;
-  background: linear-gradient(135deg, rgba(255, 215, 0, .12), transparent);
+  background: linear-gradient(135deg, rgba(255, 215, 0, .12), transparent)
 }
 
 .tier-badge.tier-master {
   color: #ffb300;
   border-color: #cc8f00;
-  background: linear-gradient(135deg, rgba(255, 179, 0, .12), transparent);
+  background: linear-gradient(135deg, rgba(255, 179, 0, .12), transparent)
 }
 
 .tier-badge.tier-diamond {
   color: #7dd3fc;
   border-color: #38bdf8;
-  background: linear-gradient(135deg, rgba(125, 211, 252, .12), transparent);
+  background: linear-gradient(135deg, rgba(125, 211, 252, .12), transparent)
 }
 
 .tier-badge.tier-platinum {
   color: #e5e7eb;
   border-color: #cbd5e1;
-  background: linear-gradient(135deg, rgba(229, 231, 235, .12), transparent);
+  background: linear-gradient(135deg, rgba(229, 231, 235, .12), transparent)
 }
 
 .tier-badge.tier-gold {
   color: #f59e0b;
   border-color: #d97706;
-  background: linear-gradient(135deg, rgba(245, 158, 11, .12), transparent);
+  background: linear-gradient(135deg, rgba(245, 158, 11, .12), transparent)
 }
 
 .tier-badge.tier-silver {
   color: #c0c7d1;
   border-color: #9aa4b2;
-  background: linear-gradient(135deg, rgba(192, 199, 209, .12), transparent);
+  background: linear-gradient(135deg, rgba(192, 199, 209, .12), transparent)
 }
 
 .tier-badge.tier-bronze {
   color: #cd7f32;
   border-color: #b26a29;
-  background: linear-gradient(135deg, rgba(205, 127, 50, .12), transparent);
+  background: linear-gradient(135deg, rgba(205, 127, 50, .12), transparent)
 }
 
 .mini-badges {
   gap: .35rem;
   margin-left: .5rem;
-  flex-wrap: wrap;
+  flex-wrap: wrap
 }
 
 .leaderboard-table td:nth-child(2) {
   display: flex;
-  align-items: center;
+  align-items: center
 }
 
 .leaderboard-table td:nth-child(2) .username-link {
-  margin-right: .1rem;
+  margin-right: .1rem
 }
 
 .leaderboard-table td:nth-child(2) .tier-badge,
@@ -639,14 +631,14 @@ table th {
   flex-direction: row;
   flex-wrap: nowrap;
   align-content: stretch;
-  justify-content: center;
+  justify-content: center
 }
 
 .achievements-inline-grid,
 .hidden-achievements-grid {
   gap: .75rem;
   display: grid;
-  margin-top: .75rem;
+  margin-top: .75rem
 }
 
 .mini-badge {
@@ -657,30 +649,30 @@ table th {
   font-weight: 700;
   color: var(--color-muted);
   border: 1px solid var(--color-border);
-  background: rgba(0, 0, 0, .06);
+  background: rgba(0, 0, 0, .06)
 }
 
 .leaderboard-table .mini-badge {
-  display: none;
+  display: none
 }
 
 .meta-badge--muted {
   opacity: .7;
-  font-weight: 400;
+  font-weight: 400
 }
 
 .user-achievements {
   border-top: 1px solid var(--color-border);
   padding-top: 1rem;
-  margin-top: 1rem;
+  margin-top: 1rem
 }
 
 .achievements-inline-grid {
-  justify-items: stretch;
+  justify-items: stretch
 }
 
 .expandable-achievements-grid {
-  gap: 1em;
+  gap: 1em
 }
 
 .achievement-inline-card {
@@ -695,13 +687,13 @@ table th {
   cursor: help;
   position: relative;
   overflow: hidden;
-  white-space: normal;
+  white-space: normal
 }
 
 .cursor-pointer,
 .icon-button,
 tbody tr.clickable {
-  cursor: pointer;
+  cursor: pointer
 }
 
 .achievement-inline-card::before {
@@ -712,13 +704,13 @@ tbody tr.clickable {
   bottom: 0;
   width: 3px;
   background: var(--color-border);
-  transition: background .2s;
+  transition: background .2s
 }
 
 .achievement-inline-card:hover {
   background: var(--color-bg-layer2);
   border-color: var(--color-border-light);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, .1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .1)
 }
 
 h3.font-bold.text-foreground {
@@ -727,19 +719,19 @@ h3.font-bold.text-foreground {
   align-content: stretch;
   justify-content: center;
   align-items: center;
-  padding-bottom: 1em;
+  padding-bottom: 1em
 }
 
 .ach-inline-icon {
   font-size: 1.1rem;
   flex-shrink: 0;
   width: 1.5rem;
-  text-align: center;
+  text-align: center
 }
 
 .ach-inline-content {
   flex: 1;
-  min-width: 0;
+  min-width: 0
 }
 
 .ach-inline-name {
@@ -748,58 +740,58 @@ h3.font-bold.text-foreground {
   color: var(--color-foreground);
   white-space: normal;
   overflow: visible;
-  text-overflow: unset;
+  text-overflow: unset
 }
 
 .ach-inline-rarity {
   font-size: .7rem;
-  color: var(--color-muted);
+  color: var(--color-muted)
 }
 
 .achievement-inline-card.ach-mythic::before {
-  background: linear-gradient(45deg, #ff6b6b, orange);
+  background: linear-gradient(45deg, #ff6b6b, orange)
 }
 
 .achievement-inline-card.ach-mythic .ach-inline-name {
   color: #ff6b6b;
-  font-weight: 600;
+  font-weight: 600
 }
 
 .achievement-inline-card.ach-legendary::before {
-  background: linear-gradient(45deg, #a855f7, #ec4899);
+  background: linear-gradient(45deg, #a855f7, #ec4899)
 }
 
 .achievement-inline-card.ach-legendary .ach-inline-name {
   color: #a855f7;
-  font-weight: 600;
+  font-weight: 600
 }
 
 .achievement-inline-card.ach-epic::before {
-  background: linear-gradient(45deg, #3b82f6, #06b6d4);
+  background: linear-gradient(45deg, #3b82f6, #06b6d4)
 }
 
 .achievement-inline-card.ach-epic .ach-inline-name {
   color: #3b82f6;
-  font-weight: 500;
+  font-weight: 500
 }
 
 .achievement-inline-card.ach-rare::before {
-  background: linear-gradient(45deg, #10b981, #059669);
+  background: linear-gradient(45deg, #10b981, #059669)
 }
 
 .achievement-inline-card.ach-rare .ach-inline-name {
   color: #10b981;
-  font-weight: 500;
+  font-weight: 500
 }
 
 .achievement-inline-card.ach-common::before {
-  background: var(--color-border-light);
+  background: var(--color-border-light)
 }
 
 #searchSuggest button,
 .nav-pill,
 .toast {
-  font-weight: 600;
+  font-weight: 600
 }
 
 table th {
@@ -810,7 +802,7 @@ table th {
   font-size: .75rem;
   letter-spacing: .09em;
   font-weight: 600;
-  font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif
 }
 
 .btn,
@@ -818,30 +810,30 @@ table th {
   color: #fff;
   padding: .6rem 1.2rem;
   font-weight: 200;
-  border: 2px solid var(--color-accent-hover);
+  border: 2px solid var(--color-accent-hover)
 }
 
 #searchSuggest,
 .icon-button,
 .skill-row,
 .toast {
-  border: 2px solid var(--color-border);
+  border: 2px solid var(--color-border)
 }
 
 .btn-sm {
   padding: .4rem .8rem;
-  font-size: .65em;
+  font-size: .65em
 }
 
 .btn,
 .btn-sm,
 .skill-row.clickable:hover {
-  background: linear-gradient(135deg, var(--color-accent) 0, var(--color-accent-hover) 100%);
+  background: linear-gradient(135deg, var(--color-accent) 0, var(--color-accent-hover) 100%)
 }
 
 .btn-sm:hover,
 .btn:hover {
-  background: linear-gradient(135deg, var(--color-accent-hover) 0, var(--color-accent) 100%);
+  background: linear-gradient(135deg, var(--color-accent-hover) 0, var(--color-accent) 100%)
 }
 
 .icon-button {
@@ -849,12 +841,12 @@ table th {
   height: 2.5rem;
   justify-content: center;
   outline: 0;
-  user-select: none;
+  user-select: none
 }
 
 .icon-button:hover {
   background: var(--color-bg-layer2);
-  border-color: var(--color-border-dark);
+  border-color: var(--color-border-dark)
 }
 
 input[type=number],
@@ -864,7 +856,7 @@ select {
   font-size: .9em;
   font-weight: 500;
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, .1);
-  border: 2px solid var(--color-border);
+  border: 2px solid var(--color-border)
 }
 
 #searchSuggest button {
@@ -872,14 +864,14 @@ select {
   text-align: left;
   padding: .75rem 1rem;
   border: none;
-  background: 0 0;
+  background: 0 0
 }
 
 #searchSuggest button.active,
 #searchSuggest button:hover {
   background: linear-gradient(90deg, var(--color-accent) 0, var(--color-accent-hover) 100%);
   color: #fff;
-  transform: translateX(4px);
+  transform: translateX(4px)
 }
 
 .nav-pills {
@@ -887,21 +879,21 @@ select {
   gap: .5rem;
   margin-bottom: 1.5rem;
   flex-direction: row;
-  flex-wrap: nowrap;
+  flex-wrap: nowrap
 }
 
 .username-link {
   font-weight: 400;
-  text-decoration: none;
+  text-decoration: none
 }
 
 .username-link+.tier-badge {
   margin-left: .4rem;
-  vertical-align: middle;
+  vertical-align: middle
 }
 
 .username-link:hover {
-  text-shadow: 0 1px 2px rgba(200, 16, 46, .3);
+  text-shadow: 0 1px 2px rgba(200, 16, 46, .3)
 }
 
 .username-link::after {
@@ -909,28 +901,28 @@ select {
   width: 0;
   height: 2px;
   background: var(--color-accent);
-  transition: width .2s;
+  transition: width .2s
 }
 
 .ach-body,
 .left-stack>*,
 .username-link:hover::after {
-  width: 100%;
+  width: 100%
 }
 
 .osrs-header {
   background: linear-gradient(135deg, var(--color-bg-header) 0, #1f1108 100%);
-  border-bottom: 3px solid var(--color-border-dark);
+  border-bottom: 3px solid var(--color-border-dark)
 }
 
 .osrs-header::after {
   bottom: -3px;
-  height: 2px;
+  height: 2px
 }
 
 .osrs-header::after,
 .osrs-table::before {
-  background: linear-gradient(90deg, var(--color-gold) 0, var(--color-accent) 50%, var(--color-gold) 100%);
+  background: linear-gradient(90deg, var(--color-gold) 0, var(--color-accent) 50%, var(--color-gold) 100%)
 }
 
 .osrs-table {
@@ -942,16 +934,16 @@ select {
   max-width: clamp(1100px, 95vw, 1550px);
   margin: 0 auto 2.25rem;
   background: linear-gradient(145deg, var(--color-bg-elevated-2) 0%, var(--color-bg-layer) 120%);
-  box-shadow: var(--shadow-md), 0 0 0 1px rgba(0, 0, 0, .4), 0 3px 10px -2px rgba(0, 0, 0, .55);
+  box-shadow: var(--shadow-md), 0 0 0 1px rgba(0, 0, 0, .4), 0 3px 10px -2px rgba(0, 0, 0, .55)
 }
 
 .osrs-table.home-leaderboard {
-  max-width: clamp(1500px, 98vw, 2100px);
+  max-width: clamp(1500px, 98vw, 2100px)
 }
 
 .osrs-table.full-width {
   max-width: none;
-  width: 100%;
+  width: 100%
 }
 
 .osrs-table table {
@@ -960,17 +952,17 @@ select {
   margin: 0 auto;
   border-collapse: collapse;
   table-layout: auto;
-  font-size: .95rem;
+  font-size: .95rem
 }
 
 .table-scroll {
   overflow-x: auto;
-  max-height: none;
+  max-height: none
 }
 
 .leaderboard-table thead th {
   position: static;
-  box-shadow: none;
+  box-shadow: none
 }
 
 table td,
@@ -978,72 +970,72 @@ table th {
   padding: .8rem 1rem;
   border-bottom: 1px solid var(--color-border);
   white-space: nowrap;
-  line-height: 1.5;
+  line-height: 1.5
 }
 
 .leaderboard-table td:first-child,
 .leaderboard-table th:first-child {
   width: 60px;
-  text-align: center;
+  text-align: center
 }
 
 .leaderboard-table td:nth-child(4),
 .leaderboard-table th:nth-child(4) {
   width: 170px;
-  text-align: right;
+  text-align: right
 }
 
 .leaderboard-table td:nth-child(2),
 .leaderboard-table th:nth-child(2) {
-  width: auto;
+  width: auto
 }
 
 th.sortable {
   user-select: text;
-  transition: none;
+  transition: none
 }
 
 th.sortable::after {
-  margin: 0;
+  margin: 0
 }
 
 table tbody tr:nth-child(2n) {
-  background: rgba(196, 164, 132, .04);
+  background: rgba(196, 164, 132, .04)
 }
 
 table tbody tr:hover {
   background: linear-gradient(90deg, rgba(200, 16, 46, .08) 0, rgba(200, 16, 46, .03) 100%);
   border-color: var(--color-accent);
-  transform: translateX(1px);
+  transform: translateX(1px)
 }
 
 tbody tr.rank-1 {
-  background: linear-gradient(90deg, rgba(255, 215, 0, .15), transparent 70%);
+  background: linear-gradient(90deg, rgba(255, 215, 0, .15), transparent 70%)
 }
 
 tbody tr.rank-2 {
-  background: linear-gradient(90deg, rgba(192, 192, 192, .15), transparent 70%);
+  background: linear-gradient(90deg, rgba(192, 192, 192, .15), transparent 70%)
 }
 
 tbody tr.rank-3 {
-  background: linear-gradient(90deg, rgba(205, 127, 50, .15), transparent 70%);
+  background: linear-gradient(90deg, rgba(205, 127, 50, .15), transparent 70%)
 }
 
 tbody tr.rank-1 td:first-child,
 tbody tr.rank-2 td:first-child,
 tbody tr.rank-3 td:first-child {
-  font-weight: 800;
+  font-weight: 800
 }
 
 tbody tr.overall-row {
   background: linear-gradient(90deg, rgba(255, 215, 0, .08), transparent 70%);
-  border-top: 2px solid var(--color-border-dark);
+  border-top: 2px solid var(--color-border-dark)
 }
 
 .progress-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 1rem;
+  gap: 1rem
 }
 
 .progress-item {
@@ -1052,7 +1044,7 @@ tbody tr.overall-row {
   border-radius: .55rem;
   font-size: .65rem;
   background: linear-gradient(145deg, var(--color-bg-elevated-2) 0%, var(--color-bg-layer2) 140%);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, .25), var(--shadow-sm);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .25), var(--shadow-sm)
 }
 
 .progress-item .pi-head {
@@ -1061,26 +1053,26 @@ tbody tr.overall-row {
   justify-content: space-between;
   gap: 4px;
   margin-bottom: 4px;
-  font-weight: 600;
+  font-weight: 600
 }
 
 .pi-bar-wrap {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 3px
 }
 
 .pi-bar {
   background: var(--color-bg-layer2);
   height: 6px;
   border-radius: 4px;
-  overflow: hidden;
+  overflow: hidden
 }
 
 .pi-fill {
   background: linear-gradient(90deg, var(--color-accent) 0, var(--color-accent-hover) 100%);
   height: 100%;
-  transition: width .4s;
+  transition: width .4s
 }
 
 .pi-avg-marker {
@@ -1089,7 +1081,7 @@ tbody tr.overall-row {
   width: 2px;
   height: 10px;
   background: var(--color-gold);
-  box-shadow: 0 0 4px rgba(0, 0, 0, .4);
+  box-shadow: 0 0 4px rgba(0, 0, 0, .4)
 }
 
 .pi-meta-row {
@@ -1097,18 +1089,18 @@ tbody tr.overall-row {
   display: flex;
   justify-content: flex-end;
   font-size: .55rem;
-  opacity: .75;
+  opacity: .75
 }
 
 .achievements-panel h4,
 .achievements-panel label {
   align-items: center;
-  color: var(--color-foreground);
+  color: var(--color-foreground)
 }
 
 .pi-level {
   font-size: .6rem;
-  color: var(--color-accent);
+  color: var(--color-accent)
 }
 
 .achievement-badge {
@@ -1119,13 +1111,13 @@ tbody tr.overall-row {
   font-size: .55rem;
   font-weight: 700;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, .2), 0 2px 4px rgba(0, 0, 0, .3);
-  letter-spacing: .5px;
+  letter-spacing: .5px
 }
 
 .achievement-card.rarity-common,
 .achievement-category>div:first-child:hover,
 .achievements-panel {
-  background: linear-gradient(135deg, var(--color-bg-layer) 0, var(--color-bg-layer2) 100%);
+  background: linear-gradient(135deg, var(--color-bg-layer) 0, var(--color-bg-layer2) 100%)
 }
 
 .achievements-panel {
@@ -1135,12 +1127,12 @@ tbody tr.overall-row {
   box-shadow: var(--shadow-sm);
   position: relative;
   overflow: hidden;
-  margin: 1.5rem 0;
+  margin: 1.5rem 0
 }
 
 .achievements-panel--compact {
   margin: 1rem 0;
-  border-radius: 8px;
+  border-radius: 8px
 }
 
 .achievements-panel h4 {
@@ -1149,37 +1141,37 @@ tbody tr.overall-row {
   margin: 0;
   padding: 0;
   display: flex;
-  gap: .5rem;
+  gap: .5rem
 }
 
 .achievements-panel label,
 .cat-toggle {
   display: inline-flex;
   transition: .2s;
-  cursor: pointer;
+  cursor: pointer
 }
 
 .achievements-panel>div:first-child {
   background: linear-gradient(135deg, var(--color-bg-header) 0, rgba(63, 34, 22, .9) 100%);
   padding: 1rem 1.25rem;
   border-bottom: 1px solid var(--color-border-dark);
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px)
 }
 
 .achievements-panel--compact>div:first-child {
-  padding: .75rem 1rem;
+  padding: .75rem 1rem
 }
 
 .achievements-panel .flex.items-center.gap-1 {
   display: flex;
   flex-wrap: wrap;
   gap: .375rem;
-  margin-top: .75rem;
+  margin-top: .75rem
 }
 
 .achievements-panel--compact .flex.items-center.gap-1 {
   margin-top: .5rem;
-  gap: .25rem;
+  gap: .25rem
 }
 
 .achievements-panel label {
@@ -1191,20 +1183,20 @@ tbody tr.overall-row {
   font-size: .6875rem;
   font-weight: 500;
   user-select: none;
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px)
 }
 
 .achievements-panel label:hover {
   background: rgba(255, 255, 255, .1);
   border-color: var(--color-accent);
-  transform: translateY(-1px);
+  transform: translateY(-1px)
 }
 
 .achievements-panel label input[type=checkbox] {
   width: .75rem;
   height: .75rem;
   margin: 0;
-  cursor: pointer;
+  cursor: pointer
 }
 
 .achievement-category {
@@ -1214,12 +1206,12 @@ tbody tr.overall-row {
   border-radius: 0;
   box-shadow: none;
   animation: .3s fadeIn;
-  margin: 0;
+  margin: 0
 }
 
 .achievement-category+.achievement-category {
   border-top: 1px solid var(--color-border);
-  margin-top: 0;
+  margin-top: 0
 }
 
 .achievement-category>div:first-child {
@@ -1229,11 +1221,11 @@ tbody tr.overall-row {
   align-items: center;
   gap: .75rem;
   cursor: pointer;
-  transition: background .2s;
+  transition: background .2s
 }
 
 .achievements-panel--compact .achievement-category>div:first-child {
-  padding: .75rem 1rem .5rem;
+  padding: .75rem 1rem .5rem
 }
 
 .achievement-category h5 {
@@ -1243,7 +1235,7 @@ tbody tr.overall-row {
   color: var(--color-foreground);
   opacity: .9;
   margin: 0;
-  flex-grow: 1;
+  flex-grow: 1
 }
 
 .cat-toggle {
@@ -1258,18 +1250,18 @@ tbody tr.overall-row {
   font-size: .75rem;
   font-weight: 700;
   box-shadow: 0 2px 4px rgba(0, 0, 0, .2);
-  flex-shrink: 0;
+  flex-shrink: 0
 }
 
 .achievements-panel--compact .cat-toggle {
   width: 1.25rem;
   height: 1.25rem;
-  font-size: .625rem;
+  font-size: .625rem
 }
 
 .cat-toggle:hover {
   background: var(--color-accent-hover);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, .25);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, .25)
 }
 
 .achievement-grid {
@@ -1281,20 +1273,20 @@ tbody tr.overall-row {
   transition: .3s cubic-bezier(.4, 0, .2, 1);
   max-height: 2000px;
   opacity: 1;
-  overflow: hidden;
+  overflow: hidden
 }
 
 .achievements-panel--compact .achievement-grid {
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: .75rem;
-  padding: 1rem;
+  padding: 1rem
 }
 
 .achievement-grid.collapsed {
   max-height: 0;
   opacity: 0;
   padding-top: 0;
-  padding-bottom: 0;
+  padding-bottom: 0
 }
 
 .achievement-card {
@@ -1312,18 +1304,18 @@ tbody tr.overall-row {
   overflow: hidden;
   min-height: auto;
   font-size: .875rem;
-  line-height: 1.4;
+  line-height: 1.4
 }
 
 .achievements-panel--compact .achievement-card {
   padding: 1rem .75rem;
   border-radius: 8px;
-  font-size: .8125rem;
+  font-size: .8125rem
 }
 
 .achievement-card:hover {
   transform: translateY(-5px) scale(1.01);
-  box-shadow: 0 10px 28px -4px rgba(0, 0, 0, .45), 0 0 0 1px rgba(0, 0, 0, .35);
+  box-shadow: 0 10px 28px -4px rgba(0, 0, 0, .45), 0 0 0 1px rgba(0, 0, 0, .35)
 }
 
 .achievement-card::before {
@@ -1333,36 +1325,36 @@ tbody tr.overall-row {
   left: 0;
   right: 0;
   height: 4px;
-  background: var(--color-accent);
+  background: var(--color-accent)
 }
 
 .achievement-card.rarity-mythic::before {
-  background: linear-gradient(90deg, #ff6b6b, #ff4757);
+  background: linear-gradient(90deg, #ff6b6b, #ff4757)
 }
 
 .achievement-card.rarity-legendary::before {
-  background: linear-gradient(90deg, #a855f7, #e84393);
+  background: linear-gradient(90deg, #a855f7, #e84393)
 }
 
 .achievement-card.rarity-epic::before {
-  background: linear-gradient(90deg, #3b82f6, #06b6d4);
+  background: linear-gradient(90deg, #3b82f6, #06b6d4)
 }
 
 .achievement-card.rarity-rare::before {
-  background: linear-gradient(90deg, #10b981, #059669);
+  background: linear-gradient(90deg, #10b981, #059669)
 }
 
 .achievement-card.rarity-common::before {
-  background: linear-gradient(90deg, #6b7280, #4b5563);
+  background: linear-gradient(90deg, #6b7280, #4b5563)
 }
 
 .achievement-card.owned {
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 1px rgba(200, 16, 46, .2), var(--shadow-sm);
+  box-shadow: 0 0 0 1px rgba(200, 16, 46, .2), var(--shadow-sm)
 }
 
 .achievement-card.owned::before {
-  background: linear-gradient(90deg, var(--color-gold) 0, var(--color-accent) 100%);
+  background: linear-gradient(90deg, var(--color-gold) 0, var(--color-accent) 100%)
 }
 
 .ach-icon {
@@ -1370,12 +1362,12 @@ tbody tr.overall-row {
   line-height: 1;
   margin-bottom: .75rem;
   text-shadow: 0 2px 4px rgba(0, 0, 0, .3);
-  display: block;
+  display: block
 }
 
 .achievements-panel--compact .ach-icon {
   font-size: 1.5rem;
-  margin-bottom: .5rem;
+  margin-bottom: .5rem
 }
 
 .ach-title {
@@ -1386,12 +1378,12 @@ tbody tr.overall-row {
   line-height: 1.2;
   white-space: normal;
   overflow: visible;
-  text-overflow: unset;
+  text-overflow: unset
 }
 
 .achievements-panel--compact .ach-title {
   font-size: .75rem;
-  margin-bottom: .375rem;
+  margin-bottom: .375rem
 }
 
 .ach-desc {
@@ -1399,59 +1391,59 @@ tbody tr.overall-row {
   font-size: .75rem;
   line-height: 1.3;
   margin-bottom: .75rem;
-  white-space: normal;
+  white-space: normal
 }
 
 .achievements-panel--compact .ach-desc {
   font-size: .6875rem;
-  margin-bottom: .5rem;
+  margin-bottom: .5rem
 }
 
 .achievement-card.achievement-skill::before {
-  background: linear-gradient(90deg, #ffb347, gold);
+  background: linear-gradient(90deg, #ffb347, gold)
 }
 
 .achievement-card.achievement-rank::before {
-  background: linear-gradient(90deg, #52b69a, #b5e48c);
+  background: linear-gradient(90deg, #52b69a, #b5e48c)
 }
 
 .achievement-card.achievement-account::before {
-  background: linear-gradient(90deg, #8e72ff, #c9b6ff);
+  background: linear-gradient(90deg, #8e72ff, #c9b6ff)
 }
 
 .achievement-card.achievement-playstyle::before {
-  background: linear-gradient(90deg, #ff5d8f, #ffafcc);
+  background: linear-gradient(90deg, #ff5d8f, #ffafcc)
 }
 
 .achievement-card.achievement-performance::before {
-  background: linear-gradient(90deg, #4c8bf5, #a1c4fd);
+  background: linear-gradient(90deg, #4c8bf5, #a1c4fd)
 }
 
 .achievement-card.achievement-activity::before {
-  background: linear-gradient(90deg, #a18cd1, #fbc2eb);
+  background: linear-gradient(90deg, #a18cd1, #fbc2eb)
 }
 
 .achievement-card.rarity-mythic {
   background: linear-gradient(135deg, rgba(255, 215, 0, .1) 0, var(--color-bg-layer2) 100%);
   border-color: gold;
-  box-shadow: 0 0 20px rgba(255, 215, 0, .3), var(--shadow-sm);
+  box-shadow: 0 0 20px rgba(255, 215, 0, .3), var(--shadow-sm)
 }
 
 .achievement-card.rarity-legendary {
   background: linear-gradient(135deg, rgba(255, 165, 0, .08) 0, var(--color-bg-layer2) 100%);
   border-color: orange;
-  box-shadow: 0 0 15px rgba(255, 165, 0, .2), var(--shadow-sm);
+  box-shadow: 0 0 15px rgba(255, 165, 0, .2), var(--shadow-sm)
 }
 
 .achievement-card.rarity-epic {
   background: linear-gradient(135deg, rgba(128, 0, 128, .08) 0, var(--color-bg-layer2) 100%);
   border-color: #96c;
-  box-shadow: 0 0 10px rgba(153, 102, 204, .2), var(--shadow-sm);
+  box-shadow: 0 0 10px rgba(153, 102, 204, .2), var(--shadow-sm)
 }
 
 .achievement-card.rarity-rare {
   background: linear-gradient(135deg, rgba(0, 100, 200, .06) 0, var(--color-bg-layer2) 100%);
-  border-color: #0064c8;
+  border-color: #0064c8
 }
 
 .achievement-card[data-prevalence]::after {
@@ -1469,51 +1461,50 @@ tbody tr.overall-row {
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, .1);
   text-align: center;
-  min-width: 3rem;
+  min-width: 3rem
 }
 
 .achievements-panel--compact .achievement-card[data-prevalence]::after {
   bottom: .5rem;
   font-size: .56rem;
-  padding: .18rem .37rem;
+  padding: .18rem .37rem
 }
 
 .achievement-skill {
-  background: linear-gradient(135deg, gold 0, #ffb347 100%);
+  background: linear-gradient(135deg, gold 0, #ffb347 100%)
 }
 
 .achievement-rank {
-  background: linear-gradient(135deg, #b5e48c 0, #52b69a 100%);
+  background: linear-gradient(135deg, #b5e48c 0, #52b69a 100%)
 }
 
 .achievement-account {
-  background: linear-gradient(135deg, #c9b6ff 0, #8e72ff 100%);
+  background: linear-gradient(135deg, #c9b6ff 0, #8e72ff 100%)
 }
 
 .achievement-style {
-  background: linear-gradient(135deg, #ffafcc 0, #ff5d8f 100%);
+  background: linear-gradient(135deg, #ffafcc 0, #ff5d8f 100%)
 }
 
 .achievement-performance {
-  background: linear-gradient(135deg, #a1c4fd 0, #4c8bf5 100%);
+  background: linear-gradient(135deg, #a1c4fd 0, #4c8bf5 100%)
 }
 
 .achievement-activity {
-  background: linear-gradient(135deg, #fbc2eb 0, #a18cd1 100%);
+  background: linear-gradient(135deg, #fbc2eb 0, #a18cd1 100%)
 }
 
 .achievement-badge[data-tooltip]::after {
   font-size: .65rem;
   max-width: 220px;
   white-space: normal;
-  line-height: 1.2;
+  line-height: 1.2
 }
 
-/* --- Achievements: Insights and Matrix --- */
 .insights-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 1rem;
+  gap: 1rem
 }
 
 .insight-card {
@@ -1522,72 +1513,59 @@ tbody tr.overall-row {
   border-radius: 14px;
   padding: 1.05rem 1.05rem .95rem;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, .25), var(--shadow-sm);
-  position: relative;
+  position: relative
 }
 
 .insight-title {
   font-size: 1rem;
   font-weight: 700;
   margin: 0 0 .75rem 0;
-  color: var(--color-foreground);
+  color: var(--color-foreground)
 }
 
-/* --- Design Refresh: Achievement Insights Tweaks --- */
-/* Section heading emphasis */
 .insight-title--section {
   font-size: 1.05rem;
-  letter-spacing: .5px;
+  letter-spacing: .5px
 }
 
-/* Top Players list adjustments */
 .insight-card--top-players .top-players-list {
-  gap: .65rem;
+  gap: .65rem
 }
 
 .top-player-row {
   grid-template-columns: 30px minmax(0, 1fr) 135px;
   align-items: center;
-  column-gap: .5rem;
+  column-gap: .5rem
 }
 
 .top-player-row .insight-user {
   overflow: hidden;
   display: flex;
   align-items: center;
-  min-width: 0;
+  min-width: 0
 }
 
 .top-player-row .insight-user .username-link {
   white-space: nowrap;
   overflow: visible;
   text-overflow: unset;
-  max-width: none;
+  max-width: none
 }
 
 .top-player-row .tier-badge.tier--icon-only {
-  margin-left: .4rem;
+  margin-left: .4rem
 }
 
 .top-player-row .tier-badge {
-  flex-shrink: 0;
+  flex-shrink: 0
 }
 
 .top-player-row .insight-bar-wrap {
-  min-width: 120px;
-}
-
-@media (max-width:620px) {
-  .top-player-row {
-    grid-template-columns: 26px minmax(0, 1fr) 110px;
-  }
-
-  .top-player-row .insight-bar-wrap {
-    min-width: 100px;
-  }
+  min-width: 120px
 }
 
 .top-player-row {
-  position: relative;
+  position: relative
 }
 
 .top-player-row .insight-rank {
@@ -1599,63 +1577,61 @@ tbody tr.overall-row {
   padding-left: .15rem;
   display: flex;
   align-items: center;
-  line-height: 1;
+  line-height: 1
 }
 
 .top-player-row .insight-rank::after {
   content: '.';
   margin-left: 1px;
-  opacity: .6;
+  opacity: .6
 }
 
 .top-player-row:hover .insight-rank {
-  opacity: .6;
+  opacity: .6
 }
 
 .top-player-row .insight-user button.username-link {
   font-weight: 600;
-  font-size: .8rem;
+  font-size: .8rem
 }
 
 .top-player-row .tier-badge {
   margin-left: .35rem;
   padding: .12rem .5rem;
   font-size: .58rem;
-  letter-spacing: .5px;
+  letter-spacing: .5px
 }
 
 .insight-card--top-players .insight-bar-wrap {
   height: 12px;
-  border-radius: 4px;
+  border-radius: 4px
 }
 
 .insight-card--top-players .insight-bar-label {
-  font-size: .55rem;
+  font-size: .55rem
 }
 
-/* Increase row spacing */
 .insight-list .insight-row {
-  margin-bottom: 2px;
+  margin-bottom: 2px
 }
 
 .insight-list .insight-row+.insight-row {
-  margin-top: 2px;
+  margin-top: 2px
 }
 
 .insight-card--top-players .top-player-row {
   padding: 2px 4px;
-  border-radius: 6px;
+  border-radius: 6px
 }
 
 .insight-card--top-players .top-player-row:hover {
-  background: var(--color-bg-layer2);
+  background: var(--color-bg-layer2)
 }
 
-/* Common & Rare achievement lists */
 .most-common-list .most-common-row,
 .rarest-list .rarest-row {
   grid-template-columns: 42px 1fr 130px;
-  align-items: start;
+  align-items: start
 }
 
 .most-common-row .insight-icon,
@@ -1663,45 +1639,45 @@ tbody tr.overall-row {
   font-size: 1rem;
   width: 1.75rem;
   text-align: left;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .25));
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .25))
 }
 
 .most-common-row .ach-name,
 .rarest-row .ach-name {
   font-weight: 700;
-  font-size: .75rem;
+  font-size: .75rem
 }
 
 .most-common-row .ach-desc,
 .rarest-row .ach-desc {
   font-size: .62rem;
-  line-height: 1.25;
+  line-height: 1.25
 }
 
 .most-common-row .insight-bar-wrap,
 .rarest-row .insight-bar-wrap {
   height: 12px;
   border-radius: 5px;
-  background: var(--color-bg-layer);
+  background: var(--color-bg-layer)
 }
 
 .most-common-row .insight-bar,
 .rarest-row .insight-bar {
-  background: linear-gradient(90deg, var(--color-accent) 0%, var(--color-accent-hover) 100%);
+  background: linear-gradient(90deg, var(--color-accent) 0%, var(--color-accent-hover) 100%)
 }
 
 .rarest-row .insight-bar {
-  background: linear-gradient(90deg, var(--color-gold) 0%, var(--color-accent) 100%);
+  background: linear-gradient(90deg, var(--color-gold) 0%, var(--color-accent) 100%)
 }
 
 .most-common-row .insight-bar-label,
 .rarest-row .insight-bar-label {
   font-size: .55rem;
-  font-weight: 600;
+  font-weight: 600
 }
 
 .rarest-list .rarest-row+.rarest-row {
-  position: relative;
+  position: relative
 }
 
 .rarest-list .rarest-row+.rarest-row::before {
@@ -1712,64 +1688,58 @@ tbody tr.overall-row {
   right: 0;
   height: 1px;
   background: linear-gradient(90deg, transparent, var(--color-border) 40%, var(--color-border) 60%, transparent);
-  opacity: .4;
+  opacity: .4
 }
 
-/* Subtle pattern / gradient for zero-prevalence bars */
 .insight-bar-wrap.zero {
-  background: repeating-linear-gradient(45deg, var(--color-bg-layer2) 0 6px, var(--color-bg-layer) 6px 12px);
+  background: repeating-linear-gradient(45deg, var(--color-bg-layer2) 0 6px, var(--color-bg-layer) 6px 12px)
 }
 
 .insight-bar-wrap.zero .insight-bar {
   background: linear-gradient(90deg, var(--color-accent) 0, var(--color-accent-hover) 100%);
-  opacity: .35;
+  opacity: .35
 }
 
-/* General alignment and padding consistency */
 .insights-grid {
-  align-items: start;
+  align-items: start
 }
 
 .insight-card {
-  padding-top: 1.15rem;
+  padding-top: 1.15rem
 }
 
-/* Progress bars modern rounding */
 .insight-bar-wrap,
 .insight-bar {
-  border-radius: 6px;
+  border-radius: 6px
 }
 
-/* Accessibility: ensure contrast for progress track */
 .insight-bar-wrap {
-  background: color-mix(in srgb, var(--color-bg-layer2) 70%, #000 10%);
+  background: color-mix(in srgb, var(--color-bg-layer2) 70%, #000 10%)
 }
 
-/* Trophy/crown emphasis (apply to emojis via filter if present) */
 .rarest-row .insight-icon {
-  color: var(--color-gold);
+  color: var(--color-gold)
 }
 
-/* Slightly larger section headings at top (already using modifier) */
 section#insightsContainer h3.insight-title {
-  font-size: 1.05rem;
+  font-size: 1.05rem
 }
 
 .insight-list {
   display: flex;
   flex-direction: column;
-  gap: .5rem;
+  gap: .5rem
 }
 
 .insight-row {
   display: grid;
   gap: .5rem;
-  flex-direction: row;
+  flex-direction: row
 }
 
 .insight-rank {
   font-weight: 800;
-  text-align: center;
+  text-align: center
 }
 
 .insight-user,
@@ -1777,30 +1747,24 @@ section#insightsContainer h3.insight-title {
   display: flex;
   align-items: center;
   gap: .4rem;
-  min-width: 0;
+  min-width: 0
 }
 
 .insight-icon {
-  /* font-size: 1.2rem; */
-  /* display: flex; */
-  /* justify-content: flex-start; */
-  /* flex-direction: row; */
-  /* flex-wrap: nowrap; */
-  /* max-width: 0.1em; */
-  max-height: 1.1em;
+  max-height: 1.1em
 }
 
 .ach-name {
   font-weight: 600;
   font-size: .85rem;
-  color: var(--color-foreground);
+  color: var(--color-foreground)
 }
 
 .ach-desc {
   font-size: 0.6rem;
   color: var(--color-muted);
   text-align: right;
-  margin: 0 auto;
+  margin: 0 auto
 }
 
 .insight-bar-wrap {
@@ -1809,7 +1773,7 @@ section#insightsContainer h3.insight-title {
   border: 1px solid var(--color-border);
   height: 16px;
   border-radius: 6px;
-  overflow: hidden;
+  overflow: hidden
 }
 
 .insight-bar {
@@ -1818,7 +1782,7 @@ section#insightsContainer h3.insight-title {
   left: 0;
   bottom: 0;
   width: 0%;
-  background: linear-gradient(90deg, var(--color-accent) 0, var(--color-accent-hover) 100%);
+  background: linear-gradient(90deg, var(--color-accent) 0, var(--color-accent-hover) 100%)
 }
 
 .insight-bar-label {
@@ -1829,13 +1793,13 @@ section#insightsContainer h3.insight-title {
   font-size: .7rem;
   font-weight: 700;
   color: #fff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, .5);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .5)
 }
 
 .insight-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: .5rem;
+  gap: .5rem
 }
 
 .chip {
@@ -1848,7 +1812,7 @@ section#insightsContainer h3.insight-title {
   color: var(--color-muted);
   border-radius: 999px;
   font-size: .75rem;
-  font-weight: 600;
+  font-weight: 600
 }
 
 .matrix {
@@ -1857,18 +1821,21 @@ section#insightsContainer h3.insight-title {
   border: 1px solid var(--color-border-dark);
   border-radius: 8px;
   overflow: hidden;
+  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: stretch
 }
 
 .matrix-row {
   display: grid;
-  grid-template-columns: 180px repeat(var(--matrix-cols, 8), 1fr);
+  grid-template-columns: 180px repeat(var(--matrix-cols, 8), 1fr)
 }
 
 .matrix-header {
   background: linear-gradient(135deg, var(--color-bg-layer2), var(--color-bg-layer));
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: 1
 }
 
 .matrix-cell {
@@ -1878,7 +1845,7 @@ section#insightsContainer h3.insight-title {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: .75rem;
+  font-size: .75rem
 }
 
 .matrix-cell.fixed {
@@ -1887,37 +1854,36 @@ section#insightsContainer h3.insight-title {
   background: var(--color-bg-layer2);
   position: sticky;
   left: 0;
-  z-index: 2;
+  z-index: 2
 }
 
 .matrix-cell.cell--corner {
   background: var(--color-bg-layer2);
-  font-weight: 700;
+  font-weight: 700
 }
 
 .matrix-ach {
-  font-size: 1rem;
+  font-size: 1rem
 }
 
 .matrix-prev {
   font-size: .65rem;
-  color: var(--color-muted);
+  color: var(--color-muted)
 }
 
 .matrix-cell.hit {
   background: rgba(16, 185, 129, .35);
-  box-shadow: inset 0 0 0 1px rgba(16, 185, 129, .4);
+  box-shadow: inset 0 0 0 1px rgba(16, 185, 129, .4)
 }
 
 .matrix-cell.miss {
-  background: rgba(107, 114, 128, .15);
+  background: rgba(107, 114, 128, .15)
 }
 
-/* Historical (superseded) achievement state */
 .matrix-cell.superseded {
   background: repeating-linear-gradient(45deg, rgba(234, 179, 8, .25) 0, rgba(234, 179, 8, .25) 6px, rgba(107, 114, 128, .15) 6px, rgba(107, 114, 128, .15) 12px);
   box-shadow: inset 0 0 0 1px rgba(234, 179, 8, .4);
-  position: relative;
+  position: relative
 }
 
 .matrix-cell.superseded::after {
@@ -1925,7 +1891,7 @@ section#insightsContainer h3.insight-title {
   position: absolute;
   inset: 0;
   background: linear-gradient(135deg, rgba(234, 179, 8, .18), rgba(0, 0, 0, 0));
-  pointer-events: none;
+  pointer-events: none
 }
 
 .matrix-legend {
@@ -1934,7 +1900,7 @@ section#insightsContainer h3.insight-title {
   gap: .5rem;
   color: var(--color-muted);
   font-size: .8rem;
-  margin-top: .5rem;
+  margin-top: .5rem
 }
 
 .legend-swatch {
@@ -1942,28 +1908,28 @@ section#insightsContainer h3.insight-title {
   height: 10px;
   display: inline-block;
   border-radius: 4px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border)
 }
 
 .legend-swatch.hit {
   background: rgba(16, 185, 129, .6);
-  border-color: rgba(16, 185, 129, .7);
+  border-color: rgba(16, 185, 129, .7)
 }
 
 .legend-swatch.miss {
-  background: rgba(107, 114, 128, .25);
+  background: rgba(107, 114, 128, .25)
 }
 
 .legend-swatch.superseded {
   background: linear-gradient(135deg, rgba(234, 179, 8, .5), rgba(107, 114, 128, .25));
-  border-color: rgba(234, 179, 8, .6);
+  border-color: rgba(234, 179, 8, .6)
 }
 
 .ach-catalog {
   border: 1px solid var(--color-border);
   border-radius: 10px;
   overflow: hidden;
-  background: var(--color-bg-layer);
+  background: var(--color-bg-layer)
 }
 
 .ach-catalog__summary {
@@ -1972,37 +1938,37 @@ section#insightsContainer h3.insight-title {
   font-weight: 700;
   border-bottom: 1px solid var(--color-border);
   background: linear-gradient(135deg, var(--color-bg-header) 0, rgba(63, 34, 22, .9) 100%);
-  color: var(--color-foreground);
+  color: var(--color-foreground)
 }
 
 .filter-bar label {
   font-size: .55rem;
   font-weight: 600;
   letter-spacing: .5px;
-  color: var(--color-muted);
+  color: var(--color-muted)
 }
 
 .progress-legend .pl-swatch {
   display: inline-block;
   width: 14px;
   height: 6px;
-  border-radius: 4px;
+  border-radius: 4px
 }
 
 .pl-swatch--you {
-  background: linear-gradient(90deg, var(--color-accent) 0, var(--color-accent-hover) 100%);
+  background: linear-gradient(90deg, var(--color-accent) 0, var(--color-accent-hover) 100%)
 }
 
 .pl-swatch--avg {
   background: var(--color-gold);
-  opacity: .8;
+  opacity: .8
 }
 
 .progress-toggle {
   display: inline-flex;
   border: 1px solid var(--color-border);
   border-radius: 6px;
-  overflow: hidden;
+  overflow: hidden
 }
 
 .progress-toggle button {
@@ -2013,36 +1979,36 @@ section#insightsContainer h3.insight-title {
   font-weight: 600;
   cursor: pointer;
   color: var(--color-muted);
-  transition: .2s;
+  transition: .2s
 }
 
 .progress-toggle button.active {
   background: var(--color-accent);
-  color: #fff;
+  color: #fff
 }
 
 .skill-row {
   padding: 1rem;
   background: linear-gradient(140deg, var(--color-bg-elevated-1) 0, var(--color-bg-layer2) 130%);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, .3), var(--shadow-sm);
-  border-radius: .65rem;
+  border-radius: .65rem
 }
 
 .skill-row,
 .skill-row.clickable,
 th.sortable {
-  cursor: default;
+  cursor: default
 }
 
 .skill-row:hover {
   border-color: var(--color-border-dark);
-  transform: translateY(-2px);
+  transform: translateY(-2px)
 }
 
 .skill-row.clickable:hover {
   color: #fff;
   transform: translateY(-3px);
-  border-color: var(--color-accent);
+  border-color: var(--color-accent)
 }
 
 .skill-row::before {
@@ -2051,29 +2017,29 @@ th.sortable {
   width: 100%;
   height: 100%;
   background: linear-gradient(90deg, transparent 0, rgba(200, 16, 46, .1) 50%, transparent 100%);
-  transition: left .3s;
+  transition: left .3s
 }
 
 .skill-row:hover::before {
-  left: 100%;
+  left: 100%
 }
 
 .skill-row.clickable:hover .skill-level,
 .skill-row.clickable:hover .skill-rank,
 .skill-row.clickable:hover .skill-xp {
-  color: rgba(255, 255, 255, .95);
+  color: rgba(255, 255, 255, .95)
 }
 
 .skill-row.clickable:hover .skill-icon {
   transform: scale(1.1);
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .3)) brightness(1.1);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .3)) brightness(1.1)
 }
 
 .skill-info {
   flex: 1;
   justify-content: space-between;
   min-width: 0;
-  z-index: 1;
+  z-index: 1
 }
 
 .skill-icon {
@@ -2084,64 +2050,64 @@ th.sortable {
   background-repeat: no-repeat;
   background-position: center;
   display: inline-block;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .2));
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .2))
 }
 
 .skill-icon--sm {
   width: 18px;
   height: 18px;
-  margin-right: 6px;
+  margin-right: 6px
 }
 
 section.flex.flex-col.gap-6 {
   display: grid;
   align-content: space-around;
-  justify-items: stretch;
+  justify-items: stretch
 }
 
 .skill-icon--xs {
   width: 16px;
   height: 16px;
-  margin-right: 4px;
+  margin-right: 4px
 }
 
 .skill-name,
 .skill-rank {
   font-family: 'Courier New', Courier, monospace;
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.9rem
 }
 
 .skill-stats {
   gap: 1rem;
   font-size: .85em;
-  flex-wrap: wrap;
+  flex-wrap: wrap
 }
 
 .skill-level {
   font-weight: 700;
   color: #fafafa;
   font-size: .9em;
-  text-shadow: 0 1px 2px rgba(200, 16, 46, .3);
+  text-shadow: 0 1px 2px rgba(200, 16, 46, .3)
 }
 
 .skill-rank {
   font-weight: 400;
   white-space: nowrap;
-  padding: 0;
+  padding: 0
 }
 
 .skill-xp {
   font-weight: 800;
   font-family: 'Courier New', Courier, monospace;
-  font-size: .85em;
+  font-size: .85em
 }
 
 .badge {
   padding: 0;
   font-weight: 500;
   box-shadow: none;
-  text-shadow: none;
+  text-shadow: none
 }
 
 .toast {
@@ -2150,53 +2116,50 @@ section.flex.flex-col.gap-6 {
   font-size: .85em;
   animation: .3s ease-out slideInRight;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, .35), var(--shadow-md);
-  border-radius: .75rem;
+  border-radius: .75rem
 }
 
-/* --- Utility Classes for Foreground / Background Separation --- */
 .surface-contrast {
-  background: var(--color-bg-layer2);
+  background: var(--color-bg-layer2)
 }
 
 .surface-elevated {
-  background: var(--color-bg-elevated-1);
+  background: var(--color-bg-elevated-1)
 }
 
 .surface-elevated-2 {
-  background: var(--color-bg-elevated-2);
+  background: var(--color-bg-elevated-2)
 }
 
 .surface-elevated-3 {
-  background: var(--color-bg-elevated-3);
+  background: var(--color-bg-elevated-3)
 }
 
 .elevation-0 {
-  box-shadow: none !important;
+  box-shadow: none !important
 }
 
 .elevation-1 {
-  box-shadow: var(--shadow-sm), 0 0 0 1px rgba(0, 0, 0, .25) !important;
+  box-shadow: var(--shadow-sm), 0 0 0 1px rgba(0, 0, 0, .25) !important
 }
 
 .elevation-2 {
-  box-shadow: var(--shadow-md), 0 0 0 1px rgba(0, 0, 0, .3) !important;
+  box-shadow: var(--shadow-md), 0 0 0 1px rgba(0, 0, 0, .3) !important
 }
 
 .elevation-3 {
-  box-shadow: var(--shadow-lg), 0 0 0 1px rgba(0, 0, 0, .35) !important;
+  box-shadow: var(--shadow-lg), 0 0 0 1px rgba(0, 0, 0, .35) !important
 }
 
-/* Card section divider helper */
 .card-section-divider {
   height: 1px;
   background: linear-gradient(90deg, transparent, var(--color-border-dark) 40%, var(--color-border-dark) 60%, transparent);
   margin: .85rem 0;
-  opacity: .6;
+  opacity: .6
 }
 
-/* Subtle outline for grouped stacks */
 .stack-group {
-  position: relative;
+  position: relative
 }
 
 .stack-group::before {
@@ -2206,98 +2169,95 @@ section.flex.flex-col.gap-6 {
   border: 1px solid var(--color-border-dark);
   border-radius: .9rem;
   pointer-events: none;
-  opacity: .55;
+  opacity: .55
 }
 
-/* Sidebar adjustments */
 aside.sidebar.card {
   padding-top: 1.25rem;
-  padding-bottom: 1.25rem;
+  padding-bottom: 1.25rem
 }
 
 aside.sidebar.card nav>a,
 aside.sidebar.card summary {
-  font-weight: 600;
+  font-weight: 600
 }
 
-/* Improve visual separation of breadcrumb from content */
 nav.breadcrumb {
   padding: .6rem .85rem;
   background: linear-gradient(120deg, var(--color-bg-elevated-2) 0, var(--color-bg-layer) 130%);
   border: 1px solid var(--color-border-dark);
   border-radius: .65rem;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, .35), var(--shadow-sm);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .35), var(--shadow-sm)
 }
 
 nav.breadcrumb+.main-grid,
 nav.breadcrumb+.space-y-8 {
-  margin-top: 1.25rem;
+  margin-top: 1.25rem
 }
 
-/* Optional: accent ring utility */
 .ring-accent {
-  box-shadow: 0 0 0 3px rgba(200, 16, 46, .25) !important;
+  box-shadow: 0 0 0 3px rgba(200, 16, 46, .25) !important
 }
 
 .toast--error {
-  border-color: var(--color-danger);
+  border-color: var(--color-danger)
 }
 
 .min-w-32 {
   min-width: 8rem;
-  min-width: 8rem;
+  min-width: 8rem
 }
 
 .toast::before {
   top: 0;
   height: 3px;
-  background: var(--color-accent);
+  background: var(--color-accent)
 }
 
 .bg-surface {
   background: var(--color-bg-surface);
-  background: var(--color-bg-surface);
+  background: var(--color-bg-surface)
 }
 
 .bg-layer2,
 .icon-button:hover {
-  background: var(--color-bg-layer2);
+  background: var(--color-bg-layer2)
 }
 
 .text-danger {
-  color: var(--color-danger);
+  color: var(--color-danger)
 }
 
 .text-gold {
-  color: var(--color-gold);
+  color: var(--color-gold)
 }
 
 .border-border {
   border-color: var(--color-border);
-  border-color: var(--color-border);
+  border-color: var(--color-border)
 }
 
 .bg-input {
   background: var(--color-input);
-  background: var(--color-input);
+  background: var(--color-input)
 }
 
 ::-webkit-scrollbar {
   width: 10px;
-  height: 10px;
+  height: 10px
 }
 
 ::-webkit-scrollbar-track {
-  background: 0 0;
+  background: 0 0
 }
 
 ::-webkit-scrollbar-thumb {
   background: var(--color-bg-layer2);
-  border-radius: 8px;
+  border-radius: 8px
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-bg-layer);
+  background: var(--color-bg-layer)
 }
 
 .btn-sm:focus,
@@ -2307,7 +2267,7 @@ nav.breadcrumb+.space-y-8 {
 input:focus,
 select:focus {
   outline: 0;
-  box-shadow: 0 0 0 3px rgba(200, 16, 46, .25);
+  box-shadow: 0 0 0 3px rgba(200, 16, 46, .25)
 }
 
 input[type=number]:focus,
@@ -2315,71 +2275,71 @@ input[type=text]:focus,
 select:focus {
   border-color: var(--color-accent);
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, .1), 0 0 0 3px rgba(200, 16, 46, 0.1);
-  background: var(--color-input);
+  background: var(--color-input)
 }
 
 footer.site-footer {
   font-size: .65em;
   line-height: 1.25;
-  padding: .5rem;
+  padding: .5rem
 }
 
 footer.site-footer .mt-2 {
-  margin-top: .25rem;
+  margin-top: .25rem
 }
 
 .left-stack {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 12px;
+  gap: 12px
 }
 
 .left-stack-extras {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 12px
 }
 
 .achievements-left-card,
 .primary-header-card {
-  max-width: 100%;
+  max-width: 100%
 }
 
 .achievements-expand-toggle {
   padding: 6px 12px;
   border-radius: 4px;
   transition: .2s;
-  user-select: none;
+  user-select: none
 }
 
 .achievements-expand-toggle:hover {
   background-color: var(--color-bg-layer);
   color: var(--color-accent);
-  cursor: pointer;
+  cursor: pointer
 }
 
 .select-none {
-  user-select: none;
+  user-select: none
 }
 
 .hidden {
-  display: none;
+  display: none
 }
 
 .transition-colors {
   transition-property: color;
-  transition-property: color;
+  transition-property: color
 }
 
 .duration-200 {
   transition-duration: .2s;
-  transition-duration: 0.2s;
+  transition-duration: 0.2s
 }
 
 .hover\:text-accent:hover {
   color: var(--color-accent);
-  color: var(--color-accent);
+  color: var(--color-accent)
 }
 
 .featured-grid {
@@ -2387,250 +2347,250 @@ footer.site-footer .mt-2 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
   justify-content: center;
-  align-items: stretch;
+  align-items: stretch
 }
 
 .flex-center {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: center
 }
 
 .flex-between {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: space-between
 }
 
 .flex-col {
   display: flex;
-  flex-direction: column;
+  flex-direction: column
 }
 
 .flex-wrap {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: wrap
 }
 
 .gap-1 {
-  gap: 0.25rem;
+  gap: 0.25rem
 }
 
 .gap-2 {
-  gap: 0.5rem;
+  gap: 0.5rem
 }
 
 .gap-3 {
-  gap: 0.75rem;
+  gap: 0.75rem
 }
 
 .gap-4 {
-  gap: 1rem;
+  gap: 1rem
 }
 
 .gap-6 {
-  gap: 1.5rem;
+  gap: 1.5rem
 }
 
 .gap-8 {
-  gap: 2rem;
+  gap: 2rem
 }
 
 .flex-items-center {
   display: flex;
-  align-items: center;
+  align-items: center
 }
 
 .flex-items-center.gap-1 {
-  gap: 0.25rem;
+  gap: 0.25rem
 }
 
 .flex-items-center.gap-2 {
-  gap: 0.5rem;
+  gap: 0.5rem
 }
 
 .flex-items-center.gap-3 {
-  gap: 0.75rem;
+  gap: 0.75rem
 }
 
 .flex-items-center.gap-4 {
-  gap: 1rem;
+  gap: 1rem
 }
 
 .text-sm {
   font-size: 0.875rem;
-  line-height: 1.25rem;
+  line-height: 1.25rem
 }
 
 .text-base {
   font-size: 1rem;
-  line-height: 1.5rem;
+  line-height: 1.5rem
 }
 
 .text-lg {
   font-size: 1.125rem;
-  line-height: 1.75rem;
+  line-height: 1.75rem
 }
 
 .text-xl {
   font-size: 1.25rem;
-  line-height: 1.75rem;
+  line-height: 1.75rem
 }
 
 .text-2xl {
   font-size: 1.5rem;
-  line-height: 2rem;
+  line-height: 2rem
 }
 
 .font-semibold {
-  font-weight: 600;
+  font-weight: 600
 }
 
 .font-bold {
-  font-weight: 700;
+  font-weight: 700
 }
 
 .font-extrabold {
-  font-weight: 800;
+  font-weight: 800
 }
 
 .text-left {
-  text-align: left;
+  text-align: left
 }
 
 .text-center {
-  text-align: center;
+  text-align: center
 }
 
 .text-right {
-  text-align: right;
+  text-align: right
 }
 
 .p-4 {
-  padding: 1rem;
+  padding: 1rem
 }
 
 .p-6 {
-  padding: 1.5rem;
+  padding: 1.5rem
 }
 
 .px-4 {
   padding-left: 1rem;
-  padding-right: 1rem;
+  padding-right: 1rem
 }
 
 .px-5 {
   padding-left: 1.25rem;
-  padding-right: 1.25rem;
+  padding-right: 1.25rem
 }
 
 .px-6 {
   padding-left: 1.5rem;
-  padding-right: 1.5rem;
+  padding-right: 1.5rem
 }
 
 .py-2 {
   padding-top: 0.5rem;
-  padding-bottom: 0.5rem;
+  padding-bottom: 0.5rem
 }
 
 .py-4 {
   padding-top: 1rem;
-  padding-bottom: 1rem;
+  padding-bottom: 1rem
 }
 
 .mb-4 {
-  margin-bottom: 1rem;
+  margin-bottom: 1rem
 }
 
 .w-4 {
-  width: 1rem;
+  width: 1rem
 }
 
 .w-5 {
-  width: 1.25rem;
+  width: 1.25rem
 }
 
 .w-full {
-  width: 100%;
+  width: 100%
 }
 
 .h-4 {
-  height: 1rem;
+  height: 1rem
 }
 
 .h-5 {
-  height: 1.25rem;
+  height: 1.25rem
 }
 
 .h-6 {
-  height: 1.5rem;
+  height: 1.5rem
 }
 
 .h-10 {
-  height: 2.5rem;
+  height: 2.5rem
 }
 
 .relative {
-  position: relative;
+  position: relative
 }
 
 .absolute {
-  position: absolute;
+  position: absolute
 }
 
 .rounded {
-  border-radius: 0.25rem;
+  border-radius: 0.25rem
 }
 
 .rounded-md {
-  border-radius: 0.375rem;
+  border-radius: 0.375rem
 }
 
 .rounded-lg {
-  border-radius: 0.5rem;
+  border-radius: 0.5rem
 }
 
 .bg-layer {
-  background: var(--color-bg-layer);
+  background: var(--color-bg-layer)
 }
 
 .bg-layer2 {
-  background: var(--color-bg-layer2);
+  background: var(--color-bg-layer2)
 }
 
 .border {
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border)
 }
 
 .border-gold {
-  border-color: var(--color-gold);
+  border-color: var(--color-gold)
 }
 
 .shadow {
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-sm)
 }
 
 .shadow-md {
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-md)
 }
 
 .shadow-lg {
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-lg)
 }
 
 .hover\:text-gold:hover {
-  color: var(--color-gold);
+  color: var(--color-gold)
 }
 
 .w-4.h-4 {
   width: 1rem;
-  height: 1rem;
+  height: 1rem
 }
 
 .w-5.h-5 {
   width: 1.25rem;
-  height: 1.25rem;
+  height: 1.25rem
 }
 
 .btn-input {
@@ -2641,13 +2601,13 @@ footer.site-footer .mt-2 {
   border: 2px solid var(--color-border);
   background: var(--color-input);
   color: var(--color-foreground);
-  transition: 0.2s;
+  transition: 0.2s
 }
 
 .btn-input:focus {
   outline: 0;
   border-color: var(--color-accent);
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1), 0 0 0 3px rgba(200, 16, 46, 0.1);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1), 0 0 0 3px rgba(200, 16, 46, 0.1)
 }
 
 .search-suggestions {
@@ -2661,83 +2621,83 @@ footer.site-footer .mt-2 {
   box-shadow: var(--shadow-lg);
   max-height: 16rem;
   overflow-y: auto;
-  z-index: 20;
+  z-index: 20
 }
 
 .tracking-wide {
-  letter-spacing: 0.025em;
+  letter-spacing: 0.025em
 }
 
 .leading-none {
-  line-height: 1;
+  line-height: 1
 }
 
 .flex-1 {
-  flex: 1;
+  flex: 1
 }
 
 .flex-col.gap-3 {
-  gap: 0.75rem;
+  gap: 0.75rem
 }
 
 .flex-col.gap-1 {
-  gap: 0.25rem;
+  gap: 0.25rem
 }
 
 .space-y-4>*+* {
-  margin-top: 1rem;
+  margin-top: 1rem
 }
 
 .space-y-6>*+* {
-  margin-top: 1.5rem;
+  margin-top: 1.5rem
 }
 
 .space-y-1>*+* {
-  margin-top: 0.25rem;
+  margin-top: 0.25rem
 }
 
 .mt-2 {
-  margin-top: 0.5rem;
+  margin-top: 0.5rem
 }
 
 .mt-4 {
-  margin-top: 1rem;
+  margin-top: 1rem
 }
 
 .pl-6 {
-  padding-left: 1.5rem;
+  padding-left: 1.5rem
 }
 
 .cursor-pointer {
-  cursor: pointer;
+  cursor: pointer
 }
 
 .opacity-50 {
-  opacity: 0.5;
+  opacity: 0.5
 }
 
 .opacity-70 {
-  opacity: 0.7;
+  opacity: 0.7
 }
 
 .min-h-full {
-  min-height: 100%;
+  min-height: 100%
 }
 
 .bg-dark\/90 {
-  background: rgba(0, 0, 0, 0.9);
+  background: rgba(0, 0, 0, 0.9)
 }
 
 .bg-gold\/50 {
-  background: rgba(255, 215, 0, 0.5);
+  background: rgba(255, 215, 0, 0.5)
 }
 
 .text-white\/90 {
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(255, 255, 255, 0.9)
 }
 
 .backdrop-blur-sm {
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px)
 }
 
 .mini-achievement-badge {
@@ -2754,7 +2714,7 @@ footer.site-footer .mt-2 {
   cursor: help;
   transition: all 0.2s ease;
   position: relative;
-  z-index: 10;
+  z-index: 10
 }
 
 .mini-achievement-badge:hover {
@@ -2762,7 +2722,7 @@ footer.site-footer .mt-2 {
   background: var(--color-accent);
   border-color: var(--color-accent);
   color: white;
-  box-shadow: 0 2px 8px rgba(200, 16, 46, 0.3);
+  box-shadow: 0 2px 8px rgba(200, 16, 46, 0.3)
 }
 
 .mini-achievement-badge[data-tooltip*="Triple Crown"],
@@ -2770,21 +2730,21 @@ footer.site-footer .mt-2 {
 .mini-achievement-badge[data-tooltip*="Maxed"] {
   box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
   border-color: var(--color-gold);
-  background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 165, 0, 0.2));
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 165, 0, 0.2))
 }
 
 .mini-achievement-badge[data-tooltip*="Triple Crown"] {
-  background: linear-gradient(135deg, rgba(255, 215, 0, 0.3), rgba(255, 165, 0, 0.3));
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.3), rgba(255, 165, 0, 0.3))
 }
 
 .mini-achievement-badge[data-tooltip*="Grandmaster"] {
-  background: linear-gradient(135deg, rgba(255, 215, 0, 0.4), rgba(255, 165, 0, 0.4));
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.4), rgba(255, 165, 0, 0.4))
 }
 
 .achievement-progress {
   position: relative;
   display: inline-block;
-  margin-left: 0.5rem;
+  margin-left: 0.5rem
 }
 
 .achievement-progress::after {
@@ -2795,11 +2755,11 @@ footer.site-footer .mt-2 {
   right: 0;
   height: 2px;
   background: linear-gradient(90deg, var(--color-accent), var(--color-gold));
-  border-radius: 1px;
+  border-radius: 1px
 }
 
 .mini-achievement-badge[data-tooltip] {
-  position: relative;
+  position: relative
 }
 
 .mini-achievement-badge[data-tooltip]:hover::after {
@@ -2821,79 +2781,79 @@ footer.site-footer .mt-2 {
   min-width: 120px;
   max-width: 200px;
   line-height: 1.3;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.5rem
 }
 
 .achievement-rarity-mythic {
   border-color: #ff6b6b !important;
-  box-shadow: 0 0 8px rgba(255, 107, 107, 0.3);
+  box-shadow: 0 0 8px rgba(255, 107, 107, 0.3)
 }
 
 .achievement-rarity-legendary {
   border-color: #a855f7 !important;
-  box-shadow: 0 0 8px rgba(168, 85, 247, 0.3);
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.3)
 }
 
 .achievement-rarity-epic {
   border-color: #3b82f6 !important;
-  box-shadow: 0 0 8px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.3)
 }
 
 .achievement-rarity-rare {
   border-color: #10b981 !important;
-  box-shadow: 0 0 6px rgba(16, 185, 129, 0.2);
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.2)
 }
 
 .achievement-rarity-common {
-  border-color: var(--color-border);
+  border-color: var(--color-border)
 }
 
 .achievement-category-tier {
-  --category-color: #ff6b6b;
+  --category-color: #ff6b6b
 }
 
 .achievement-category-rank {
-  --category-color: #a855f7;
+  --category-color: #a855f7
 }
 
 .achievement-category-account {
-  --category-color: #3b82f6;
+  --category-color: #3b82f6
 }
 
 .achievement-category-skill-mastery {
-  --category-color: #10b981;
+  --category-color: #10b981
 }
 
 .achievement-category-gathering {
-  --category-color: #f59e0b;
+  --category-color: #f59e0b
 }
 
 .achievement-category-artisan {
-  --category-color: #ef4444;
+  --category-color: #ef4444
 }
 
 .achievement-category-support {
-  --category-color: #8b5cf6;
+  --category-color: #8b5cf6
 }
 
 .achievement-category-playstyle {
-  --category-color: #ec4899;
+  --category-color: #ec4899
 }
 
 .achievement-category-performance {
-  --category-color: #06b6d4;
+  --category-color: #06b6d4
 }
 
 .achievement-category-activity {
-  --category-color: #84cc16;
+  --category-color: #84cc16
 }
 
 .achievement-category-milestone {
-  --category-color: #f97316;
+  --category-color: #f97316
 }
 
 .achievement-category-special {
-  --category-color: #6366f1;
+  --category-color: #6366f1
 }
 
 .leaderboard-table [data-tooltip]::after {
@@ -2905,8 +2865,14 @@ footer.site-footer .mt-2 {
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.15);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
-  z-index: 1000;
-  white-space: normal;
+  z-index: 0;
+  white-space: normal
+}
+
+.leaderboard-table .tier-badge[data-tooltip]:hover::after,
+.leaderboard-table .mini-badge[data-tooltip]:hover::after,
+.leaderboard-table .mini-achievement-badge[data-tooltip]:hover::after {
+  opacity: 0 !important
 }
 
 .leaderboard-table .mini-achievement-badge[data-tooltip]:hover::after,
@@ -2915,274 +2881,8 @@ footer.site-footer .mt-2 {
   background: rgba(0, 0, 0, 0.9);
   color: #fff;
   border-color: rgba(255, 255, 255, 0.15);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5)
 }
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes slideInRight {
-  from {
-    opacity: 0;
-    transform: translateX(100px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@media (max-width: 1024px) {
-  .featured-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 640px) {
-  .featured-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 768px) {
-  [data-tooltip]::after {
-    max-width: 200px;
-    font-size: .7rem;
-    left: 0;
-    transform: translate(0, .5rem);
-  }
-
-  .leaderboard-table [data-tooltip]::after {
-    left: 50%;
-    transform: translateX(-50%);
-    bottom: calc(100% + 6px);
-    max-width: 240px;
-  }
-}
-
-@media (max-width:1024px) {
-  .achievement-grid {
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: .875rem;
-  }
-
-  .achievements-panel--compact .achievement-grid {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  }
-
-  .osrs-table {
-    width: 100%;
-  }
-
-  table td,
-  table th {
-    padding: .65rem .75rem;
-    font-size: .9rem;
-  }
-
-  .leaderboard-table td:first-child,
-  .leaderboard-table th:first-child {
-    width: 50px;
-  }
-}
-
-@media (max-width:480px) {
-
-  .achievements-inline-grid,
-  .achievements-panel--compact .achievement-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .achievement-card {
-    padding: .75rem .5rem;
-  }
-}
-
-@media (max-width:520px) {
-  .main-grid {
-    gap: 1.25rem;
-  }
-
-  .sidebar {
-    padding: .75rem !important;
-  }
-
-  table td,
-  table th {
-    padding: .55rem;
-    font-size: .82rem;
-  }
-
-  .username-link {
-    font-size: .85rem;
-  }
-
-  h2 {
-    font-size: 1.3rem;
-  }
-
-  h3 {
-    font-size: 1.15rem;
-  }
-}
-
-@media (max-width:620px) {
-
-  table td,
-  table th {
-    white-space: normal;
-  }
-}
-
-@media (max-width:640px) {
-  .achievements-inline-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .achievement-grid {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: .625rem;
-  }
-
-  .achievements-panel--compact .achievement-grid {
-    grid-template-columns: 1fr 1fr;
-    gap: .5rem;
-  }
-
-  .achievement-card {
-    padding: .875rem .625rem;
-    font-size: .8125rem;
-  }
-
-  .ach-title {
-    font-size: .75rem;
-  }
-
-  .ach-desc {
-    font-size: .6875rem;
-  }
-
-  .achievements-panel label {
-    font-size: .625rem;
-    padding: .1875rem .375rem;
-  }
-}
-
-@media (max-width:768px) {
-  .achievements-inline-grid {
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: .5rem;
-  }
-
-  .achievement-inline-card {
-    padding: .4rem .6rem;
-  }
-
-  .ach-inline-name {
-    font-size: .75rem;
-  }
-
-  .ach-inline-rarity {
-    font-size: .65rem;
-  }
-
-  .achievements-panel {
-    margin: 1rem 0;
-    border-radius: 8px;
-  }
-
-  .achievement-grid {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: .75rem;
-    padding: 1rem;
-  }
-
-  .achievements-panel--compact .achievement-grid {
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-    gap: .625rem;
-  }
-
-  .achievement-card {
-    padding: 1rem .75rem;
-  }
-
-  .ach-icon {
-    font-size: 1.75rem;
-    margin-bottom: .625rem;
-  }
-
-  .achievements-panel--compact .ach-icon {
-    font-size: 1.25rem;
-  }
-}
-
-@media (min-width: 768px) {
-  .md\:flex-row {
-    flex-direction: row;
-  }
-
-  .md\:gap-4 {
-    gap: 1rem;
-  }
-}
-
-@media (min-width:1600px) {
-
-  .home-leaderboard table td:nth-child(2),
-  .home-leaderboard table th:nth-child(2) {
-    width: 45%;
-  }
-}
-
-@media (min-width:2000px) {
-  .osrs-table.home-leaderboard {
-    max-width: 92vw;
-  }
-}
-
-@media (min-width:640px) {
-  .skill-stats {
-    gap: 1.25rem;
-    flex-wrap: nowrap;
-  }
-}
-
-@media (min-width:768px) {
-  .main-grid {
-    grid-template-columns: 220px 1fr;
-  }
-
-  table td,
-  table th {
-    padding: .85rem 1.05rem;
-  }
-
-  .sidebar {
-    width: 100%;
-  }
-}
-
-@media (prefers-reduced-motion:reduce) {
-
-  *,
-  ::after,
-  ::before {
-    animation: none !important;
-    transition: none !important;
-  }
-}
-
-/* Modern Vercel-inspired theme overrides */
 
 :root[data-theme='light'] {
   --color-bg-surface: #ffffff;
@@ -3199,7 +2899,7 @@ footer.site-footer .mt-2 {
   --color-gold: #ffd700;
   --color-input: #ffffff;
   --color-danger: #e5484d;
-  --color-success: #2ecc71;
+  --color-success: #2ecc71
 }
 
 :root[data-theme='dark'] {
@@ -3217,28 +2917,28 @@ footer.site-footer .mt-2 {
   --color-gold: #eab308;
   --color-input: #1a1a1a;
   --color-danger: #ff6b6b;
-  --color-success: #51cf66;
+  --color-success: #51cf66
 }
 
 .osrs-header {
   backdrop-filter: saturate(180%) blur(10px);
   background: var(--color-bg-header);
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border)
 }
 
 .nav-pill {
   color: var(--color-foreground);
-  transition: background-color .2s, color .2s;
+  transition: background-color .2s, color .2s
 }
 
 .nav-pill:hover {
-  background: var(--color-bg-layer2);
+  background: var(--color-bg-layer2)
 }
 
 .nav-pill.active {
   color: var(--color-accent);
   border-bottom: 2px solid var(--color-accent);
-  background: transparent;
+  background: transparent
 }
 
 .icon-button {
@@ -3249,34 +2949,34 @@ footer.site-footer .mt-2 {
   height: 2.5rem;
   width: 2.5rem;
   transition: background-color .2s, color .2s;
-  color: var(--color-foreground);
+  color: var(--color-foreground)
 }
 
 .icon-button:hover {
-  background: var(--color-bg-layer2);
+  background: var(--color-bg-layer2)
 }
 
 .icon-button:focus {
   outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
+  outline-offset: 2px
 }
 
 .btn-input {
   border: 1px solid var(--color-border);
   background: var(--color-bg-layer);
-  transition: border-color .2s, box-shadow .2s, background-color .2s;
+  transition: border-color .2s, box-shadow .2s, background-color .2s
 }
 
 .btn-input:focus {
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px rgba(0, 112, 243, 0.3);
+  box-shadow: 0 0 0 3px rgba(0, 112, 243, 0.3)
 }
 
 .modal-overlay {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, .5);
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px)
 }
 
 .modal {
@@ -3286,5 +2986,279 @@ footer.site-footer .mt-2 {
   padding: 1.5rem;
   max-width: 32rem;
   margin: 10vh auto;
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-lg)
+}
+
+@media (max-width:620px) {
+  .top-player-row {
+    grid-template-columns: 26px minmax(0, 1fr) 110px
+  }
+
+  .top-player-row .insight-bar-wrap {
+    min-width: 100px
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px)
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0)
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100px)
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0)
+  }
+}
+
+@media (max-width: 1024px) {
+  .featured-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr))
+  }
+}
+
+@media (max-width: 640px) {
+  .featured-grid {
+    grid-template-columns: 1fr
+  }
+}
+
+@media (max-width: 768px) {
+  [data-tooltip]::after {
+    max-width: 200px;
+    font-size: .7rem;
+    left: 0;
+    transform: translate(0, .5rem)
+  }
+
+  .leaderboard-table [data-tooltip]::after {
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(100% + 6px);
+    max-width: 240px
+  }
+}
+
+@media (max-width:1024px) {
+  .achievement-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: .875rem
+  }
+
+  .achievements-panel--compact .achievement-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr))
+  }
+
+  .osrs-table {
+    width: 100%
+  }
+
+  table td,
+  table th {
+    padding: .65rem .75rem;
+    font-size: .9rem
+  }
+
+  .leaderboard-table td:first-child,
+  .leaderboard-table th:first-child {
+    width: 50px
+  }
+}
+
+@media (max-width:480px) {
+
+  .achievements-inline-grid,
+  .achievements-panel--compact .achievement-grid {
+    grid-template-columns: 1fr
+  }
+
+  .achievement-card {
+    padding: .75rem .5rem
+  }
+}
+
+@media (max-width:520px) {
+  .main-grid {
+    gap: 1.25rem
+  }
+
+  .sidebar {
+    padding: .75rem !important
+  }
+
+  table td,
+  table th {
+    padding: .55rem;
+    font-size: .82rem
+  }
+
+  .username-link {
+    font-size: .85rem
+  }
+
+  h2 {
+    font-size: 1.3rem
+  }
+
+  h3 {
+    font-size: 1.15rem
+  }
+}
+
+@media (max-width:620px) {
+
+  table td,
+  table th {
+    white-space: normal
+  }
+}
+
+@media (max-width:640px) {
+  .achievements-inline-grid {
+    grid-template-columns: 1fr 1fr
+  }
+
+  .achievement-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: .625rem
+  }
+
+  .achievements-panel--compact .achievement-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: .5rem
+  }
+
+  .achievement-card {
+    padding: .875rem .625rem;
+    font-size: .8125rem
+  }
+
+  .ach-title {
+    font-size: .75rem
+  }
+
+  .ach-desc {
+    font-size: .6875rem
+  }
+
+  .achievements-panel label {
+    font-size: .625rem;
+    padding: .1875rem .375rem
+  }
+}
+
+@media (max-width:768px) {
+  .achievements-inline-grid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: .5rem
+  }
+
+  .achievement-inline-card {
+    padding: .4rem .6rem
+  }
+
+  .ach-inline-name {
+    font-size: .75rem
+  }
+
+  .ach-inline-rarity {
+    font-size: .65rem
+  }
+
+  .achievements-panel {
+    margin: 1rem 0;
+    border-radius: 8px
+  }
+
+  .achievement-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: .75rem;
+    padding: 1rem
+  }
+
+  .achievements-panel--compact .achievement-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: .625rem
+  }
+
+  .achievement-card {
+    padding: 1rem .75rem
+  }
+
+  .ach-icon {
+    font-size: 1.75rem;
+    margin-bottom: .625rem
+  }
+
+  .achievements-panel--compact .ach-icon {
+    font-size: 1.25rem
+  }
+}
+
+@media (min-width: 768px) {
+  .md\:flex-row {
+    flex-direction: row
+  }
+
+  .md\:gap-4 {
+    gap: 1rem
+  }
+}
+
+@media (min-width:1600px) {
+
+  .home-leaderboard table td:nth-child(2),
+  .home-leaderboard table th:nth-child(2) {
+    width: 45%
+  }
+}
+
+@media (min-width:2000px) {
+  .osrs-table.home-leaderboard {
+    max-width: 92vw
+  }
+}
+
+@media (min-width:640px) {
+  .skill-stats {
+    gap: 1.25rem;
+    flex-wrap: nowrap
+  }
+}
+
+@media (min-width:768px) {
+  .main-grid {
+    grid-template-columns: 220px 1fr
+  }
+
+  table td,
+  table th {
+    padding: .85rem 1.05rem
+  }
+
+  .sidebar {
+    width: 100%
+  }
+}
+
+@media (prefers-reduced-motion:reduce) {
+
+  *,
+  ::after,
+  ::before {
+    animation: none !important;
+    transition: none !important
+  }
 }

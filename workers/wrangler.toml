@@ -20,6 +20,14 @@ compatibility_date = "2023-10-30"
 #   { pattern = "example.com/api/*", zone_id = "YOUR_ZONE_ID" }
 # ]
 
+[placement]
+mode = "smart"
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+
 # Cron Trigger: Once per hour per specification
 [triggers]
 crons = ["0 */1 * * *"]
