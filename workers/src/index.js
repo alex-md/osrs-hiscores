@@ -255,6 +255,21 @@ async function persistAchievementStats(env, users) {
         if (firstsRaw) {
             try { firsts = JSON.parse(firstsRaw) || {}; } catch (_) { firsts = {}; }
         }
+        // Load or initialize upgraded firsts structure (v2)
+        // Schema: { version:2, updatedAt, keys: { achKey: { username, timestamp } }, counts: { achKey: number } }
+        let firstsV2Raw = null;
+        let firstsV2 = null;
+        try { firstsV2Raw = await env.HISCORES_KV.get('ach:firsts:v2'); } catch (_) { }
+        if (firstsV2Raw) {
+            try { firstsV2 = JSON.parse(firstsV2Raw) || null; } catch (_) { firstsV2 = null; }
+        }
+        if (!firstsV2 || firstsV2.version !== 2) {
+            // Bootstrap from legacy mapping if present
+            firstsV2 = { version: 2, updatedAt: 0, keys: {}, counts: {} };
+            for (const [k, v] of Object.entries(firsts)) {
+                if (v && v.username && v.timestamp) firstsV2.keys[k] = { username: v.username, timestamp: v.timestamp, source: 'legacy' };
+            }
+        }
         const events = [];
         const updatedUsers = [];
         const now = Date.now();
@@ -269,6 +284,12 @@ async function persistAchievementStats(env, users) {
                     if (!firsts[key]) {
                         firsts[key] = { username: u.username, timestamp: now };
                         events.push({ key, username: u.username, timestamp: now });
+                    }
+                    // v2: record counts & firsts
+                    firstsV2.counts[key] = (firstsV2.counts[key] || 0) + 1;
+                    if (!firstsV2.keys[key]) {
+                        firstsV2.keys[key] = { username: u.username, timestamp: now, source: 'live' };
+                        events.push({ key, username: u.username, timestamp: now, v2: true });
                     }
                 }
             }
@@ -289,8 +310,41 @@ async function persistAchievementStats(env, users) {
             totalPlayers: users.length,
             counts: countsObj
         }));
+        // Initialize missing counts in v2 model using prevalence snapshot (best-effort bootstrap)
+        for (const k of ACHIEVEMENT_KEYS) {
+            if (firstsV2.counts[k] === undefined) firstsV2.counts[k] = countsObj[k] || 0;
+        }
+        // Reconciliation: for each achievement where we have user timestamps that predate stored first
+        // (Only possible for non-pruned achievements; pruned families lose historical timestamps.)
+        try {
+            for (const k of ACHIEVEMENT_KEYS) {
+                let earliest = null; // { username, timestamp }
+                for (const u of users) {
+                    const ts = u?.achievements?.[k];
+                    if (!ts) continue;
+                    const numTs = Number(ts) || 0;
+                    if (!earliest || numTs < earliest.timestamp) {
+                        earliest = { username: u.username, timestamp: numTs };
+                    }
+                }
+                if (earliest) {
+                    const existing = firstsV2.keys[k];
+                    if (!existing || earliest.timestamp < existing.timestamp) {
+                        firstsV2.keys[k] = { username: earliest.username, timestamp: earliest.timestamp, source: existing ? 'reconciled-earlier' : 'reconciled-new' };
+                    }
+                }
+                // Ensure legacy map stays in sync for compatibility (do not overwrite an earlier legacy first)
+                if (firstsV2.keys[k] && (!firsts[k] || firstsV2.keys[k].timestamp < firsts[k].timestamp)) {
+                    firsts[k] = { username: firstsV2.keys[k].username, timestamp: firstsV2.keys[k].timestamp };
+                }
+            }
+        } catch (reconErr) {
+            console.log('firsts reconciliation error:', String(reconErr));
+        }
+        firstsV2.updatedAt = Date.now();
         // Save firsts mapping
         await env.HISCORES_KV.put('ach:firsts', JSON.stringify(firsts));
+        await env.HISCORES_KV.put('ach:firsts:v2', JSON.stringify(firstsV2));
         // Append to events list (trimmed)
         if (events.length) {
             let log = { updatedAt: now, events: [] };
@@ -406,29 +460,72 @@ async function handleAchievementsStats(env) {
 }
 
 async function handleAchievementsFirsts(env) {
-    let raw = await env.HISCORES_KV.get('ach:firsts');
-    let firsts = null;
-    try { if (raw) firsts = JSON.parse(raw) || {}; } catch (_) { firsts = null; }
-    if (!firsts) {
-        // Derive firsts by scanning users' achievement timestamps (best-effort)
+    // Prefer v2 structure if present
+    let v2Raw = null; let v2 = null;
+    try { v2Raw = await env.HISCORES_KV.get('ach:firsts:v2'); } catch (_) { }
+    if (v2Raw) {
+        try { v2 = JSON.parse(v2Raw) || null; } catch (_) { v2 = null; }
+    }
+    let legacyRaw = await env.HISCORES_KV.get('ach:firsts');
+    let legacy = null;
+    try { if (legacyRaw) legacy = JSON.parse(legacyRaw) || null; } catch (_) { legacy = null; }
+    if (!v2) {
+        // Fallback: reconstruct both legacy & v2 from user data
         try {
             const users = await getAllUsers(env, { fresh: true });
             const best = {};
             for (const u of users) {
                 const ach = u?.achievements || {};
                 for (const [k, ts] of Object.entries(ach)) {
-                    if (!best[k] || (Number(ts) || 0) < best[k].timestamp) {
-                        best[k] = { username: u.username, timestamp: Number(ts) || 0 };
+                    const numTs = Number(ts) || 0;
+                    if (!best[k] || numTs < best[k].timestamp) {
+                        best[k] = { username: u.username, timestamp: numTs };
                     }
                 }
             }
-            firsts = best;
-            await env.HISCORES_KV.put('ach:firsts', JSON.stringify(firsts));
-        } catch (_) {
-            firsts = {};
+            legacy = best;
+            v2 = { version: 2, updatedAt: Date.now(), keys: {}, counts: {} };
+            for (const [k, v] of Object.entries(best)) v2.keys[k] = { username: v.username, timestamp: v.timestamp, source: 'reconstructed' };
+            await env.HISCORES_KV.put('ach:firsts', JSON.stringify(legacy));
+            await env.HISCORES_KV.put('ach:firsts:v2', JSON.stringify(v2));
+        } catch (reconErr) {
+            legacy = legacy || {};
+            v2 = v2 || { version: 2, updatedAt: Date.now(), keys: {}, counts: {} };
+            console.log('firsts reconstruction error:', String(reconErr));
         }
     }
-    return jsonResponse({ updatedAt: Date.now(), firsts }, { headers: { 'cache-control': 'public, max-age=30' } });
+    // Build response merging legacy for backward compatibility (legacy map can be derived from v2.keys)
+    const mergedLegacy = legacy || (v2 ? Object.fromEntries(Object.entries(v2.keys || {}).map(([k, v]) => [k, { username: v.username, timestamp: v.timestamp }])) : {});
+    // Attach enriched metadata: counts, percentages, rarity tiers
+    let counts = {}; let totalPlayers = 0;
+    try {
+        const statsRaw = await env.HISCORES_KV.get('stats:achievements:prevalence');
+        if (statsRaw) {
+            try {
+                const stats = JSON.parse(statsRaw) || {};
+                counts = stats.counts || {};
+                totalPlayers = Number(stats.totalPlayers) || 0;
+            } catch (_) { }
+        }
+    } catch (_) { }
+    // Derive percentages and dynamic rarity (same thresholds as frontend; keep in sync)
+    const rarityFor = (pct) => {
+        if (pct <= 0) return 'mythic';
+        if (pct < 0.05) return 'mythic';
+        if (pct < 0.2) return 'legendary';
+        if (pct < 1) return 'epic';
+        if (pct < 5) return 'rare';
+        if (pct < 15) return 'uncommon';
+        return 'common';
+    };
+    const enriched = {};
+    for (const key of Object.keys(mergedLegacy)) {
+        const first = mergedLegacy[key];
+        const count = counts[key] || 0;
+        const pct = totalPlayers > 0 ? (count / totalPlayers) * 100 : 0;
+        enriched[key] = { ...first, count, pct, rarity: rarityFor(pct) };
+    }
+    return jsonResponse({ updatedAt: Date.now(), totalPlayers, counts, firsts: mergedLegacy, enriched, v2 }, { headers: { 'cache-control': 'public, max-age=30' } });
 }
 
 async function handleFakeWord(env) {

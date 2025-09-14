@@ -1,4 +1,5 @@
 // Achievements page logic
+// Base achievement catalog. Rarity here is a default/fallback; dynamic rarity overrides it.
 const ACHIEVEMENT_CATALOG = [
     // Meta tier (prestige) - neutral, descriptive titles
     { key: 'tier-grandmaster', icon: '👑', label: 'Grandmaster: rank #1 or #1 in 3+ skills', desc: 'Rank #1 overall or #1 in 3+ skills.', category: 'tier', rarity: 'mythic' },
@@ -277,8 +278,22 @@ function getRarityColor(rarity) {
 }
 
 function createAchievementCard(achievement) {
-    const card = el('div', `achievement-card rarity-${achievement.rarity}`);
-    card.setAttribute('data-tooltip', `${achievement.label}\n${achievement.desc}`);
+    const rarityClass = achievement.dynamicRarity || achievement.rarity || 'common';
+    const card = el('div', `achievement-card rarity-${rarityClass}`);
+    const parts = [
+        `${achievement.label}`,
+        `${achievement.desc}`
+    ];
+    if (typeof achievement.prevalencePct === 'number' && achievement.totalPlayers) {
+        const pctStr = formatPrevalenceDetailed(achievement.prevalencePct, achievement.count || 0, achievement.totalPlayers);
+        parts.push(`Prevalence: ${pctStr} (${achievement.count || 0}/${achievement.totalPlayers})`);
+    }
+    if (achievement.first) {
+        const when = achievement.first.timestamp ? new Date(achievement.first.timestamp).toLocaleDateString() : '';
+        parts.push(`First: ${achievement.first.username}${when ? ' on ' + when : ''}`);
+    }
+    parts.push(`Rarity tier: ${(achievement.dynamicRarity || achievement.rarity)}`);
+    card.setAttribute('data-tooltip', parts.join('\n'));
 
     const icon = el('div', 'ach-icon', [text(achievement.icon)]);
     const title = el('div', 'ach-title', [text(achievement.label)]);
@@ -456,7 +471,27 @@ function prevalenceForKeys(totalPlayers, counts) {
     return map;
 }
 
-function renderInsights(globalStats, leaderboard, skillRankings) {
+// Formatting helpers for prevalence percentages.
+// Avoids misleading "0.0%" when prevalence is small but non-zero.
+function formatPrevalenceDetailed(pct, count, total) {
+    if (!total) return '0%';
+    if (count === 0 || pct === 0) return '0%';
+    if (pct < 0.01) return '<0.01%';
+    if (pct < 0.1) return pct.toFixed(2) + '%';
+    if (pct < 1) return pct.toFixed(2) + '%';
+    if (pct < 10) return pct.toFixed(1) + '%';
+    return pct.toFixed(1) + '%';
+}
+
+function formatPrevalenceShort(pct, count, total) {
+    if (!total) return '0%';
+    if (count === 0 || pct === 0) return '0%';
+    if (pct < 0.1) return '<0.1%';
+    if (pct < 1) return pct.toFixed(1) + '%';
+    return Math.round(pct) + '%';
+}
+
+function renderInsights(globalStats, leaderboard, skillRankings, firsts) {
     const wrap = $('#insightsContainer');
     if (!wrap) return;
     wrap.innerHTML = '';
@@ -492,10 +527,18 @@ function renderInsights(globalStats, leaderboard, skillRankings) {
     topPlayersCard.appendChild(tpList);
 
     // Most/least common achievements
-    const withPrev = ACHIEVEMENT_CATALOG.map(a => ({
-        ...a,
-        prevalence: prevalence.get(a.key) || 0
-    }));
+    const withPrev = ACHIEVEMENT_CATALOG.map(a => {
+        const count = counts[a.key] || 0;
+        const prevalencePct = prevalence.get(a.key) || 0;
+        return {
+            ...a,
+            prevalence: prevalencePct,
+            count,
+            totalPlayers,
+            dynamicRarity: deriveDynamicRarity(prevalencePct),
+            first: firsts?.[a.key] || null
+        };
+    });
     const mostCommon = pickTop(withPrev, 5, a => a.prevalence);
     const leastCommon = pickTop(withPrev, 5, a => -a.prevalence);
 
@@ -505,15 +548,18 @@ function renderInsights(globalStats, leaderboard, skillRankings) {
         const container = el('div', 'insight-list');
         list.forEach(a => {
             const item = el('div', 'insight-row');
+            const detailed = formatPrevalenceDetailed(a.prevalence, a.count, a.totalPlayers);
+            const firstInfo = a.first ? `\nFirst: ${a.first.username}` + (a.first.timestamp ? ` on ${new Date(a.first.timestamp).toLocaleDateString()}` : '') : '';
+            const tooltip = `${a.label}\n${a.desc}\n${a.count}/${a.totalPlayers} players (${detailed})\nRarity: ${a.dynamicRarity}${firstInfo}`;
             item.innerHTML = `
-                <div class="insight-icon" title="${a.label}\n${a.desc}">${a.icon}</div>
+                <div class="insight-icon" title="${tooltip}">${a.icon}</div>
                 <div class="insight-ach">
                     <div class="ach-name">${a.label}</div>
                     <div class="ach-desc">${a.desc}</div>
                 </div>
-                <div class="insight-bar-wrap" title="${a.prevalence.toFixed(1)}% of players">
+                <div class="insight-bar-wrap" title="${tooltip}">
                     <div class="insight-bar" style="width:${a.prevalence}%"></div>
-                    <span class="insight-bar-label">${a.prevalence.toFixed(1)}%</span>
+                    <span class="insight-bar-label">${detailed}</span>
                 </div>`;
             container.appendChild(item);
         });
@@ -537,7 +583,7 @@ function renderInsights(globalStats, leaderboard, skillRankings) {
     wrap.appendChild(chips);
 }
 
-async function renderRelationshipMatrix(globalStats, leaderboard, skillRankings) {
+async function renderRelationshipMatrix(globalStats, leaderboard, skillRankings, firsts) {
     const mount = $('#relationshipMatrix');
     if (!mount) return;
     mount.innerHTML = '';
@@ -578,13 +624,23 @@ async function renderRelationshipMatrix(globalStats, leaderboard, skillRankings)
         const historical = expandHistorical(active, u.achievements || {});
         unlocks.set(u.username, { active, historical });
     });
-    const prevalence = prevalenceForKeys(globalStats?.totalPlayers || 0, globalStats?.counts || {});
+    const totalPlayers = globalStats?.totalPlayers || 0;
+    const counts = globalStats?.counts || {};
+    const prevalence = prevalenceForKeys(totalPlayers, counts);
 
     // Choose columns: 12 most informative achievements (high variance)
-    const withPrev = ACHIEVEMENT_CATALOG.map(a => ({
-        ...a,
-        prevalence: prevalence.get(a.key) || 0
-    }));
+    const withPrev = ACHIEVEMENT_CATALOG.map(a => {
+        const count = counts[a.key] || 0;
+        const prev = prevalence.get(a.key) || 0;
+        return {
+            ...a,
+            prevalence: prev,
+            count,
+            totalPlayers,
+            dynamicRarity: deriveDynamicRarity(prev),
+            first: firsts?.[a.key] || null
+        };
+    });
     // score by closeness to 50% (most informative binary split)
     const columns = pickTop(withPrev, 12, a => 50 - Math.abs(50 - a.prevalence));
 
@@ -594,8 +650,12 @@ async function renderRelationshipMatrix(globalStats, leaderboard, skillRankings)
     header.appendChild(el('div', 'matrix-cell fixed cell--corner', [text('Player')]));
     columns.forEach(a => {
         const cell = el('div', 'matrix-cell');
-        cell.innerHTML = `<div class="matrix-ach" title="${a.label}\n${a.desc}">${a.icon}</div>
-                          <div class="matrix-prev">${a.prevalence.toFixed(0)}%</div>`;
+        const shortPrev = formatPrevalenceShort(a.prevalence, a.count, a.totalPlayers);
+        const detailed = formatPrevalenceDetailed(a.prevalence, a.count, a.totalPlayers);
+        const firstInfo = a.first ? `\nFirst: ${a.first.username}` + (a.first.timestamp ? ` on ${new Date(a.first.timestamp).toLocaleDateString()}` : '') : '';
+        const tooltip = `${a.label}\n${a.desc}\n${a.count}/${a.totalPlayers} players (${detailed})\nRarity: ${a.dynamicRarity}${firstInfo}`;
+        cell.innerHTML = `<div class="matrix-ach" title="${tooltip}">${a.icon}</div>
+                          <div class="matrix-prev" title="${tooltip}">${shortPrev}</div>`;
         header.appendChild(cell);
     });
     table.appendChild(header);
@@ -632,6 +692,136 @@ async function renderRelationshipMatrix(globalStats, leaderboard, skillRankings)
     mount.appendChild(legend);
 }
 
+// --- Interactive controls state ---
+const UI_STATE = {
+    viewMode: 'grid', // 'grid' | 'table'
+    sortBy: 'rarity', // 'rarity' | 'alpha' | 'prevalence' | 'first'
+    filterText: '',
+    filterRarity: 'all',
+    showOnlyFirsts: false
+};
+
+function applyAchievementFilters(achList) {
+    return achList
+        .filter(a => !UI_STATE.filterText || (a.label.toLowerCase().includes(UI_STATE.filterText) || a.desc.toLowerCase().includes(UI_STATE.filterText) || a.key.includes(UI_STATE.filterText)))
+        .filter(a => UI_STATE.filterRarity === 'all' || (a.dynamicRarity || a.rarity) === UI_STATE.filterRarity)
+        .filter(a => !UI_STATE.showOnlyFirsts || a.first);
+}
+
+function sortAchievements(achList) {
+    const arr = [...achList];
+    const rarityRank = { mythic: 0, legendary: 1, epic: 2, rare: 3, uncommon: 4, common: 5 };
+    arr.sort((a, b) => {
+        switch (UI_STATE.sortBy) {
+            case 'alpha':
+                return a.label.localeCompare(b.label);
+            case 'prevalence':
+                return (a.prevalencePct || 0) - (b.prevalencePct || 0); // ascending rarity (lowest first)
+            case 'first':
+                return (a.first?.timestamp || Infinity) - (b.first?.timestamp || Infinity);
+            case 'rarity':
+            default:
+                return (rarityRank[a.dynamicRarity || a.rarity] ?? 99) - (rarityRank[b.dynamicRarity || b.rarity] ?? 99) || a.label.localeCompare(b.label);
+        }
+    });
+    return arr;
+}
+
+function buildControlsBar() {
+    const bar = el('div', 'ach-controls flex flex-wrap gap-3 items-center mb-6');
+    bar.setAttribute('role', 'region');
+    bar.setAttribute('aria-label', 'Achievement controls');
+    bar.innerHTML = `
+        <div class="flex gap-2 items-center">
+            <label class="text-xs uppercase tracking-wide opacity-70">View</label>
+            <div class="inline-flex rounded overflow-hidden border border-border">
+                <button type="button" data-view="grid" class="view-toggle px-3 py-1 text-sm active">Grid</button>
+                <button type="button" data-view="table" class="view-toggle px-3 py-1 text-sm">Table</button>
+            </div>
+        </div>
+        <div class="flex gap-2 items-center">
+            <label class="text-xs uppercase tracking-wide opacity-70" for="achSort">Sort</label>
+            <select id="achSort" class="ach-select">
+                <option value="rarity">Rarity Tier</option>
+                <option value="alpha">Alphabetical</option>
+                <option value="prevalence">Prevalence %</option>
+                <option value="first">Earliest First</option>
+            </select>
+        </div>
+        <div class="flex gap-2 items-center grow min-w-[220px]">
+            <label class="text-xs uppercase tracking-wide opacity-70" for="achSearch">Search</label>
+            <input id="achSearch" type="search" placeholder="Search achievements..." class="ach-input flex-1" />
+        </div>
+        <div class="flex gap-2 items-center">
+            <label class="text-xs uppercase tracking-wide opacity-70" for="achRarity">Rarity</label>
+            <select id="achRarity" class="ach-select">
+                <option value="all">All</option>
+                <option value="mythic">Mythic</option>
+                <option value="legendary">Legendary</option>
+                <option value="epic">Epic</option>
+                <option value="rare">Rare</option>
+                <option value="uncommon">Uncommon</option>
+                <option value="common">Common</option>
+            </select>
+        </div>
+        <label class="flex items-center gap-2 text-sm cursor-pointer select-none">
+            <input id="achOnlyFirsts" type="checkbox" class="ach-checkbox" />
+            <span>Only Firsts</span>
+        </label>
+    `;
+    return bar;
+}
+
+function renderAdaptiveCatalog(container, categoriesMap) {
+    container.innerHTML = '';
+    const keys = Object.keys(categoriesMap);
+    keys.forEach(categoryKey => {
+        const list = categoriesMap[categoryKey];
+        const filtered = sortAchievements(applyAchievementFilters(list));
+        if (!filtered.length) return;
+        if (UI_STATE.viewMode === 'table') {
+            container.appendChild(buildCategoryTable(categoryKey, filtered));
+        } else {
+            container.appendChild(createCategorySection(categoryKey, filtered));
+        }
+    });
+}
+
+function buildCategoryTable(categoryKey, achievements) {
+    const category = CATEGORY_INFO[categoryKey];
+    const wrap = el('div', 'achievement-category');
+    const header = el('div', 'achievement-category-header mb-3');
+    header.innerHTML = `<h3 class="text-xl font-bold flex items-center gap-2">${category.name}<span class="text-xs font-normal opacity-60">(${achievements.length})</span></h3><p class="text-muted text-sm">${category.desc}</p>`;
+    wrap.appendChild(header);
+    const table = el('div', 'ach-table-wrapper');
+    table.innerHTML = `<table class="ach-table" aria-label="${category.name}">
+        <thead><tr>
+            <th scope="col">Achievement</th>
+            <th scope="col" class="hidden sm:table-cell">Description</th>
+            <th scope="col">Rarity</th>
+            <th scope="col" class="hidden md:table-cell">Prevalence</th>
+            <th scope="col" class="hidden lg:table-cell">First</th>
+        </tr></thead>
+        <tbody></tbody>
+    </table>`;
+    const tbody = table.querySelector('tbody');
+    achievements.forEach(a => {
+        const pctStr = typeof a.prevalencePct === 'number' && a.totalPlayers ? formatPrevalenceDetailed(a.prevalencePct, a.count || 0, a.totalPlayers) : '-';
+        const firstStr = a.first ? `${a.first.username}${a.first.timestamp ? ' · ' + new Date(a.first.timestamp).toLocaleDateString() : ''}` : '';
+        const rarityTier = a.dynamicRarity || a.rarity;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="ach-cell-name"><span class="ach-icon-inline">${a.icon}</span> ${a.label}</td>
+            <td class="hidden sm:table-cell text-muted text-xs">${a.desc}</td>
+            <td><span class="rarity-badge rarity-${rarityTier}">${rarityTier}</span></td>
+            <td class="hidden md:table-cell text-xs">${pctStr}</td>
+            <td class="hidden lg:table-cell text-xs">${firstStr}</td>`;
+        tbody.appendChild(tr);
+    });
+    wrap.appendChild(table);
+    return wrap;
+}
+
 async function renderAchievementsPage() {
     // Render insights first, then catalog
     const container = $('#achievementsContainer');
@@ -646,6 +836,8 @@ async function renderAchievementsPage() {
     try {
         skillRankings = await window.fetchJSON('/api/skill-rankings');
     } catch (_) { }
+    let firsts = {};
+    let enrichedFirsts = {};
     try {
         const stats = await window.fetchJSON('/api/achievements/stats');
         globalStats = {
@@ -655,26 +847,71 @@ async function renderAchievementsPage() {
     } catch (_) {
         globalStats = { counts: {}, totalPlayers: leaderboard?.totalPlayers || leaderboard?.players?.length || 0 };
     }
+    try {
+        const firstsResp = await window.fetchJSON('/api/achievements/firsts');
+        firsts = firstsResp?.firsts || {};
+        enrichedFirsts = firstsResp?.enriched || {};
+        if (!globalStats.totalPlayers && Number(firstsResp?.totalPlayers)) {
+            globalStats.totalPlayers = Number(firstsResp.totalPlayers);
+        }
+        // Merge enriched metadata into counts if backend provided counts map
+        if (firstsResp?.counts && Object.keys(firstsResp.counts).length) {
+            globalStats.counts = { ...globalStats.counts, ...firstsResp.counts };
+        }
+    } catch (_) { firsts = {}; enrichedFirsts = {}; }
 
     // Render insights and matrix
-    try { renderInsights(globalStats, leaderboard, skillRankings); } catch (_) { }
-    try { await renderRelationshipMatrix(globalStats, leaderboard, skillRankings); } catch (_) { }
+    try { renderInsights(globalStats, leaderboard, skillRankings, firsts); } catch (_) { }
+    try { await renderRelationshipMatrix(globalStats, leaderboard, skillRankings, firsts); } catch (_) { }
 
     // Group achievements by category for catalog
     if (container) {
         container.innerHTML = '';
         const categories = {};
-        ACHIEVEMENT_CATALOG.forEach(achievement => {
-            if (!categories[achievement.category]) {
-                categories[achievement.category] = [];
-            }
+        // Build dynamic rarity mapping now that we have prevalence.
+        const totalPlayers = globalStats.totalPlayers || 0;
+        const dynamicCatalog = ACHIEVEMENT_CATALOG.map(a => {
+            const count = globalStats.counts[a.key] || enrichedFirsts[a.key]?.count || 0;
+            const prevalencePct = totalPlayers ? (count / totalPlayers) * 100 : enrichedFirsts[a.key]?.pct || 0;
+            const dynamicRarity = enrichedFirsts[a.key]?.rarity || deriveDynamicRarity(prevalencePct);
+            return { ...a, dynamicRarity, prevalencePct, count, totalPlayers, first: firsts[a.key] || null };
+        });
+        dynamicCatalog.forEach(achievement => {
+            if (!categories[achievement.category]) categories[achievement.category] = [];
             categories[achievement.category].push(achievement);
         });
-        Object.keys(CATEGORY_INFO).forEach(categoryKey => {
-            if (categories[categoryKey]) {
-                container.appendChild(createCategorySection(categoryKey, categories[categoryKey]));
+        // Inject controls bar before rendering first category
+        const controls = buildControlsBar();
+        container.appendChild(controls);
+        function reRender() {
+            const cats = {};
+            Object.keys(CATEGORY_INFO).forEach(k => { if (categories[k]) cats[k] = categories[k]; });
+            const existing = container.querySelectorAll('.achievement-category');
+            existing.forEach(e => e.remove());
+            renderAdaptiveCatalog(container, cats);
+        }
+        // Attach events
+        container.addEventListener('change', (e) => {
+            const t = e.target;
+            if (t.id === 'achSort') { UI_STATE.sortBy = t.value; reRender(); }
+            if (t.id === 'achRarity') { UI_STATE.filterRarity = t.value; reRender(); }
+            if (t.id === 'achOnlyFirsts') { UI_STATE.showOnlyFirsts = !!t.checked; reRender(); }
+        });
+        container.addEventListener('input', (e) => {
+            if (e.target.id === 'achSearch') {
+                UI_STATE.filterText = e.target.value.trim().toLowerCase();
+                reRender();
             }
         });
+        container.addEventListener('click', (e) => {
+            const btn = e.target.closest('.view-toggle');
+            if (btn) {
+                UI_STATE.viewMode = btn.getAttribute('data-view');
+                container.querySelectorAll('.view-toggle').forEach(b => b.classList.toggle('active', b === btn));
+                reRender();
+            }
+        });
+        reRender();
     }
 }
 
@@ -700,6 +937,19 @@ function init() {
         // Enhance tooltips for leaderboard badges with a portal (fixed) tooltip to avoid clipping
         try { setupPortalTooltips(); } catch (_) { }
     });
+}
+
+// --- Dynamic rarity logic ---
+// Buckets (tunable):
+// mythic: <0.05%, legendary: <0.2%, epic: <1%, rare: <5%, uncommon: <15%, common: otherwise
+function deriveDynamicRarity(pct) {
+    if (pct <= 0) return 'mythic'; // nothing unlocked yet
+    if (pct < 0.05) return 'mythic';
+    if (pct < 0.2) return 'legendary';
+    if (pct < 1) return 'epic';
+    if (pct < 5) return 'rare';
+    if (pct < 15) return 'uncommon';
+    return 'common';
 }
 
 // Portal tooltip implementation to bypass stacking/overflow issues

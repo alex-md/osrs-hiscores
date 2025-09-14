@@ -236,6 +236,70 @@ While no tests are committed yet, the functional seams allow:
 * Formal test suite + CI (GitHub Actions + Miniflare).
 * Optional Web UI for admin maintenance (seed/delete/dry-run diff viewer).
 
+## 11.a Achievement "Firsts" Persistence (v2)
+
+The system now maintains an authoritative record of the first player to unlock each backend-evaluated achievement plus aggregate unlock counts.
+
+### Data Keys
+| KV Key | Purpose |
+| ------ | ------- |
+| `ach:firsts` | Legacy flat mapping `{ key: { username, timestamp } }` kept for backward compatibility |
+| `ach:firsts:v2` | Rich structure including counts & provenance |
+
+### v2 Schema
+```jsonc
+{
+  "version": 2,
+  "updatedAt": 1736543210000,
+  "keys": {
+    "total-2000": { "username": "Alicorn", "timestamp": 1736000000000, "source": "live" },
+    "maxed-account": { "username": "Zenith", "timestamp": 1736100000000, "source": "reconciled-earlier" }
+  },
+  "counts": {
+    "total-2000": 42,
+    "maxed-account": 3,
+    "skill-master-magic": 87
+  }
+}
+```
+
+Field `source` can be:
+* `legacy` – imported from the original map when bootstrapping.
+* `live` – captured in real time during a scheduled simulation tick.
+* `reconciled-earlier` – reconciliation detected an earlier timestamp than previously stored and corrected it.
+* `reconciled-new` – achievement existed in user docs but absent from firsts set (backfill scenario).
+* `reconstructed` – built entirely from scanning users when no data existed.
+
+### How It Works
+1. During each simulation persistence cycle (`persistAchievementStats`), newly unlocked achievements are merged.
+2. For each new unlock, the first user claim is set if absent (legacy + v2).
+3. A per-achievement counter is incremented (`counts[key]++`). If counts were missing (cold start), they are later initialized using a prevalence snapshot.
+4. A reconciliation pass scans all users to detect earlier timestamps (handles race conditions or previous logic changes).
+5. Results written to both `ach:firsts` (compat) and `ach:firsts:v2` (current source of truth).
+
+### Public Endpoint
+`GET /api/achievements/firsts` returns:
+```jsonc
+{
+  "updatedAt": 1736543330123,
+  "firsts": { "total-2000": { "username": "Alicorn", "timestamp": 1736000000000 }, ... },
+  "v2": { /* full schema above */ }
+}
+```
+
+### Edge Cases Handled
+* Duplicate unlock processing: idempotent because only the first claim sets the record.
+* Earlier historical timestamps discovered later: reconciliation updates `source` and timestamp.
+* Missing v2 store but existing legacy mapping: automatic bootstrap.
+* Total-milestone pruning: only the highest total-* remains on user docs; reconciliation still picks earliest across surviving keys.
+* Eventual consistency of KV: reconciliation on each tick self-heals minor ordering anomalies.
+
+### Future Ideas
+* Append-only per-achievement event logs (time-series) for trend analytics.
+* Client rarity tier adjustments using `counts` without re-evaluating all players.
+* Leaderboard overlays (e.g., highlight players who hold any firsts).
+* Export endpoint for data science / external dashboards.
+
 ## 12. Quick Start Cheat Sheet
 | Action | Command (PowerShell) |
 | ------ | -------------------- |
