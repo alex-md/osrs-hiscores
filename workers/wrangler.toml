@@ -1,5 +1,6 @@
 name = "osrs-hiscores-clone"
 main = "src/index.js"
+compatibility_date = "2025-09-14"
 [placement]
 mode = "smart"
 
