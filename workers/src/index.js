@@ -283,8 +283,9 @@ async function persistAchievementStats(env, users) {
         for (const u of users) {
             const got = evaluateAchievements(u, ctx);
             const newly = mergeNewUnlocks(u, got, now);
-            // Always prune achievement families to keep only the highest per category (e.g., total level milestones)
-            const pruned = pruneAchievementFamilies(u);
+            // Do not destructively prune stored achievements — keep historical unlocks for accuracy.
+            // Active/prioritization should be handled at read time in the frontend.
+            const pruned = [];
             if (newly.length) {
                 updatedUsers.push(u);
                 for (const key of newly) {
@@ -300,10 +301,7 @@ async function persistAchievementStats(env, users) {
                     }
                 }
             }
-            // If pruning removed any keys, persist as well
-            if (pruned && pruned.length && !updatedUsers.includes(u)) {
-                updatedUsers.push(u);
-            }
+            // No additional persistence for pruning since we no longer prune.
         }
         // Persist users that changed
         for (const u of updatedUsers) {

@@ -414,7 +414,7 @@ function formatPrevalenceShort(pct, count, total) {
     return Math.round(pct) + '%';
 }
 
-function renderInsights(globalStats, leaderboard, skillRankings, firsts) {
+async function renderInsights(globalStats, leaderboard, skillRankings, firsts) {
     const wrap = $('#insightsContainer');
     if (!wrap) return;
     wrap.innerHTML = '';
@@ -423,16 +423,31 @@ function renderInsights(globalStats, leaderboard, skillRankings, firsts) {
     const totalPlayers = globalStats?.totalPlayers || players.length || 0;
     const counts = globalStats?.counts || {};
     const prevalence = prevalenceForKeys(totalPlayers, counts);
-    const unlocks = computePlayerUnlocks(players, skillRankings);
+    // Enrich a subset with detailed user data to accurately count achievements (including historical chains)
+    const sample = players.slice(0, Math.min(players.length, 50));
+    const detailed = await Promise.all(sample.map(async p => {
+        try { return await window.fetchJSON(`/api/users/${encodeURIComponent(p.username)}`); } catch (_) { return p; }
+    }));
+    const detailedByName = new Map();
+    detailed.forEach(u => { if (u && u.username) detailedByName.set(u.username, u); });
+    // Replace sampled entries with detailed variants where available for accurate counts
+    const merged = sample.map(p => detailedByName.get(p.username) ? { ...p, ...detailedByName.get(p.username) } : p);
+    const unlocksWithHistory = computePlayerUnlocksWithHistory(merged, skillRankings); // username -> { active, historical }
 
-    // Top players by unlock count
-    const topPlayers = pickTop(players, 5, p => unlocks.get(p.username)?.size || 0);
+    // Top players by total earned (active + historical unique)
+    const earnedCount = (name) => {
+        const uh = unlocksWithHistory.get(name);
+        if (!uh) return 0;
+        const all = new Set([...(uh.active || []), ...(uh.historical || [])]);
+        return all.size;
+    };
+    const topPlayers = pickTop(merged, 5, p => earnedCount(p.username));
 
     const topPlayersCard = el('div', 'insight-card insight-card--top-players');
     topPlayersCard.innerHTML = '<h3 class="insight-title insight-title--section">Most Achievements Unlocked</h3>';
     const tpList = el('div', 'insight-list top-players-list');
     topPlayers.forEach((p, idx) => {
-        const size = unlocks.get(p.username)?.size || 0;
+        const size = earnedCount(p.username);
         const row = el('div', 'insight-row top-player-row');
         const tierBadge = buildTierBadge(p.tier);
         row.innerHTML = `
@@ -784,7 +799,7 @@ async function renderAchievementsPage() {
     } catch (_) { firsts = {}; enrichedFirsts = {}; }
 
     // Render insights and matrix
-    try { renderInsights(globalStats, leaderboard, skillRankings, firsts); } catch (_) { }
+    try { await renderInsights(globalStats, leaderboard, skillRankings, firsts); } catch (_) { }
     try { await renderRelationshipMatrix(globalStats, leaderboard, skillRankings, firsts); } catch (_) { }
 
     // Group achievements by category for catalog

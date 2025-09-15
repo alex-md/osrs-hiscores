@@ -32,6 +32,19 @@ export const ACHIEVEMENT_KEYS = [
     'magic-ranged', 'melee-specialist', 'support-master', 'gathering-master'
 ];
 
+// Family chains in priority order (index 0 = highest). Presence of a higher tier implies lower tiers were earned historically.
+const ACHIEVEMENT_FAMILY_CHAINS = [
+    ['tier-grandmaster', 'tier-master', 'tier-diamond'],
+    ['triple-crown', 'crowned-any'],
+    ['top-10-any', 'top-100-any'],
+    ['maxed-account', 'seven-99s', 'five-99s'],
+    ['total-2000', 'total-1500'],
+    ['daily-grinder', 'dedicated', 'weekly-active', 'monthly-active'],
+    ['elite', 'versatile', 'consistent'],
+    ['level-90-average', 'level-75-average', 'level-50-average'],
+    ['xp-billionaire', 'xp-millionaire']
+];
+
 function sum(arr) { return arr.reduce((a, b) => a + b, 0); }
 function avg(arr) { return arr.length ? sum(arr) / arr.length : 0; }
 
@@ -328,11 +341,22 @@ export function evaluateAchievements(user, ctx) {
 
 // Compute achievement prevalence counts across users without mutating users
 export function computePrevalenceCounts(users, ctx) {
+    // Count players who have ever earned each achievement (persistent unlocks),
+    // including implied lower tiers within families when a higher tier is present.
     const counts = new Map();
     for (const key of ACHIEVEMENT_KEYS) counts.set(key, 0);
     for (const u of users) {
-        const got = evaluateAchievements(u, ctx);
-        for (const key of got) counts.set(key, (counts.get(key) || 0) + 1);
+        const stored = u?.achievements && typeof u.achievements === 'object' ? new Set(Object.keys(u.achievements)) : null;
+        const base = stored && stored.size ? stored : evaluateAchievements(u, ctx);
+        const expanded = new Set(base);
+        // Add implied lower tiers within families when a higher exists
+        for (const chain of ACHIEVEMENT_FAMILY_CHAINS) {
+            const highestIdx = chain.findIndex(k => expanded.has(k));
+            if (highestIdx >= 0) {
+                for (let j = highestIdx + 1; j < chain.length; j++) expanded.add(chain[j]);
+            }
+        }
+        for (const k of expanded) if (counts.has(k)) counts.set(k, (counts.get(k) || 0) + 1);
     }
     return counts;
 }
