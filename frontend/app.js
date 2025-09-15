@@ -134,7 +134,15 @@ function renderHomeView() {
   let scrollWrap = el("div", "table-scroll"), table = el("table", "min-w-full leaderboard-table");
   table.innerHTML = '<thead><tr><th>Rank</th><th class="text-left">Player</th><th>Total Level</th><th>Total Experience</th></tr></thead><tbody></tbody>', scrollWrap.appendChild(table), tableWrap.appendChild(scrollWrap), section.appendChild(tableWrap), root.appendChild(section);
   let tbody = table.querySelector("tbody");
-  tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-8">⏳ Loading leaderboard...</td></tr>';
+  // Skeleton rows while loading
+  tbody.innerHTML = Array.from({ length: 8 }).map(() => (
+    `<tr>
+      <td class="text-center"><div class="skeleton skeleton-line" style="width:40px;margin:0 auto;"></div></td>
+      <td><div class="skeleton skeleton-line" style="width:160px"></div></td>
+      <td class="text-center"><div class="skeleton skeleton-line" style="width:60px;margin:0 auto;"></div></td>
+      <td class="text-right"><div class="skeleton skeleton-line" style="width:120px; margin-left:auto;"></div></td>
+    </tr>`
+  )).join('');
   let page = 1, controls = el("div", "flex-between gap-4 flex-wrap text-sm bg-layer2 p-3 rounded border-2 border-border-dark");
   controls.innerHTML = `
       <div class="flex items-center gap-2">

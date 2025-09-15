@@ -123,6 +123,7 @@
                             <div class="flex-items-center gap-3">
                                 <button id="prevPage" class="btn-sm">← Previous</button>
                                 <button id="nextPage" class="btn-sm">Next →</button>
+                                <button id="copyCsv" class="btn-sm" title="Copy filtered results as CSV">Copy CSV</button>
                             </div>
                             <div class="font-semibold">
                                 Page <span id="pageNum" class="text-accent">1</span> of <span id="pageTotal"
@@ -152,6 +153,8 @@
                     API: <span id="currentApiBase"></span>
                     <button onclick="window.setApiBase(prompt('Enter API base URL:', window.API_BASE))"
                         class="ml-2 underline hover:text-accent">Change</button>
+                    <button onclick="window.clearApiBase()" class="ml-2 underline hover:text-accent">Reset</button>
+                    <span class="ml-2">• Last updated: <span id="lastUpdated">—</span></span>
                 </div>
             </footer>
         </div>

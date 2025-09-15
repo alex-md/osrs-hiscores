@@ -30,11 +30,21 @@ function applyFilters(rows) {
 }
 
 function renderTable() {
+  const tableBody = $("#skillTable tbody");
+  if (tableBody) {
+    tableBody.innerHTML = Array.from({ length: 10 }).map(() => (
+      `<tr>
+        <td class="text-center"><div class="skeleton skeleton-line" style="width:28px;margin:0 auto;"></div></td>
+        <td><div class="skeleton skeleton-line" style="width:140px"></div></td>
+        <td class="text-center"><div class="skeleton skeleton-line" style="width:48px;margin:0 auto;"></div></td>
+        <td class="text-right"><div class="skeleton skeleton-line" style="width:100px;margin-left:auto;"></div></td>
+      </tr>`
+    )).join('');
+  }
   loadSkillRankings()
     .then((data) => {
       const rows = data.rankings[currentSkill];
       const filtered = applyFilters(rows);
-      const tableBody = $("#skillTable tbody");
       tableBody.innerHTML = "";
       const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
       if (page > totalPages) page = totalPages;
@@ -70,6 +80,11 @@ function renderTable() {
       const tot = $("#pageTotal");
       if (num) num.textContent = String(page);
       if (tot) tot.textContent = String(totalPages);
+
+      // Last updated footer hint (from generatedAt)
+      const ts = Number(data.generatedAt || 0);
+      const last = document.getElementById('lastUpdated');
+      if (last && ts) last.textContent = new Date(ts).toLocaleString();
     })
     .catch((e) => {
       const htmlLike = /Received HTML|Unexpected content-type/.test(e.message);
@@ -104,7 +119,41 @@ document.addEventListener("click", (e) => {
     e.preventDefault();
     location.href = "index.html";
   }
+  if (e.target.id === 'copyCsv') {
+    e.preventDefault();
+    loadSkillRankings().then((data) => {
+      const rows = applyFilters(data.rankings[currentSkill] || []);
+      const header = ['rank','username','level','xp'];
+      const lines = [header.join(',')].concat(
+        rows.map(r => [r.rank, r.username, r.level, r.xp].map(v => {
+          const s = String(v ?? '');
+          return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+        }).join(','))
+      );
+      const csv = lines.join('\n');
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(csv).then(() => toast('CSV copied')).catch(() => downloadCsv(csv));
+      } else {
+        downloadCsv(csv);
+      }
+    }).catch(() => toast('Failed to build CSV', 'error'));
+  }
 });
+
+function downloadCsv(csv) {
+  try {
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${currentSkill}-hiscores.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast('CSV downloaded');
+  } catch (_) { toast('CSV download failed', 'error'); }
+}
 
 // filters (name + numeric)
 let filterDebounce;

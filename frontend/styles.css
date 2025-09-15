@@ -3212,3 +3212,10 @@ footer.site-footer .mt-2 {
     flex: 1;
   }
 }
+/* Loading skeletons */
+.skeleton { position: relative; overflow: hidden; background: var(--color-bg-layer2); border-radius: 4px; }
+.skeleton::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(255,255,255,.15), transparent); animation: skeleton-shimmer 1.2s infinite; }
+.skeleton-line { height: 0.9rem; width: 100%; margin: 0.2rem 0; }
+.skeleton-line.sm { height: 0.7rem; width: 60%; }
+.skeleton-avatar { width: 24px; height: 24px; border-radius: 50%; }
+@keyframes skeleton-shimmer { 100% { transform: translateX(100%); } }

@@ -18,8 +18,18 @@
     } catch (_) { }
     setTimeout(() => location.reload(), 400);
   }
+  // Lightweight GET cache with TTL
+  const __FETCH_CACHE = new Map(); // key -> { exp:number, value:any }
+  const DEFAULT_TTL_MS = 30_000;
   async function fetchJSON(path, init) {
     const url = apiBase + path;
+    const isGet = !init || String(init.method || 'GET').toUpperCase() === 'GET';
+    const noCache = init && init.noCache;
+    const cacheKey = isGet ? url : null;
+    if (isGet && !noCache) {
+      const c = __FETCH_CACHE.get(cacheKey);
+      if (c && c.exp > Date.now()) return c.value;
+    }
     const resp = await fetch(url, init);
     if (!resp.ok) throw new Error("Request failed: " + resp.status + " " + resp.statusText);
     const ct = resp.headers.get("content-type") || "";
@@ -29,7 +39,9 @@
         if (/^\s*</.test(body)) throw new Error("Received HTML instead of JSON from " + url + " (point frontend to Worker API).");
         throw new Error("Unexpected content-type (" + ct + ") from " + url);
       }
-      return JSON.parse(body);
+      const parsed = JSON.parse(body);
+      if (isGet && !noCache) __FETCH_CACHE.set(cacheKey, { exp: Date.now() + DEFAULT_TTL_MS, value: parsed });
+      return parsed;
     } catch (e) {
       if (e instanceof SyntaxError) throw new Error("Invalid JSON from " + url + " – first chars: " + body.slice(0, 60));
       throw e;
