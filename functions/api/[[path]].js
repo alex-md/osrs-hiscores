@@ -22,3 +22,8 @@ export async function onRequest(context) {
         });
     }
 }
+
+// (Deprecated) Former catch-all Pages Function wrapper removed after consolidating API into workers/src/index.js
+export async function onRequest() {
+    return new Response(JSON.stringify({ error: 'Deprecated wrapper removed. Use Worker API.' }), { status: 410, headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*' } });
+}

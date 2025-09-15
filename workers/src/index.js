@@ -28,7 +28,10 @@ import {
     assignRandomArchetype,
     sanitizeUsername,
     fetchRandomWords,
-    inferMetaTierWithContext
+    inferMetaTierWithContext,
+    sampleInitialTotalXP,
+    distributeInitialXP,
+    assignArchetypeForTotalXP
 } from './utils.js';
 
 // Lightweight per-isolate memory cache and throttling to lower KV pressure
@@ -115,36 +118,36 @@ async function cacheResponseIfPossible(request, compute) {
 }
 
 function newUser(username) {
+    // 1. Sample an initial total XP budget (top heavy; per-tier power-law weighting)
+    const totalInitialXP = sampleInitialTotalXP();
+    // 2. Distribute across skills (hitpoints baseline handled after)
+    const distributed = distributeInitialXP(totalInitialXP);
     const skills = {};
-    const MIN_XP = 1154;
-    const MAX_XP = 2000000;
-
-    function randInt(min, max) {
-        return Math.floor(Math.random() * (max - min + 1)) + min;
-    }
-
-    SKILLS.forEach((s) => {
-        const xp = randInt(MIN_XP, MAX_XP);
+    for (const s of SKILLS) {
+        if (s === 'hitpoints') continue; // handle after baseline
+        const xp = distributed[s] || 1_154;
         skills[s] = { xp, level: levelFromXp(xp) };
-    });
-
-    // Preserve original hitpoints behavior
-    skills.hitpoints.level = 10;
-    skills.hitpoints.xp = 1154;
-
+    }
+    // 3. Preserve / enforce hitpoints baseline (classic starting state)
+    skills.hitpoints = { xp: 1_154, level: 10 };
+    // 4. Recalculate totals (includes HP baseline; adds a small extra XP on top of sampled distribution)
+    //    Because we fixed HP at 1_154 we add it only if not already in distributed map; distributed excludes HP.
+    const userTotalLevel = totalLevel(skills);
+    const userTotalXP = totalXP(skills);
+    // 5. Archetype assignment influenced by total XP (rarer archetypes more likely for very high XP)
+    const archetype = assignArchetypeForTotalXP(userTotalXP);
     return {
         username,
         createdAt: Date.now(),
         updatedAt: Date.now(),
         skills,
-        totalLevel: totalLevel(skills),
-        totalXP: totalXP(skills),
+        totalLevel: userTotalLevel,
+        totalXP: userTotalXP,
         activity: "INACTIVE",
-        archetype: assignRandomArchetype(),
+        archetype,
         achievements: {},
-        // key -> timestamp ms
         needsHpMigration: false,
-        version: 2
+        version: 3
     };
 }
 function recalcTotals(user) {
@@ -1041,6 +1044,39 @@ async function runScheduled(env) {
     return { processed: toUpdate, newUsers: created, totalPlayers: users.length + created };
 }
 
+// ———————————————————————————————————————————————————————————————
+// v3 Migration: Upgrade all users not yet at version 3.
+// Strategy: process in chunks; for each user version <3 apply archetype recalculation
+// based on current totalXP (do NOT reshuffle existing skill XP to avoid retroactive distortion).
+// Idempotent: users with version >=3 are skipped.
+async function migrateAllUsersToV3(env, { chunkSize = 200 } = {}) {
+    const users = await getAllUsers(env, { fresh: true });
+    const outdated = users.filter(u => (u.version || 1) < 3);
+    let migrated = 0;
+    const total = outdated.length;
+    for (let i = 0; i < outdated.length; i += chunkSize) {
+        const slice = outdated.slice(i, i + chunkSize);
+        for (const u of slice) {
+            try {
+                // Recalculate totals just in case
+                recalcTotals(u);
+                // Assign archetype based on weighted XP distribution logic if missing or legacy
+                u.archetype = assignArchetypeForTotalXP(u.totalXP);
+                u.version = 3;
+                u.updatedAt = Date.now();
+                await putUser(env, u);
+                migrated++;
+            } catch (e) {
+                // Log and continue
+                console.log('migrate v3 user failed', u.username, String(e));
+            }
+        }
+        // Light pacing to avoid write spikes
+        if (outdated.length > 500) await sleep(5);
+    }
+    return { scanned: users.length, candidates: total, migrated };
+}
+
 function jsonResponse(obj, init = {}) {
     const baseHeaders = {
         'content-type': 'application/json',
@@ -1083,6 +1119,15 @@ async function router(request, env) {
     if (path === '/api/admin/users/delete-batch' && method === 'POST') return handleDeleteUsersBatch(env, request);
     if (path === '/api/admin/users/delete-bad' && method === 'POST') return handleDeleteBadUsernames(env, request);
     if (path === '/api/admin/users/delete-bottom-quartile' && method === 'POST') return handleDeleteBottomQuartile(env, request);
+    if (path === '/api/admin/migrate/v3' && method === 'POST') {
+        // Publicly callable (NO ADMIN TOKEN). Use responsibly.
+        const started = Date.now();
+        let chunkSize = Number(url.searchParams.get('chunkSize'));
+        if (!Number.isFinite(chunkSize) || chunkSize <= 0) chunkSize = 200;
+        if (chunkSize > 1000) chunkSize = 1000; // hard cap
+        const result = await migrateAllUsersToV3(env, { chunkSize });
+        return jsonResponse({ ...result, chunkSize, durationMs: Date.now() - started, public: true });
+    }
     const userMatch = path.match(/^\/api\/users\/([^\/]+)$/); if (userMatch && method === 'GET') return cacheResponseIfPossible(request, () => handleUser(env, decodeURIComponent(userMatch[1])));
     const userAchMatch = path.match(/^\/api\/users\/([^\/]+)\/achievements$/); if (userAchMatch && method === 'GET') return cacheResponseIfPossible(request, () => handleUserAchievements(env, decodeURIComponent(userAchMatch[1])));
     const hpCheckMatch = path.match(/^\/api\/users\/([^\/]+)\/hitpoints-check$/); if (hpCheckMatch && method === 'GET') return handleUserHpCheck(env, decodeURIComponent(hpCheckMatch[1]));
@@ -1093,6 +1138,12 @@ async function router(request, env) {
 export default {
     async fetch(request, env) {
         try {
+            // Consolidated deployment: Previously Cloudflare Pages Functions wrappers in /functions
+            // delegated to handleApiRequest. We removed them to deduplicate code; this guard preserves
+            // the explicit error those wrappers returned if KV wasn't bound correctly.
+            if (!env.HISCORES_KV) {
+                return jsonResponse({ error: 'KV binding HISCORES_KV missing' }, { status: 500 });
+            }
             return await router(request, env);
         } catch (err) {
             return jsonResponse({ error: 'Internal error', detail: String(err) }, { status: 500 });

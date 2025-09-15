@@ -1,23 +1,5 @@
-// Pages Function wrapper for /api/generate/users/dry-run endpoint.
-// Delegates to the unified Worker implementation.
-
-import { handleApiRequest } from '../../../../workers/src/index.js';
-
-export async function onRequestGet(context) {
-    const { request, env } = context;
-    try {
-        if (!env.HISCORES_KV) {
-            return new Response(JSON.stringify({ error: 'KV binding HISCORES_KV missing' }), {
-                status: 500,
-                headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*' }
-            });
-        }
-        return await handleApiRequest(request, env);
-    } catch (err) {
-        console.error('API Error (generate users dry-run Pages Function):', err);
-        return new Response(JSON.stringify({ error: 'Internal error', detail: String(err) }), {
-            status: 500,
-            headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*' }
-        });
-    }
+// (Deprecated) Former Pages Function wrapper removed after consolidating API logic into workers/src/index.js
+// This file kept as placeholder to avoid stale imports during transition. Will be deleted.
+export async function onRequestGet() {
+    return new Response(JSON.stringify({ error: 'Deprecated endpoint wrapper removed. Use Worker API directly.' }), { status: 410, headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*' } });
 }

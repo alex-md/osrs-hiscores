@@ -75,6 +75,26 @@ export const SKILL_POPULARITY = {
   runecraft: 0.70, hunter: 0.84, construction: 0.66
 };
 
+// ———————————————————————————————————————————————————————————————
+// Initial total XP tier configuration for new account generation.
+// Goal: extremely top‑heavy distribution where 95%+ of new players land in early tiers.
+// Tiers are inclusive of min and exclusive of max except final which is inclusive.
+// weights are relative and will be dynamically modulated by an internal power curve.
+// The MAX cap aligns with spec (100,000,000) though practical mid tiers are far lower.
+export const INITIAL_TOTAL_XP_TIERS = [
+  // name         minXP      maxXP        weight  notes
+  { name: 'T1', min: 1_154, max: 25_000, weight: 520, rarity: 'very common' },
+  { name: 'T2', min: 25_000, max: 150_000, weight: 230, rarity: 'common' },
+  { name: 'T3', min: 150_000, max: 800_000, weight: 110, rarity: 'uncommon' },
+  { name: 'T4', min: 800_000, max: 4_000_000, weight: 55, rarity: 'rare' },
+  { name: 'T5', min: 4_000_000, max: 15_000_000, weight: 20, rarity: 'epic' },
+  { name: 'T6', min: 15_000_000, max: 40_000_000, weight: 6, rarity: 'legendary' },
+  { name: 'T7', min: 40_000_000, max: 70_000_000, weight: 2, rarity: 'mythic' },
+  { name: 'T8', min: 70_000_000, max: 100_000_000, weight: 1, rarity: 'ultra' }
+];
+
+// Safety validation (non-fatal) can be performed at runtime by sampler.
+
 // export const SKILL_POPULARITY = {
 //   attack: 1.1, defence: 1.0, strength: 1.15, hitpoints: 1.05, ranged: 1.05,
 //   prayer: 0.6, magic: 1.1, cooking: 0.9, woodcutting: 0.85, fletching: 0.75,
