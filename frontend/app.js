@@ -294,7 +294,8 @@ function renderUserView(username) {
     }
     userInfo.appendChild(meta), headerContent.appendChild(userInfo), headerSection.appendChild(headerContent);
     const averages = computeSkillAverages(skillRankings);
-    let ACHIEVEMENT_CATALOG = [
+    // Use shared catalog from common.js
+    const ACHIEVEMENT_CATALOG = window.ACHIEVEMENT_CATALOG || [
       {
         key: 'tier-grandmaster',
         icon: '👑',
@@ -912,7 +913,7 @@ function renderUserView(username) {
       let baseXP = 1154 * ("hitpoints" === skillName), isClickable = void 0;
       ((skill?.level || 1) > 1 || (skill?.xp || 0) > baseXP) && (tr.classList.add("clickable"), tr.addEventListener("click", () => {
         window.open(`skill-hiscores.html?skill=${skillName}#skill=${skillName}`, "_blank");
-      }));
+    }));
       let iconUrl = window.getSkillIcon(skillName), nameCell = document.createElement("td");
       nameCell.className = "text-left", nameCell.innerHTML = `${iconUrl ? `<img src="${iconUrl}" class="skill-icon skill-icon--sm" alt="${skillName}">` : ""}<span class="skill-name text-capitalize">${skillName}</span>`;
       let lvl = skill?.level ?? 1, xp = skill?.xp ?? 0;

@@ -241,7 +241,6 @@ table th {
   white-space: pre-line;
   background: var(--color-bg-layer2);
   padding: .5rem .75rem;
-  z-index: 4000;
   font-size: .75rem;
   opacity: 0;
   pointer-events: none;
@@ -353,15 +352,13 @@ table th {
 }
 
 .btn-sm:active,
-.btn:active,
-.cat-toggle:active {
+.btn:active {
   transform: translateY(0)
 }
 
 .achievement-inline-card:hover,
 .btn-sm:hover,
 .btn:hover,
-.cat-toggle:hover,
 .icon-button:hover,
 .skill-row.clickable:active {
   transform: translateY(-1px)
@@ -634,8 +631,7 @@ table th {
   justify-content: center
 }
 
-.achievements-inline-grid,
-.hidden-achievements-grid {
+.achievements-inline-grid {
   gap: .75rem;
   display: grid;
   margin-top: .75rem
@@ -671,9 +667,7 @@ table th {
   justify-items: stretch
 }
 
-.expandable-achievements-grid {
-  gap: 1em
-}
+/* .expandable-achievements-grid removed (unused) */
 
 .achievement-inline-card {
   display: flex;
@@ -1092,11 +1086,7 @@ tbody tr.overall-row {
   opacity: .75
 }
 
-.achievements-panel h4,
-.achievements-panel label {
-  align-items: center;
-  color: var(--color-foreground)
-}
+/* removed unused .achievements-panel header styles */
 
 .pi-level {
   font-size: .6rem;
@@ -1115,89 +1105,31 @@ tbody tr.overall-row {
 }
 
 .achievement-card.rarity-common,
-.achievement-category>div:first-child:hover,
-.achievements-panel {
+.achievement-category>div:first-child:hover {
   background: linear-gradient(135deg, var(--color-bg-layer) 0, var(--color-bg-layer2) 100%)
 }
 
-.achievements-panel {
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  padding: 0;
-  box-shadow: var(--shadow-sm);
-  position: relative;
-  overflow: hidden;
-  margin: 1.5rem 0
-}
+/* removed unused .achievements-panel container styles */
 
-.achievements-panel--compact {
-  margin: 1rem 0;
-  border-radius: 8px
-}
+/* removed unused .achievements-panel--compact */
 
-.achievements-panel h4 {
-  font-size: .875rem;
-  font-weight: 600;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  gap: .5rem
-}
+/* removed unused .achievements-panel h4 */
 
-.achievements-panel label,
-.cat-toggle {
-  display: inline-flex;
-  transition: .2s;
-  cursor: pointer
-}
+/* removed unused .achievements-panel label and .cat-toggle base */
 
-.achievements-panel>div:first-child {
-  background: linear-gradient(135deg, var(--color-bg-header) 0, rgba(63, 34, 22, .9) 100%);
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--color-border-dark);
-  backdrop-filter: blur(4px)
-}
+/* removed unused .achievements-panel header */
 
-.achievements-panel--compact>div:first-child {
-  padding: .75rem 1rem
-}
+/* removed unused .achievements-panel--compact header padding */
 
-.achievements-panel .flex.items-center.gap-1 {
-  display: flex;
-  flex-wrap: wrap;
-  gap: .375rem;
-  margin-top: .75rem
-}
+/* removed unused .achievements-panel flex helpers */
 
-.achievements-panel--compact .flex.items-center.gap-1 {
-  margin-top: .5rem;
-  gap: .25rem
-}
+/* removed unused .achievements-panel--compact flex helpers */
 
-.achievements-panel label {
-  gap: .25rem;
-  padding: .25rem .5rem;
-  background: rgba(255, 255, 255, .05);
-  border: 1px solid rgba(255, 255, 255, .1);
-  border-radius: 6px;
-  font-size: .6875rem;
-  font-weight: 500;
-  user-select: none;
-  backdrop-filter: blur(2px)
-}
+/* removed unused .achievements-panel label */
 
-.achievements-panel label:hover {
-  background: rgba(255, 255, 255, .1);
-  border-color: var(--color-accent);
-  transform: translateY(-1px)
-}
+/* removed unused .achievements-panel label:hover */
 
-.achievements-panel label input[type=checkbox] {
-  width: .75rem;
-  height: .75rem;
-  margin: 0;
-  cursor: pointer
-}
+/* removed unused .achievements-panel label input */
 
 .achievement-category {
   border: none;
@@ -1224,9 +1156,7 @@ tbody tr.overall-row {
   transition: background .2s
 }
 
-.achievements-panel--compact .achievement-category>div:first-child {
-  padding: .75rem 1rem .5rem
-}
+/* removed unused .achievements-panel--compact achievement-category header padding */
 
 .achievement-category h5 {
   font-size: .75rem;
@@ -1238,31 +1168,11 @@ tbody tr.overall-row {
   flex-grow: 1
 }
 
-.cat-toggle {
-  background: var(--color-accent);
-  color: #fff;
-  border: none;
-  width: 1.5rem;
-  height: 1.5rem;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  font-size: .75rem;
-  font-weight: 700;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, .2);
-  flex-shrink: 0
-}
+/* removed unused .cat-toggle */
 
-.achievements-panel--compact .cat-toggle {
-  width: 1.25rem;
-  height: 1.25rem;
-  font-size: .625rem
-}
+/* removed unused .achievements-panel--compact .cat-toggle */
 
-.cat-toggle:hover {
-  background: var(--color-accent-hover);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, .25)
-}
+/* removed unused .cat-toggle:hover */
 
 .achievement-grid {
   display: grid;
@@ -1276,11 +1186,7 @@ tbody tr.overall-row {
   overflow: hidden
 }
 
-.achievements-panel--compact .achievement-grid {
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: .75rem;
-  padding: 1rem
-}
+/* removed unused .achievements-panel--compact .achievement-grid */
 
 .achievement-grid.collapsed {
   max-height: 0;
@@ -1307,11 +1213,7 @@ tbody tr.overall-row {
   line-height: 1.4
 }
 
-.achievements-panel--compact .achievement-card {
-  padding: 1rem .75rem;
-  border-radius: 8px;
-  font-size: .8125rem
-}
+/* removed unused .achievements-panel--compact .achievement-card */
 
 .achievement-card:hover {
   transform: translateY(-5px) scale(1.01);
@@ -1365,10 +1267,7 @@ tbody tr.overall-row {
   display: block
 }
 
-.achievements-panel--compact .ach-icon {
-  font-size: 1.5rem;
-  margin-bottom: .5rem
-}
+/* removed unused .achievements-panel--compact .ach-icon */
 
 .ach-title {
   font-weight: 700;
@@ -1381,10 +1280,7 @@ tbody tr.overall-row {
   text-overflow: unset
 }
 
-.achievements-panel--compact .ach-title {
-  font-size: .75rem;
-  margin-bottom: .375rem
-}
+/* removed unused .achievements-panel--compact .ach-title */
 
 .ach-desc {
   color: var(--color-muted);
@@ -1394,10 +1290,7 @@ tbody tr.overall-row {
   white-space: normal
 }
 
-.achievements-panel--compact .ach-desc {
-  font-size: .6875rem;
-  margin-bottom: .5rem
-}
+/* removed unused .achievements-panel--compact .ach-desc */
 
 .achievement-card.achievement-skill::before {
   background: linear-gradient(90deg, #ffb347, gold)
@@ -1464,11 +1357,7 @@ tbody tr.overall-row {
   min-width: 3rem
 }
 
-.achievements-panel--compact .achievement-card[data-prevalence]::after {
-  bottom: .5rem;
-  font-size: .56rem;
-  padding: .18rem .37rem
-}
+/* removed unused .achievements-panel--compact badge sizing */
 
 .achievement-skill {
   background: linear-gradient(135deg, gold 0, #ffb347 100%)
@@ -2328,13 +2217,11 @@ footer.site-footer .mt-2 {
 }
 
 .transition-colors {
-  transition-property: color;
   transition-property: color
 }
 
 .duration-200 {
-  transition-duration: .2s;
-  transition-duration: 0.2s
+  transition-duration: .2s
 }
 
 .hover\:text-accent:hover {
@@ -2784,77 +2671,9 @@ footer.site-footer .mt-2 {
   margin-bottom: 0.5rem
 }
 
-.achievement-rarity-mythic {
-  border-color: #ff6b6b !important;
-  box-shadow: 0 0 8px rgba(255, 107, 107, 0.3)
-}
+/* removed unused .achievement-rarity-* helpers */
 
-.achievement-rarity-legendary {
-  border-color: #a855f7 !important;
-  box-shadow: 0 0 8px rgba(168, 85, 247, 0.3)
-}
-
-.achievement-rarity-epic {
-  border-color: #3b82f6 !important;
-  box-shadow: 0 0 8px rgba(59, 130, 246, 0.3)
-}
-
-.achievement-rarity-rare {
-  border-color: #10b981 !important;
-  box-shadow: 0 0 6px rgba(16, 185, 129, 0.2)
-}
-
-.achievement-rarity-common {
-  border-color: var(--color-border)
-}
-
-.achievement-category-tier {
-  --category-color: #ff6b6b
-}
-
-.achievement-category-rank {
-  --category-color: #a855f7
-}
-
-.achievement-category-account {
-  --category-color: #3b82f6
-}
-
-.achievement-category-skill-mastery {
-  --category-color: #10b981
-}
-
-.achievement-category-gathering {
-  --category-color: #f59e0b
-}
-
-.achievement-category-artisan {
-  --category-color: #ef4444
-}
-
-.achievement-category-support {
-  --category-color: #8b5cf6
-}
-
-.achievement-category-playstyle {
-  --category-color: #ec4899
-}
-
-.achievement-category-performance {
-  --category-color: #06b6d4
-}
-
-.achievement-category-activity {
-  --category-color: #84cc16
-}
-
-.achievement-category-milestone {
-  --category-color: #f97316
-}
-
-.achievement-category-special {
-  --category-color: #6366f1
-}
+/* removed unused .achievement-category-* color variables */
 
 .leaderboard-table [data-tooltip]::after {
   top: auto;
@@ -3057,9 +2876,7 @@ footer.site-footer .mt-2 {
     gap: .875rem
   }
 
-  .achievements-panel--compact .achievement-grid {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr))
-  }
+  /* removed unused .achievements-panel--compact .achievement-grid */
 
   .osrs-table {
     width: 100%
@@ -3079,8 +2896,7 @@ footer.site-footer .mt-2 {
 
 @media (max-width:480px) {
 
-  .achievements-inline-grid,
-  .achievements-panel--compact .achievement-grid {
+  .achievements-inline-grid {
     grid-template-columns: 1fr
   }
 
@@ -3135,11 +2951,6 @@ footer.site-footer .mt-2 {
     gap: .625rem
   }
 
-  .achievements-panel--compact .achievement-grid {
-    grid-template-columns: 1fr 1fr;
-    gap: .5rem
-  }
-
   .achievement-card {
     padding: .875rem .625rem;
     font-size: .8125rem
@@ -3151,11 +2962,6 @@ footer.site-footer .mt-2 {
 
   .ach-desc {
     font-size: .6875rem
-  }
-
-  .achievements-panel label {
-    font-size: .625rem;
-    padding: .1875rem .375rem
   }
 }
 
@@ -3177,20 +2983,10 @@ footer.site-footer .mt-2 {
     font-size: .65rem
   }
 
-  .achievements-panel {
-    margin: 1rem 0;
-    border-radius: 8px
-  }
-
   .achievement-grid {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: .75rem;
     padding: 1rem
-  }
-
-  .achievements-panel--compact .achievement-grid {
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-    gap: .625rem
   }
 
   .achievement-card {
@@ -3200,10 +2996,6 @@ footer.site-footer .mt-2 {
   .ach-icon {
     font-size: 1.75rem;
     margin-bottom: .625rem
-  }
-
-  .achievements-panel--compact .ach-icon {
-    font-size: 1.25rem
   }
 }
 
