@@ -270,6 +270,15 @@ function renderUserView(username) {
         b.className = `tier-badge tier-${me.tier.toLowerCase()}`, b.textContent = me.tier, (me.rank || me.tierInfo && 'number' == typeof me.tierInfo.top1Skills) && (b.title = `${me.tier} • Overall #${me.rank}${me.tierInfo && me.tierInfo.top1Skills ? ` • #1 in ${me.tierInfo.top1Skills} skills` : ''}`), nameWrap.appendChild(b);
       }
     }
+    // Copy profile link button
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'icon-button';
+    copyBtn.id = 'copyProfileLink';
+    copyBtn.title = 'Copy profile link';
+    copyBtn.setAttribute('aria-label', 'Copy profile link');
+    copyBtn.innerHTML = '<i data-lucide="link"></i>';
+    userInfo.appendChild(copyBtn);
+    if (window.lucide) window.lucide.createIcons();
     userInfo.appendChild(nameWrap);
     let attack = user.skills.attack.level, strength = user.skills.strength.level, defence = user.skills.defence.level, hitpoints = user.skills.hitpoints.level, ranged = user.skills.ranged.level, magic = user.skills.magic.level, prayer = void 0, combatLevel = Math.floor((defence + hitpoints + Math.floor(user.skills.prayer.level / 2)) * 0.25 + 0.325 * Math.max(attack + strength, Math.max(1.5 * ranged, 1.5 * magic))), meta = el("div", "meta-badges text-sm flex items-center gap-2 flex-wrap");
     if (meta.appendChild(el("span", "meta-badge", [
@@ -971,9 +980,12 @@ function setupSearch() {
     if ("Escape" === e.key) hideSuggest(), input.blur();
     else if ("ArrowDown" === e.key) e.preventDefault(), activeIndex = Math.min(currentItems.length - 1, activeIndex + 1), renderSuggest(currentItems);
     else if ("ArrowUp" === e.key) e.preventDefault(), activeIndex = Math.max(0, activeIndex - 1), renderSuggest(currentItems);
-    else if ("Enter" === e.key && activeIndex >= 0 && currentItems[activeIndex]) {
-      let u = currentItems[activeIndex];
-      location.hash = "user/" + encodeURIComponent(u), hideSuggest();
+    else if ("Enter" === e.key) {
+      e.preventDefault();
+      let u = null;
+      if (activeIndex >= 0 && currentItems[activeIndex]) u = currentItems[activeIndex];
+      else if (currentItems && currentItems.length) u = currentItems[0];
+      if (u) { location.hash = "user/" + encodeURIComponent(u); hideSuggest(); }
     }
   }), document.addEventListener("click", (e) => {
     if (e.target.closest("#searchSuggest button")) {
@@ -994,6 +1006,19 @@ document.addEventListener("click", (e) => {
     let u = btn.getAttribute("data-user");
     location.hash = "user/" + encodeURIComponent(u);
   }
+  const cp = e.target.closest('#copyProfileLink');
+  if (cp) {
+    const href = window.location.href;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(href).then(() => toast('Profile link copied')).catch(() => toast('Copy failed', 'error'));
+    } else {
+      // Fallback: create a temporary input
+      const tmp = document.createElement('input');
+      tmp.value = href; document.body.appendChild(tmp); tmp.select();
+      try { document.execCommand('copy'); toast('Profile link copied'); } catch(_) { toast('Copy failed', 'error'); }
+      tmp.remove();
+    }
+  }
   ("themeToggle" === e.target.id || e.target.closest("#themeToggle")) && toggleTheme();
   let brand = void 0;
   e.target.closest(".brand-link") && (e.preventDefault(), location.hash = "");
@@ -1005,6 +1030,17 @@ document.addEventListener("click", (e) => {
     let displayBase = void 0;
     apiSpan.textContent = window.API_BASE === location.origin ? "Same-origin" : window.API_BASE;
   }
+  // Keyboard shortcut: focus search with '/'
+  document.addEventListener('keydown', (e) => {
+    if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const tag = (e.target && e.target.tagName) || '';
+      if (tag !== 'INPUT' && tag !== 'TEXTAREA' && !e.target.isContentEditable) {
+        e.preventDefault();
+        const inp = document.getElementById('playerSearch');
+        if (inp) { inp.focus(); inp.select(); }
+      }
+    }
+  });
 })();
 let RARITY_ORDER = {
   mythic: 0,

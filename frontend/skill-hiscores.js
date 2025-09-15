@@ -11,7 +11,7 @@ async function loadSkillRankings(force = false) {
 
 let currentSkill = "attack";
 let page = 1;
-let perPage = 50; // fixed page size; can be adjusted if needed
+let perPage = 50; // default page size; configurable via selector
 let minLevel = null;
 let maxLevel = null;
 let minXp = null;
@@ -157,6 +157,17 @@ function init() {
   setTheme(theme);
 
   // perPage is fixed; page starts at 1
+
+  // Page size selector
+  const pageSize = document.getElementById('pageSize');
+  if (pageSize) {
+    pageSize.addEventListener('change', () => {
+      const v = Number(pageSize.value) || 50;
+      perPage = Math.max(5, Math.min(500, v));
+      page = 1;
+      renderTable();
+    });
+  }
 
   // Show current API base in footer
   const apiSpan = $("#currentApiBase");
