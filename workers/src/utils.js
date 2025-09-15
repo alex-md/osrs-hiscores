@@ -25,6 +25,38 @@ export function totalXP(skills) {
   return SKILLS.reduce((sum, s) => sum + (skills[s]?.xp || 0), 0);
 }
 
+// Reverse of levelFromXp: approximate XP for a given level (1..99). Returns minimum XP required.
+export function xpForLevel(level) {
+  if (level <= 1) return 0;
+  let points = 0;
+  for (let lvl = 1; lvl < level; lvl++) {
+    points += Math.floor(lvl + 300 * Math.pow(2, lvl / 7));
+  }
+  return Math.floor(points / 4);
+}
+
+// Compute hitpoints level as the rounded average of primary combat skills.
+// You mentioned: "based on all other combat stats, basically the average of all of them".
+// We'll treat attack, strength, defence, ranged, magic, prayer as the contributors.
+// (Prayer often has different weighting in OSRS combat level, but per your instruction we use a simple average.)
+export function computeHitpointsLevelFromCombat(skills) {
+  const combatStats = ['attack', 'strength', 'defence', 'ranged', 'magic', 'prayer'];
+  const levels = combatStats.map(s => skills?.[s]?.level || 1);
+  const avg = levels.reduce((a, b) => a + b, 0) / levels.length;
+  // Minimum starting HP level often is 10; respect that floor.
+  return Math.max(10, Math.round(avg));
+}
+
+export function syncHitpointsFromCombat(skills) {
+  if (!skills) return;
+  const desiredLevel = computeHitpointsLevelFromCombat(skills);
+  const current = skills.hitpoints || { xp: 1154, level: 10 };
+  if (current.level === desiredLevel) return false;
+  const newXp = xpForLevel(desiredLevel);
+  skills.hitpoints = { xp: newXp, level: desiredLevel };
+  return true;
+}
+
 // Meta tier inference prioritizing overall rank percentiles with fallbacks.
 // Returns an object { name, ordinal } where lower ordinal is higher prestige.
 export function inferMetaTierWithContext(user, ctx) {

@@ -31,7 +31,9 @@ import {
     inferMetaTierWithContext,
     sampleInitialTotalXP,
     distributeInitialXP,
-    assignArchetypeForTotalXP
+    assignArchetypeForTotalXP,
+    computeHitpointsLevelFromCombat,
+    xpForLevel
 } from './utils.js';
 
 // Lightweight per-isolate memory cache and throttling to lower KV pressure
@@ -128,8 +130,10 @@ function newUser(username) {
         const xp = distributed[s] || 1_154;
         skills[s] = { xp, level: levelFromXp(xp) };
     }
-    // 3. Preserve / enforce hitpoints baseline (classic starting state)
-    skills.hitpoints = { xp: 1_154, level: 10 };
+    // 3. Derive hitpoints from combat stats average (attack/strength/defence/ranged/magic/prayer)
+    const hpLevel = computeHitpointsLevelFromCombat(skills);
+    const hpXp = xpForLevel(hpLevel);
+    skills.hitpoints = { xp: hpXp, level: hpLevel };
     // 4. Recalculate totals (includes HP baseline; adds a small extra XP on top of sampled distribution)
     //    Because we fixed HP at 1_154 we add it only if not already in distributed map; distributed excludes HP.
     const userTotalLevel = totalLevel(skills);
@@ -1127,6 +1131,27 @@ async function router(request, env) {
         if (chunkSize > 1000) chunkSize = 1000; // hard cap
         const result = await migrateAllUsersToV3(env, { chunkSize });
         return jsonResponse({ ...result, chunkSize, durationMs: Date.now() - started, public: true });
+    }
+    if (path === '/api/admin/rebalance/hitpoints' && method === 'POST') {
+        const users = await getAllUsers(env, { fresh: true });
+        let adjusted = 0; let scanned = 0;
+        for (const u of users) {
+            scanned++;
+            if (!u?.skills) continue;
+            const combatStats = ['attack', 'strength', 'defence', 'ranged', 'magic', 'prayer'];
+            const avg = combatStats.reduce((a, s) => a + (u.skills[s]?.level || 1), 0) / combatStats.length;
+            const desiredLevel = Math.max(10, Math.round(avg));
+            const hp = u.skills.hitpoints || { level: 10, xp: 1154 };
+            if (hp.level !== desiredLevel) {
+                hp.level = desiredLevel;
+                hp.xp = xpForLevel(desiredLevel);
+                u.skills.hitpoints = hp;
+                recalcTotals(u);
+                await putUser(env, u);
+                adjusted++;
+            }
+        }
+        return jsonResponse({ scanned, adjusted });
     }
     const userMatch = path.match(/^\/api\/users\/([^\/]+)$/); if (userMatch && method === 'GET') return cacheResponseIfPossible(request, () => handleUser(env, decodeURIComponent(userMatch[1])));
     const userAchMatch = path.match(/^\/api\/users\/([^\/]+)\/achievements$/); if (userAchMatch && method === 'GET') return cacheResponseIfPossible(request, () => handleUserAchievements(env, decodeURIComponent(userAchMatch[1])));
