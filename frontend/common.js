@@ -84,9 +84,123 @@
     btn.appendChild(icon);
     if (window.lucide) window.lucide.createIcons();
   }
+  const COLLAPSIBLE_REGISTRY = new Map();
+  let collapsibleListenersAttached = !1;
+  const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+  function parseSelectorList(selector) {
+    return (selector || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((sel) => {
+        try {
+          return document.querySelector(sel);
+        } catch (_) {
+          return null;
+        }
+      })
+      .filter(Boolean);
+  }
+
+  function setCollapsibleExpanded(btn, expanded) {
+    const conf = COLLAPSIBLE_REGISTRY.get(btn);
+    if (!conf || conf.expanded === expanded) return;
+    conf.expanded = expanded;
+    btn.setAttribute("aria-expanded", expanded ? "true" : "false");
+    conf.targets.forEach((el) => el.classList.toggle(conf.toggleClass, expanded));
+    conf.parents.forEach((el) => el.classList.toggle(conf.parentClass, expanded));
+    if (!expanded || !conf.autoFocus) return;
+    for (const target of conf.targets) {
+      const focusable = Array.from(target.querySelectorAll(FOCUSABLE_SELECTOR));
+      for (const node of focusable) {
+        if (node instanceof HTMLElement) {
+          try {
+            node.focus({ preventScroll: !!conf.preventScroll });
+            if (document.activeElement === node) return;
+          } catch (_) {
+            try {
+              node.focus();
+              if (document.activeElement === node) return;
+            } catch (_) { }
+          }
+        }
+      }
+    }
+  }
+
+  function registerCollapsible(btn) {
+    if (!btn || COLLAPSIBLE_REGISTRY.has(btn)) return;
+    const targets = parseSelectorList(btn.getAttribute("data-toggle-target"));
+    if (!targets.length) return;
+    const toggleClass = btn.getAttribute("data-toggle-class") || "is-open";
+    const parents = parseSelectorList(btn.getAttribute("data-toggle-parent"));
+    const parentClass = btn.getAttribute("data-toggle-parent-class") || toggleClass;
+    const focusAttr = btn.getAttribute("data-toggle-focus");
+    const conf = {
+      targets,
+      toggleClass,
+      parents,
+      parentClass,
+      autoFocus: focusAttr === "true" || focusAttr === "auto",
+      preventScroll: btn.getAttribute("data-toggle-prevent-scroll") === "true",
+      expanded: btn.getAttribute("aria-expanded") === "true"
+    };
+    const breakpoint = btn.getAttribute("data-toggle-breakpoint");
+    if (breakpoint) {
+      try {
+        const mq = window.matchMedia(`(min-width: ${breakpoint})`);
+        const handler = (event) => {
+          if (event.matches) setCollapsibleExpanded(btn, !1);
+        };
+        if (mq.addEventListener) mq.addEventListener("change", handler);
+        else if (mq.addListener) mq.addListener(handler);
+        conf.breakpoint = mq;
+        conf.breakpointHandler = handler;
+      } catch (_) { }
+    }
+    COLLAPSIBLE_REGISTRY.set(btn, conf);
+    if (!btn.hasAttribute("aria-expanded")) btn.setAttribute("aria-expanded", "false");
+    btn.addEventListener("click", (event) => {
+      event.preventDefault();
+      setCollapsibleExpanded(btn, !conf.expanded);
+    });
+    if (conf.expanded) setCollapsibleExpanded(btn, !0);
+  }
+
+  function setupCollapsibleToggles(root = document) {
+    const toggles = Array.from(root.querySelectorAll('[data-toggle-target]'));
+    if (!toggles.length) return;
+    toggles.forEach(registerCollapsible);
+    if (collapsibleListenersAttached) return;
+    collapsibleListenersAttached = !0;
+    document.addEventListener("click", (event) => {
+      COLLAPSIBLE_REGISTRY.forEach((conf, btn) => {
+        if (!conf.expanded) return;
+        if (btn.contains(event.target)) return;
+        if (conf.targets.some((el) => el.contains(event.target))) return;
+        setCollapsibleExpanded(btn, !1);
+      });
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      let closed = !1;
+      COLLAPSIBLE_REGISTRY.forEach((conf, btn) => {
+        if (!conf.expanded) return;
+        setCollapsibleExpanded(btn, !1);
+        closed = !0;
+      });
+      if (closed) {
+        try {
+          event.preventDefault();
+        } catch (_) { }
+      }
+    });
+  }
   document.addEventListener("DOMContentLoaded", () => {
     if (window.lucide) window.lucide.createIcons();
     updateThemeToggle();
+    setupCollapsibleToggles();
     const skillRoot = document.getElementById("sidebarSkillList");
     if (skillRoot) populateSkillLinks(skillRoot);
   });
@@ -101,6 +215,7 @@
   window.setTheme = setTheme;
   window.toggleTheme = toggleTheme;
   window.updateThemeToggle = updateThemeToggle;
+  window.setupCollapsibleToggles = setupCollapsibleToggles;
   const SKILLS = [
     "attack",
     "defence",

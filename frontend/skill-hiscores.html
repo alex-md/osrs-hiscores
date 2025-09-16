@@ -31,37 +31,60 @@
     </head>
 
     <body class="h-full bg-surface text-foreground">
+        <a class="skip-link" href="#mainContent">Skip to main content</a>
         <div class="min-h-full flex flex-col max-w-screen-xl mx-auto">
-            <header class="osrs-header p-4 flex-between flex-wrap gap-4">
-                <!-- Brand & Title -->
-                <div class="flex-items-center gap-4">
-                    <h1 class="flex-items-center gap-2 text-2xl font-extrabold text-white tracking-wide">
+            <header class="osrs-header p-4">
+                <div class="header-inner">
+                    <div class="header-brand">
+                        <button id="siteNavToggle" class="mobile-nav-toggle icon-button" type="button"
+                            aria-expanded="false" aria-controls="siteNav" aria-haspopup="true"
+                            data-toggle-target="#siteNav" data-toggle-breakpoint="900px" data-toggle-focus="true"
+                            title="Toggle navigation">
+                            <span class="sr-only">Toggle navigation</span>
+                            <i data-lucide="menu" class="w-5 h-5"></i>
+                        </button>
                         <a href="index.html"
-                            class="brand-link flex-items-center gap-2 hover:text-gold transition-colors">
+                            class="brand-link flex-items-center gap-2 text-2xl font-extrabold text-white tracking-wide hover:text-gold transition-colors">
                             <span class="text-gold">⚔️ OSRS</span>
                             <span>Hiscores</span>
                         </a>
-                    </h1>
-                    <div class="w-px h-6 bg-gold/50"></div>
-                    <span class="flex-items-center gap-2 text-xl font-semibold text-white/90">
-                        <i data-lucide="zap" class="w-5 h-5"></i>
-                        Skill Hiscores
-                    </span>
-                </div>
+                        <span class="header-subtitle">
+                            <i data-lucide="zap" class="w-5 h-5" aria-hidden="true"></i>
+                            Skill Hiscores
+                        </span>
+                    </div>
 
-                <!-- Controls -->
-                <div class="flex-items-center gap-3">
-                    <!-- Search & Skill select -->
-                    <select id="skillSelect" class="btn-input px-3 py-2" aria-label="Select skill"></select>
-                    <input id="filterName" placeholder="Search player..." class="btn-input px-5 py-2 min-w-32" />
+                    <nav id="siteNav" class="primary-nav" aria-label="Primary">
+                        <a href="index.html" class="nav-pill" data-tooltip="Overall rankings">
+                            <i data-lucide="trophy" class="w-4 h-4"></i>
+                            <span>Leaderboard</span>
+                        </a>
+                        <a href="skill-hiscores.html" class="nav-pill active" aria-current="page"
+                            data-tooltip="View by skill">
+                            <i data-lucide="zap" class="w-4 h-4"></i>
+                            <span>Skill Hiscores</span>
+                        </a>
+                        <a href="achievements.html" class="nav-pill" data-tooltip="Achievement system guide">
+                            <i data-lucide="award" class="w-4 h-4"></i>
+                            <span>Achievements</span>
+                        </a>
+                    </nav>
 
-                    <!-- Theme Toggle -->
-                    <button id="themeToggle" class="icon-button" title="Toggle Theme">
-                        <i data-lucide="sun" class="w-5 h-5"></i>
-                    </button>
+                    <div class="header-actions header-actions--stack">
+                        <div class="header-toolbar" role="group" aria-label="Skill filters">
+                            <label for="skillSelect" class="sr-only">Select skill</label>
+                            <select id="skillSelect" class="btn-input" aria-label="Select skill"></select>
+                            <label for="filterName" class="sr-only">Search player</label>
+                            <input id="filterName" placeholder="Search player..." class="btn-input" aria-label="Search player" />
+                        </div>
+
+                        <button id="themeToggle" class="icon-button" title="Toggle Theme">
+                            <i data-lucide="sun" class="w-5 h-5"></i>
+                        </button>
+                    </div>
                 </div>
             </header>
-            <main class="flex-1 p-6 container-wrap">
+            <main id="mainContent" class="flex-1 p-6 container-wrap">
                 <nav aria-label="Breadcrumb" class="breadcrumb mb-4">
                     <ol>
                         <li>
