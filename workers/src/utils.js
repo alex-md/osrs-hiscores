@@ -149,7 +149,7 @@ export function distributeInitialXP(totalXp, rng = Math.random) {
     { max: 500_000, count: [5, 9] },
     { max: 5_000_000, count: [7, 15] },
     { max: 20_000_000, count: [12, 19] },
-    { max: Infinity, count: [18, skillNames.length] }
+    { max: 50_000_000, count: [18, skillNames.length - 3] },  // heavy mid/late game
   ];
   let targetRange = tiers[tiers.length - 1].count;
   for (const t of tiers) { if (totalXp <= t.max) { targetRange = t.count; break; } }
@@ -213,8 +213,7 @@ export function assignRandomArchetype() {
 }
 
 export function sanitizeUsername(name) {
-  let n = String(name || '').replace(/[^a-zA-Z0-9_ -]/g, '');
-  n = n.replace(/^[_\-\s]+/, '');
+  let n = String(name || '').replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9_ -]/g, '');
   return n.slice(0, 12);
 }
 
@@ -229,7 +228,7 @@ export async function fetchRandomWords(count = 2, existingUsernames = new Set())
   const noLongConsonantRuns = (w) => !/[bcdfghjklmnpqrstvwxyz]{4,}/i.test(w);
   const looksLikeWord = (w) => isAlpha(w) && hasVowel(w) && noLongConsonantRuns(w);
 
-  const GOOD_MIN = 3;
+  const GOOD_MIN = 2;
   const GOOD_MAX = 12;
 
   function normalize(u) { return u.toLowerCase(); }

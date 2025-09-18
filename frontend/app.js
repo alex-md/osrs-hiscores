@@ -811,16 +811,30 @@ function renderUserView(username) {
       let aboveAvg = void 0, ratio = SKILLS.filter((s) => (user.skills[s]?.level || 1) > (averages[s]?.level || 1)).length / SKILLS.length;
       ratio >= 0.90 ? push('elite') : ratio >= 0.75 ? push('versatile') : ratio >= 0.50 && push('consistent');
       let totalXP = SKILLS.reduce((sum, s) => sum + (user.skills[s]?.xp || 0), 0);
-      if (totalXP >= 1000000000 ? push('xp-billionaire') : totalXP >= 1000000 && push('xp-millionaire'), user.updatedAt) {
-        let diffH = (now - user.updatedAt) / 3600000;
-        diffH <= 24 ? push('daily-grinder') : diffH <= 72 ? push('dedicated') : diffH <= 168 ? push('weekly-active') : diffH <= 720 && push('monthly-active');
-      }
+      if (totalXP >= 1000000000) push('xp-billionaire');
+      if (totalXP >= 200000000) push('totalxp-200m');
+      if (totalXP >= 100000000) push('totalxp-100m');
+      if (totalXP >= 50000000) push('totalxp-50m');
+      if (totalXP >= 10000000) push('totalxp-10m');
       let avgLevel = total / SKILLS.length;
       avgLevel >= 90 ? push('level-90-average') : avgLevel >= 75 ? push('level-75-average') : avgLevel >= 50 && push('level-50-average');
       let ranged = user.skills.ranged?.level || 1, magic = void 0;
       (user.skills.magic?.level || 1) >= 80 && ranged >= 80 && push('magic-ranged'), atk >= 85 && str >= 85 && def >= 85 && push('melee-specialist');
       let prayer = void 0;
       (user.skills.prayer?.level || 1) >= 80 && herblore >= 80 && runecraft >= 80 && push('support-master'), woodcutting >= 80 && fishing >= 80 && mining >= 80 && push('gathering-master');
+      // Approx combat level milestones
+      try {
+        const pray = user.skills.prayer?.level || 1;
+        const base = 0.25 * (def + hitpoints + Math.floor(pray / 2));
+        const melee = 0.325 * (attack + strength);
+        const ranger = 0.325 * Math.floor(1.5 * ranged);
+        const mager = 0.325 * Math.floor(1.5 * (user.skills.magic?.level || 1));
+        const cl = Math.floor(base + Math.max(melee, ranger, mager));
+        if (cl >= 100) push('combat-level-100');
+        if (cl >= 110) push('combat-level-110');
+        if (cl >= 120) push('combat-level-120');
+        if (cl >= 126) push('combat-level-126');
+      } catch (_) { }
       // 200m per-skill display hint
       SKILLS.forEach((s) => { if ((user.skills[s]?.xp || 0) >= 200_000_000) push(`skill-200m-${s}`); });
       let uniq = void 0;

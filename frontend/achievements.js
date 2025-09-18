@@ -12,7 +12,7 @@ const CATEGORY_INFO = {
     support: { name: 'Support Skills', desc: 'Utility skills and assistance achievements', color: 'tier-bronze' },
     playstyle: { name: 'Playstyle Specializations', desc: 'Unique character builds and strategies', color: 'tier-gold' },
     performance: { name: 'Performance Excellence', desc: 'Outstanding performance across multiple skills', color: 'tier-silver' },
-    activity: { name: 'Activity & Dedication', desc: 'Consistency and recent activity', color: 'tier-bronze' },
+    // activity category removed
     milestone: { name: 'Level Milestones', desc: 'Average level achievements and progression goals', color: 'tier-platinum' },
     special: { name: 'Special Combinations', desc: 'Unique skill combinations and hybrid builds', color: 'tier-diamond' }
 };
@@ -301,14 +301,7 @@ function computePlayerUnlocks(players, skillRankings) {
         if (p.totalLevel >= 2277) set.add('maxed-account');
         else if (p.totalLevel >= 2000) set.add('total-2000');
         else if (p.totalLevel >= 1500) set.add('total-1500');
-        // Activity recency
-        if (p.updatedAt) {
-            const diffH = (Date.now() - p.updatedAt) / 3600000;
-            if (diffH <= 24) set.add('daily-grinder');
-            else if (diffH <= 72) set.add('dedicated');
-            else if (diffH <= 168) set.add('weekly-active');
-            else if (diffH <= 720) set.add('monthly-active');
-        }
+        // Activity achievements removed
         map.set(p.username, set);
     });
     return map; // username => Set(keys)
@@ -322,7 +315,7 @@ const ACHIEVEMENT_FAMILY_CHAINS = [
     ['top-10-any', 'top-100-any'],
     ['maxed-account', 'seven-99s', 'five-99s'],
     ['total-2000', 'total-1500'],
-    ['daily-grinder', 'dedicated', 'weekly-active', 'monthly-active'],
+    // activity chain removed
     ['elite', 'versatile', 'consistent'],
     ['level-90-average', 'level-75-average', 'level-50-average'],
     ['xp-billionaire', 'xp-millionaire']
@@ -450,14 +443,15 @@ async function renderInsights(globalStats, leaderboard, skillRankings, firsts) {
         const size = earnedCount(p.username);
         const row = el('div', 'insight-row top-player-row');
         const tierBadge = buildTierBadge(p.tier);
+        const pct = Math.max(0, Math.min(100, (size / 25) * 100));
         row.innerHTML = `
             <div class="insight-rank">${idx + 1}</div>
             <div class="insight-user">
                 <button class="username-link" data-user="${p.username}">${p.username}</button>
                 ${tierBadge}
             </div>
-            <div class="insight-bar-wrap" title="${size} achievements">
-                <div class="insight-bar" style="width:${Math.min(100, (size / 25) * 100)}%"></div>
+            <div class="insight-bar-wrap${pct === 0 ? ' zero' : ''}" title="${size} achievements">
+                <div class="insight-bar" style="width:${pct}%"></div>
                 <span class="insight-bar-label">${size}</span>
             </div>`;
         tpList.appendChild(row);
@@ -489,14 +483,15 @@ async function renderInsights(globalStats, leaderboard, skillRankings, firsts) {
             const detailed = formatPrevalenceDetailed(a.prevalence, a.count, a.totalPlayers);
             const firstInfo = a.first ? `\nFirst: ${a.first.username}` + (a.first.timestamp ? ` on ${new Date(a.first.timestamp).toLocaleDateString()}` : '') : '';
             const tooltip = `${a.label}\n${a.desc}\n${a.count}/${a.totalPlayers} players (${detailed})\nRarity: ${a.dynamicRarity}${firstInfo}`;
+            const pct = Math.max(0, Math.min(100, a.prevalence || 0));
             item.innerHTML = `
                 <div class="insight-icon" title="${tooltip}">${a.icon}</div>
                 <div class="insight-ach">
                     <div class="ach-name">${a.label}</div>
                     <div class="ach-desc">${a.desc}</div>
                 </div>
-                <div class="insight-bar-wrap" title="${tooltip}">
-                    <div class="insight-bar" style="width:${a.prevalence}%"></div>
+                <div class="insight-bar-wrap${pct === 0 ? ' zero' : ''}" title="${tooltip}">
+                    <div class="insight-bar" style="width:${pct}%"></div>
                     <span class="insight-bar-label">${detailed}</span>
                 </div>`;
             container.appendChild(item);

@@ -1187,6 +1187,7 @@ tbody tr.overall-row {
   text-wrap-style: balance;
   margin: 0 auto;
   text-wrap: auto;
+  flex-wrap: wrap;
 }
 
 /* removed unused .achievements-panel--compact .achievement-grid */
@@ -1614,11 +1615,14 @@ tbody tr.overall-row {
   width: -webkit-fill-available;
 }
 
-.insight-bar-wrap,
-.insight-bar {
+.insight-bar-wrap {
   border-radius: 6px;
   margin: 0 auto;
-  min-width: -webkit-fill-available;
+  width: 100%;
+}
+
+.insight-bar {
+  border-radius: 6px;
 }
 
 .insight-bar-wrap {
