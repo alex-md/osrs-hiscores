@@ -95,6 +95,26 @@ export const INITIAL_TOTAL_XP_TIERS = [
 
 // Safety validation (non-fatal) can be performed at runtime by sampler.
 
+// ———————————————————————————————————————————————————————————————
+// Persistent XP gain tiers by initial total XP at account creation.
+// Mapping here is used to classify a new player once and stored on the user object.
+// LOW: early game; MID: developing; HIGH: endgame; ELITE: top of ladder.
+export const XP_GAIN_TIER_THRESHOLDS = [
+  { tier: 'LOW', max: 150_000 },     // T1–T2
+  { tier: 'MID', max: 4_000_000 },   // T3–T4
+  { tier: 'HIGH', max: 40_000_000 },  // T5–T6
+  { tier: 'ELITE', max: Infinity }     // T7–T8
+];
+
+// Activity distributions constrained by XP tier (must sum to 100 per tier).
+// Ensures, for example, ELITE players always operate at the top activity bands.
+export const XP_GAIN_TIER_ACTIVITY_WEIGHTS = {
+  LOW: { INACTIVE: 60, BANK_STANDING: 30, CASUAL: 10, FOCUSED: 0, HARDCORE: 0, GRINDING: 0, UNHEALTHY: 0 },
+  MID: { INACTIVE: 5, BANK_STANDING: 10, CASUAL: 40, FOCUSED: 35, HARDCORE: 10, GRINDING: 0, UNHEALTHY: 0 },
+  HIGH: { INACTIVE: 0, BANK_STANDING: 3, CASUAL: 10, FOCUSED: 32, HARDCORE: 40, GRINDING: 12, UNHEALTHY: 3 },
+  ELITE: { INACTIVE: 0, BANK_STANDING: 1, CASUAL: 2, FOCUSED: 12, HARDCORE: 35, GRINDING: 45, UNHEALTHY: 5 }
+};
+
 // export const SKILL_POPULARITY = {
 //   attack: 1.1, defence: 1.0, strength: 1.15, hitpoints: 1.05, ranged: 1.05,
 //   prayer: 0.6, magic: 1.1, cooking: 0.9, woodcutting: 0.85, fletching: 0.75,

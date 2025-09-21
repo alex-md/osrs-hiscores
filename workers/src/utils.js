@@ -1,4 +1,4 @@
-import { PLAYER_ARCHETYPES, SKILLS, INITIAL_TOTAL_XP_TIERS, SKILL_POPULARITY } from './constants.js';
+import { PLAYER_ARCHETYPES, SKILLS, INITIAL_TOTAL_XP_TIERS, SKILL_POPULARITY, XP_GAIN_TIER_THRESHOLDS, XP_GAIN_TIER_ACTIVITY_WEIGHTS, ARCHETYPE_TO_ACTIVITY_PROBABILITY } from './constants.js';
 
 export function weekendBonusMultiplier(date = new Date()) {
   const day = date.getUTCDay();
@@ -347,4 +347,70 @@ export async function fetchRandomWords(count = 2, existingUsernames = new Set())
   }
 
   return results;
+}
+
+// ———————————————————————————————————————————————————————————————
+// Persistent XP tier logic and per-user multipliers
+
+// Determine XP gain tier based on starting total XP; tier is persisted and not changed later.
+export function determineXpGainTierFromTotal(startingTotalXp) {
+  const n = Math.max(0, Number(startingTotalXp) || 0);
+  for (const row of XP_GAIN_TIER_THRESHOLDS) {
+    const max = row.max;
+    if (!Number.isFinite(max)) return row.tier; // Infinity catch-all
+    if (n < max) return row.tier; // strict less-than keeps upper boundary in next tier
+  }
+  return 'LOW';
+}
+
+// Build per-user skill multipliers influenced by archetype and tier.
+// Contract:
+// - Inputs: archetype string, xpTier string
+// - Output: { global: number, perSkill: Record<skill, number> }
+// - Neither value will drop below 0.2 or exceed 3.0 to avoid extremes
+export function buildSkillMultipliers(archetype, xpTier) {
+  // Base global multiplier by tier (ELITE/HIGH gain more per tick)
+  const baseGlobalByTier = { LOW: 0.6, MID: 0.9, HIGH: 1.25, ELITE: 1.6 };
+  let global = baseGlobalByTier[xpTier] ?? 1.0;
+
+  // Archetype specific focus areas
+  const focusByArchetype = {
+    SKILLER: ['crafting', 'fletching', 'cooking', 'herblore', 'agility', 'thieving', 'farming', 'construction', 'runecraft'],
+    PVMER: ['attack', 'strength', 'defence', 'ranged', 'magic', 'slayer', 'hitpoints', 'prayer'],
+    IRON_SOUL: ['mining', 'smithing', 'fishing', 'cooking', 'woodcutting', 'crafting', 'herblore', 'farming'],
+    HARDCORE: ['attack', 'strength', 'defence', 'ranged', 'magic', 'slayer'],
+    EFFICIENT_MAXER: SKILLS,
+    ELITE_GRINDER: SKILLS,
+    FOCUSED: ['slayer', 'magic', 'ranged', 'agility'],
+    CASUAL: [],
+    AFKER: ['woodcutting', 'fishing', 'mining'],
+    SOCIALITE: [],
+    IDLER: []
+  };
+
+  const perSkill = Object.fromEntries(SKILLS.map(s => [s, 1.0]));
+  const foci = new Set(focusByArchetype[archetype] || []);
+  for (const s of SKILLS) {
+    let mult = 1.0;
+    if (foci.has(s)) mult *= 1.25; // 25% buff on focus skills
+    if (archetype === 'EFFICIENT_MAXER') mult *= 1.15;
+    if (archetype === 'ELITE_GRINDER') mult *= 1.20;
+    if (archetype === 'IDLER') mult *= 0.85;
+    if (archetype === 'SOCIALITE') mult *= 0.9;
+    if (archetype === 'AFKER') {
+      mult *= (foci.has(s) ? 1.05 : 0.95);
+    }
+    perSkill[s] = Math.min(3.0, Math.max(0.2, mult));
+  }
+
+  // Guardrails
+  global = Math.min(3.0, Math.max(0.2, global));
+  return { global, perSkill };
+}
+
+// Choose an activity for a user constrained by their persistent XP tier; falls back to archetype probabilities
+export function chooseActivityForUser(archetype, xpTier) {
+  const tierProbs = XP_GAIN_TIER_ACTIVITY_WEIGHTS[xpTier];
+  if (tierProbs) return weightedRandomChoice(tierProbs);
+  return weightedRandomChoice(ARCHETYPE_TO_ACTIVITY_PROBABILITY[archetype] || ARCHETYPE_TO_ACTIVITY_PROBABILITY.CASUAL);
 }

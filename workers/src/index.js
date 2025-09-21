@@ -33,7 +33,10 @@ import {
     distributeInitialXP,
     assignArchetypeForTotalXP,
     computeHitpointsLevelFromCombat,
-    xpForLevel
+    xpForLevel,
+    determineXpGainTierFromTotal,
+    buildSkillMultipliers,
+    chooseActivityForUser
 } from './utils.js';
 
 // Lightweight per-isolate memory cache and throttling to lower KV pressure
@@ -140,6 +143,9 @@ function newUser(username) {
     const userTotalXP = totalXP(skills);
     // 5. Archetype assignment influenced by total XP (rarer archetypes more likely for very high XP)
     const archetype = assignArchetypeForTotalXP(userTotalXP);
+    // Persistent XP tier and multipliers, determined once at creation
+    const xpGainTier = determineXpGainTierFromTotal(userTotalXP);
+    const multipliers = buildSkillMultipliers(archetype, xpGainTier);
     return {
         username,
         createdAt: Date.now(),
@@ -149,9 +155,11 @@ function newUser(username) {
         totalXP: userTotalXP,
         activity: "INACTIVE",
         archetype,
+        xpGainTier,
+        multipliers,
         achievements: {},
         needsHpMigration: false,
-        version: 3
+        version: 4
     };
 }
 function recalcTotals(user) {
@@ -172,13 +180,16 @@ function simulateUserProgress(user, activityName, date = new Date()) {
     if (!act || act.xpRange[1] === 0) return;
     const [minXp, maxXp] = act.xpRange;
     const weekendMult = weekendBonusMultiplier(date);
-    let budget = (Math.random() * (maxXp - minXp) + minXp) * weekendMult;
+    // Apply persistent global multiplier if present
+    const globalMult = Math.max(0.2, Math.min(3.0, user?.multipliers?.global || 1.0));
+    let budget = (Math.random() * (maxXp - minXp) + minXp) * weekendMult * globalMult;
     const skillsChosen = [...SKILLS].sort(() => Math.random() - 0.5).slice(0, Math.ceil(Math.random() * 5));
     let totalWeight = skillsChosen.reduce((a, s) => a + (SKILL_POPULARITY[s] || 1), 0);
     for (const skill of skillsChosen) {
         const w = SKILL_POPULARITY[skill] || 1;
-        const portion = budget * (w / totalWeight) * (0.8 + Math.random() * 0.4);
-        applyXpGain(user, skill, portion);
+        const portionBase = budget * (w / totalWeight) * (0.8 + Math.random() * 0.4);
+        const perSkillMult = Math.max(0.2, Math.min(3.0, user?.multipliers?.perSkill?.[skill] || 1.0));
+        applyXpGain(user, skill, portionBase * perSkillMult);
     }
     user.updatedAt = Date.now();
     recalcTotals(user);
@@ -1216,8 +1227,18 @@ async function runScheduled(env) {
             u.archetype = assignRandomArchetype();
             u.version = 2;
         }
-        const activityProbs = ARCHETYPE_TO_ACTIVITY_PROBABILITY[u.archetype] || ARCHETYPE_TO_ACTIVITY_PROBABILITY.CASUAL;
-        const activity = weightedRandomChoice(activityProbs);
+        // Migrate missing persistent fields best-effort
+        if (!u.xpGainTier) {
+            recalcTotals(u);
+            u.xpGainTier = determineXpGainTierFromTotal(u.totalXP);
+            u.version = Math.max(3, u.version || 1);
+        }
+        if (!u.multipliers) {
+            u.multipliers = buildSkillMultipliers(u.archetype, u.xpGainTier);
+            u.version = Math.max(4, u.version || 1);
+        }
+        // Activity selection constrained by persistent XP tier (falls back to archetype distribution)
+        const activity = chooseActivityForUser(u.archetype, u.xpGainTier);
         u.activity = activity;
         simulateUserProgress(u, activity, now);
         if (Math.random() < 0.01) u.needsHpMigration = true;
@@ -1330,6 +1351,15 @@ async function router(request, env) {
         const result = await migrateAllUsersToV3(env, { chunkSize });
         return jsonResponse({ ...result, chunkSize, durationMs: Date.now() - started, public: true });
     }
+    if (path === '/api/admin/migrate/v4' && method === 'POST') {
+        // Public migration to backfill persistent xpGainTier and multipliers
+        const started = Date.now();
+        let chunkSize = Number(url.searchParams.get('chunkSize'));
+        if (!Number.isFinite(chunkSize) || chunkSize <= 0) chunkSize = 200;
+        if (chunkSize > 1000) chunkSize = 1000; // hard cap
+        const result = await migrateAllUsersToV4(env, { chunkSize });
+        return jsonResponse({ ...result, chunkSize, durationMs: Date.now() - started, public: true });
+    }
     if (path === '/api/admin/rebalance/hitpoints' && method === 'POST') {
         const users = await getAllUsers(env, { fresh: true });
         let adjusted = 0; let scanned = 0;
@@ -1384,3 +1414,30 @@ export async function handleApiRequest(request, env) {
 
 // Also export runScheduled for reuse in tests or alternative schedulers
 export { runScheduled };
+
+// ———————————————————————————————————————————————————————————————
+// v4 Migration: Backfill persistent XP gain tier and multipliers for all users.
+// Uses current totalXP as proxy for starting XP where historical data is unavailable.
+async function migrateAllUsersToV4(env, { chunkSize = 200 } = {}) {
+    const users = await getAllUsers(env, { fresh: true });
+    const candidates = users.filter(u => !u.xpGainTier || !u.multipliers || (u.version || 1) < 4);
+    let migrated = 0;
+    for (let i = 0; i < candidates.length; i += chunkSize) {
+        const slice = candidates.slice(i, i + chunkSize);
+        for (const u of slice) {
+            try {
+                recalcTotals(u);
+                if (!u.xpGainTier) u.xpGainTier = determineXpGainTierFromTotal(u.totalXP);
+                if (!u.multipliers) u.multipliers = buildSkillMultipliers(u.archetype || assignRandomArchetype(), u.xpGainTier);
+                u.version = Math.max(4, u.version || 1);
+                u.updatedAt = Date.now();
+                await putUser(env, u);
+                migrated++;
+            } catch (e) {
+                console.log('migrate v4 user failed', u.username, String(e));
+            }
+        }
+        if (candidates.length > 500) await sleep(5);
+    }
+    return { scanned: users.length, candidates: candidates.length, migrated };
+}
