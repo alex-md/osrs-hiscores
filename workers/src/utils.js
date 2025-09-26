@@ -1,20 +1,48 @@
 import { PLAYER_ARCHETYPES, SKILLS, INITIAL_TOTAL_XP_TIERS, SKILL_POPULARITY, XP_GAIN_TIER_THRESHOLDS, XP_GAIN_TIER_ACTIVITY_WEIGHTS, ARCHETYPE_TO_ACTIVITY_PROBABILITY } from './constants.js';
 
+const XP_LEVEL_MAX = 126;
+const XP_SKILL_MAX = 99;
+const XP_TABLE = [0];
+const XP_POINTS_TABLE = [0];
+(function bootstrapXpTables() {
+  let points = 0;
+  for (let lvl = 1; lvl <= XP_LEVEL_MAX; lvl++) {
+    points += Math.floor(lvl + 300 * Math.pow(2, lvl / 7));
+    XP_POINTS_TABLE[lvl] = points;
+    XP_TABLE[lvl] = Math.floor(points / 4);
+  }
+})();
+
+function ensureXpTable(level) {
+  if (level < XP_TABLE.length) return;
+  let lastLevel = XP_TABLE.length - 1;
+  let points = XP_POINTS_TABLE[lastLevel] || 0;
+  for (let lvl = lastLevel + 1; lvl <= level; lvl++) {
+    points += Math.floor(lvl + 300 * Math.pow(2, lvl / 7));
+    XP_POINTS_TABLE[lvl] = points;
+    XP_TABLE[lvl] = Math.floor(points / 4);
+  }
+}
+
 export function weekendBonusMultiplier(date = new Date()) {
   const day = date.getUTCDay();
   return (day === 6 || day === 0) ? 1.15 : 1.0;
 }
 
 export function levelFromXp(xp) {
-  let points = 0;
-  let output = 1;
-  for (let lvl = 1; lvl <= 99; lvl++) {
-    points += Math.floor(lvl + 300 * Math.pow(2, lvl / 7));
-    const exp = Math.floor(points / 4);
-    if (exp > xp) return lvl;
-    output = lvl;
+  const value = Math.max(0, Number(xp) || 0);
+  ensureXpTable(XP_SKILL_MAX);
+  let low = 1;
+  let high = XP_SKILL_MAX;
+  while (low <= high) {
+    const mid = (low + high) >> 1;
+    if (XP_TABLE[mid] > value) {
+      high = mid - 1;
+    } else {
+      low = mid + 1;
+    }
   }
-  return output;
+  return Math.max(1, Math.min(XP_SKILL_MAX, high || 1));
 }
 
 export function totalLevel(skills) {
@@ -28,11 +56,9 @@ export function totalXP(skills) {
 // Reverse of levelFromXp: approximate XP for a given level (1..99). Returns minimum XP required.
 export function xpForLevel(level) {
   if (level <= 1) return 0;
-  let points = 0;
-  for (let lvl = 1; lvl < level; lvl++) {
-    points += Math.floor(lvl + 300 * Math.pow(2, lvl / 7));
-  }
-  return Math.floor(points / 4);
+  const target = Math.max(1, Math.floor(level));
+  ensureXpTable(target);
+  return XP_TABLE[target] || 0;
 }
 
 // Compute hitpoints level as the rounded average of primary combat skills.
@@ -313,6 +339,23 @@ export async function fetchRandomWords(count = 2, existingUsernames = new Set())
   const maxTimeMs = 8000; // 8 seconds timeout
   const startTime = Date.now();
 
+  const tryAddCandidate = (primary, secondary = null) => {
+    attempts++;
+    const name = buildName(primary, secondary);
+    if (!name) return false;
+    const sanitizedName = sanitizeUsername(name);
+    const key = normalize(sanitizedName);
+    if (
+      isValidSanitizedName(sanitizedName) &&
+      !existingUsernames.has(key)
+    ) {
+      results.push(sanitizedName);
+      existingUsernames.add(key);
+      return true;
+    }
+    return false;
+  };
+
   while (
     results.length < count &&
     attempts < maxAttempts &&
@@ -327,38 +370,13 @@ export async function fetchRandomWords(count = 2, existingUsernames = new Set())
     for (let i = 0; i + 1 < good.length && results.length < count && attempts < maxAttempts; i += 2) {
       const w1 = good[i];
       const w2 = good[i + 1];
-
-      const name = buildName(w1, w2);
-      attempts++;
-      if (!name) continue;
-
-      const sanitizedName = sanitizeUsername(name);
-      const key = normalize(sanitizedName);
-      if (
-        isValidSanitizedName(sanitizedName) &&
-        !existingUsernames.has(key)
-      ) {
-        results.push(sanitizedName);
-        existingUsernames.add(key);
-      }
+      tryAddCandidate(w1, w2);
     }
 
     // Handle the last word if good.length is odd and more results are needed
     if (good.length % 2 === 1 && results.length < count && attempts < maxAttempts) {
       const w = good[good.length - 1];
-      const name = buildName(w, null);
-      attempts++;
-      if (name) {
-        const sanitizedName = sanitizeUsername(name);
-        const key = normalize(sanitizedName);
-        if (
-          isValidSanitizedName(sanitizedName) &&
-          !existingUsernames.has(key)
-        ) {
-          results.push(sanitizedName);
-          existingUsernames.add(key);
-        }
-      }
+      tryAddCandidate(w, null);
     }
   }
 

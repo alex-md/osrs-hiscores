@@ -48,7 +48,7 @@ const ACHIEVEMENT_FAMILY_CHAINS = [
     ['triple-crown', 'crowned-any'],
     ['top-10-any', 'top-100-any'],
     ['maxed-account', 'seven-99s', 'five-99s'],
-    ['total-2000', 'total-1500'],
+    ['total-2277', 'total-2200', 'total-2000', 'total-1500'],
     ['elite', 'versatile', 'consistent'],
     ['level-90-average', 'level-75-average', 'level-50-average'],
     // XP thresholds: keep highest
@@ -417,73 +417,36 @@ export function mergeNewUnlocks(user, unlockedSet, timestampMs = Date.now()) {
     return newlyUnlocked;
 }
 
-// Prune redundant achievements within families so only the highest in the family remains.
-// Currently implemented for total level milestones: keep only the highest 'total-*' key present.
+// Prune redundant achievements within families so only the highest tier within each family remains.
 export function pruneAchievementFamilies(user) {
     if (!user || !user.achievements || typeof user.achievements !== 'object') return [];
     const removed = [];
-    const entries = Object.entries(user.achievements);
-    const totalKeys = entries
-        .map(([k, ts]) => ({ k, ts }))
-        .filter(e => typeof e.k === 'string' && e.k.startsWith('total-'));
-    if (totalKeys.length > 1) {
-        // Pick the highest numeric threshold from keys like 'total-1500', 'total-2000'
-        const withVal = totalKeys
-            .map(e => ({ ...e, val: parseInt(e.k.split('-')[1], 10) }))
-            .filter(e => Number.isFinite(e.val))
-            .sort((a, b) => b.val - a.val);
-        const keepKey = withVal.length ? withVal[0].k : null;
-        if (keepKey) {
-            for (const { k } of totalKeys) {
-                if (k !== keepKey) {
-                    delete user.achievements[k];
-                    removed.push(k);
-                }
+    const ach = user.achievements;
+    for (const chain of ACHIEVEMENT_FAMILY_CHAINS) {
+        const present = chain.filter(k => ach[k]);
+        if (present.length > 1) {
+            for (const key of present.slice(1)) {
+                delete ach[key];
+                removed.push(key);
             }
         }
     }
-    // Generic family pruner by priority order (keep highest = first present)
-    const pruneByOrder = (keysInPriorityOrder) => {
-        const present = keysInPriorityOrder.filter(k => user.achievements[k]);
-        if (present.length > 1) {
-            const keep = present[0];
-            for (const k of present.slice(1)) { delete user.achievements[k]; removed.push(k); }
-        }
-    };
-    // 99s family
-    pruneByOrder(['maxed-account', 'seven-99s', 'five-99s']);
-    // Activity family removed
-    // Performance family
-    pruneByOrder(['elite', 'versatile', 'consistent']);
-    // Average level family
-    pruneByOrder(['level-90-average', 'level-75-average', 'level-50-average']);
-    // Ranking sub-families
-    pruneByOrder(['triple-crown', 'crowned-any']);
-    pruneByOrder(['top-10-any', 'top-100-any']);
-    // XP thresholds (expanded)
-    pruneByOrder(['xp-billionaire', 'totalxp-200m', 'totalxp-100m', 'totalxp-50m', 'totalxp-10m', 'xp-millionaire']);
-    // Combat level milestones
-    pruneByOrder(['combat-level-126', 'combat-level-120', 'combat-level-110', 'combat-level-100']);
     return removed;
 }
 
-// Non-mutating helper for pruning only total-* milestones on a plain achievements object.
-// Returns a shallow-cloned object with redundant total-* keys removed, preserving other keys.
-export function pruneTotalMilestones(achievementsObj) {
+// Non-mutating helper that keeps only the highest-ranked achievement within each family chain.
+// Returns a shallow clone suitable for read-only payloads without altering historical unlock data.
+export function projectHighestAchievementFamilies(achievementsObj) {
     if (!achievementsObj || typeof achievementsObj !== 'object') return {};
-    const result = { ...achievementsObj };
-    const totalKeys = Object.keys(result).filter(k => typeof k === 'string' && k.startsWith('total-'));
-    if (totalKeys.length > 1) {
-        const withVal = totalKeys
-            .map(k => ({ k, val: parseInt(k.split('-')[1], 10) }))
-            .filter(e => Number.isFinite(e.val))
-            .sort((a, b) => b.val - a.val);
-        const keep = withVal.length ? withVal[0].k : null;
-        if (keep) {
-            for (const k of totalKeys) {
-                if (k !== keep) delete result[k];
-            }
+    const keep = new Set(Object.keys(achievementsObj));
+    for (const chain of ACHIEVEMENT_FAMILY_CHAINS) {
+        const present = chain.filter(k => keep.has(k));
+        if (present.length > 1) {
+            const [, ...toRemove] = present;
+            for (const key of toRemove) keep.delete(key);
         }
     }
-    return result;
+    const projected = {};
+    for (const key of keep) projected[key] = achievementsObj[key];
+    return projected;
 }
