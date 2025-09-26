@@ -15,8 +15,7 @@ import {
     evaluateAchievements,
     mergeNewUnlocks,
     computePrevalenceCounts,
-    pruneAchievementFamilies,
-    pruneTotalMilestones,
+    projectHighestAchievementFamilies,
     ACHIEVEMENT_KEYS
 } from './achievements.js';
 import {
@@ -48,6 +47,9 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // Shared small utility to split an array into chunks of size n
 const chunk = (arr, n) => arr.reduce((acc, _, i) => (i % n ? acc : [...acc, arr.slice(i, i + n)]), []);
+
+const LEADERBOARD_TOP_LIMIT = 5000;
+const SKILL_RANKINGS_TOP_LIMIT = 500;
 
 function memGet(key) {
     const e = __memCache.get(key);
@@ -264,9 +266,13 @@ async function ensureInitialData(env) {
 }
 
 // Persist global achievements statistics and firsts mapping
-async function persistAchievementStats(env, users) {
+async function persistAchievementStats(env, users, ctx = null) {
     try {
-        const ctx = computeAchievementContext(users);
+        let userList = users;
+        if (!Array.isArray(userList)) {
+            userList = await getAllUsers(env, { fresh: true });
+        }
+        const context = ctx || computeAchievementContext(userList);
         // Evaluate and persist new unlocks per user
         const firstsRaw = await env.HISCORES_KV.get('ach:firsts');
         let firsts = {};
@@ -291,13 +297,12 @@ async function persistAchievementStats(env, users) {
         const events = [];
         const updatedUsers = [];
         const now = Date.now();
-        // ctx already computed above
-        for (const u of users) {
-            const got = evaluateAchievements(u, ctx);
+        // context already computed above
+        for (const u of userList) {
+            const got = evaluateAchievements(u, context);
             const newly = mergeNewUnlocks(u, got, now);
             // Do not destructively prune stored achievements — keep historical unlocks for accuracy.
             // Active/prioritization should be handled at read time in the frontend.
-            const pruned = [];
             if (newly.length) {
                 updatedUsers.push(u);
                 for (const key of newly) {
@@ -310,9 +315,9 @@ async function persistAchievementStats(env, users) {
                     if (!firstsV2.keys[key]) {
                         // Snapshot title (tier) at unlock
                         const unameLower = String(u.username || '').toLowerCase();
-                        const rank = ctx.rankByUser?.get(unameLower) || 0;
-                        const top1Skills = ctx.top1SkillsByUserCount?.get(unameLower) || 0;
-                        const tierInfo = inferMetaTierWithContext(u, { rank, totalPlayers: ctx.totalPlayers || 1, top1SkillsCount: top1Skills });
+                        const rank = context.rankByUser?.get(unameLower) || 0;
+                        const top1Skills = context.top1SkillsByUserCount?.get(unameLower) || 0;
+                        const tierInfo = inferMetaTierWithContext(u, { rank, totalPlayers: context.totalPlayers || 1, top1SkillsCount: top1Skills });
                         const titleAtUnlock = tierInfo?.name || null;
                         firstsV2.keys[key] = { username: u.username, timestamp: now, titleAtUnlock, source: 'live' };
                         events.push({ key, username: u.username, timestamp: now, titleAtUnlock, v2: true });
@@ -326,11 +331,11 @@ async function persistAchievementStats(env, users) {
             await putUser(env, u);
         }
         // Prevalence counts
-        const countsMap = computePrevalenceCounts(users, ctx);
+        const countsMap = computePrevalenceCounts(userList, context);
         const countsObj = Object.fromEntries(ACHIEVEMENT_KEYS.map(k => [k, countsMap.get(k) || 0]));
         await env.HISCORES_KV.put('stats:achievements:prevalence', JSON.stringify({
             updatedAt: Date.now(),
-            totalPlayers: users.length,
+            totalPlayers: userList.length,
             counts: countsObj
         }));
         // Initialize missing counts in v2 model using prevalence snapshot (best-effort bootstrap)
@@ -342,7 +347,7 @@ async function persistAchievementStats(env, users) {
         try {
             for (const k of ACHIEVEMENT_KEYS) {
                 let earliest = null; // { username, timestamp }
-                for (const u of users) {
+                for (const u of userList) {
                     const ts = u?.achievements?.[k];
                     if (!ts) continue;
                     const numTs = Number(ts) || 0;
@@ -409,45 +414,114 @@ async function persistAchievementStats(env, users) {
     }
 }
 
-async function handleLeaderboard(env, url) {
-    const users = await getAllUsers(env, { fresh: false });
-    // Use achievement context to avoid recomputing per-skill scans
-    const ctx = computeAchievementContext(users, { useCache: true });
-    const top1ByUser = ctx.top1SkillsByUserCount || new Map();
-    // Ensure rank on each user aligns with context
-    users.sort((a, b) => b.totalLevel - a.totalLevel || b.totalXP - a.totalXP || a.username.localeCompare(b.username));
-    users.forEach((u) => { u.rank = ctx.rankByUser?.get(String(u.username || '').toLowerCase()) || u.rank || 0; });
-
-    // Compute tier prevalence for quick frontend stats
+function buildLeaderboardSnapshot(users, ctx = null, topLimit = LEADERBOARD_TOP_LIMIT) {
+    const list = Array.isArray(users) ? users : [];
+    const context = ctx || computeAchievementContext(list);
+    const rankByUser = context.rankByUser || new Map();
+    const top1ByUser = context.top1SkillsByUserCount || new Map();
+    const sorted = [...list].sort((a, b) => b.totalLevel - a.totalLevel || b.totalXP - a.totalXP || a.username.localeCompare(b.username));
+    const totalPlayers = sorted.length;
     const tierCounts = { Novice: 0, Bronze: 0, Silver: 0, Gold: 0, Platinum: 0, Diamond: 0, Master: 0, Grandmaster: 0, Adept: 0, Expert: 0 };
-    const playersOut = [];
-    for (const u of users) {
-        const perUserCtx = { rank: u.rank, totalPlayers: users.length, top1SkillsCount: top1ByUser.get((u.username || '').toLowerCase()) || 0 };
+    const players = [];
+    const maxEntries = Math.max(0, Math.min(topLimit, totalPlayers));
+    for (let i = 0; i < sorted.length; i++) {
+        const u = sorted[i];
+        const unameLower = String(u?.username || '').toLowerCase();
+        const perUserCtx = {
+            rank: rankByUser.get(unameLower) || (i + 1),
+            totalPlayers,
+            top1SkillsCount: top1ByUser.get(unameLower) || 0
+        };
         const tierInfo = inferMetaTierWithContext(u, perUserCtx);
         tierCounts[tierInfo.name] = (tierCounts[tierInfo.name] || 0) + 1;
-        playersOut.push({
+        if (i < maxEntries) {
+            players.push({
+                username: u.username,
+                totalLevel: u.totalLevel,
+                totalXP: u.totalXP,
+                rank: perUserCtx.rank,
+                updatedAt: u.updatedAt,
+                archetype: u.archetype || null,
+                tier: tierInfo.name,
+                tierInfo: { ...tierInfo, top1Skills: perUserCtx.top1SkillsCount }
+            });
+        }
+    }
+    return {
+        generatedAt: Date.now(),
+        totalPlayers,
+        tiers: tierCounts,
+        players,
+        topN: players.length
+    };
+}
+
+function buildSkillRankingsSnapshot(users, topLimit = SKILL_RANKINGS_TOP_LIMIT) {
+    const list = Array.isArray(users) ? users : [];
+    const totalPlayers = list.length;
+    const rankings = {};
+    for (const skill of SKILLS) {
+        const arr = list.map(u => ({
             username: u.username,
-            totalLevel: u.totalLevel,
-            totalXP: u.totalXP,
-            rank: u.rank,
-            updatedAt: u.updatedAt,
-            archetype: u.archetype || null,
-            tier: tierInfo.name,
-            tierInfo: { ...tierInfo, top1Skills: perUserCtx.top1SkillsCount }
-        });
+            xp: Number(u?.skills?.[skill]?.xp) || 0,
+            level: Number(u?.skills?.[skill]?.level) || 1
+        }));
+        arr.sort((a, b) => b.xp - a.xp || a.username.localeCompare(b.username));
+        const limit = Math.max(0, Math.min(arr.length, topLimit));
+        const top = [];
+        for (let i = 0; i < limit; i++) {
+            const entry = arr[i];
+            top.push({ username: entry.username, xp: entry.xp, level: entry.level, rank: i + 1 });
+        }
+        rankings[skill] = top;
+    }
+    return {
+        generatedAt: Date.now(),
+        totalPlayers,
+        topN: Math.min(topLimit, totalPlayers),
+        rankings
+    };
+}
+
+async function persistLeaderboardSnapshots(env, users, ctx = null, options = {}) {
+    let userList = users;
+    if (!Array.isArray(userList)) {
+        userList = await getAllUsers(env, { fresh: true });
+    }
+    const leaderboardTop = Number.isFinite(options.leaderboardTop) ? options.leaderboardTop : LEADERBOARD_TOP_LIMIT;
+    const skillTop = Number.isFinite(options.skillTop) ? options.skillTop : SKILL_RANKINGS_TOP_LIMIT;
+    const context = ctx || computeAchievementContext(userList);
+    const leaderboard = buildLeaderboardSnapshot(userList, context, leaderboardTop);
+    const skillRankings = buildSkillRankingsSnapshot(userList, skillTop);
+    await env.HISCORES_KV.put('stats:leaderboard:top', JSON.stringify(leaderboard));
+    await env.HISCORES_KV.put('stats:leaderboard:skills', JSON.stringify(skillRankings));
+    return { leaderboard, skillRankings };
+}
+
+async function handleLeaderboard(env, url) {
+    let payload = null;
+    try {
+        const raw = await env.HISCORES_KV.get('stats:leaderboard:top');
+        if (raw) payload = JSON.parse(raw);
+    } catch (_) { payload = null; }
+    if (!payload) {
+        const users = await getAllUsers(env, { fresh: true });
+        const ctx = computeAchievementContext(users);
+        payload = buildLeaderboardSnapshot(users, ctx, LEADERBOARD_TOP_LIMIT);
+        try { await env.HISCORES_KV.put('stats:leaderboard:top', JSON.stringify(payload)); } catch (_) { }
     }
     const limitParam = url.searchParams.get('limit');
     let limit = Number(limitParam);
-    if (!Number.isFinite(limit) || limit <= 0) limit = users.length;
-    const HARD_CAP = 5000;
-    if (limit > HARD_CAP) limit = HARD_CAP;
-    const slice = playersOut.slice(0, limit);
+    if (!Number.isFinite(limit) || limit <= 0) limit = payload.players?.length || 0;
+    if (limit > LEADERBOARD_TOP_LIMIT) limit = LEADERBOARD_TOP_LIMIT;
+    const players = Array.isArray(payload.players) ? payload.players.slice(0, limit) : [];
     return jsonResponse({
-        generatedAt: Date.now(),
-        totalPlayers: users.length,
-        tiers: tierCounts,
-        returned: slice.length,
-        players: slice
+        generatedAt: payload.generatedAt || Date.now(),
+        totalPlayers: payload.totalPlayers || 0,
+        tiers: payload.tiers || {},
+        returned: players.length,
+        topN: payload.topN || players.length,
+        players
     }, { headers: { 'cache-control': 'public, max-age=30' } });
 }
 
@@ -463,16 +537,17 @@ async function handleUsersList(env) {
 }
 
 async function handleSkillRankings(env) {
-    const users = await getAllUsers(env, { fresh: false });
-    const rankings = {};
-    for (const skill of SKILLS) {
-        const arr = users
-            .map(u => ({ username: u.username, xp: u.skills[skill].xp, level: u.skills[skill].level }))
-            .sort((a, b) => b.xp - a.xp || a.username.localeCompare(b.username));
-        arr.forEach((r, i) => r.rank = i + 1);
-        rankings[skill] = arr;
+    let payload = null;
+    try {
+        const raw = await env.HISCORES_KV.get('stats:leaderboard:skills');
+        if (raw) payload = JSON.parse(raw);
+    } catch (_) { payload = null; }
+    if (!payload) {
+        const users = await getAllUsers(env, { fresh: true });
+        payload = buildSkillRankingsSnapshot(users, SKILL_RANKINGS_TOP_LIMIT);
+        try { await env.HISCORES_KV.put('stats:leaderboard:skills', JSON.stringify(payload)); } catch (_) { }
     }
-    return jsonResponse({ generatedAt: Date.now(), rankings }, { headers: { 'cache-control': 'public, max-age=30' } });
+    return jsonResponse(payload || { generatedAt: Date.now(), rankings: {} }, { headers: { 'cache-control': 'public, max-age=30' } });
 }
 
 function handleHealth() {
@@ -482,8 +557,8 @@ function handleHealth() {
 async function handleUserAchievements(env, username) {
     const user = await getUser(env, username);
     if (!user) return notFound('User not found');
-    // Prepare a filtered view that keeps only the highest total-* milestone (non-mutating)
-    const ach = pruneTotalMilestones(user.achievements || {});
+    // Present a filtered view that keeps only the highest achievement per family (non-mutating)
+    const ach = projectHighestAchievementFamilies(user.achievements || {});
     return jsonResponse({ username: user.username, achievements: ach, generatedAt: Date.now() }, { headers: { 'cache-control': 'public, max-age=30' } });
 }
 
@@ -1254,16 +1329,18 @@ async function runScheduled(env) {
         if (lowerSet.has(username.toLowerCase())) continue;
         lowerSet.add(username.toLowerCase());
         const u = newUser(username);
+        users.push(u);
         await putUser(env, u);
         created++;
         if (newCount > 1) await sleep(1);
     }
-    // Re-fetch latest users and update achievements + stats in one pass
+    // Update achievements, prevalence, and leaderboard snapshots without refetching
     try {
-        const all = await getAllUsers(env, { fresh: true });
-        await persistAchievementStats(env, all);
+        const ctx = computeAchievementContext(users);
+        await persistAchievementStats(env, users, ctx);
+        await persistLeaderboardSnapshots(env, users, ctx);
     } catch (e) { console.log('runScheduled stats error:', String(e)); }
-    return { processed: toUpdate, newUsers: created, totalPlayers: users.length + created };
+    return { processed: toUpdate, newUsers: created, totalPlayers: users.length };
 }
 
 // ———————————————————————————————————————————————————————————————
