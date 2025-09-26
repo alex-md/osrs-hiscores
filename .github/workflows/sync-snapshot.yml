@@ -8,26 +8,46 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: sync-worker-snapshot
+  cancel-in-progress: false
+
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout repository (full history)
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Rebase on latest remote
+        shell: bash
+        run: |
+          set -euo pipefail
+          BRANCH="${GITHUB_REF_NAME}"
+          git fetch origin "$BRANCH"
+          git pull --rebase origin "$BRANCH"
 
       - name: Fetch snapshot from worker
         env:
           WORKER_BASE_URL: ${{ secrets.WORKER_BASE_URL }}
+        shell: bash
         run: |
-          if [ -z "$WORKER_BASE_URL" ]; then
-            echo "Missing WORKER_BASE_URL secret" >&2
-            exit 1
-          fi
-          mkdir -p workers
-          curl -sSfL "$WORKER_BASE_URL/api/sync/snapshot" | jq '.' > workers/hiscores-snapshot.json
+          set -euo pipefail
+          : "${WORKER_BASE_URL:?Missing WORKER_BASE_URL secret}"
+          BASE="${WORKER_BASE_URL%/}"
+          mkdir -p data
+          curl -sSfL "${BASE}/api/sync/snapshot?fresh=1" -o data/hiscores-snapshot.json
+          # basic validation: must be JSON, no "error" field, has version
+          jq -e 'has("error") | not' data/hiscores-snapshot.json > /dev/null
+          jq -e 'has("version")' data/hiscores-snapshot.json > /dev/null
 
       - name: Commit snapshot
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v6
         with:
-          commit_message: "chore: sync worker snapshot"
-          file_pattern: workers/hiscores-snapshot.json
+          file_pattern: data/hiscores-snapshot.json
+          commit_message: "chore: update hiscores snapshot"
+          commit_user_name: "github-actions[bot]"
+          commit_user_email: "41898282+github-actions[bot]@users.noreply.github.com"
