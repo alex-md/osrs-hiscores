@@ -23,11 +23,11 @@ jobs:
             echo "Missing WORKER_BASE_URL secret" >&2
             exit 1
           fi
-          mkdir -p data
-          curl -sSfL "$WORKER_BASE_URL/api/sync/snapshot" | jq '.' > data/hiscores-snapshot.json
+          mkdir -p workers
+          curl -sSfL "$WORKER_BASE_URL/api/sync/snapshot" | jq '.' > workers/hiscores-snapshot.json
 
       - name: Commit snapshot
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "chore: sync worker snapshot"
-          file_pattern: data/hiscores-snapshot.json
+          file_pattern: workers/hiscores-snapshot.json
