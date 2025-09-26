@@ -127,24 +127,23 @@ async function cacheResponseIfPossible(request, compute) {
 function newUser(username) {
     // 1. Sample an initial total XP budget (top heavy; per-tier power-law weighting)
     const totalInitialXP = sampleInitialTotalXP();
-    // 2. Distribute across skills (hitpoints baseline handled after)
-    const distributed = distributeInitialXP(totalInitialXP);
+    // 2. Pick an archetype influenced by the sampled total XP (biases distribution focus)
+    const archetype = assignArchetypeForTotalXP(totalInitialXP);
+    // 3. Distribute across skills using archetype-weighted allocation (hitpoints handled after)
+    const distributed = distributeInitialXP(totalInitialXP, Math.random, archetype);
     const skills = {};
     for (const s of SKILLS) {
         if (s === 'hitpoints') continue; // handle after baseline
-        const xp = distributed[s] || 1_154;
+        const xp = distributed[s] || 1; // baseline is 1 XP for non-HP
         skills[s] = { xp, level: levelFromXp(xp) };
     }
-    // 3. Derive hitpoints from combat stats average (attack/strength/defence/ranged/magic/prayer)
+    // 4. Derive hitpoints from combat stats average (attack/strength/defence/ranged/magic/prayer)
     const hpLevel = computeHitpointsLevelFromCombat(skills);
     const hpXp = xpForLevel(hpLevel);
     skills.hitpoints = { xp: hpXp, level: hpLevel };
-    // 4. Recalculate totals (includes HP baseline; adds a small extra XP on top of sampled distribution)
-    //    Because we fixed HP at 1_154 we add it only if not already in distributed map; distributed excludes HP.
+    // 5. Recalculate totals
     const userTotalLevel = totalLevel(skills);
     const userTotalXP = totalXP(skills);
-    // 5. Archetype assignment influenced by total XP (rarer archetypes more likely for very high XP)
-    const archetype = assignArchetypeForTotalXP(userTotalXP);
     // Persistent XP tier and multipliers, determined once at creation
     const xpGainTier = determineXpGainTierFromTotal(userTotalXP);
     const multipliers = buildSkillMultipliers(archetype, xpGainTier);
@@ -1437,6 +1436,26 @@ async function router(request, env) {
         const result = await migrateAllUsersToV4(env, { chunkSize });
         return jsonResponse({ ...result, chunkSize, durationMs: Date.now() - started, public: true });
     }
+    if (path === '/api/admin/migrate/xp-tiers-v10' && method === 'POST') {
+        // Public migration: upgrade all users to new 10-tier xpGainTier names, recalculated from current totals
+        const started = Date.now();
+        let chunkSize = Number(url.searchParams.get('chunkSize'));
+        if (!Number.isFinite(chunkSize) || chunkSize <= 0) chunkSize = 200;
+        if (chunkSize > 1000) chunkSize = 1000;
+        const dryRun = String(url.searchParams.get('dryRun') || 'false').toLowerCase() === 'true';
+        const result = await migrateAllUsersToTenTier(env, { chunkSize, dryRun });
+        return jsonResponse({ ...result, chunkSize, durationMs: Date.now() - started, public: true, dryRun });
+    }
+    if (path === '/api/admin/migrate/fix-1154' && method === 'POST') {
+        // One-off public migration: for users whose non-HP skills are all 1154 XP, regenerate initial allocation.
+        const started = Date.now();
+        let chunkSize = Number(url.searchParams.get('chunkSize'));
+        if (!Number.isFinite(chunkSize) || chunkSize <= 0) chunkSize = 200;
+        if (chunkSize > 1000) chunkSize = 1000; // hard cap
+        const dryRun = String(url.searchParams.get('dryRun') || 'false').toLowerCase() === 'true';
+        const result = await migrateUsersFixAll1154(env, { chunkSize, dryRun });
+        return jsonResponse({ ...result, chunkSize, durationMs: Date.now() - started, public: true, dryRun });
+    }
     if (path === '/api/admin/rebalance/hitpoints' && method === 'POST') {
         const users = await getAllUsers(env, { fresh: true });
         let adjusted = 0; let scanned = 0;
@@ -1517,4 +1536,102 @@ async function migrateAllUsersToV4(env, { chunkSize = 200 } = {}) {
         if (candidates.length > 500) await sleep(5);
     }
     return { scanned: users.length, candidates: candidates.length, migrated };
+}
+
+// ———————————————————————————————————————————————————————————————
+// One-off migration: Fix users whose non-HP skills are all at 1154 XP.
+// Strategy: resample a fresh initial total XP budget and redistribute across non-HP skills
+// using archetype-weighted initial distribution, then recompute hitpoints from combat.
+// Updates persistent xpGainTier and multipliers to match the new totals.
+async function migrateUsersFixAll1154(env, { chunkSize = 200, dryRun = false } = {}) {
+    const users = await getAllUsers(env, { fresh: true });
+    const nonHpSkills = SKILLS.filter(s => s !== 'hitpoints');
+    const candidates = users.filter(u => {
+        if (!u?.skills) return false;
+        for (const s of nonHpSkills) {
+            if ((u.skills[s]?.xp || 0) !== 1154) return false;
+        }
+        return true;
+    });
+    let migrated = 0; let scanned = users.length;
+    for (let i = 0; i < candidates.length; i += chunkSize) {
+        const slice = candidates.slice(i, i + chunkSize);
+        for (const u of slice) {
+            try {
+                const archetype = u.archetype || assignArchetypeForTotalXP(u.totalXP);
+                const totalInitialXP = sampleInitialTotalXP();
+                const distributed = distributeInitialXP(totalInitialXP, Math.random, archetype);
+                // apply new distribution to non-HP skills
+                for (const s of nonHpSkills) {
+                    const xp = distributed[s] || 1;
+                    u.skills[s] = { xp, level: levelFromXp(xp) };
+                }
+                // recompute HP from combat stats
+                const hpLevel = computeHitpointsLevelFromCombat(u.skills);
+                u.skills.hitpoints = { xp: xpForLevel(hpLevel), level: hpLevel };
+                // recalc totals and persistent fields
+                recalcTotals(u);
+                u.xpGainTier = determineXpGainTierFromTotal(u.totalXP);
+                u.multipliers = buildSkillMultipliers(archetype, u.xpGainTier);
+                u.archetype = archetype;
+                u.version = Math.max(5, u.version || 1);
+                u.updatedAt = Date.now();
+                if (!dryRun) await putUser(env, u);
+                migrated++;
+            } catch (e) {
+                console.log('migrate fix-1154 failed', u.username, String(e));
+            }
+        }
+        if (candidates.length > 500 && !dryRun) await sleep(5);
+    }
+    return { scanned, candidates: candidates.length, migrated };
+}
+
+// ———————————————————————————————————————————————————————————————
+// Migration: Upgrade all users to the new 10-tier xpGainTier naming based on current totals,
+// and gently uplift multipliers to make gameplay feel more alive without punishing low tiers.
+function upliftMultipliersForTenTier(multipliers, tierName) {
+    const out = { global: multipliers.global, perSkill: { ...multipliers.perSkill } };
+    const clamp = (v) => Math.max(0.2, Math.min(3.0, v));
+    // Tier-based uplift factors (low tiers get a bigger boost)
+    const uplifts = {
+        T1: 1.15, T2: 1.12, T3: 1.10, T4: 1.08, T5: 1.06,
+        T6: 1.05, T7: 1.05, T8: 1.03, T9: 1.02, T10: 1.01
+    };
+    const minFloors = { T1: 0.95, T2: 0.95, T3: 0.95, T4: 1.0 };
+    const u = uplifts[tierName] || 1.0;
+    const floor = minFloors[tierName] || 0.0;
+    out.global = clamp(Math.max(floor, out.global) * u);
+    // Light per-skill uplift (uniform), capped to avoid extremes
+    const perSkillUplift = Math.min(1.08, Math.max(1.02, u));
+    for (const s of SKILLS) out.perSkill[s] = clamp((out.perSkill[s] || 1.0) * perSkillUplift);
+    return out;
+}
+
+async function migrateAllUsersToTenTier(env, { chunkSize = 200, dryRun = false } = {}) {
+    const users = await getAllUsers(env, { fresh: true });
+    let migrated = 0; const total = users.length;
+    for (let i = 0; i < users.length; i += chunkSize) {
+        const slice = users.slice(i, i + chunkSize);
+        for (const u of slice) {
+            try {
+                recalcTotals(u);
+                const newTier = determineXpGainTierFromTotal(u.totalXP); // maps to T1..T10
+                u.xpGainTier = newTier;
+                // Ensure an archetype exists
+                if (!u.archetype) u.archetype = assignRandomArchetype();
+                // Rebuild multipliers and apply tier uplift
+                const base = buildSkillMultipliers(u.archetype, newTier);
+                u.multipliers = upliftMultipliersForTenTier(base, newTier);
+                u.version = Math.max(6, u.version || 1);
+                u.updatedAt = Date.now();
+                if (!dryRun) await putUser(env, u);
+                migrated++;
+            } catch (e) {
+                console.log('migrate v10 tiers failed', u.username, String(e));
+            }
+        }
+        if (total > 500 && !dryRun) await sleep(5);
+    }
+    return { scanned: total, migrated };
 }

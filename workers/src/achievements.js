@@ -358,14 +358,6 @@ export function evaluateAchievements(user, ctx) {
         }
     } catch (_) { }
 
-    // Ultra-rare: 200,000,000 XP in any skill
-    try {
-        for (const s of SKILLS) {
-            const xp = Number(user?.skills?.[s]?.xp) || 0;
-            if (xp >= 200_000_000) out.add(`skill-200m-${s}`);
-        }
-    } catch (_) { }
-
     // Combat level milestones (approximate OSRS formula)
     try {
         const atk = levels.attack || 1, str = levels.strength || 1, def = levels.defence || 1, hp = levels.hitpoints || 10, rng = levels.ranged || 1, mag = levels.magic || 1, pray = levels.prayer || 1;

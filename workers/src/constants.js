@@ -76,6 +76,39 @@ export const SKILL_POPULARITY = {
 };
 
 // ———————————————————————————————————————————————————————————————
+// Separate per‑archetype emphasis for initial distribution ONLY.
+// This keeps creation-time weighting independent from ongoing gain multipliers.
+// Each archetype lists focused skills; weights are applied on top of SKILL_POPULARITY.
+export const INITIAL_DISTRIBUTION_ARCHETYPE_FOCUS = {
+  SKILLER: ['crafting', 'fletching', 'cooking', 'herblore', 'agility', 'thieving', 'farming', 'construction', 'runecraft'],
+  PVMER: ['attack', 'strength', 'defence', 'ranged', 'magic', 'slayer', 'prayer'],
+  IRON_SOUL: ['mining', 'smithing', 'fishing', 'cooking', 'woodcutting', 'crafting', 'herblore', 'farming'],
+  HARDCORE: ['attack', 'strength', 'defence', 'ranged', 'magic', 'slayer'],
+  EFFICIENT_MAXER: SKILLS,
+  ELITE_GRINDER: SKILLS,
+  FOCUSED: ['slayer', 'magic', 'ranged', 'agility'],
+  CASUAL: [],
+  AFKER: ['woodcutting', 'fishing', 'mining'],
+  SOCIALITE: [],
+  IDLER: []
+};
+
+// Global tilt per archetype for initial distribution (light touch 0.9–1.3).
+export const INITIAL_DISTRIBUTION_ARCHETYPE_GLOBAL = {
+  IDLER: 0.9,
+  SOCIALITE: 0.95,
+  AFKER: 1.0,
+  CASUAL: 1.0,
+  FOCUSED: 1.08,
+  SKILLER: 1.08,
+  PVMER: 1.12,
+  IRON_SOUL: 1.05,
+  HARDCORE: 1.15,
+  EFFICIENT_MAXER: 1.2,
+  ELITE_GRINDER: 1.25
+};
+
+// ———————————————————————————————————————————————————————————————
 // Initial total XP tier configuration for new account generation.
 // Goal: extremely top‑heavy distribution where 95%+ of new players land in early tiers.
 // Tiers are inclusive of min and exclusive of max except final which is inclusive.
@@ -83,14 +116,14 @@ export const SKILL_POPULARITY = {
 // The MAX cap aligns with spec (100,000,000) though practical mid tiers are far lower.
 export const INITIAL_TOTAL_XP_TIERS = [
   // name         minXP      maxXP        weight  notes
-  { name: 'T1', min: 1_154, max: 25_000, weight: 520, rarity: 'very common' },
-  { name: 'T2', min: 25_000, max: 150_000, weight: 230, rarity: 'common' },
-  { name: 'T3', min: 150_000, max: 800_000, weight: 110, rarity: 'uncommon' },
-  { name: 'T4', min: 800_000, max: 4_000_000, weight: 55, rarity: 'rare' },
-  { name: 'T5', min: 4_000_000, max: 15_000_000, weight: 20, rarity: 'epic' },
-  { name: 'T6', min: 15_000_000, max: 40_000_000, weight: 6, rarity: 'legendary' },
-  { name: 'T7', min: 40_000_000, max: 70_000_000, weight: 2, rarity: 'mythic' },
-  { name: 'T8', min: 70_000_000, max: 100_000_000, weight: 1, rarity: 'ultra' }
+  { name: 'T1', min: 1_154,     max: 25_000,      weight: 520, rarity: 'very common' },
+  { name: 'T2', min: 25_000,    max: 150_000,     weight: 240, rarity: 'common' },
+  { name: 'T3', min: 150_000,   max: 800_000,     weight: 120, rarity: 'uncommon' },
+  { name: 'T4', min: 800_000,   max: 4_000_000,   weight: 70,  rarity: 'rare' },
+  { name: 'T5', min: 4_000_000, max: 15_000_000,  weight: 28,  rarity: 'epic' },
+  { name: 'T6', min: 15_000_000,max: 40_000_000,  weight: 3,   rarity: 'legendary' },
+  { name: 'T7', min: 40_000_000,max: 70_000_000,  weight: 1,   rarity: 'mythic' },
+  { name: 'T8', min: 70_000_000,max: 100_000_000, weight: 1,   rarity: 'ultra' }
 ];
 
 // Safety validation (non-fatal) can be performed at runtime by sampler.
@@ -99,20 +132,39 @@ export const INITIAL_TOTAL_XP_TIERS = [
 // Persistent XP gain tiers by initial total XP at account creation.
 // Mapping here is used to classify a new player once and stored on the user object.
 // LOW: early game; MID: developing; HIGH: endgame; ELITE: top of ladder.
+// Expanded to 10 competitive tiers: T1 (lowest) → T10 (highest)
 export const XP_GAIN_TIER_THRESHOLDS = [
-  { tier: 'LOW', max: 150_000 },     // T1–T2
-  { tier: 'MID', max: 4_000_000 },   // T3–T4
-  { tier: 'HIGH', max: 40_000_000 },  // T5–T6
-  { tier: 'ELITE', max: Infinity }     // T7–T8
+  { tier: 'T1', max: 25_000 },
+  { tier: 'T2', max: 150_000 },
+  { tier: 'T3', max: 400_000 },
+  { tier: 'T4', max: 1_000_000 },
+  { tier: 'T5', max: 3_000_000 },
+  { tier: 'T6', max: 8_000_000 },
+  { tier: 'T7', max: 15_000_000 },
+  { tier: 'T8', max: 30_000_000 },
+  { tier: 'T9', max: 60_000_000 },
+  { tier: 'T10', max: Infinity }
 ];
 
 // Activity distributions constrained by XP tier (must sum to 100 per tier).
 // Ensures, for example, ELITE players always operate at the top activity bands.
 export const XP_GAIN_TIER_ACTIVITY_WEIGHTS = {
-  LOW: { INACTIVE: 60, BANK_STANDING: 30, CASUAL: 10, FOCUSED: 0, HARDCORE: 0, GRINDING: 0, UNHEALTHY: 0 },
-  MID: { INACTIVE: 5, BANK_STANDING: 10, CASUAL: 40, FOCUSED: 35, HARDCORE: 10, GRINDING: 0, UNHEALTHY: 0 },
-  HIGH: { INACTIVE: 0, BANK_STANDING: 3, CASUAL: 10, FOCUSED: 32, HARDCORE: 40, GRINDING: 12, UNHEALTHY: 3 },
-  ELITE: { INACTIVE: 0, BANK_STANDING: 1, CASUAL: 2, FOCUSED: 12, HARDCORE: 35, GRINDING: 45, UNHEALTHY: 5 }
+  // New 10-tier distributions; higher tiers lean heavily into HARDCORE/GRINDING
+  T1:  { INACTIVE: 65, BANK_STANDING: 25, CASUAL: 10, FOCUSED: 0,  HARDCORE: 0,  GRINDING: 0,  UNHEALTHY: 0 },
+  T2:  { INACTIVE: 40, BANK_STANDING: 35, CASUAL: 20, FOCUSED: 5,  HARDCORE: 0,  GRINDING: 0,  UNHEALTHY: 0 },
+  T3:  { INACTIVE: 15, BANK_STANDING: 20, CASUAL: 45, FOCUSED: 15, HARDCORE: 5,  GRINDING: 0,  UNHEALTHY: 0 },
+  T4:  { INACTIVE: 5,  BANK_STANDING: 10, CASUAL: 40, FOCUSED: 30, HARDCORE: 12, GRINDING: 3,  UNHEALTHY: 0 },
+  T5:  { INACTIVE: 2,  BANK_STANDING: 7,  CASUAL: 28, FOCUSED: 38, HARDCORE: 20, GRINDING: 5,  UNHEALTHY: 0 },
+  T6:  { INACTIVE: 1,  BANK_STANDING: 5,  CASUAL: 18, FOCUSED: 36, HARDCORE: 30, GRINDING: 9,  UNHEALTHY: 1 },
+  T7:  { INACTIVE: 0,  BANK_STANDING: 3,  CASUAL: 10, FOCUSED: 32, HARDCORE: 40, GRINDING: 13, UNHEALTHY: 2 },
+  T8:  { INACTIVE: 0,  BANK_STANDING: 2,  CASUAL: 6,  FOCUSED: 24, HARDCORE: 43, GRINDING: 22, UNHEALTHY: 3 },
+  T9:  { INACTIVE: 0,  BANK_STANDING: 1,  CASUAL: 4,  FOCUSED: 16, HARDCORE: 44, GRINDING: 30, UNHEALTHY: 5 },
+  T10: { INACTIVE: 0,  BANK_STANDING: 1,  CASUAL: 2,  FOCUSED: 12, HARDCORE: 40, GRINDING: 40, UNHEALTHY: 5 },
+  // Backward-compat aliases for older stored tiers
+  LOW:   { INACTIVE: 60, BANK_STANDING: 30, CASUAL: 10, FOCUSED: 0,  HARDCORE: 0,  GRINDING: 0,  UNHEALTHY: 0 },
+  MID:   { INACTIVE: 5,  BANK_STANDING: 10, CASUAL: 40, FOCUSED: 35, HARDCORE: 10, GRINDING: 0,  UNHEALTHY: 0 },
+  HIGH:  { INACTIVE: 0,  BANK_STANDING: 3,  CASUAL: 10, FOCUSED: 32, HARDCORE: 40, GRINDING: 12, UNHEALTHY: 3 },
+  ELITE: { INACTIVE: 0,  BANK_STANDING: 1,  CASUAL: 2,  FOCUSED: 12, HARDCORE: 35, GRINDING: 45, UNHEALTHY: 5 }
 };
 
 // export const SKILL_POPULARITY = {

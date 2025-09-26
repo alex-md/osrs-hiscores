@@ -1,4 +1,4 @@
-import { PLAYER_ARCHETYPES, SKILLS, INITIAL_TOTAL_XP_TIERS, SKILL_POPULARITY, XP_GAIN_TIER_THRESHOLDS, XP_GAIN_TIER_ACTIVITY_WEIGHTS, ARCHETYPE_TO_ACTIVITY_PROBABILITY } from './constants.js';
+import { PLAYER_ARCHETYPES, SKILLS, INITIAL_TOTAL_XP_TIERS, SKILL_POPULARITY, XP_GAIN_TIER_THRESHOLDS, XP_GAIN_TIER_ACTIVITY_WEIGHTS, ARCHETYPE_TO_ACTIVITY_PROBABILITY, INITIAL_DISTRIBUTION_ARCHETYPE_FOCUS, INITIAL_DISTRIBUTION_ARCHETYPE_GLOBAL } from './constants.js';
 
 const XP_LEVEL_MAX = 126;
 const XP_SKILL_MAX = 99;
@@ -153,10 +153,13 @@ export function sampleInitialTotalXP(rng = Math.random) {
   let chosen = tiers[0];
   for (const t of tiers) { r -= Math.max(0, t.weight || 0); if (r <= 0) { chosen = t; break; } }
   const span = Math.max(1, (chosen.max - chosen.min));
-  // gamma increases with tier index to accentuate downward bias at higher tiers
+  // gamma decreases with tier index to reduce downward bias at higher tiers
+  // This lessens clustering near the lower bound of high tiers (e.g., ~20m).
   const idx = tiers.indexOf(chosen);
-  const baseGamma = 1.35; // baseline curvature
-  const gamma = baseGamma + idx * 0.18; // escalate gently
+  const maxGamma = 1.6;    // stronger skew toward min in early tiers
+  const minGamma = 1.15;   // flatter in later tiers
+  const t = idx / Math.max(1, (tiers.length - 1));
+  const gamma = maxGamma - (maxGamma - minGamma) * t;
   const u = rng();
   const scaled = chosen.min + Math.floor(span * Math.pow(u, gamma));
   return Math.min(chosen.max, Math.max(chosen.min, scaled));
@@ -166,46 +169,69 @@ export function sampleInitialTotalXP(rng = Math.random) {
 // Distribute a total XP budget across skills (excluding hitpoints baseline which will be overridden later).
 // Approach: choose a dynamic number of active skills based on total XP magnitude, then allocate using
 // normalized popularity weights with a Dirichlet-like randomization (via exponential sampling).
-export function distributeInitialXP(totalXp, rng = Math.random) {
-  const MIN_PER_SKILL = 1154;
-  const skillNames = SKILLS.filter((s) => s !== "hitpoints");
+export function distributeInitialXP(totalXp, rng = Math.random, archetype = null, xpTier = null) {
+  // Baseline for non-HP skills must be 1 XP, not 1154.
+  const MIN_PER_SKILL = 1;
+  const MAX_PER_SKILL = 10_000_000; // hard cap per requirement
+  const skillNames = SKILLS.filter((s) => s !== 'hitpoints');
+
+  // Determine how many skills are meaningfully "active" based on total starting XP
   const tiers = [
     { max: 5e4, count: [3, 5] },
     { max: 5e5, count: [5, 9] },
     { max: 5e6, count: [7, 15] },
     { max: 2e7, count: [12, 19] },
     { max: 5.5e7, count: [18, skillNames.length - 3] }
-    // heavy mid/late game
   ];
   let targetRange = tiers[tiers.length - 1].count;
   for (const t of tiers) {
-    if (totalXp <= t.max) {
-      targetRange = t.count;
-      break;
-    }
+    if (totalXp <= t.max) { targetRange = t.count; break; }
   }
   const minCount = Math.min(skillNames.length, targetRange[0]);
   const maxCount = Math.min(skillNames.length, targetRange[1]);
   const activeCount = Math.max(minCount, Math.min(maxCount, Math.floor(minCount + rng() * (maxCount - minCount + 1))));
-  // Fisher-Yates shuffle for unbiased randomization
+
+  // Select active skills uniformly at random (then weight allocation below)
   const shuffled = [...skillNames];
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
   const selected = shuffled.slice(0, activeCount);
-  const popularity = selected.map((s) => SKILL_POPULARITY[s] || 1);
-  const popSum = popularity.reduce((a, b) => a + b, 0) || 1;
-  const raw = popularity.map((w) => -Math.log(1 - rng()) * w);
+
+  // Build per-skill weights: popularity tempered by initial distribution archetype focus
+  const weights = {};
+  const focus = new Set((INITIAL_DISTRIBUTION_ARCHETYPE_FOCUS[archetype] || []).filter(s => s !== 'hitpoints'));
+  const globalTilt = INITIAL_DISTRIBUTION_ARCHETYPE_GLOBAL[archetype] || 1.0;
+  for (const s of selected) {
+    const base = SKILL_POPULARITY[s] || 1;
+    const f = focus.has(s) ? 1.3 : 1.0;
+    weights[s] = Math.max(0.01, base * f * globalTilt);
+  }
+
+  // Allocate remaining XP after ensuring a 1 XP baseline across all non-HP skills
+  const baselineTotal = MIN_PER_SKILL * skillNames.length;
+  const allocatable = Math.max(0, (Number(totalXp) || 0) - baselineTotal);
+  if (allocatable <= 0) {
+    // Not enough to distribute; everyone gets baseline 1
+    const xpMap = Object.fromEntries(skillNames.map(s => [s, MIN_PER_SKILL]));
+    return xpMap;
+  }
+
+  // Exponential sampling for a slightly heavy-tail within selected set
+  const raw = selected.map((s) => -Math.log(1 - rng()) * (weights[s] || 1));
   const rawSum = raw.reduce((a, b) => a + b, 0) || 1;
-  const allocatable = Math.max(0, totalXp - activeCount * MIN_PER_SKILL);
-  const xpMap = {};
+
+  const xpMap = Object.fromEntries(skillNames.map(s => [s, MIN_PER_SKILL]));
+  // First pass allocation
   for (let i = 0; i < selected.length; i++) {
     const portion = allocatable * (raw[i] / rawSum);
     xpMap[selected[i]] = MIN_PER_SKILL + Math.floor(portion);
   }
-  const assigned = Object.values(xpMap).reduce((a, b) => a + b, 0);
-  let remainder = totalXp - assigned;
+
+  // Fix rounding remainder to keep as close to totalXp as possible
+  let assigned = Object.values(xpMap).reduce((a, b) => a + b, 0);
+  let remainder = Math.max(0, Math.floor(totalXp) - assigned);
   if (remainder > 0) {
     const keys = Object.keys(xpMap);
     while (remainder-- > 0 && keys.length) {
@@ -213,7 +239,33 @@ export function distributeInitialXP(totalXp, rng = Math.random) {
       xpMap[k] += 1;
     }
   }
-  for (const s of skillNames) if (!(s in xpMap)) xpMap[s] = MIN_PER_SKILL;
+
+  // Cap per-skill at 10m and redistribute overflow to non-capped skills best-effort
+  let overflow = 0;
+  for (const s of skillNames) {
+    if (xpMap[s] > MAX_PER_SKILL) {
+      overflow += (xpMap[s] - MAX_PER_SKILL);
+      xpMap[s] = MAX_PER_SKILL;
+    }
+  }
+  if (overflow > 0) {
+    // Repeatedly distribute overflow until exhausted or everyone is capped
+    const recipients = () => skillNames.filter(s => xpMap[s] < MAX_PER_SKILL);
+    let guard = 0;
+    while (overflow > 0 && recipients().length && guard++ < 10 * skillNames.length) {
+      const pool = recipients();
+      for (const s of pool) {
+        if (overflow <= 0) break;
+        const space = MAX_PER_SKILL - xpMap[s];
+        if (space <= 0) continue;
+        const take = Math.min(space, Math.max(1, Math.ceil(overflow / pool.length)));
+        xpMap[s] += take;
+        overflow -= take;
+      }
+    }
+    // If overflow remains, all recipients are capped; we drop remainder to satisfy cap constraint.
+  }
+
   return xpMap;
 }
 
@@ -403,8 +455,14 @@ export function determineXpGainTierFromTotal(startingTotalXp) {
 // - Output: { global: number, perSkill: Record<skill, number> }
 // - Neither value will drop below 0.2 or exceed 3.0 to avoid extremes
 export function buildSkillMultipliers(archetype, xpTier) {
-  // Base global multiplier by tier (ELITE/HIGH gain more per tick)
-  const baseGlobalByTier = { LOW: 0.6, MID: 0.9, HIGH: 1.25, ELITE: 1.6 };
+  // Base global multiplier by tier (higher tiers gain more per tick)
+  const baseGlobalByTier = {
+    // New 10-tier ladder
+    T1: 0.55, T2: 0.7, T3: 0.85, T4: 1.0, T5: 1.1,
+    T6: 1.25, T7: 1.4, T8: 1.6, T9: 1.9, T10: 2.2,
+    // Backward-compat for previously stored tiers
+    LOW: 0.6, MID: 0.95, HIGH: 1.35, ELITE: 1.8
+  };
   let global = baseGlobalByTier[xpTier] ?? 1.0;
 
   // Archetype specific focus areas
