@@ -37,11 +37,11 @@ The result: a self-refreshing dataset, fast responses (all JSON assembly happens
 * Dark / light theme toggle persisted via `localStorage` and pre-applied to eliminate FOUC.
 * API base override via query (`?api=`) or prompt; persisted for local / staging testing.
 
-### Operations & Admin Tooling
-* `/api/seed` bulk creation (admin token) – allows deterministic population during demos.
-* Batch & pattern-based deletion endpoints with **dry-run semantics** enabling safe automated curation (`/api/admin/users/delete-batch`, `/api/admin/users/delete-bad`).
+### Operations & Automation
 * `/api/cron/trigger` manual invocation of scheduled logic (useful for preview environments or integration tests).
 * `/api/debug` environment & binding inspection (non-secret) to verify deployment wiring.
+* `/api/sync/snapshot` aggregated leaderboard + achievement payload for clients that prefer a single fetch.
+* GitHub Action `Sync Worker Snapshot` (see below) runs hourly to store the latest snapshot at `data/hiscores-snapshot.json`, keeping GitHub Pages builds in sync without manual intervention.
 
 ### Frontend Implementation Details
 * Zero build: Tailwind CDN, vanilla modules, and dynamic DOM construction utilities (`el`, `text`, `$`).
@@ -91,16 +91,24 @@ osrs-hiscores/
 | GET | `/api/users` | Flat list of usernames | max-age=120 |
 | GET | `/api/users/:username` | Full user document | max-age=15 |
 | GET | `/api/users/:username/hitpoints-check` | Validates HP migration need | max-age=15 |
+| GET | `/api/generate/users/dry-run` | Username generation preview (read-only) | no-store |
+| GET | `/api/sync/snapshot` | Aggregated leaderboard + achievements snapshot | max-age=30 |
 | POST | `/api/cron/trigger` | Manually run scheduled simulation | - |
 | POST | `/api/migrate/hitpoints` | Process queued HP migrations | - |
-| POST | `/api/seed` | Bulk create users (admin token) | - |
-| POST | `/api/admin/users/delete-batch` | Random or explicit batch deletion (dryRun supported) | - |
-| POST | `/api/admin/users/delete-bad` | Regex-based username purge (dryRun) | - |
 
 ### Request / Response Conventions
 * All responses JSON with permissive CORS (`access-control-allow-origin: *`).
-* Admin endpoints require `x-admin-token: <ADMIN_TOKEN>` header OR `?token=` query.
-* Dry runs return a preview payload without modifying KV.
+* Dry-run style endpoints (e.g., username generation preview) return a preview payload without modifying KV.
+
+### Snapshot Sync Workflow
+The worker maintains a consolidated snapshot of the heavy-read data (leaderboard, skill rankings, achievement prevalence + firsts) under the KV key `sync:snapshot`. Two paths consume it:
+
+1. **Automated path** — the included GitHub Action `Sync Worker Snapshot` hits `GET /api/sync/snapshot` hourly and commits the payload to `data/hiscores-snapshot.json`. Configure a repository secret called `WORKER_BASE_URL` (e.g. `https://your-worker.workers.dev`) and the workflow handles the rest. GitHub Pages then serves the freshest snapshot without manual steps.
+2. **Manual download** — run `curl https://<worker>/api/sync/snapshot -o snapshot.json` whenever you need a local copy.
+
+Because the worker refreshes the snapshot during every scheduled simulation tick, the public endpoint is always ready for the action to consume—no admin tokens or manual recompute required.
+
+For clients that want a single aggregated payload, `GET /api/sync/snapshot` serves the latest snapshot (or regenerates it on-demand) with short caching. This can replace multiple calls to `/api/leaderboard`, `/api/skill-rankings`, and `/api/achievements/*` when bandwidth is a concern.
 
 ### Data Model (KV)
 Key pattern: `user:<lowercased_username>`
@@ -183,7 +191,7 @@ Scheduler will also lazily backfill missing fields during regular ticks.
 | Config | Location | Purpose |
 | ------ | -------- | ------- |
 | `HISCORES_KV` | `wrangler.toml` binding | KV namespace storing user JSON blobs |
-| `ADMIN_TOKEN` | `wrangler.toml` / secret | Auth gate for mutation endpoints (seed / delete) |
+| `SYNC_SNAPSHOT_DISABLED` | env var | Set to `true` to skip writing the aggregated snapshot during scheduled runs |
 | Cron `*/10 * * * *` | `wrangler.toml` | Triggers simulation every 10 minutes |
 
 ### Local Development
@@ -191,7 +199,6 @@ Scheduler will also lazily backfill missing fields during regular ticks.
 cd workers
 npm install
 wrangler kv:namespace create HISCORES_KV
-wrangler secret put ADMIN_TOKEN
 wrangler dev
 ```
 
@@ -231,7 +238,7 @@ The codebase includes deliberate patterns to support automated refactoring, auto
 ## 8. Testing Strategy (Proposed)
 While no tests are committed yet, the functional seams allow:
 * **Unit tests** – Pure XP / level math (`levelFromXp`), archetype selection probabilities (statistical convergence tests).
-* **Integration tests** (Miniflare) – Boot Worker, call seed, run scheduled, validate leaderboards monotonicity & rank ordering invariants.
+* **Integration tests** (Miniflare) – Boot Worker, trigger the cron handler, validate leaderboard monotonicity & rank ordering invariants.
 * **Property tests** – Ensure `totalLevel(skills)` equals sum of individual levels across randomized skill maps.
 
 ## 9. Performance & Scalability Notes
@@ -240,18 +247,17 @@ While no tests are committed yet, the functional seams allow:
 * Simulation only touches a fraction of users per cycle to bound write volume & avoid KV hotspotting.
 
 ## 10. Security Considerations
-* `ADMIN_TOKEN` must be rotated and stored as a secret (avoid hardcoding in committed `wrangler.toml` for production).
 * CORS is wide open intentionally for demo; restrict origins if deployed publicly.
 * No user-generated content besides usernames (sanitized & length capped) minimizing XSS vectors.
-* Regex deletion endpoint validates pattern safety; still advisable to impose stricter allowlists in multi-tenant scenarios.
+* Snapshot endpoint exposes only aggregated statistics; user records remain behind authenticated KV access inside the worker.
 
 ## 11. Future Improvements
 * Precomputed & paginated leaderboard slices stored under `cache:leaderboard:<limit>` keys.
 * ETag / Last-Modified support for conditional GETs.
 * Persistent achievement & event timeline (time-to-99 metrics).
-* Rate limiting on admin endpoints (token-scoped quotas).
+* Rate limiting or quotas on mutation endpoints (cron trigger, migrations).
 * Formal test suite + CI (GitHub Actions + Miniflare).
-* Optional Web UI for admin maintenance (seed/delete/dry-run diff viewer).
+* Optional maintenance tooling (read-only dashboards, manual snapshot trigger UI) if future writes are reintroduced.
 
 ## 11.a Achievement "Firsts" Persistence (v2)
 
@@ -323,9 +329,8 @@ Field `source` can be:
 | Install worker deps | `cd workers; npm install` |
 | Run dev worker | `wrangler dev` |
 | Serve frontend | `cd ../frontend; python -m http.server 8000` |
-| Seed users | `curl -X POST http://127.0.0.1:8787/api/seed?token=<TOKEN> -H "content-type: application/json" --data '{"usernames":["Alice"]}'` |
 | Trigger simulation | `curl -X POST http://127.0.0.1:8787/api/cron/trigger` |
-| Dry-run delete random 50 | `curl -X POST http://127.0.0.1:8787/api/admin/users/delete-batch?token=<TOKEN> -H "content-type: application/json" --data '{"limit":50,"dryRun":true}'` |
+| Fetch snapshot locally | `curl http://127.0.0.1:8787/api/sync/snapshot` |
 
 ## 13. License
 
