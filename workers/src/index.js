@@ -1287,7 +1287,7 @@ function jsonResponse(obj, init = {}) {
         'content-type': 'application/json',
         'access-control-allow-origin': '*',
         'access-control-allow-methods': 'GET,POST,OPTIONS',
-    'access-control-allow-headers': 'Content-Type',
+        'access-control-allow-headers': 'Content-Type',
         'vary': 'Origin, Accept-Encoding'
     };
     const provided = init.headers || {};
