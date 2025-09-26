@@ -43,6 +43,10 @@ import { buildSnapshot } from './data-sync.js';
 // Lightweight in-memory cache for hot KV reads and response caching (per Worker instance)
 const __memCache = new Map(); // key -> { value, expiresAt }
 
+// Top-N limits for leaderboard and per-skill rankings (frontend expects at most ~100 entries)
+const LEADERBOARD_TOP_LIMIT = 100;
+const SKILL_RANKINGS_TOP_LIMIT = 100;
+
 function memGet(key) {
     const entry = __memCache.get(key);
     if (!entry) return undefined;
