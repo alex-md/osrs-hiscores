@@ -161,6 +161,9 @@
   const ACHIEVEMENT_CATALOG = [
     // Meta tier (prestige) - neutral, descriptive titles
     { key: 'tier-grandmaster', icon: '👑', label: 'Grandmaster: rank #1 or #1 in 3+ skills', desc: 'Rank #1 overall or #1 in 3+ skills.', category: 'tier', rarity: 'mythic' },
+    { key: 'overall-rank-1', icon: '🏁', label: 'Overall Rank #1', desc: 'Hold #1 position on the overall leaderboard.', category: 'tier', rarity: 'mythic' },
+    { key: 'first-99-any', icon: '🥇', label: 'First 99 (Any Skill)', desc: 'The first player to hit 99 in any skill.', category: 'rank', rarity: 'legendary' },
+    { key: 'first-top1-any', icon: '🏆', label: 'First #1 (Any Skill)', desc: 'The first player to reach rank #1 in any skill.', category: 'rank', rarity: 'legendary' },
     { key: 'tier-master', icon: '🏆', label: 'Master: top 0.01% overall', desc: 'Be in the top 0.01% overall.', category: 'tier', rarity: 'legendary' },
     { key: 'tier-diamond', icon: '💎', label: 'Diamond: top 0.1% overall', desc: 'Be in the top 0.1% overall.', category: 'tier', rarity: 'epic' },
 
@@ -171,6 +174,8 @@
     { key: 'top-100-any', icon: '⭐', label: 'Top 100 (Any Skill)', desc: 'Reach top 100 in any skill.', category: 'rank', rarity: 'common' },
 
     // Account Progression - straightforward
+    { key: 'total-2277', icon: '🏆', label: 'Max Total Level (2277)', desc: 'Reach the maximum total level 2277.', category: 'account', rarity: 'mythic' },
+    { key: 'total-2200', icon: '🏅', label: 'Total Level 2200+', desc: 'Reach total level 2200 or higher.', category: 'account', rarity: 'legendary' },
     { key: 'total-2000', icon: '📈', label: 'Total Level 2000+', desc: 'Reach total level 2000 or higher.', category: 'account', rarity: 'epic' },
     { key: 'total-1500', icon: '📊', label: 'Total Level 1500+', desc: 'Reach total level 1500 or higher.', category: 'account', rarity: 'rare' },
     { key: 'maxed-account', icon: '👑', label: 'All Skills 99', desc: 'Reach level 99 in every skill.', category: 'account', rarity: 'mythic' },
@@ -220,10 +225,7 @@
     { key: 'xp-billionaire', icon: '🏦', label: '1,000,000,000+ Total XP', desc: 'Accumulate 1,000,000,000 or more total XP.', category: 'performance', rarity: 'legendary' },
 
     // Activity & Dedication
-    { key: 'daily-grinder', icon: '🕒', label: 'Updated in Last 24h', desc: 'Profile updated within the last 24 hours.', category: 'activity', rarity: 'common' },
-    { key: 'weekly-active', icon: '📅', label: 'Updated in Last 7d', desc: 'Profile updated within the last 7 days.', category: 'activity', rarity: 'common' },
-    { key: 'monthly-active', icon: '🗓️', label: 'Updated in Last 30d', desc: 'Profile updated within the last 30 days.', category: 'activity', rarity: 'common' },
-    { key: 'dedicated', icon: '🔥', label: 'Updated in Last 3d', desc: 'Profile updated within the last 3 days.', category: 'activity', rarity: 'common' },
+    // Activity achievements removed
 
     // Milestone Achievements
     { key: 'level-50-average', icon: '🎯', label: 'Average Level 50+', desc: 'Average level of 50+ across all skills.', category: 'milestone', rarity: 'common' },
@@ -236,6 +238,31 @@
     { key: 'support-master', icon: '🛠️', label: '80+ Prayer, Herblore, Runecraft', desc: 'Prayer, Herblore, and Runecraft all at 80+.', category: 'special', rarity: 'rare' },
     { key: 'gathering-master', icon: '📦', label: '80+ WC, Fishing, Mining', desc: 'Woodcutting, Fishing, and Mining all at 80+.', category: 'special', rarity: 'rare' }
   ];
+  // Add total XP milestones
+  ACHIEVEMENT_CATALOG.push(
+    { key: 'totalxp-10m', icon: '💎', label: '10m Total XP', desc: 'Reach 10,000,000 total XP.', category: 'performance', rarity: 'rare' },
+    { key: 'totalxp-50m', icon: '💠', label: '50m Total XP', desc: 'Reach 50,000,000 total XP.', category: 'performance', rarity: 'epic' },
+    { key: 'totalxp-100m', icon: '🔷', label: '100m Total XP', desc: 'Reach 100,000,000 total XP.', category: 'performance', rarity: 'legendary' },
+    { key: 'totalxp-200m', icon: '🔶', label: '200m Total XP', desc: 'Reach 200,000,000 total XP.', category: 'performance', rarity: 'mythic' }
+  );
+  // Add combat level milestones
+  ACHIEVEMENT_CATALOG.push(
+    { key: 'combat-level-100', icon: '⚔️', label: 'Combat Level 100+', desc: 'Reach combat level 100 or higher.', category: 'milestone', rarity: 'rare' },
+    { key: 'combat-level-110', icon: '🛡️', label: 'Combat Level 110+', desc: 'Reach combat level 110 or higher.', category: 'milestone', rarity: 'epic' },
+    { key: 'combat-level-120', icon: '🏹', label: 'Combat Level 120+', desc: 'Reach combat level 120 or higher.', category: 'milestone', rarity: 'legendary' },
+    { key: 'combat-level-126', icon: '👑', label: 'Combat Level 126', desc: 'Reach the max combat level 126.', category: 'milestone', rarity: 'mythic' }
+  );
+  // Append 200m per-skill XP ultra-rare achievements to catalog
+  (window.SKILLS || []).forEach((s) => {
+    ACHIEVEMENT_CATALOG.push({
+      key: `skill-200m-${s}`,
+      icon: '🥇',
+      label: `200m XP in ${s.charAt(0).toUpperCase() + s.slice(1)}`,
+      desc: `Reach 200,000,000 XP in ${s}.`,
+      category: 'skill-mastery',
+      rarity: 'mythic'
+    });
+  });
   window.ACHIEVEMENT_CATALOG = ACHIEVEMENT_CATALOG;
   function populateSkillLinks(root) {
     if (!root) return;

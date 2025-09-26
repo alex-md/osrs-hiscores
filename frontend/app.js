@@ -121,6 +121,8 @@ function renderHomeView() {
   root.innerHTML = "";
   let leftExtras = document.querySelector('#leftStackExtras');
   leftExtras && (leftExtras.innerHTML = '');
+  // Kick off rare banner rotator (non-blocking)
+  try { initRareBannerRotator(); } catch (_) { }
   let section = el("section", "flex flex-col gap-6"), headerDiv = el("div", "flex-between flex-wrap gap-4"), titleEl = el("h2", "text-2xl font-bold flex-items-center gap-2 text-foreground", [
     text("🏆 Overall Leaderboard")
   ]);
@@ -745,6 +747,7 @@ function renderUserView(username) {
       if (leaderboard && leaderboard.players) {
         let me = leaderboard.players.find((p) => p.username === user.username);
         me?.tier === 'Grandmaster' && push('tier-grandmaster'), me?.tier === 'Master' && push('tier-master'), me?.tier === 'Diamond' && push('tier-diamond');
+        me?.rank === 1 && push('overall-rank-1');
         let top1Count = me?.tierInfo?.top1Skills ?? 0;
         top1Count || SKILLS.forEach((s) => {
           let r = void 0;
@@ -752,7 +755,7 @@ function renderUserView(username) {
         }), top1Count >= 3 && push('triple-crown'), top1Count >= 1 && push('crowned-any');
       }
       let levels = SKILLS.map((s) => user.skills[s]?.level || 1), total = levels.reduce((a, b) => a + b, 0);
-      total >= 2000 ? push('total-2000') : total >= 1500 && push('total-1500');
+      total >= 2277 ? push('total-2277') : total >= 2200 ? push('total-2200') : total >= 2000 ? push('total-2000') : total >= 1500 && push('total-1500');
       let count99 = levels.filter((l) => l >= 99).length;
       levels.every((l) => l >= 99) && push('maxed-account'), count99 >= 7 && push('seven-99s'), count99 >= 5 && push('five-99s');
       let combatMaxed = void 0;
@@ -808,16 +811,32 @@ function renderUserView(username) {
       let aboveAvg = void 0, ratio = SKILLS.filter((s) => (user.skills[s]?.level || 1) > (averages[s]?.level || 1)).length / SKILLS.length;
       ratio >= 0.90 ? push('elite') : ratio >= 0.75 ? push('versatile') : ratio >= 0.50 && push('consistent');
       let totalXP = SKILLS.reduce((sum, s) => sum + (user.skills[s]?.xp || 0), 0);
-      if (totalXP >= 1000000000 ? push('xp-billionaire') : totalXP >= 1000000 && push('xp-millionaire'), user.updatedAt) {
-        let diffH = (now - user.updatedAt) / 3600000;
-        diffH <= 24 ? push('daily-grinder') : diffH <= 72 ? push('dedicated') : diffH <= 168 ? push('weekly-active') : diffH <= 720 && push('monthly-active');
-      }
+      if (totalXP >= 1000000000) push('xp-billionaire');
+      if (totalXP >= 200000000) push('totalxp-200m');
+      if (totalXP >= 100000000) push('totalxp-100m');
+      if (totalXP >= 50000000) push('totalxp-50m');
+      if (totalXP >= 10000000) push('totalxp-10m');
       let avgLevel = total / SKILLS.length;
       avgLevel >= 90 ? push('level-90-average') : avgLevel >= 75 ? push('level-75-average') : avgLevel >= 50 && push('level-50-average');
       let ranged = user.skills.ranged?.level || 1, magic = void 0;
       (user.skills.magic?.level || 1) >= 80 && ranged >= 80 && push('magic-ranged'), atk >= 85 && str >= 85 && def >= 85 && push('melee-specialist');
       let prayer = void 0;
       (user.skills.prayer?.level || 1) >= 80 && herblore >= 80 && runecraft >= 80 && push('support-master'), woodcutting >= 80 && fishing >= 80 && mining >= 80 && push('gathering-master');
+      // Approx combat level milestones
+      try {
+        const pray = user.skills.prayer?.level || 1;
+        const base = 0.25 * (def + hitpoints + Math.floor(pray / 2));
+        const melee = 0.325 * (attack + strength);
+        const ranger = 0.325 * Math.floor(1.5 * ranged);
+        const mager = 0.325 * Math.floor(1.5 * (user.skills.magic?.level || 1));
+        const cl = Math.floor(base + Math.max(melee, ranger, mager));
+        if (cl >= 100) push('combat-level-100');
+        if (cl >= 110) push('combat-level-110');
+        if (cl >= 120) push('combat-level-120');
+        if (cl >= 126) push('combat-level-126');
+      } catch (_) { }
+      // 200m per-skill display hint
+      SKILLS.forEach((s) => { if ((user.skills[s]?.xp || 0) >= 200_000_000) push(`skill-200m-${s}`); });
       let uniq = void 0;
       return [
         ...new Set(results.map((r) => r.key))
@@ -930,7 +949,7 @@ function renderUserView(username) {
       let baseXP = 1154 * ("hitpoints" === skillName), isClickable = void 0;
       ((skill?.level || 1) > 1 || (skill?.xp || 0) > baseXP) && (tr.classList.add("clickable"), tr.addEventListener("click", () => {
         window.open(`skill-hiscores.html?skill=${skillName}#skill=${skillName}`, "_blank");
-    }));
+      }));
       let iconUrl = window.getSkillIcon(skillName), nameCell = document.createElement("td");
       nameCell.className = "text-left", nameCell.innerHTML = `${iconUrl ? `<img src="${iconUrl}" class="skill-icon skill-icon--sm" alt="${skillName}">` : ""}<span class="skill-name text-capitalize">${skillName}</span>`;
       let lvl = skill?.level ?? 1, xp = skill?.xp ?? 0;
@@ -1023,7 +1042,7 @@ document.addEventListener("click", (e) => {
       // Fallback: create a temporary input
       const tmp = document.createElement('input');
       tmp.value = href; document.body.appendChild(tmp); tmp.select();
-      try { document.execCommand('copy'); toast('Profile link copied'); } catch(_) { toast('Copy failed', 'error'); }
+      try { document.execCommand('copy'); toast('Profile link copied'); } catch (_) { toast('Copy failed', 'error'); }
       tmp.remove();
     }
   }
@@ -1173,4 +1192,76 @@ function deriveAchievementsForPlayer(player, rankings, totalPlayers) {
     diffH <= 24 ? push('daily-grinder') : diffH <= 72 ? push('dedicated') : diffH <= 168 ? push('weekly-active') : diffH <= 720 && push('monthly-active');
   }
   return achievements.sort((a, b) => RARITY_ORDER[a.rarity] - RARITY_ORDER[b.rarity]);
+}
+
+// ————————————————————————————————————————————————
+// Rare Banners: fetch, validate, and rotate at top of homepage
+function initRareBannerRotator() {
+  const container = document.getElementById('bannerContainer');
+  if (!container) return;
+  let banners = [];
+  let idx = 0; let timer = null;
+  const isIso = (s) => typeof s === 'string' && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/.test(s);
+  const validate = (b) => {
+    if (!b || typeof b !== 'object') return false;
+    if (!Array.isArray(b.playerNames) || !b.playerNames.length) return false;
+    if (b.playerNames.some(n => typeof n !== 'string' || !n.trim())) return false;
+    if (typeof b.achievement !== 'string' || !b.achievement.trim()) return false;
+    if (!isIso(b.timestamp) || !isIso(b.expiry)) return false;
+    if (!b.details || typeof b.details !== 'object') return false;
+    if (!(b.details.skill === null || typeof b.details.skill === 'string')) return false;
+    if (!(b.details.title === null || typeof b.details.title === 'string')) return false;
+    // Exclude expired
+    if (Date.parse(b.expiry) <= Date.now()) return false;
+    return true;
+  };
+  const render = (b) => {
+    container.innerHTML = '';
+    if (!b) return;
+    const div = document.createElement('div');
+    div.className = 'rare-banner active';
+    const icon = document.createElement('div'); icon.className = 'banner-icon'; icon.textContent = '🎉';
+    const left = document.createElement('div'); left.className = 'banner-left';
+    const textWrap = document.createElement('div'); textWrap.className = 'banner-text';
+    const title = document.createElement('div'); title.className = 'banner-title';
+    const names = b.playerNames.join(', ');
+    title.textContent = `Congrats ${names}! ${b.achievement}`;
+    const meta = document.createElement('div'); meta.className = 'banner-meta';
+    const ts = new Date(b.timestamp).toISOString();
+    meta.textContent = ts;
+    if (b.details) {
+      if (b.details.skill) {
+        const pill = document.createElement('span'); pill.className = 'pill'; pill.textContent = b.details.skill; meta.appendChild(pill);
+      }
+      if (b.details.title) {
+        const pill = document.createElement('span'); pill.className = 'pill'; pill.textContent = b.details.title; meta.appendChild(pill);
+      }
+    }
+    textWrap.appendChild(title); textWrap.appendChild(meta);
+    left.appendChild(icon); left.appendChild(textWrap);
+    div.appendChild(left);
+    container.appendChild(div);
+  };
+  const next = () => {
+    if (!banners.length) { container.innerHTML = ''; return; }
+    idx = (idx + 1) % banners.length;
+    render(banners[idx]);
+  };
+  const start = () => {
+    if (timer) clearInterval(timer);
+    if (!banners.length) { container.innerHTML = ''; return; }
+    // Sort newest first just in case
+    banners.sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
+    idx = -1; next();
+    timer = setInterval(next, 10_000);
+  };
+  fetchJSON('/api/banners/rare').then((arr) => {
+    try {
+      if (!Array.isArray(arr)) { console.error('rare banners: not array'); return; }
+      banners = arr.filter(validate);
+      start();
+    } catch (e) { console.error('rare banners parse error', e); }
+  }).catch((e) => {
+    console.debug('No rare banners', e?.message || e);
+  });
 }

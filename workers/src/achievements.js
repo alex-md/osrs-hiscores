@@ -11,7 +11,7 @@ export const ACHIEVEMENT_KEYS = [
     // Ranking
     'triple-crown', 'crowned-any', 'top-10-any', 'top-100-any',
     // Account progression
-    'total-2000', 'total-1500', 'maxed-account', 'seven-99s', 'five-99s', 'combat-maxed',
+    'total-2277', 'total-2200', 'total-2000', 'total-1500', 'maxed-account', 'seven-99s', 'five-99s', 'combat-maxed',
     // Skill mastery
     'skill-master-attack', 'skill-master-strength', 'skill-master-defence', 'skill-master-hitpoints', 'skill-master-ranged', 'skill-master-magic', 'skill-master-prayer',
     // Gathering
@@ -24,12 +24,22 @@ export const ACHIEVEMENT_KEYS = [
     'balanced', 'glass-cannon', 'tank', 'skiller', 'combat-pure',
     // Performance
     'elite', 'versatile', 'consistent', 'xp-millionaire', 'xp-billionaire',
-    // Activity
-    'daily-grinder', 'weekly-active', 'monthly-active', 'dedicated',
+    // Activity (removed)
     // Milestones
     'level-50-average', 'level-75-average', 'level-90-average',
     // Special combos
-    'magic-ranged', 'melee-specialist', 'support-master', 'gathering-master'
+    'magic-ranged', 'melee-specialist', 'support-master', 'gathering-master',
+    // Total XP thresholds (overall XP milestones)
+    'totalxp-10m', 'totalxp-50m', 'totalxp-100m', 'totalxp-200m',
+    // Combat level milestones
+    'combat-level-100', 'combat-level-110', 'combat-level-120', 'combat-level-126',
+    // Ultra-rare skill XP milestones (per-skill 200m XP)
+    'skill-200m-attack', 'skill-200m-defence', 'skill-200m-strength', 'skill-200m-hitpoints', 'skill-200m-ranged', 'skill-200m-prayer', 'skill-200m-magic',
+    'skill-200m-cooking', 'skill-200m-woodcutting', 'skill-200m-fletching', 'skill-200m-fishing', 'skill-200m-firemaking', 'skill-200m-crafting',
+    'skill-200m-smithing', 'skill-200m-mining', 'skill-200m-herblore', 'skill-200m-agility', 'skill-200m-thieving', 'skill-200m-slayer', 'skill-200m-farming',
+    'skill-200m-runecraft', 'skill-200m-hunter', 'skill-200m-construction',
+    // Meta-firsts
+    'overall-rank-1', 'first-99-any', 'first-top1-any'
 ];
 
 // Family chains in priority order (index 0 = highest). Presence of a higher tier implies lower tiers were earned historically.
@@ -39,10 +49,12 @@ const ACHIEVEMENT_FAMILY_CHAINS = [
     ['top-10-any', 'top-100-any'],
     ['maxed-account', 'seven-99s', 'five-99s'],
     ['total-2000', 'total-1500'],
-    ['daily-grinder', 'dedicated', 'weekly-active', 'monthly-active'],
     ['elite', 'versatile', 'consistent'],
     ['level-90-average', 'level-75-average', 'level-50-average'],
-    ['xp-billionaire', 'xp-millionaire']
+    // XP thresholds: keep highest
+    ['xp-billionaire', 'totalxp-200m', 'totalxp-100m', 'totalxp-50m', 'totalxp-10m', 'xp-millionaire'],
+    // Combat level milestones: keep highest
+    ['combat-level-126', 'combat-level-120', 'combat-level-110', 'combat-level-100']
 ];
 
 function sum(arr) { return arr.reduce((a, b) => a + b, 0); }
@@ -222,6 +234,7 @@ export function evaluateAchievements(user, ctx) {
     // Prestige tier achievements
     if (ctx) {
         const rank = ctx.rankByUser?.get(unameLower) || Infinity;
+        if (rank === 1) out.add('overall-rank-1');
         const top1Count = ctx.top1SkillsByUserCount?.get(unameLower) || 0;
         const tier = inferMetaTierWithContext(user, { rank, totalPlayers: ctx.totalPlayers || 1, top1SkillsCount: top1Count });
         if (tier.name === 'Grandmaster') out.add('tier-grandmaster');
@@ -244,7 +257,11 @@ export function evaluateAchievements(user, ctx) {
 
     // Account progression (total level milestones) — keep only the highest milestone
     // If additional milestones are added (e.g., total-1000), this logic will still only select the highest one.
-    if (totalLvl >= 2000) {
+    if (totalLvl >= 2277) {
+        out.add('total-2277');
+    } else if (totalLvl >= 2200) {
+        out.add('total-2200');
+    } else if (totalLvl >= 2000) {
         out.add('total-2000');
     } else if (totalLvl >= 1500) {
         out.add('total-1500');
@@ -310,18 +327,15 @@ export function evaluateAchievements(user, ctx) {
         else if (ratio >= 0.50) out.add('consistent');
     }
 
-    // XP thresholds
-    // XP thresholds family: xp-billionaire > xp-millionaire
+    // XP thresholds (expanded)
     if (totalXp >= 1_000_000_000) out.add('xp-billionaire');
+    if (totalXp >= 200_000_000) out.add('totalxp-200m');
+    if (totalXp >= 100_000_000) out.add('totalxp-100m');
+    if (totalXp >= 50_000_000) out.add('totalxp-50m');
+    if (totalXp >= 10_000_000) out.add('totalxp-10m');
     else if (totalXp >= 1_000_000) out.add('xp-millionaire');
 
-    // Activity (timestamps in ms)
-    const ageMs = now - Number(user.updatedAt || 0);
-    // Activity family: daily-grinder > dedicated > weekly-active > monthly-active
-    if (ageMs <= 24 * 3600 * 1000) out.add('daily-grinder');
-    else if (ageMs <= 3 * 24 * 3600 * 1000) out.add('dedicated');
-    else if (ageMs <= 7 * 24 * 3600 * 1000) out.add('weekly-active');
-    else if (ageMs <= 30 * 24 * 3600 * 1000) out.add('monthly-active');
+    // Activity achievements removed
 
     // Average level milestones
     const avgLevel = totalLvl / SKILLS.length;
@@ -335,6 +349,36 @@ export function evaluateAchievements(user, ctx) {
     if (levels.attack >= 85 && levels.strength >= 85 && levels.defence >= 85) out.add('melee-specialist');
     if (levels.prayer >= 80 && levels.herblore >= 80 && levels.runecraft >= 80) out.add('support-master');
     if (levels.woodcutting >= 80 && levels.fishing >= 80 && levels.mining >= 80) out.add('gathering-master');
+
+    // Ultra-rare: 200,000,000 XP in any skill
+    try {
+        for (const s of SKILLS) {
+            const xp = Number(user?.skills?.[s]?.xp) || 0;
+            if (xp >= 200_000_000) out.add(`skill-200m-${s}`);
+        }
+    } catch (_) { }
+
+    // Ultra-rare: 200,000,000 XP in any skill
+    try {
+        for (const s of SKILLS) {
+            const xp = Number(user?.skills?.[s]?.xp) || 0;
+            if (xp >= 200_000_000) out.add(`skill-200m-${s}`);
+        }
+    } catch (_) { }
+
+    // Combat level milestones (approximate OSRS formula)
+    try {
+        const atk = levels.attack || 1, str = levels.strength || 1, def = levels.defence || 1, hp = levels.hitpoints || 10, rng = levels.ranged || 1, mag = levels.magic || 1, pray = levels.prayer || 1;
+        const base = 0.25 * (def + hp + Math.floor(pray / 2));
+        const melee = 0.325 * (atk + str);
+        const ranger = 0.325 * Math.floor(1.5 * rng);
+        const mager = 0.325 * Math.floor(1.5 * mag);
+        const combatLevel = Math.floor(base + Math.max(melee, ranger, mager));
+        if (combatLevel >= 100) out.add('combat-level-100');
+        if (combatLevel >= 110) out.add('combat-level-110');
+        if (combatLevel >= 120) out.add('combat-level-120');
+        if (combatLevel >= 126) out.add('combat-level-126');
+    } catch (_) { }
 
     return out;
 }
@@ -408,8 +452,7 @@ export function pruneAchievementFamilies(user) {
     };
     // 99s family
     pruneByOrder(['maxed-account', 'seven-99s', 'five-99s']);
-    // Activity family
-    pruneByOrder(['daily-grinder', 'dedicated', 'weekly-active', 'monthly-active']);
+    // Activity family removed
     // Performance family
     pruneByOrder(['elite', 'versatile', 'consistent']);
     // Average level family
@@ -417,8 +460,10 @@ export function pruneAchievementFamilies(user) {
     // Ranking sub-families
     pruneByOrder(['triple-crown', 'crowned-any']);
     pruneByOrder(['top-10-any', 'top-100-any']);
-    // XP thresholds
-    pruneByOrder(['xp-billionaire', 'xp-millionaire']);
+    // XP thresholds (expanded)
+    pruneByOrder(['xp-billionaire', 'totalxp-200m', 'totalxp-100m', 'totalxp-50m', 'totalxp-10m', 'xp-millionaire']);
+    // Combat level milestones
+    pruneByOrder(['combat-level-126', 'combat-level-120', 'combat-level-110', 'combat-level-100']);
     return removed;
 }
 

@@ -33,7 +33,10 @@ import {
     distributeInitialXP,
     assignArchetypeForTotalXP,
     computeHitpointsLevelFromCombat,
-    xpForLevel
+    xpForLevel,
+    determineXpGainTierFromTotal,
+    buildSkillMultipliers,
+    chooseActivityForUser
 } from './utils.js';
 
 // Lightweight per-isolate memory cache and throttling to lower KV pressure
@@ -140,6 +143,9 @@ function newUser(username) {
     const userTotalXP = totalXP(skills);
     // 5. Archetype assignment influenced by total XP (rarer archetypes more likely for very high XP)
     const archetype = assignArchetypeForTotalXP(userTotalXP);
+    // Persistent XP tier and multipliers, determined once at creation
+    const xpGainTier = determineXpGainTierFromTotal(userTotalXP);
+    const multipliers = buildSkillMultipliers(archetype, xpGainTier);
     return {
         username,
         createdAt: Date.now(),
@@ -149,9 +155,11 @@ function newUser(username) {
         totalXP: userTotalXP,
         activity: "INACTIVE",
         archetype,
+        xpGainTier,
+        multipliers,
         achievements: {},
         needsHpMigration: false,
-        version: 3
+        version: 4
     };
 }
 function recalcTotals(user) {
@@ -172,13 +180,16 @@ function simulateUserProgress(user, activityName, date = new Date()) {
     if (!act || act.xpRange[1] === 0) return;
     const [minXp, maxXp] = act.xpRange;
     const weekendMult = weekendBonusMultiplier(date);
-    let budget = (Math.random() * (maxXp - minXp) + minXp) * weekendMult;
+    // Apply persistent global multiplier if present
+    const globalMult = Math.max(0.2, Math.min(3.0, user?.multipliers?.global || 1.0));
+    let budget = (Math.random() * (maxXp - minXp) + minXp) * weekendMult * globalMult;
     const skillsChosen = [...SKILLS].sort(() => Math.random() - 0.5).slice(0, Math.ceil(Math.random() * 5));
     let totalWeight = skillsChosen.reduce((a, s) => a + (SKILL_POPULARITY[s] || 1), 0);
     for (const skill of skillsChosen) {
         const w = SKILL_POPULARITY[skill] || 1;
-        const portion = budget * (w / totalWeight) * (0.8 + Math.random() * 0.4);
-        applyXpGain(user, skill, portion);
+        const portionBase = budget * (w / totalWeight) * (0.8 + Math.random() * 0.4);
+        const perSkillMult = Math.max(0.2, Math.min(3.0, user?.multipliers?.perSkill?.[skill] || 1.0));
+        applyXpGain(user, skill, portionBase * perSkillMult);
     }
     user.updatedAt = Date.now();
     recalcTotals(user);
@@ -263,7 +274,7 @@ async function persistAchievementStats(env, users) {
             try { firsts = JSON.parse(firstsRaw) || {}; } catch (_) { firsts = {}; }
         }
         // Load or initialize upgraded firsts structure (v2)
-        // Schema: { version:2, updatedAt, keys: { achKey: { username, timestamp } }, counts: { achKey: number } }
+        // Schema: { version:2, updatedAt, keys: { achKey: { username, timestamp, titleAtUnlock?: string } }, counts: { achKey: number } }
         let firstsV2Raw = null;
         let firstsV2 = null;
         try { firstsV2Raw = await env.HISCORES_KV.get('ach:firsts:v2'); } catch (_) { }
@@ -280,6 +291,7 @@ async function persistAchievementStats(env, users) {
         const events = [];
         const updatedUsers = [];
         const now = Date.now();
+        // ctx already computed above
         for (const u of users) {
             const got = evaluateAchievements(u, ctx);
             const newly = mergeNewUnlocks(u, got, now);
@@ -296,8 +308,14 @@ async function persistAchievementStats(env, users) {
                     // v2: record counts & firsts
                     firstsV2.counts[key] = (firstsV2.counts[key] || 0) + 1;
                     if (!firstsV2.keys[key]) {
-                        firstsV2.keys[key] = { username: u.username, timestamp: now, source: 'live' };
-                        events.push({ key, username: u.username, timestamp: now, v2: true });
+                        // Snapshot title (tier) at unlock
+                        const unameLower = String(u.username || '').toLowerCase();
+                        const rank = ctx.rankByUser?.get(unameLower) || 0;
+                        const top1Skills = ctx.top1SkillsByUserCount?.get(unameLower) || 0;
+                        const tierInfo = inferMetaTierWithContext(u, { rank, totalPlayers: ctx.totalPlayers || 1, top1SkillsCount: top1Skills });
+                        const titleAtUnlock = tierInfo?.name || null;
+                        firstsV2.keys[key] = { username: u.username, timestamp: now, titleAtUnlock, source: 'live' };
+                        events.push({ key, username: u.username, timestamp: now, titleAtUnlock, v2: true });
                     }
                 }
             }
@@ -347,6 +365,31 @@ async function persistAchievementStats(env, users) {
             console.log('firsts reconciliation error:', String(reconErr));
         }
         firstsV2.updatedAt = Date.now();
+        // Aggregate firsts: compute if not set
+        try {
+            // first-99-any: the earliest unlock among any skill-master-* keys
+            if (!firstsV2.keys['first-99-any']) {
+                let best = null; let who = null; let snapTitle = null;
+                for (const [k, v] of Object.entries(firstsV2.keys)) {
+                    if (/^skill-master-/.test(k) && v?.timestamp) {
+                        if (!best || v.timestamp < best) { best = v.timestamp; who = v.username; snapTitle = v.titleAtUnlock || null; }
+                    }
+                }
+                if (best && who) firstsV2.keys['first-99-any'] = { username: who, timestamp: best, titleAtUnlock: snapTitle, source: 'aggregate' };
+            }
+            // first-top1-any: earliest of crowned-any (or rank-1 in any skill via enriched info)
+            if (!firstsV2.keys['first-top1-any']) {
+                // If counts/keys do not record crowned-any directly as a first, approximate via rank-1 per-skill using events
+                let candidateTs = null; let who = null; let title = null;
+                for (const [k, v] of Object.entries(firstsV2.keys)) {
+                    if (k === 'crowned-any') {
+                        candidateTs = v.timestamp; who = v.username; title = v.titleAtUnlock || null; break;
+                    }
+                }
+                if (candidateTs && who) firstsV2.keys['first-top1-any'] = { username: who, timestamp: candidateTs, titleAtUnlock: title, source: 'aggregate' };
+            }
+        } catch (_) { }
+
         // Save firsts mapping
         await env.HISCORES_KV.put('ach:firsts', JSON.stringify(firsts));
         await env.HISCORES_KV.put('ach:firsts:v2', JSON.stringify(firstsV2));
@@ -490,7 +533,7 @@ async function handleAchievementsFirsts(env) {
             }
             legacy = best;
             v2 = { version: 2, updatedAt: Date.now(), keys: {}, counts: {} };
-            for (const [k, v] of Object.entries(best)) v2.keys[k] = { username: v.username, timestamp: v.timestamp, source: 'reconstructed' };
+            for (const [k, v] of Object.entries(best)) v2.keys[k] = { username: v.username, timestamp: v.timestamp, titleAtUnlock: null, source: 'reconstructed' };
             await env.HISCORES_KV.put('ach:firsts', JSON.stringify(legacy));
             await env.HISCORES_KV.put('ach:firsts:v2', JSON.stringify(v2));
         } catch (reconErr) {
@@ -531,6 +574,173 @@ async function handleAchievementsFirsts(env) {
         enriched[key] = { ...first, count, pct, rarity: rarityFor(pct) };
     }
     return jsonResponse({ updatedAt: Date.now(), totalPlayers, counts, firsts: mergedLegacy, enriched, v2 }, { headers: { 'cache-control': 'public, max-age=30' } });
+}
+
+// Build celebratory banners for rare, significant FIRST achievements in the last 48 hours
+// Output objects conform to the required schema for the frontend rotator
+async function handleRareBanners(env) {
+    const now = Date.now();
+    const WINDOW_MS = 48 * 3600 * 1000; // 48 hours
+
+    // Which achievements are considered "rare/significant" for banners
+    const RARE_FIRST_KEYS = new Set([
+        'overall-rank-1',
+        'first-99-any', 'first-top1-any',
+        'maxed-account',
+        'combat-maxed',
+        'total-2000', 'total-2200', 'total-2277',
+        'skill-master-attack', 'skill-master-strength', 'skill-master-defence', 'skill-master-hitpoints', 'skill-master-ranged', 'skill-master-magic', 'skill-master-prayer',
+        // Per-skill 200m XP
+        'skill-200m-attack', 'skill-200m-defence', 'skill-200m-strength', 'skill-200m-hitpoints', 'skill-200m-ranged', 'skill-200m-prayer', 'skill-200m-magic',
+        'skill-200m-cooking', 'skill-200m-woodcutting', 'skill-200m-fletching', 'skill-200m-fishing', 'skill-200m-firemaking', 'skill-200m-crafting',
+        'skill-200m-smithing', 'skill-200m-mining', 'skill-200m-herblore', 'skill-200m-agility', 'skill-200m-thieving', 'skill-200m-slayer', 'skill-200m-farming',
+        'skill-200m-runecraft', 'skill-200m-hunter', 'skill-200m-construction'
+    ]);
+
+    // Load firsts v2 (preferred)
+    let v2Raw = null; let v2 = null;
+    try { v2Raw = await env.HISCORES_KV.get('ach:firsts:v2'); } catch (_) { }
+    if (v2Raw) { try { v2 = JSON.parse(v2Raw) || null; } catch (_) { v2 = null; } }
+    if (!v2 || !v2.keys) {
+        // Fallback to reconstruct minimal structure
+        try {
+            const users = await getAllUsers(env, { fresh: true });
+            const best = {};
+            for (const u of users) {
+                const ach = u?.achievements || {};
+                for (const [k, ts] of Object.entries(ach)) {
+                    const numTs = Number(ts) || 0;
+                    if (!best[k] || numTs < best[k].timestamp) best[k] = { username: u.username, timestamp: numTs };
+                }
+            }
+            v2 = { version: 2, updatedAt: Date.now(), keys: {} };
+            for (const [k, v] of Object.entries(best)) v2.keys[k] = { username: v.username, timestamp: v.timestamp, source: 'reconstructed' };
+        } catch (e) {
+            return jsonResponse([], { headers: { 'cache-control': 'public, max-age=30' } });
+        }
+    }
+
+    // Gather candidate firsts within window
+    const candidates = [];
+    for (const [key, info] of Object.entries(v2.keys)) {
+        if (!RARE_FIRST_KEYS.has(key)) continue;
+        const ts = Number(info?.timestamp) || 0;
+        if (!ts || (now - ts) > WINDOW_MS) continue; // keep only within window
+        candidates.push({ key, timestamp: ts });
+    }
+    if (!candidates.length) return jsonResponse([], { headers: { 'cache-control': 'public, max-age=30' } });
+
+    // Load users to compute ties and titles
+    const users = await getAllUsers(env, { fresh: false });
+    // Build leaderboard context to infer titles (tiers) at present
+    const ctx = computeAchievementContext(users, { useCache: true });
+    // Sort users to assign ranks
+    const usersSorted = [...users].sort((a, b) => b.totalLevel - a.totalLevel || b.totalXP - a.totalXP || a.username.localeCompare(b.username));
+    const totalPlayers = usersSorted.length || 1;
+    const top1ByUser = ctx.top1SkillsByUserCount || new Map();
+    const titleByUserLower = new Map();
+    for (const u of usersSorted) {
+        const unameLower = String(u.username || '').toLowerCase();
+        const rank = ctx.rankByUser?.get(unameLower) || 0;
+        const tier = inferMetaTierWithContext(u, { rank, totalPlayers, top1SkillsCount: top1ByUser.get(unameLower) || 0 });
+        titleByUserLower.set(unameLower, tier?.name || null);
+    }
+
+    // Helper to extract skill from key
+    const skillFromKey = (key) => {
+        let m = /^skill-master-(.+)$/.exec(key);
+        if (m) return m[1];
+        m = /^skill-200m-(.+)$/.exec(key);
+        if (m) return m[1];
+        return null;
+    };
+
+    // Build banner objects and combine ties (same key and same timestamp across multiple users)
+    const byKeyTs = new Map(); // `${key}:${ts}` -> { playerNames:Set, achievement, timestamp, details }
+    for (const c of candidates) {
+        const key = c.key;
+        const ts = c.timestamp;
+        // Determine all users who have this achievement at exactly this timestamp (tie detection)
+        const tied = [];
+        if (key === 'first-99-any' || key === 'first-top1-any') {
+            const entry = v2?.keys?.[key];
+            if (entry?.username) tied.push(entry.username);
+        } else {
+            for (const u of users) {
+                const tsU = Number(u?.achievements?.[key]) || 0;
+                if (tsU === ts) tied.push(u.username);
+            }
+        }
+        const skill = skillFromKey(key);
+        const friendlySkill = skill ? (skill.charAt(0).toUpperCase() + skill.slice(1)) : null;
+        let achievementDesc = '';
+        if (key === 'overall-rank-1') achievementDesc = 'First to claim Overall Rank #1';
+        else if (key === 'first-99-any') achievementDesc = 'First to reach 99 in any skill';
+        else if (key === 'first-top1-any') achievementDesc = 'First to become #1 in any skill';
+        else if (skill && key.startsWith('skill-master-')) achievementDesc = `First to reach 99 ${friendlySkill}`;
+        else if (skill && key.startsWith('skill-200m-')) achievementDesc = `First to reach 200m XP in ${friendlySkill}`;
+        else if (key === 'total-2000') achievementDesc = 'First to reach total level 2000+';
+        else if (key === 'total-2200') achievementDesc = 'First to reach total level 2200+';
+        else if (key === 'total-2277') achievementDesc = 'First to max total level (2277)';
+        else if (key === 'maxed-account') achievementDesc = 'First to max their account (all skills 99)';
+        else if (key === 'combat-maxed') achievementDesc = 'First to max all combat skills (99)';
+        else achievementDesc = 'First to achieve a rare milestone';
+
+        const id = `${key}:${ts}`;
+        const existing = byKeyTs.get(id);
+        const names = new Set(existing ? existing.playerNames : []);
+        for (const n of tied) names.add(n);
+
+        // Title: prefer stored snapshot title if present; otherwise infer current
+        let title = null;
+        const v2Entry = v2?.keys?.[key];
+        if (v2Entry && typeof v2Entry.titleAtUnlock === 'string') {
+            title = v2Entry.titleAtUnlock;
+        } else if (names.size === 1) {
+            const only = Array.from(names)[0];
+            title = titleByUserLower.get(String(only || '').toLowerCase()) || null;
+        } else if (names.size > 1) {
+            // Check if all titles equal; if so include, else null
+            const titles = new Set(Array.from(names).map(n => titleByUserLower.get(String(n || '').toLowerCase()) || null));
+            title = (titles.size === 1) ? Array.from(titles)[0] : null;
+        }
+
+        const banner = {
+            playerNames: Array.from(names),
+            achievement: achievementDesc,
+            timestamp: new Date(ts).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+            details: { skill: friendlySkill || null, title: title || null },
+            expiry: new Date(ts + WINDOW_MS).toISOString().replace(/\.\d{3}Z$/, 'Z')
+        };
+        byKeyTs.set(id, banner);
+    }
+
+    // Validate banners; exclude invalid entries and log errors
+    const isValidIso = (s) => typeof s === 'string' && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/.test(s);
+    const result = [];
+    for (const b of byKeyTs.values()) {
+        const err = [];
+        if (!Array.isArray(b.playerNames) || b.playerNames.length === 0 || b.playerNames.some(n => typeof n !== 'string' || !n.trim())) err.push('playerNames');
+        if (typeof b.achievement !== 'string' || !b.achievement.trim()) err.push('achievement');
+        if (!isValidIso(b.timestamp)) err.push('timestamp');
+        if (!b.details || typeof b.details !== 'object') err.push('details');
+        if (b.details) {
+            const okSkill = (b.details.skill === null) || (typeof b.details.skill === 'string');
+            const okTitle = (b.details.title === null) || (typeof b.details.title === 'string');
+            if (!okSkill) err.push('details.skill');
+            if (!okTitle) err.push('details.title');
+        }
+        if (!isValidIso(b.expiry)) err.push('expiry');
+        // Exclude expired just in case; and ensure within window
+        const ts = Date.parse(b.timestamp);
+        if (!Number.isFinite(ts) || (now - ts) > WINDOW_MS) err.push('window');
+        if (err.length) { console.log('banner invalid:', err.join(','), JSON.stringify(b)); continue; }
+        result.push(b);
+    }
+
+    // Sort by timestamp desc, newest first
+    result.sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
+    return jsonResponse(result, { headers: { 'cache-control': 'public, max-age=30' } });
 }
 
 async function handleFakeWord(env) {
@@ -1017,8 +1227,18 @@ async function runScheduled(env) {
             u.archetype = assignRandomArchetype();
             u.version = 2;
         }
-        const activityProbs = ARCHETYPE_TO_ACTIVITY_PROBABILITY[u.archetype] || ARCHETYPE_TO_ACTIVITY_PROBABILITY.CASUAL;
-        const activity = weightedRandomChoice(activityProbs);
+        // Migrate missing persistent fields best-effort
+        if (!u.xpGainTier) {
+            recalcTotals(u);
+            u.xpGainTier = determineXpGainTierFromTotal(u.totalXP);
+            u.version = Math.max(3, u.version || 1);
+        }
+        if (!u.multipliers) {
+            u.multipliers = buildSkillMultipliers(u.archetype, u.xpGainTier);
+            u.version = Math.max(4, u.version || 1);
+        }
+        // Activity selection constrained by persistent XP tier (falls back to archetype distribution)
+        const activity = chooseActivityForUser(u.archetype, u.xpGainTier);
         u.activity = activity;
         simulateUserProgress(u, activity, now);
         if (Math.random() < 0.01) u.needsHpMigration = true;
@@ -1114,6 +1334,7 @@ async function router(request, env) {
     if (path === '/api/fake-word' && method === 'GET') return cacheResponseIfPossible(request, () => handleFakeWord(env));
     if (path === '/api/achievements/stats' && method === 'GET') return cacheResponseIfPossible(request, () => handleAchievementsStats(env));
     if (path === '/api/achievements/firsts' && method === 'GET') return cacheResponseIfPossible(request, () => handleAchievementsFirsts(env));
+    if (path === '/api/banners/rare' && method === 'GET') return cacheResponseIfPossible(request, () => handleRareBanners(env));
     if (path === '/api/cron/trigger' && method === 'POST') return handleCronTrigger(env);
     if (path === '/api/migrate/hitpoints' && method === 'POST') return handleHitpointsMigration(env);
     if (path === '/api/seed' && method === 'POST') return handleSeed(env, request);
@@ -1128,6 +1349,15 @@ async function router(request, env) {
         if (!Number.isFinite(chunkSize) || chunkSize <= 0) chunkSize = 200;
         if (chunkSize > 1000) chunkSize = 1000; // hard cap
         const result = await migrateAllUsersToV3(env, { chunkSize });
+        return jsonResponse({ ...result, chunkSize, durationMs: Date.now() - started, public: true });
+    }
+    if (path === '/api/admin/migrate/v4' && method === 'POST') {
+        // Public migration to backfill persistent xpGainTier and multipliers
+        const started = Date.now();
+        let chunkSize = Number(url.searchParams.get('chunkSize'));
+        if (!Number.isFinite(chunkSize) || chunkSize <= 0) chunkSize = 200;
+        if (chunkSize > 1000) chunkSize = 1000; // hard cap
+        const result = await migrateAllUsersToV4(env, { chunkSize });
         return jsonResponse({ ...result, chunkSize, durationMs: Date.now() - started, public: true });
     }
     if (path === '/api/admin/rebalance/hitpoints' && method === 'POST') {
@@ -1184,3 +1414,30 @@ export async function handleApiRequest(request, env) {
 
 // Also export runScheduled for reuse in tests or alternative schedulers
 export { runScheduled };
+
+// ———————————————————————————————————————————————————————————————
+// v4 Migration: Backfill persistent XP gain tier and multipliers for all users.
+// Uses current totalXP as proxy for starting XP where historical data is unavailable.
+async function migrateAllUsersToV4(env, { chunkSize = 200 } = {}) {
+    const users = await getAllUsers(env, { fresh: true });
+    const candidates = users.filter(u => !u.xpGainTier || !u.multipliers || (u.version || 1) < 4);
+    let migrated = 0;
+    for (let i = 0; i < candidates.length; i += chunkSize) {
+        const slice = candidates.slice(i, i + chunkSize);
+        for (const u of slice) {
+            try {
+                recalcTotals(u);
+                if (!u.xpGainTier) u.xpGainTier = determineXpGainTierFromTotal(u.totalXP);
+                if (!u.multipliers) u.multipliers = buildSkillMultipliers(u.archetype || assignRandomArchetype(), u.xpGainTier);
+                u.version = Math.max(4, u.version || 1);
+                u.updatedAt = Date.now();
+                await putUser(env, u);
+                migrated++;
+            } catch (e) {
+                console.log('migrate v4 user failed', u.username, String(e));
+            }
+        }
+        if (candidates.length > 500) await sleep(5);
+    }
+    return { scanned: users.length, candidates: candidates.length, migrated };
+}

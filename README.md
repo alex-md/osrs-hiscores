@@ -136,6 +136,23 @@ Key pattern: `user:<lowercased_username>`
 * `needsHpMigration` simulates deferred consistency tasks; endpoint `/api/migrate/hitpoints` corrects stale HP levels.
 * Version field allows future schema evolution (e.g., versioned achievements) without breaking existing records.
 
+#### v4: Persistent XP Gain Tiers
+New users are permanently classified into an XP gain tier based on their initial total XP at creation:
+
+- LOW (starter/early game)
+- MID (developing)
+- HIGH (late game)
+- ELITE (top-tier)
+
+This tier never changes and constrains activity intensity. Each user also receives per-skill multipliers derived from their archetype and tier. High‑XP starters (e.g., 40m+) will always sample from the most intense activity bands; very low‑XP starters will remain in lower bands, indefinitely.
+
+Backfill existing users:
+
+```powershell
+curl -X POST http://127.0.0.1:8787/api/admin/migrate/v4
+```
+Scheduler will also lazily backfill missing fields during regular ticks.
+
 ## 5. Frontend Architecture
 
 | File | Responsibility |
