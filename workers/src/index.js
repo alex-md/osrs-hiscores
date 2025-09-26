@@ -18,6 +18,186 @@ import {
     projectHighestAchievementFamilies,
     ACHIEVEMENT_KEYS
 } from './achievements.js';
+import {
+    levelFromXp,
+    xpForLevel,
+    computeHitpointsLevelFromCombat,
+    syncHitpointsFromCombat,
+    inferMetaTierWithContext,
+    determineXpGainTierFromTotal,
+    buildSkillMultipliers,
+    chooseActivityForUser,
+    assignRandomArchetype,
+    assignArchetypeForTotalXP,
+    sampleInitialTotalXP,
+    distributeInitialXP,
+    sanitizeUsername,
+    fetchRandomWords,
+    weekendBonusMultiplier,
+    totalLevel as totalLevelFromSkills,
+    totalXP as totalXPFromSkills
+} from './utils.js';
+import { buildSnapshot } from './data-sync.js';
+
+// ————————————————————————————————————————————————
+// Lightweight in-memory cache for hot KV reads and response caching (per Worker instance)
+const __memCache = new Map(); // key -> { value, expiresAt }
+
+function memGet(key) {
+    const entry = __memCache.get(key);
+    if (!entry) return undefined;
+    if (entry.expiresAt && Date.now() > entry.expiresAt) {
+        __memCache.delete(key);
+        return undefined;
+    }
+    return entry.value;
+}
+
+function memSet(key, value, ttlSeconds = 0) {
+    const expiresAt = ttlSeconds > 0 ? (Date.now() + ttlSeconds * 1000) : 0;
+    __memCache.set(key, { value, expiresAt });
+}
+
+async function kvGetCached(env, key, { ttlSeconds = 10 } = {}) {
+    const memKey = `kv:text:${key}`;
+    const cached = memGet(memKey);
+    if (typeof cached === 'string') return cached;
+    const raw = await env.HISCORES_KV.get(key);
+    if (typeof raw === 'string') memSet(memKey, raw, ttlSeconds);
+    return raw || null;
+}
+
+// Simple chunk utility
+function chunk(arr, size) {
+    const out = [];
+    for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+    return out;
+}
+
+// Sleep helper (ms)
+function sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
+
+// HTTP cache wrapper using Cloudflare cache API when available; falls back to direct handler
+async function cacheResponseIfPossible(request, handler) {
+    try {
+        const method = (request.method || 'GET').toUpperCase();
+        if (method !== 'GET') return await handler();
+        const reqCacheControl = String(request.headers.get('cache-control') || '').toLowerCase();
+        const bypass = reqCacheControl.includes('no-cache') || reqCacheControl.includes('no-store');
+        const cache = caches?.default;
+        if (!cache || bypass) return await handler();
+        const cacheKey = new Request(request.url, request);
+        const hit = await cache.match(cacheKey);
+        if (hit) return hit;
+        const resp = await handler();
+        try {
+            const cc = String(resp.headers.get('cache-control') || '').toLowerCase();
+            if (resp.ok && cc && !cc.includes('no-store') && !cc.includes('private')) {
+                // Put a clone to cache; ignore failures
+                event?.waitUntil?.(cache.put(cacheKey, resp.clone()));
+                // If event not available, best-effort await put
+                if (!event?.waitUntil) await cache.put(cacheKey, resp.clone());
+            }
+        } catch (_) { /* ignore cache put issues */ }
+        return resp;
+    } catch (_) {
+        // On any failure, just serve the handler
+        return handler();
+    }
+}
+
+// Get all users from KV, with optional short-lived memory cache
+async function getAllUsers(env, { fresh = false } = {}) {
+    const MEM_KEY = 'all-users:v2';
+    if (!fresh) {
+        const cached = memGet(MEM_KEY);
+        if (Array.isArray(cached)) return cached;
+    }
+    const users = [];
+    let cursor;
+    do {
+        const list = await env.HISCORES_KV.list({ prefix: 'user:', limit: 1000, cursor });
+        cursor = list.list_complete ? undefined : list.cursor;
+        for (const k of list.keys) {
+            const raw = await kvGetCached(env, k.name, { ttlSeconds: 10 });
+            if (!raw) continue;
+            try { users.push(JSON.parse(raw)); } catch (_) { }
+        }
+    } while (cursor);
+    memSet(MEM_KEY, users, 5);
+    return users;
+}
+
+// Minimal totals recomputation
+function recalcTotals(user) {
+    try {
+        user.totalLevel = totalLevelFromSkills(user.skills || {});
+        user.totalXP = totalXPFromSkills(user.skills || {});
+        user.updatedAt = Date.now();
+    } catch (_) { }
+}
+
+function migrateHitpoints(user) {
+    try { return syncHitpointsFromCombat(user.skills || {}); } catch (_) { return false; }
+}
+
+// Very lightweight progress simulator based on activity and multipliers
+function simulateUserProgress(user, activity, now = new Date()) {
+    const type = PLAYER_ACTIVITY_TYPES[activity] ? activity : 'CASUAL';
+    const [minXp, maxXp] = PLAYER_ACTIVITY_TYPES[type]?.xpRange || [500, 3000];
+    const weekend = weekendBonusMultiplier(now);
+    const baseGain = Math.floor((minXp + Math.random() * (maxXp - minXp)) * weekend);
+    const mult = (user.multipliers?.global) || 1.0;
+    const totalGain = Math.max(1, Math.floor(baseGain * mult));
+    // allocate gains across a few random skills (prefer focus if exists)
+    const perSkillMult = user.multipliers?.perSkill || {};
+    const skills = [...SKILLS];
+    for (let i = 0; i < 3; i++) {
+        const idx = Math.floor(Math.random() * skills.length);
+        const s = skills[idx];
+        const tilt = Math.max(0.5, Math.min(2.0, perSkillMult[s] || 1.0));
+        const delta = Math.max(1, Math.floor((totalGain / 5) * tilt));
+        const cur = user.skills?.[s] || { xp: 0, level: 1 };
+        const newXp = cur.xp + delta;
+        user.skills = user.skills || {};
+        user.skills[s] = { xp: newXp, level: levelFromXp(newXp) };
+    }
+    // Recompute HP from combat skills occasionally
+    if (Math.random() < 0.3) migrateHitpoints(user);
+    recalcTotals(user);
+}
+
+// Seed guard for admin-only endpoints
+function ensureAdminAuthorized(request, env) {
+    const token = env?.ADMIN_TOKEN;
+    if (!token) return null; // no auth required if not configured
+    const got = request.headers.get('x-admin-token');
+    if (got === token) return null;
+    return jsonResponse({ error: 'Unauthorized' }, { status: 401 });
+}
+
+// Create a new baseline user
+function newUser(username) {
+    const name = sanitizeUsername(username);
+    const skills = {};
+    for (const s of SKILLS) {
+        if (s === 'hitpoints') skills[s] = { xp: 1154, level: 10 };
+        else skills[s] = { xp: 0, level: 1 };
+    }
+    const user = {
+        username: name,
+        skills,
+        achievements: {},
+        version: 1,
+        createdAt: Date.now()
+    };
+    // Initialize persistent fields
+    recalcTotals(user);
+    user.xpGainTier = determineXpGainTierFromTotal(user.totalXP);
+    user.archetype = assignRandomArchetype();
+    user.multipliers = buildSkillMultipliers(user.archetype, user.xpGainTier);
+    return user;
+}
 
 async function putUser(env, user) {
     await env.HISCORES_KV.put(`user:${user.username.toLowerCase()}`, JSON.stringify(user));
