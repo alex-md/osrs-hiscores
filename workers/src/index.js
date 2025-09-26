@@ -650,7 +650,10 @@ async function handleAchievementsFirsts(env) {
     return jsonResponse({ updatedAt: Date.now(), totalPlayers, counts, firsts: mergedLegacy, enriched, v2 }, { headers: { 'cache-control': 'public, max-age=30' } });
 }
 
-// Build celebratory banners for rare, significant FIRST achievements in the last 48 hours
+// Build celebratory banners for rare achievements in the last 48 hours
+// Includes:
+//  - Significant FIRST achievements (global firsts) — existing behavior
+//  - Significant recent milestones unlocked by any player (from ach:events)
 // Output objects conform to the required schema for the frontend rotator
 async function handleRareBanners(env) {
     const now = Date.now();
@@ -669,6 +672,15 @@ async function handleRareBanners(env) {
         'skill-200m-cooking', 'skill-200m-woodcutting', 'skill-200m-fletching', 'skill-200m-fishing', 'skill-200m-firemaking', 'skill-200m-crafting',
         'skill-200m-smithing', 'skill-200m-mining', 'skill-200m-herblore', 'skill-200m-agility', 'skill-200m-thieving', 'skill-200m-slayer', 'skill-200m-farming',
         'skill-200m-runecraft', 'skill-200m-hunter', 'skill-200m-construction'
+    ]);
+
+    // Significant non-first milestones we’re willing to banner when newly unlocked by any player
+    // Keep this conservative to avoid spam; can be tuned later
+    const SIGNIFICANT_EVENT_KEYS = new Set([
+        'maxed-account',
+        'combat-maxed',
+        'total-2277', 'total-2200', 'total-2000',
+        'xp-billionaire', 'totalxp-200m'
     ]);
 
     // Load firsts v2 (preferred)
@@ -730,7 +742,7 @@ async function handleRareBanners(env) {
     };
 
     // Build banner objects and combine ties (same key and same timestamp across multiple users)
-    const byKeyTs = new Map(); // `${key}:${ts}` -> { playerNames:Set, achievement, timestamp, details }
+    const byKeyTs = new Map(); // `${key}:${ts}` -> { playerNames:Set, achievement, timestamp, details, expiry }
     for (const c of candidates) {
         const key = c.key;
         const ts = c.timestamp;
@@ -788,6 +800,81 @@ async function handleRareBanners(env) {
         };
         byKeyTs.set(id, banner);
     }
+
+    // ————————————————————————————————————————————————
+    // Recent significant milestone events (non-first)
+    try {
+        let log = null;
+        try {
+            const raw = await env.HISCORES_KV.get('ach:events');
+            if (raw) log = JSON.parse(raw) || null;
+        } catch (_) { log = null; }
+        const events = Array.isArray(log?.events) ? log.events : [];
+        for (const ev of events) {
+            try {
+                const key = String(ev?.key || '');
+                const username = String(ev?.username || '').trim();
+                const ts = Number(ev?.timestamp) || 0;
+                if (!key || !username || !ts) continue;
+                if ((now - ts) > WINDOW_MS) continue; // only recent
+
+                // Filter to significant milestones only
+                const isSkill200m = /^skill-200m-/.test(key);
+                const isSkill99 = /^skill-master-/.test(key);
+                const isSignificant = SIGNIFICANT_EVENT_KEYS.has(key) || isSkill200m || isSkill99;
+                if (!isSignificant) continue;
+
+                // Avoid duplicate with a FIRST banner of same key+timestamp (already added above)
+                const firstId = `${key}:${ts}`;
+                if (byKeyTs.has(firstId)) continue;
+
+                // Derive friendly skill and description
+                const skillFromKey = (k) => {
+                    let m = /^skill-master-(.+)$/.exec(k); if (m) return m[1];
+                    m = /^skill-200m-(.+)$/.exec(k); if (m) return m[1];
+                    return null;
+                };
+                const skill = skillFromKey(key);
+                const friendlySkill = skill ? (skill.charAt(0).toUpperCase() + skill.slice(1)) : null;
+
+                let achievementDesc = '';
+                if (skill && key.startsWith('skill-master-')) achievementDesc = `Reached 99 ${friendlySkill}`;
+                else if (skill && key.startsWith('skill-200m-')) achievementDesc = `Reached 200m XP in ${friendlySkill}`;
+                else if (key === 'total-2277') achievementDesc = 'Reached max total level (2277)';
+                else if (key === 'total-2200') achievementDesc = 'Reached total level 2200+';
+                else if (key === 'total-2000') achievementDesc = 'Reached total level 2000+';
+                else if (key === 'maxed-account') achievementDesc = 'Maxed their account (all skills 99)';
+                else if (key === 'combat-maxed') achievementDesc = 'Maxed all combat skills (99)';
+                else if (key === 'xp-billionaire') achievementDesc = 'Reached 1,000,000,000 total XP';
+                else if (key === 'totalxp-200m') achievementDesc = 'Reached 200,000,000 total XP';
+                else achievementDesc = 'Achieved a notable milestone';
+
+                // Title: prefer title snapshot on event, else infer current
+                let title = null;
+                if (typeof ev?.titleAtUnlock === 'string') title = ev.titleAtUnlock;
+                else title = titleByUserLower.get(username.toLowerCase()) || null;
+
+                const banner = {
+                    playerNames: [username],
+                    achievement: achievementDesc,
+                    timestamp: new Date(ts).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+                    details: { skill: friendlySkill || null, title: title || null },
+                    expiry: new Date(ts + WINDOW_MS).toISOString().replace(/\.\d{3}Z$/, 'Z')
+                };
+
+                // Group ties if any other user unlocked same key at exactly the same ms timestamp
+                const id = `event:${key}:${ts}`;
+                const existing = byKeyTs.get(id);
+                if (existing) {
+                    const names = new Set(existing.playerNames);
+                    names.add(username);
+                    existing.playerNames = Array.from(names);
+                } else {
+                    byKeyTs.set(id, banner);
+                }
+            } catch (_) { /* continue */ }
+        }
+    } catch (_) { /* ignore events path failures */ }
 
     // Validate banners; exclude invalid entries and log errors
     const isValidIso = (s) => typeof s === 'string' && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/.test(s);
