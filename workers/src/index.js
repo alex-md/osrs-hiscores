@@ -47,6 +47,12 @@ const __memCache = new Map(); // key -> { value, expiresAt }
 const LEADERBOARD_TOP_LIMIT = 100;
 const SKILL_RANKINGS_TOP_LIMIT = 100;
 
+const LEADERBOARD_HISTORY_KEY = 'stats:leaderboard:history';
+const LEADERBOARD_HISTORY_MAX_ENTRIES = 32;
+const LEADERBOARD_HISTORY_PLAYER_LIMIT = 200;
+const DAY_MS = 24 * 3600 * 1000;
+const WEEK_MS = 7 * 24 * 3600 * 1000;
+
 function memGet(key) {
     const entry = __memCache.get(key);
     if (!entry) return undefined;
@@ -80,6 +86,233 @@ function chunk(arr, size) {
 
 // Sleep helper (ms)
 function sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
+
+async function getLeaderboardHistory(env) {
+    try {
+        const raw = await env.HISCORES_KV.get(LEADERBOARD_HISTORY_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+        return [];
+    }
+}
+
+async function updateLeaderboardHistory(env, leaderboard) {
+    if (!leaderboard || !Array.isArray(leaderboard.players)) return;
+    const entry = {
+        generatedAt: Number(leaderboard.generatedAt) || Date.now(),
+        totalPlayers: Number(leaderboard.totalPlayers) || leaderboard.players.length || 0,
+        players: leaderboard.players.slice(0, LEADERBOARD_HISTORY_PLAYER_LIMIT).map(p => ({
+            username: p.username,
+            rank: Number(p.rank) || 0,
+            totalLevel: Number(p.totalLevel) || 0,
+            totalXP: Number(p.totalXP) || 0
+        }))
+    };
+    let history = await getLeaderboardHistory(env);
+    const last = history[history.length - 1];
+    const lastTs = Number(last?.generatedAt) || 0;
+    if (last && Math.abs(entry.generatedAt - lastTs) < (15 * 60 * 1000)) {
+        history[history.length - 1] = entry;
+    } else {
+        history.push(entry);
+    }
+    const cutoff = Date.now() - WEEK_MS;
+    history = history.filter(item => Number(item?.generatedAt) >= cutoff);
+    while (history.length > LEADERBOARD_HISTORY_MAX_ENTRIES) history.shift();
+    try { await env.HISCORES_KV.put(LEADERBOARD_HISTORY_KEY, JSON.stringify(history)); }
+    catch (_) { /* ignore history write errors */ }
+    return history;
+}
+
+function selectHistoryEntry(history, hoursBack = 24) {
+    if (!Array.isArray(history) || history.length === 0) return { entry: null, hours: null };
+    const now = Date.now();
+    const target = now - hoursBack * 3600000;
+    let candidate = null;
+    let candidateTs = -Infinity;
+    for (const item of history) {
+        const ts = Number(item?.generatedAt);
+        if (!Number.isFinite(ts)) continue;
+        if (ts <= target && ts > candidateTs) {
+            candidate = item;
+            candidateTs = ts;
+        }
+    }
+    if (!candidate) {
+        let earliest = null;
+        let earliestTs = Infinity;
+        for (const item of history) {
+            const ts = Number(item?.generatedAt);
+            if (!Number.isFinite(ts)) continue;
+            if (ts < earliestTs) {
+                earliest = item;
+                earliestTs = ts;
+            }
+        }
+        candidate = earliest || null;
+        candidateTs = Number(candidate?.generatedAt) || 0;
+    }
+    if (!candidate || !Number.isFinite(candidateTs)) return { entry: null, hours: null };
+    const hours = Math.max(1, Math.round((now - candidateTs) / 3600000));
+    return { entry: candidate, hours };
+}
+
+function computeOnTheRiseFromHistory(currentPlayers, history) {
+    const list = Array.isArray(currentPlayers) ? currentPlayers : [];
+    if (!list.length) return { players: [], windowHours: null };
+    const { entry, hours } = selectHistoryEntry(history, 24);
+    if (!entry || !Array.isArray(entry.players)) return { players: [], windowHours: hours };
+    const prevMap = new Map();
+    for (const p of entry.players) {
+        const uname = String(p?.username || '').toLowerCase();
+        const rank = Number(p?.rank);
+        if (!uname || !Number.isFinite(rank)) continue;
+        prevMap.set(uname, rank);
+    }
+    const climbers = [];
+    for (const player of list) {
+        const unameLower = String(player?.username || '').toLowerCase();
+        if (!unameLower) continue;
+        const prevRank = prevMap.get(unameLower);
+        const currentRank = Number(player?.rank);
+        if (!Number.isFinite(prevRank) || !Number.isFinite(currentRank)) continue;
+        const delta = prevRank - currentRank;
+        if (delta >= 100) {
+            climbers.push({
+                username: player.username,
+                currentRank,
+                previousRank: prevRank,
+                delta,
+                totalLevel: Number(player?.totalLevel) || 0,
+                totalXP: Number(player?.totalXP) || 0
+            });
+        }
+    }
+    climbers.sort((a, b) => b.delta - a.delta || a.currentRank - b.currentRank || a.username.localeCompare(b.username));
+    return { players: climbers.slice(0, 6), windowHours: hours };
+}
+
+function safeAverageFrom(list, accessor) {
+    if (!Array.isArray(list) || list.length === 0) return 0;
+    let sum = 0;
+    let count = 0;
+    for (const item of list) {
+        const value = Number(accessor(item));
+        if (!Number.isFinite(value)) continue;
+        sum += value;
+        count++;
+    }
+    return count ? sum / count : 0;
+}
+
+function computeTrendSummaryFromHistory(currentPayload, history) {
+    const players = Array.isArray(currentPayload?.players) ? currentPayload.players : [];
+    const totalPlayers = Number(currentPayload?.totalPlayers) || 0;
+    const currentAvgLevel = safeAverageFrom(players, p => p?.totalLevel || 0);
+    const currentAvgXp = safeAverageFrom(players, p => p?.totalXP || 0);
+    const { entry, hours } = selectHistoryEntry(history, 24);
+    let prevAvgLevel = currentAvgLevel;
+    let prevAvgXp = currentAvgXp;
+    let prevTotalPlayers = totalPlayers;
+    if (entry && Array.isArray(entry.players) && entry.players.length) {
+        prevAvgLevel = safeAverageFrom(entry.players, p => p?.totalLevel || 0);
+        prevAvgXp = safeAverageFrom(entry.players, p => p?.totalXP || 0);
+        prevTotalPlayers = Number(entry.totalPlayers) || prevTotalPlayers;
+    }
+    return {
+        totalPlayers,
+        totalPlayersChange24h: totalPlayers - prevTotalPlayers,
+        sampleSize: players.length,
+        sampleWindowHours: hours,
+        avgTotalLevel: {
+            current: currentAvgLevel,
+            change: currentAvgLevel - prevAvgLevel
+        },
+        avgTotalXP: {
+            current: currentAvgXp,
+            change: currentAvgXp - prevAvgXp
+        }
+    };
+}
+
+function classifyRarityFromCounts(count, totalPlayers) {
+    const total = Number(totalPlayers);
+    const numericCount = Number(count);
+    if (!Number.isFinite(numericCount) || !Number.isFinite(total) || total <= 0) {
+        return { rarity: 'unknown', pct: null };
+    }
+    const pct = (numericCount / total) * 100;
+    if (pct <= 0) return { rarity: 'mythic', pct: 0 };
+    if (pct < 0.05) return { rarity: 'mythic', pct };
+    if (pct < 0.2) return { rarity: 'legendary', pct };
+    if (pct < 1) return { rarity: 'epic', pct };
+    if (pct < 5) return { rarity: 'rare', pct };
+    if (pct < 15) return { rarity: 'uncommon', pct };
+    return { rarity: 'common', pct };
+}
+
+function computeWeeklyRarest(eventsPayload, prevalencePayload, now = Date.now()) {
+    const events = Array.isArray(eventsPayload?.events) ? eventsPayload.events : Array.isArray(eventsPayload) ? eventsPayload : [];
+    if (!events.length) return null;
+    const counts = prevalencePayload?.counts || {};
+    const totalPlayers = Number(prevalencePayload?.totalPlayers) || 0;
+    const cutoff = now - WEEK_MS;
+    const perKey = new Map();
+    for (const event of events) {
+        const key = String(event?.key || '').trim();
+        const username = String(event?.username || '').trim();
+        const ts = Number(event?.timestamp);
+        if (!key || !username || !Number.isFinite(ts) || ts < cutoff) continue;
+        let arr = perKey.get(key);
+        if (!arr) { arr = []; perKey.set(key, arr); }
+        arr.push({ username, timestamp: ts });
+    }
+    if (perKey.size === 0) return null;
+    let best = null;
+    for (const [key, unlocks] of perKey.entries()) {
+        if (!unlocks.length) continue;
+        const globalCountRaw = counts[key];
+        const globalCount = Number.isFinite(Number(globalCountRaw)) ? Number(globalCountRaw) : null;
+        const normalized = Number.isFinite(Number(globalCountRaw)) ? Number(globalCountRaw) : Infinity;
+        const weeklyCount = unlocks.length;
+        const latestTs = unlocks.reduce((max, item) => item.timestamp > max ? item.timestamp : max, 0);
+        const score = { global: normalized, weekly: weeklyCount, latest: latestTs };
+        if (!best) {
+            best = { key, unlocks, globalCount, weeklyCount, latestTs, score };
+            continue;
+        }
+        const b = best.score;
+        let replace = false;
+        if (score.global < b.global) replace = true;
+        else if (score.global === b.global) {
+            if (score.weekly < b.weekly) replace = true;
+            else if (score.weekly === b.weekly && score.latest > b.latest) replace = true;
+        }
+        if (replace) best = { key, unlocks, globalCount, weeklyCount, latestTs, score };
+    }
+    if (!best) return null;
+    const rarity = classifyRarityFromCounts(best.globalCount, totalPlayers);
+    const recentUnlocks = [...best.unlocks]
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(0, 5)
+        .map(item => ({
+            username: item.username,
+            timestamp: new Date(item.timestamp).toISOString().replace(/\.\d{3}Z$/, 'Z')
+        }));
+    return {
+        key: best.key,
+        globalCount: best.globalCount,
+        totalPlayers,
+        weeklyCount: best.weeklyCount,
+        latestTimestamp: new Date(best.latestTs).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+        recentUnlocks,
+        rarity: rarity.rarity,
+        prevalencePct: rarity.pct,
+        windowDays: 7
+    };
+}
 
 // HTTP cache wrapper using Cloudflare cache API when available; falls back to direct handler
 async function cacheResponseIfPossible(request, handler) {
@@ -460,6 +693,7 @@ async function persistLeaderboardSnapshots(env, users, ctx = null, options = {})
     const skillRankings = buildSkillRankingsSnapshot(userList, skillTop);
     await env.HISCORES_KV.put('stats:leaderboard:top', JSON.stringify(leaderboard));
     await env.HISCORES_KV.put('stats:leaderboard:skills', JSON.stringify(skillRankings));
+    try { await updateLeaderboardHistory(env, leaderboard); } catch (_) { }
     return { leaderboard, skillRankings };
 }
 
@@ -474,19 +708,47 @@ async function handleLeaderboard(env, url) {
         const ctx = computeAchievementContext(users);
         payload = buildLeaderboardSnapshot(users, ctx, LEADERBOARD_TOP_LIMIT);
         try { await env.HISCORES_KV.put('stats:leaderboard:top', JSON.stringify(payload)); } catch (_) { }
+        try { await updateLeaderboardHistory(env, payload); } catch (_) { }
     }
     const limitParam = url.searchParams.get('limit');
     let limit = Number(limitParam);
     if (!Number.isFinite(limit) || limit <= 0) limit = payload.players?.length || 0;
     if (limit > LEADERBOARD_TOP_LIMIT) limit = LEADERBOARD_TOP_LIMIT;
     const players = Array.isArray(payload.players) ? payload.players.slice(0, limit) : [];
+    const history = await getLeaderboardHistory(env);
+    const onTheRise = computeOnTheRiseFromHistory(payload.players || [], history);
+    const trendSummary = computeTrendSummaryFromHistory(payload, history);
+    let weeklyRarest = null;
+    try {
+        const [eventsRaw, prevalenceRaw] = await Promise.all([
+            env.HISCORES_KV.get('ach:events'),
+            env.HISCORES_KV.get('stats:achievements:prevalence')
+        ]);
+        let eventsPayload = null;
+        let prevalencePayload = null;
+        if (eventsRaw) {
+            try { eventsPayload = JSON.parse(eventsRaw); } catch (_) { eventsPayload = null; }
+        }
+        if (prevalenceRaw) {
+            try { prevalencePayload = JSON.parse(prevalenceRaw); } catch (_) { prevalencePayload = null; }
+        }
+        weeklyRarest = computeWeeklyRarest(eventsPayload, prevalencePayload);
+    } catch (_) { weeklyRarest = null; }
     return jsonResponse({
         generatedAt: payload.generatedAt || Date.now(),
         totalPlayers: payload.totalPlayers || 0,
         tiers: payload.tiers || {},
         returned: players.length,
         topN: payload.topN || players.length,
-        players
+        players,
+        onTheRise,
+        trendSummary,
+        weeklyRarest,
+        watchlist: {
+            enabled: false,
+            tracked: [],
+            message: 'Watchlist tracking is coming soon'
+        }
     }, { headers: { 'cache-control': 'public, max-age=30' } });
 }
 
