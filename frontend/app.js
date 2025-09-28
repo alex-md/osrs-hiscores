@@ -8,6 +8,32 @@ function formatRelativeTime(ts) {
   let date = new Date(ts), diffMs = void 0, sec = Math.round((Date.now() - date.getTime()) / 1000), min = Math.round(sec / 60), hr = Math.round(min / 60), day = Math.round(hr / 24), month = Math.round(day / 30), year = Math.round(day / 365);
   return sec < 5 ? 'just now' : sec < 60 ? `${sec}s ago` : min < 60 ? `${min}m ago` : hr < 24 ? `${hr}h ago` : day < 30 ? `${day}d ago` : month < 12 ? `${month}mo ago` : `${year}y ago`;
 }
+function formatSigned(value, digits = 0) {
+  if (!Number.isFinite(value)) return '—';
+  if (value === 0) return '±0';
+  const sign = value > 0 ? '+' : '−';
+  const abs = Math.abs(value);
+  const formatted = abs.toLocaleString(undefined, {
+    maximumFractionDigits: digits,
+    minimumFractionDigits: digits > 0 ? 1 : 0
+  });
+  return `${sign}${formatted}`;
+}
+function formatCompactNumber(value) {
+  if (!Number.isFinite(value)) return '—';
+  const abs = Math.abs(value);
+  const format = (divisor, suffix, decimals) => `${(value / divisor).toFixed(decimals).replace(/\.0+$/, '')}${suffix}`;
+  if (abs >= 1e9) return format(1e9, 'B', abs >= 1e10 ? 0 : 1);
+  if (abs >= 1e6) return format(1e6, 'M', abs >= 1e7 ? 0 : 1);
+  if (abs >= 1e3) return format(1e3, 'K', abs >= 1e4 ? 0 : 1);
+  return value.toLocaleString();
+}
+function formatPercentage(value, digits = 2) {
+  if (!Number.isFinite(value)) return '—';
+  const fixed = value.toFixed(digits);
+  const trimmed = fixed.replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
+  return `${trimmed}%`;
+}
 async function computeGlobalAchievementStats(skillRankings, leaderboard) {
   const averages = computeSkillAverages(skillRankings);
   try {
@@ -117,26 +143,108 @@ function inferMetaTierWithContextFrontend(user, ctx) {
   }
 }
 function renderHomeView() {
-  let root = $("#viewRoot");
+  const root = $("#viewRoot");
   root.innerHTML = "";
-  let leftExtras = document.querySelector('#leftStackExtras');
-  leftExtras && (leftExtras.innerHTML = '');
-  // Kick off rare banner rotator (non-blocking)
+  const leftExtras = document.querySelector('#leftStackExtras');
+  let watchlistCard = null;
+  let watchlistBody = null;
+  let watchlistList = null;
+  let watchlistStatus = null;
+  let watchlistButton = null;
+  if (leftExtras) {
+    leftExtras.innerHTML = '';
+    watchlistCard = el('section', 'card watchlist-card');
+    watchlistCard.setAttribute('aria-live', 'polite');
+    const header = el('div', 'flex-between items-center gap-2 flex-wrap');
+    const heading = el('h2', 'text-base font-semibold flex-items-center gap-2', [text('👁️ Watchlist')]);
+    const badge = el('span', 'watchlist-badge', [text('Coming soon')]);
+    header.appendChild(heading);
+    header.appendChild(badge);
+    watchlistBody = el('div', 'watchlist-body flex flex-col gap-2');
+    watchlistStatus = el('p', 'watchlist-empty', [text('Keep tabs on favourite players once watchlists launch.')]);
+    watchlistBody.appendChild(watchlistStatus);
+    watchlistList = el('ul', 'watchlist-list');
+    watchlistBody.appendChild(watchlistList);
+    const actions = el('div', 'watchlist-actions');
+    watchlistButton = el('button', 'btn-sm', [text('Add player')]);
+    watchlistButton.disabled = true;
+    watchlistButton.setAttribute('aria-disabled', 'true');
+    watchlistButton.title = 'Watchlist management is coming soon';
+    actions.appendChild(watchlistButton);
+    watchlistCard.appendChild(header);
+    watchlistCard.appendChild(watchlistBody);
+    watchlistCard.appendChild(actions);
+    leftExtras.appendChild(watchlistCard);
+  }
   try { initRareBannerRotator(); } catch (_) { }
-  let section = el("section", "flex flex-col gap-6"), headerDiv = el("div", "flex-between flex-wrap gap-4"), titleEl = el("h2", "text-2xl font-bold flex-items-center gap-2 text-foreground", [
-    text("🏆 Overall Leaderboard")
-  ]);
-  headerDiv.appendChild(titleEl);
-  let statsDiv = el("div", "flex gap-3 flex-wrap text-muted text-sm");
-  statsDiv.appendChild(el("div", "badge js-leaderboard-range", [
-    text("Loading…")
-  ])), section.appendChild(headerDiv);
-  let tableWrap = el("div", "osrs-table home-leaderboard");
+  const section = el('section', 'flex flex-col gap-6');
+  const headerDiv = el('div', 'flex-between flex-wrap gap-4 items-center');
+  const titleWrap = el('div', 'flex flex-col gap-1');
+  const titleEl = el('h2', 'text-2xl font-bold flex-items-center gap-2 text-foreground', [text('🏆 Overall Leaderboard')]);
+  titleWrap.appendChild(titleEl);
+  headerDiv.appendChild(titleWrap);
+  const statsDiv = el('div', 'flex gap-3 flex-wrap text-muted text-sm items-center');
+  statsDiv.appendChild(el('div', 'badge js-leaderboard-range', [text('Loading…')]));
+  headerDiv.appendChild(statsDiv);
+  section.appendChild(headerDiv);
+
+  function createWidgetCard(title, subtitle) {
+    const card = el('section', 'card home-widget-card');
+    const header = el('div', 'home-widget-header');
+    const headingWrap = el('div', 'flex flex-col gap-1');
+    const headingTitle = el('h3', 'text-lg font-semibold text-foreground', [text(title)]);
+    headingWrap.appendChild(headingTitle);
+    if (subtitle) headingWrap.appendChild(el('p', 'text-xs text-muted', [text(subtitle)]));
+    const meta = el('span', 'home-widget-meta');
+    meta.textContent = '—';
+    header.appendChild(headingWrap);
+    header.appendChild(meta);
+    const body = el('div', 'home-widget-body');
+    card.appendChild(header);
+    card.appendChild(body);
+    return { card, body, meta };
+  }
+
+  const widgetGrid = el('div', 'home-widgets-grid');
+  const onRiseCard = createWidgetCard('📈 On the Rise', 'Players climbing 100+ ranks in the last day');
+  const onRiseMeta = onRiseCard.meta;
+  onRiseMeta.textContent = '24h window';
+  const onRiseList = el('ul', 'on-rise-list');
+  onRiseList.appendChild(el('li', 'on-rise-empty', [text('Loading…')]));
+  onRiseCard.body.appendChild(onRiseList);
+  widgetGrid.appendChild(onRiseCard.card);
+
+  const weeklyCard = createWidgetCard('🧬 Weekly Rarest', 'Rarest achievement unlocked this week');
+  const weeklyMeta = weeklyCard.meta;
+  weeklyMeta.textContent = '7d window';
+  const weeklyBody = el('div', 'weekly-rarest');
+  weeklyBody.appendChild(el('div', 'weekly-rarest-empty', [text('Scanning achievements…')]));
+  weeklyCard.body.appendChild(weeklyBody);
+  widgetGrid.appendChild(weeklyCard.card);
+
+  const trendsCard = createWidgetCard('📊 Trends', 'Snapshot of the top cohort');
+  const trendsMeta = trendsCard.meta;
+  trendsMeta.textContent = 'Updating…';
+  const trendsList = el('ul', 'home-trends-list');
+  trendsList.appendChild(el('li', 'home-trend-item', [
+    el('span', 'home-trend-label', [text('Loading trend data…')])
+  ]));
+  trendsCard.body.appendChild(trendsList);
+  widgetGrid.appendChild(trendsCard.card);
+
+  section.appendChild(widgetGrid);
+
+  const tableWrap = el('div', 'osrs-table home-leaderboard');
   tableWrap.classList.add('full-width');
-  let scrollWrap = el("div", "table-scroll"), table = el("table", "min-w-full leaderboard-table");
-  table.innerHTML = '<thead><tr><th>Rank</th><th class="text-left">Player</th><th>Total Level</th><th>Total Experience</th></tr></thead><tbody></tbody>', scrollWrap.appendChild(table), tableWrap.appendChild(scrollWrap), section.appendChild(tableWrap), root.appendChild(section);
-  let tbody = table.querySelector("tbody");
-  // Skeleton rows while loading
+  const scrollWrap = el('div', 'table-scroll');
+  const table = el('table', 'min-w-full leaderboard-table');
+  table.innerHTML = '<thead><tr><th>Rank</th><th class="text-left">Player</th><th>Total Level</th><th>Total Experience</th></tr></thead><tbody></tbody>';
+  scrollWrap.appendChild(table);
+  tableWrap.appendChild(scrollWrap);
+  section.appendChild(tableWrap);
+  root.appendChild(section);
+
+  const tbody = table.querySelector('tbody');
   tbody.innerHTML = Array.from({ length: 8 }).map(() => (
     `<tr>
       <td class="text-center"><div class="skeleton skeleton-line" style="width:40px;margin:0 auto;"></div></td>
@@ -145,7 +253,9 @@ function renderHomeView() {
       <td class="text-right"><div class="skeleton skeleton-line" style="width:120px; margin-left:auto;"></div></td>
     </tr>`
   )).join('');
-  let page = 1, controls = el("div", "flex-between gap-4 flex-wrap text-sm bg-layer2 p-3 rounded border-2 border-border-dark");
+
+  let page = 1;
+  const controls = el('div', 'flex-between gap-4 flex-wrap text-sm bg-layer2 p-3 rounded border-2 border-border-dark');
   controls.innerHTML = `
       <div class="flex items-center gap-2">
         <button class="btn-sm" data-action="prev">← Prev</button>
@@ -153,112 +263,429 @@ function renderHomeView() {
       </div>
       <div class="font-semibold">Page <span class="js-page">1</span> / <span class="js-pages">1</span></div>
       <div class="opacity-70 js-range"></div>
-    `, section.appendChild(controls);
+    `;
+  section.appendChild(controls);
+
+  function renderTrendLine(label, valueText, deltaValue, digits = 0) {
+    const li = el('li', 'home-trend-item');
+    const labelEl = el('span', 'home-trend-label', [text(label)]);
+    const valueWrap = el('span', 'home-trend-value', [text(valueText)]);
+    if (deltaValue !== null && deltaValue !== undefined && Number.isFinite(deltaValue)) {
+      const deltaCls = deltaValue > 0 ? ' positive' : deltaValue < 0 ? ' negative' : '';
+      const deltaSpan = el('span', 'trend-delta' + deltaCls, [text(formatSigned(deltaValue, digits))]);
+      valueWrap.appendChild(deltaSpan);
+    }
+    li.appendChild(labelEl);
+    li.appendChild(valueWrap);
+    return li;
+  }
+
   let rankingsCache = null;
   function renderPage(data) {
-    let players = data.players || [], total = players.length, totalPages = Math.max(1, Math.ceil(total / 50));
-    page > totalPages && (page = totalPages);
-    let start = (page - 1) * 50, slice = players.slice(start, start + 50);
-    tbody.innerHTML = "", slice.length ? slice.forEach((p) => {
-      let tr = document.createElement("tr"), rankDisplay = p.rank;
-      1 === p.rank ? rankDisplay = "🥇 " + p.rank : 2 === p.rank ? rankDisplay = "🥈 " + p.rank : 3 === p.rank && (rankDisplay = "🥉 " + p.rank), 1 === p.rank ? tr.classList.add("rank-1") : 2 === p.rank ? tr.classList.add("rank-2") : 3 === p.rank && tr.classList.add("rank-3");
-      let tierAttrs = '';
-      if (p.tier) {
-        let tip = p.tierInfo && null != p.tierInfo.top1Skills ? `${p.tier} • Overall #${p.rank}${p.tierInfo.top1Skills ? ` • #1 in ${p.tierInfo.top1Skills} skills` : ''}` : p.tier;
-        tierAttrs = ` title="${tip}" data-tooltip="${tip}" aria-label="${p.tier}"`;
-      }
-      let tierBadge = p.tier ? `<span class="tier-badge tier-${p.tier.toLowerCase()} tier--icon-only"${tierAttrs}></span>` : "";
-      tr.innerHTML = `
+    const players = data.players || [];
+    const total = players.length;
+    const totalPages = Math.max(1, Math.ceil(total / 50));
+    if (page > totalPages) page = totalPages;
+    const start = (page - 1) * 50;
+    const slice = players.slice(start, start + 50);
+    tbody.innerHTML = "";
+    if (slice.length) {
+      slice.forEach((p) => {
+        const tr = document.createElement('tr');
+        let rankDisplay = p.rank;
+        if (p.rank === 1) rankDisplay = '🥇 ' + p.rank;
+        else if (p.rank === 2) rankDisplay = '🥈 ' + p.rank;
+        else if (p.rank === 3) rankDisplay = '🥉 ' + p.rank;
+        if (p.rank === 1) tr.classList.add('rank-1');
+        else if (p.rank === 2) tr.classList.add('rank-2');
+        else if (p.rank === 3) tr.classList.add('rank-3');
+        let tierAttrs = '';
+        if (p.tier) {
+          const tip = p.tierInfo && p.tierInfo.top1Skills != null
+            ? `${p.tier} • Overall #${p.rank}${p.tierInfo.top1Skills ? ` • #1 in ${p.tierInfo.top1Skills} skills` : ''}`
+            : p.tier;
+          tierAttrs = ` title="${tip}" data-tooltip="${tip}" aria-label="${p.tier}"`;
+        }
+        const tierBadge = p.tier ? `<span class="tier-badge tier-${p.tier.toLowerCase()} tier--icon-only"${tierAttrs}></span>` : '';
+        tr.innerHTML = `
               <td class="text-center font-bold">${rankDisplay}</td>
               <td>
                   <button class="username-link" data-user="${p.username}" aria-label="View ${p.username} stats">${p.username}</button>
                   ${tierBadge}
               </td>
               <td class="text-center skill-level">${p.totalLevel}</td>
-              <td class="text-right skill-xp">${p.totalXP.toLocaleString()}</td>`, tbody.appendChild(tr);
-      let playerCell = void 0;
-      !function (cell, player, rankings, totalPlayers) {
-        try {
-          let wrap = document.createElement('div');
-          wrap.className = 'mini-badges';
-          let add = (textContent, title, extraCls = '') => {
-            let b = document.createElement('span');
-            b.className = 'mini-badge' + (extraCls ? ' ' + extraCls : ''), b.textContent = textContent, title && (b.title = title), wrap.appendChild(b);
-          }, top1 = 0;
-          if (rankings) {
-            top1 = buildTop1Counts(rankings).get(player.username) || 0;
-          }
-          let tier = player.tier, inferred = null;
-          if (
-            tier ||
-            (inferred = inferMetaTierWithContextFrontend(player, {
-              rank: player.rank,
-              totalPlayers,
-              top1SkillsCount: top1
-            })),
-            tier = inferred?.name || null,
-            tier && !player.tier
-          ) {
-            let tb = document.createElement('span');
-            tb.className = `tier-badge tier-${tier.toLowerCase()} tier--icon-only`;
-            let tip = `${tier} • Overall #${player.rank}${top1 ? ` • #1 in ${top1} skills` : ''}`;
-            tb.setAttribute('title', tip), tb.setAttribute('data-tooltip', tip), tb.setAttribute('aria-label', tier), cell.appendChild(tb);
-          }
-          let achievements = void 0;
-          deriveAchievementsForPlayer(player, rankings, totalPlayers).slice(0, 3).forEach((achievement) => {
-            let badge = document.createElement('span');
-            badge.className = 'mini-achievement-badge', badge.textContent = achievement.icon, badge.title = `${achievement.label}: ${achievement.desc}`, badge.setAttribute('data-tooltip', `${achievement.label}\n${achievement.desc}`), wrap.appendChild(badge);
-          });
-          let added = 0;
-          if (top1 >= 3 && added < 3 ? (add('👑 Three #1 Skills', '#1 in 3+ skills', 'mini-badge--highlight'), added++) : top1 >= 1 && added < 3 && (add(`🥇 x${top1}`, 'Rank #1 in skills'), added++), player.totalLevel >= 2277 && added < 3 ? (add('👑 Maxed', 'All skills 99'), added++) : player.totalLevel >= 2000 && added < 3 && (add('📈 2k+', 'Total level 2000+'), added++), player.updatedAt && added < 3) {
-            let diffH = (Date.now() - player.updatedAt) / 3600000;
-            diffH <= 24 ? (add('🕒 Today', 'Updated within 24h'), added++) : diffH <= 168 && (add('🔄 Week', 'Updated within 7 days'), added++);
-          }
-          wrap.childNodes.length && cell.appendChild(wrap);
-        } catch (_) { }
-      }(tr.children[1], p, rankingsCache, cache.leaderboard && cache.leaderboard.totalPlayers || players.length);
-    }) : tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-6">No players</td></tr>', controls.querySelector('.js-page').textContent = String(page), controls.querySelector('.js-pages').textContent = String(totalPages);
-    let rangeStart = total ? start + 1 : 0, rangeEnd = Math.min(total, start + 50), rangeEl = void 0;
-    controls.querySelector('.js-range').textContent = `Showing ${rangeStart}–${rangeEnd} of ${total} (limit 500)`;
-    let pill = statsDiv.querySelector('.js-leaderboard-range');
-    pill && (pill.textContent = `Players ${rangeStart}–${rangeEnd}`);
-  }
-  loadSkillRankings().then((r) => {
-    rankingsCache = r, cache.leaderboard && renderPage(cache.leaderboard);
-  }).catch(() => { }), controls.addEventListener('click', (e) => {
-    let btn = e.target.closest('button[data-action]');
-    if (!btn) return;
-    let act = btn.getAttribute('data-action');
-    if ('prev' === act && page > 1 && (page--, renderPage(cache.leaderboard)), 'next' === act) {
-      let players = void 0, maxPages = Math.ceil((cache.leaderboard?.players || []).length / 50) || 1;
-      page < maxPages && (page++, renderPage(cache.leaderboard));
+              <td class="text-right skill-xp">${p.totalXP.toLocaleString()}</td>`;
+        tbody.appendChild(tr);
+        (function (cell, player, rankings, totalPlayers) {
+          try {
+            const wrap = document.createElement('div');
+            wrap.className = 'mini-badges';
+            const add = (textContent, title, extraCls = '') => {
+              const b = document.createElement('span');
+              b.className = 'mini-badge' + (extraCls ? ' ' + extraCls : '');
+              b.textContent = textContent;
+              if (title) b.title = title;
+              wrap.appendChild(b);
+            };
+            let top1 = 0;
+            if (rankings) top1 = buildTop1Counts(rankings).get(player.username) || 0;
+            let tier = player.tier;
+            let inferred = null;
+            if (
+              tier ||
+              (inferred = inferMetaTierWithContextFrontend(player, {
+                rank: player.rank,
+                totalPlayers,
+                top1SkillsCount: top1
+              })),
+              tier = inferred?.name || null,
+              tier && !player.tier
+            ) {
+              const tb = document.createElement('span');
+              tb.className = `tier-badge tier-${tier.toLowerCase()} tier--icon-only`;
+              const tip = `${tier} • Overall #${player.rank}${top1 ? ` • #1 in ${top1} skills` : ''}`;
+              tb.setAttribute('title', tip);
+              tb.setAttribute('data-tooltip', tip);
+              tb.setAttribute('aria-label', tier);
+              cell.appendChild(tb);
+            }
+            deriveAchievementsForPlayer(player, rankings, totalPlayers).slice(0, 3).forEach((achievement) => {
+              const badge = document.createElement('span');
+              badge.className = 'mini-achievement-badge';
+              badge.textContent = achievement.icon;
+              badge.title = `${achievement.label}: ${achievement.desc}`;
+              badge.setAttribute('data-tooltip', `${achievement.label}\n${achievement.desc}`);
+              wrap.appendChild(badge);
+            });
+            let added = 0;
+            if (top1 >= 3 && added < 3) { add('👑 Three #1 Skills', '#1 in 3+ skills', 'mini-badge--highlight'); added++; }
+            else if (top1 >= 1 && added < 3) { add(`🥇 x${top1}`, 'Rank #1 in skills'); added++; }
+            if (player.totalLevel >= 2277 && added < 3) { add('👑 Maxed', 'All skills 99'); added++; }
+            else if (player.totalLevel >= 2000 && added < 3) { add('📈 2k+', 'Total level 2000+'); added++; }
+            if (player.updatedAt && added < 3) {
+              const diffH = (Date.now() - player.updatedAt) / 3600000;
+              if (diffH <= 24) { add('🕒 Today', 'Updated within 24h'); added++; }
+              else if (diffH <= 168) { add('🔄 Week', 'Updated within 7 days'); added++; }
+            }
+            if (wrap.childNodes.length) cell.appendChild(wrap);
+          } catch (_) { }
+        })(tr.children[1], p, rankingsCache, cache.leaderboard && cache.leaderboard.totalPlayers || players.length);
+      });
+    } else {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-6">No players</td></tr>';
     }
-  }), loadLeaderboard().then((data) => {
-    if (renderPage(data), data.totalPlayers > 0 && statsDiv.appendChild(el("div", "badge", [
-      text(`${data.totalPlayers} total players`)
-    ])), data.tiers) {
-      let tiers = data.tiers;
-      [
-        "Grandmaster",
-        "Master",
-        "Diamond",
-        "Platinum",
-        "Gold",
-        "Silver",
-        "Bronze"
-      ].forEach((tn) => {
+    controls.querySelector('.js-page').textContent = String(page);
+    controls.querySelector('.js-pages').textContent = String(totalPages);
+    const rangeStart = total ? start + 1 : 0;
+    const rangeEnd = Math.min(total, start + 50);
+    controls.querySelector('.js-range').textContent = `Showing ${rangeStart}–${rangeEnd} of ${total} (limit 500)`;
+    const pill = statsDiv.querySelector('.js-leaderboard-range');
+    if (pill) pill.textContent = `Players ${rangeStart}–${rangeEnd}`;
+  }
+
+  loadSkillRankings().then((r) => {
+    rankingsCache = r;
+    if (cache.leaderboard) renderPage(cache.leaderboard);
+  }).catch(() => { });
+
+  controls.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-action]');
+    if (!btn) return;
+    const act = btn.getAttribute('data-action');
+    if (act === 'prev' && page > 1) {
+      page--;
+      renderPage(cache.leaderboard);
+    } else if (act === 'next') {
+      const maxPages = Math.ceil((cache.leaderboard?.players || []).length / 50) || 1;
+      if (page < maxPages) {
+        page++;
+        renderPage(cache.leaderboard);
+      }
+    }
+  });
+
+  loadLeaderboard().then((data) => {
+    renderPage(data);
+    if (data.totalPlayers > 0) {
+      statsDiv.appendChild(el('div', 'badge', [text(`${data.totalPlayers} total players`)]));
+    }
+    if (data.tiers) {
+      const tiers = data.tiers;
+      ['Grandmaster', 'Master', 'Diamond', 'Platinum', 'Gold', 'Silver', 'Bronze'].forEach((tn) => {
         if (tiers[tn] > 0) {
-          let pct = data.totalPlayers ? Math.round(tiers[tn] / data.totalPlayers * 1000) / 10 : 0, pill = el("div", `badge tier-badge tier-${tn.toLowerCase()}`, [
-            text(`${tn} ${pct}%`)
-          ]);
-          statsDiv.appendChild(pill);
+          const pct = data.totalPlayers ? Math.round(tiers[tn] / data.totalPlayers * 1000) / 10 : 0;
+          statsDiv.appendChild(el('div', `badge tier-badge tier-${tn.toLowerCase()}`, [text(`${tn} ${pct}%`)]));
         }
       });
     }
+
+    const onRiseData = data.onTheRise && Array.isArray(data.onTheRise.players) ? data.onTheRise.players : [];
+    if (onRiseList) {
+      onRiseList.innerHTML = '';
+      const windowHours = data.onTheRise?.windowHours;
+      onRiseMeta.textContent = windowHours ? `${windowHours}h window` : '24h window';
+      if (!onRiseData.length) {
+        onRiseList.appendChild(el('li', 'on-rise-empty', [text('No major climbers detected in this window.')]));
+      } else {
+        onRiseData.forEach((entry) => {
+          const li = el('li', 'on-rise-item');
+          const main = el('div', 'on-rise-item-main');
+          const nameRow = el('div', 'on-rise-name-row');
+          const nameBtn = document.createElement('button');
+          nameBtn.className = 'username-link';
+          nameBtn.setAttribute('data-user', entry.username);
+          nameBtn.setAttribute('aria-label', `View ${entry.username} stats`);
+          nameBtn.textContent = entry.username;
+          const deltaSpan = el('span', 'on-rise-delta', [text(`${formatSigned(entry.delta)} ranks`)]);
+          nameRow.appendChild(nameBtn);
+          nameRow.appendChild(deltaSpan);
+          main.appendChild(nameRow);
+          main.appendChild(el('div', 'on-rise-meta', [text(`Now #${entry.currentRank} · Was #${entry.previousRank}`)]));
+          const totalsParts = [];
+          if (Number.isFinite(entry.totalLevel)) totalsParts.push(`Lv ${Number(entry.totalLevel).toLocaleString()}`);
+          if (Number.isFinite(entry.totalXP)) totalsParts.push(`${Number(entry.totalXP).toLocaleString()} XP`);
+          if (totalsParts.length) {
+            main.appendChild(el('div', 'on-rise-meta', [text(totalsParts.join(' • '))]));
+          }
+          li.appendChild(main);
+          onRiseList.appendChild(li);
+        });
+      }
+    }
+
+    if (weeklyBody) {
+      weeklyBody.innerHTML = '';
+      const rare = data.weeklyRarest || null;
+      if (!rare) {
+        weeklyMeta.textContent = '7d window';
+        weeklyBody.appendChild(el('div', 'weekly-rarest-empty', [text('No rare unlocks recorded this week yet.')]));
+      } else {
+        weeklyMeta.textContent = rare.windowDays ? `${rare.windowDays}d window` : 'This week';
+        const catalog = window.ACHIEVEMENT_CATALOG || [];
+        const info = catalog.find((a) => a.key === rare.key) || null;
+        const heading = el('div', 'weekly-rarest-heading');
+        heading.appendChild(el('span', 'weekly-rarest-icon', [text(info?.icon || '🏅')]));
+        const headingText = el('div', 'flex flex-col gap-1');
+        headingText.appendChild(el('span', 'weekly-rarest-title', [text(info?.label || rare.key)]));
+        if (info?.desc) headingText.appendChild(el('span', 'weekly-rarest-desc', [text(info.desc)]));
+        heading.appendChild(headingText);
+        weeklyBody.appendChild(heading);
+        const stats = el('div', 'weekly-rarest-stats');
+        const rarityName = rare.rarity ? rare.rarity.charAt(0).toUpperCase() + rare.rarity.slice(1) : 'Unknown';
+        const rarityLine = el('div', 'weekly-rarest-line', [text('Rarity: ')]);
+        rarityLine.appendChild(el('span', 'weekly-rarest-rarity', [text(rarityName)]));
+        if (rare.prevalencePct !== null && rare.prevalencePct !== undefined) {
+          rarityLine.appendChild(el('span', 'weekly-rarest-pct', [text(` (${formatPercentage(rare.prevalencePct, rare.prevalencePct < 1 ? 2 : 1)} of players)`) ]));
+        }
+        stats.appendChild(rarityLine);
+        if (Number.isFinite(rare.globalCount)) stats.appendChild(el('div', 'weekly-rarest-line', [text(`Global owners: ${rare.globalCount.toLocaleString()}`)]));
+        if (Number.isFinite(rare.weeklyCount)) stats.appendChild(el('div', 'weekly-rarest-line', [text(`Unlocks this week: ${rare.weeklyCount}`)]));
+        weeklyBody.appendChild(stats);
+        const recent = Array.isArray(rare.recentUnlocks) ? rare.recentUnlocks.slice(0, 3) : [];
+        if (recent.length) {
+          const list = el('ul', 'weekly-rarest-unlocks');
+          recent.forEach((unlock) => {
+            const li = el('li', 'weekly-rarest-player');
+            const btn = document.createElement('button');
+            btn.className = 'username-link';
+            btn.setAttribute('data-user', unlock.username);
+            btn.setAttribute('aria-label', `View ${unlock.username} stats`);
+            btn.textContent = unlock.username;
+            li.appendChild(btn);
+            const ts = Date.parse(unlock.timestamp);
+            if (Number.isFinite(ts)) {
+              const timeEl = document.createElement('time');
+              timeEl.dateTime = new Date(ts).toISOString();
+              timeEl.textContent = formatRelativeTime(ts);
+              li.appendChild(timeEl);
+            }
+            list.appendChild(li);
+          });
+          weeklyBody.appendChild(list);
+        }
+      }
+    }
+
+    if (trendsList) {
+      trendsList.innerHTML = '';
+      const summary = data.trendSummary || null;
+      if (!summary) {
+        trendsMeta.textContent = 'No data';
+        trendsList.appendChild(el('li', 'home-trend-item', [
+          el('span', 'home-trend-label', [text('Trend data unavailable')])
+        ]));
+      } else {
+        trendsMeta.textContent = summary.sampleWindowHours ? `${summary.sampleWindowHours}h window` : '24h snapshot';
+        trendsList.appendChild(renderTrendLine('Total players', (summary.totalPlayers || 0).toLocaleString(), summary.totalPlayersChange24h, 0));
+        const sample = summary.sampleSize || 0;
+        const avgLevel = summary.avgTotalLevel?.current || 0;
+        trendsList.appendChild(renderTrendLine(sample ? `Avg total level (top ${sample})` : 'Avg total level', Math.round(avgLevel).toLocaleString(), summary.avgTotalLevel?.change ?? null, 1));
+        const avgXp = summary.avgTotalXP?.current || 0;
+        trendsList.appendChild(renderTrendLine('Avg total XP', formatCompactNumber(avgXp), summary.avgTotalXP?.change ?? null, 0));
+        const topClimber = onRiseData[0];
+        if (topClimber) {
+          const li = el('li', 'home-trend-item');
+          li.appendChild(el('span', 'home-trend-label', [text('Top climber')]));
+          const value = el('span', 'home-trend-value');
+          const btn = document.createElement('button');
+          btn.className = 'username-link';
+          btn.setAttribute('data-user', topClimber.username);
+          btn.setAttribute('aria-label', `View ${topClimber.username} stats`);
+          btn.textContent = topClimber.username;
+          value.appendChild(btn);
+          value.appendChild(el('span', 'trend-delta positive', [text(`${formatSigned(topClimber.delta)} ranks`)]));
+          li.appendChild(value);
+          trendsList.appendChild(li);
+        }
+      }
+    }
+
+    if (watchlistCard) {
+      const watch = data.watchlist || {};
+      const trackedRaw = Array.isArray(watch.tracked) ? watch.tracked : [];
+      const tracked = trackedRaw.map((item) => typeof item === 'string' ? { username: item } : item).filter((item) => item && item.username);
+      watchlistList.innerHTML = '';
+      if (watchlistStatus) {
+        if (tracked.length) {
+          watchlistStatus.textContent = `Tracking ${tracked.length} player${tracked.length === 1 ? '' : 's'} (preview)`;
+        } else {
+          watchlistStatus.textContent = watch.message || 'Watchlist tracking is coming soon.';
+        }
+      }
+      if (tracked.length) {
+        tracked.slice(0, 5).forEach((item) => {
+          const li = el('li', 'watchlist-player');
+          const btn = document.createElement('button');
+          btn.className = 'username-link';
+          btn.setAttribute('data-user', item.username);
+          btn.setAttribute('aria-label', `View ${item.username} stats`);
+          btn.textContent = item.username;
+          li.appendChild(btn);
+          if (item.rank) li.appendChild(el('span', 'watchlist-rank', [text(`#${item.rank}`)]));
+          watchlistList.appendChild(li);
+        });
+        if (tracked.length > 5) {
+          watchlistList.appendChild(el('li', 'watchlist-more', [text(`…and ${tracked.length - 5} more planned slots`)]));
+        }
+      } else {
+        watchlistList.appendChild(el('li', 'watchlist-empty', [text('No tracked players yet. This section will light up soon!')]));
+      }
+    }
   }).catch((e) => {
-    let htmlLike = /Received HTML|Unexpected content-type/.test(e.message);
-    tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8"><div class="text-danger font-semibold">❌ ${e.message}</div>${htmlLike ? '<div class="mt-4 text-sm text-left max-w-lg mx-auto p-4 bg-layer2 rounded border-l-4 border-accent">⚠️ <strong>Backend not mounted:</strong><br>Verify _worker.js is present at repo root and KV binding HISCORES_KV is configured in Pages project settings. Also ensure deployment finished successfully.<br><br><code class="bg-layer p-1 rounded text-xs">/api/health</code> should return JSON.</div>' : ""}</td></tr>`;
+    const htmlLike = /Received HTML|Unexpected content-type/.test(e.message);
+    tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8"><div class="text-danger font-semibold">❌ ${e.message}</div>${htmlLike ? '<div class="mt-4 text-sm text-left max-w-lg mx-auto p-4 bg-layer2 rounded border-l-4 border-accent">⚠️ <strong>Backend not mounted:</strong><br>Verify _worker.js is present at repo root and KV binding HISCORES_KV is configured in Pages project settings. Also ensure deployment finished successfully.<br><br><code class="bg-layer p-1 rounded text-xs">/api/health</code> should return JSON.</div>' : ''}</td></tr>`;
+    if (onRiseList) {
+      onRiseList.innerHTML = '';
+      onRiseMeta.textContent = '—';
+      onRiseList.appendChild(el('li', 'on-rise-empty', [text('Unable to load climb data.')]));
+    }
+    if (weeklyBody) {
+      weeklyBody.innerHTML = '';
+      weeklyMeta.textContent = '—';
+      weeklyBody.appendChild(el('div', 'weekly-rarest-empty', [text('Unable to load rare achievement data.')]));
+    }
+    if (trendsList) {
+      trendsList.innerHTML = '';
+      trendsMeta.textContent = '—';
+      trendsList.appendChild(el('li', 'home-trend-item', [
+        el('span', 'home-trend-label', [text('Trend data unavailable')])
+      ]));
+    }
+    if (watchlistCard) {
+      watchlistList.innerHTML = '';
+      if (watchlistStatus) watchlistStatus.textContent = 'Watchlist data unavailable.';
+      watchlistList.appendChild(el('li', 'watchlist-empty', [text('Watchlist data unavailable. Check back soon.')]));
+    }
   });
+}
+
+async function loadUsers(force = !1) {
+  return cache.users && !force && Date.now() - cache.usersFetchedAt < 60_000 || (cache.users = await fetchJSON("/api/users"), cache.usersFetchedAt = Date.now()), cache.users;
+}
+async function loadSkillRankings(force = !1) {
+  return cache.skillRankings && !force || (cache.skillRankings = await fetchJSON("/api/skill-rankings")), cache.skillRankings;
+}
+function getUserSkillRank(skillRankings, username, skill) {
+  if (!skillRankings || !skillRankings.rankings || !skillRankings.rankings[skill]) return null;
+  let skillData = void 0, playerData = skillRankings.rankings[skill].find((p) => p.username === username);
+  return playerData ? playerData.rank : null;
+}
+function updateSummary(user, skillRankings) {
+  let rankEl = $("#topRankSummary span"), levelEl = $("#topLevelSummary span");
+  if (!rankEl || !levelEl) return;
+  if (!user) {
+    rankEl.textContent = "Highest rank: —", levelEl.textContent = "Highest level: —";
+    return;
+  }
+  let bestRank = 1 / 0, bestRankSkill = null;
+  if (SKILLS.forEach((s) => {
+    let r = getUserSkillRank(skillRankings, user.username, s);
+    r && r < bestRank && (bestRank = r, bestRankSkill = s);
+  }), bestRankSkill) {
+    let name = bestRankSkill.charAt(0).toUpperCase() + bestRankSkill.slice(1);
+    rankEl.textContent = `Highest rank: ${name} (#${bestRank})`;
+  } else rankEl.textContent = "Highest rank: —";
+  let bestLevel = -1, bestXp = -1, bestLevelSkill = null;
+  if (SKILLS.forEach((s) => {
+    let skill = user.skills[s], lvl = skill?.level || 1, xp = skill?.xp || 0;
+    (lvl > bestLevel || lvl === bestLevel && xp > bestXp) && (bestLevel = lvl, bestXp = xp, bestLevelSkill = s);
+  }), bestLevelSkill) {
+    let name = bestLevelSkill.charAt(0).toUpperCase() + bestLevelSkill.slice(1);
+    levelEl.textContent = `Highest level: ${name} (Lv. ${bestLevel}, ${bestXp.toLocaleString()} XP)`;
+  } else levelEl.textContent = "Highest level: —";
+}
+
+// Compute average level/xp per skill from skillRankings
+function computeSkillAverages(skillRankings) {
+  const averages = {};
+  try {
+    const all = (skillRankings && skillRankings.rankings) || {};
+    (window.SKILLS || []).forEach((s) => {
+      const arr = all[s] || [];
+      if (arr.length) {
+        const totalLvl = arr.reduce((sum, p) => sum + (p.level || 0), 0);
+        const totalXp = arr.reduce((sum, p) => sum + (p.xp || 0), 0);
+        averages[s] = { level: totalLvl / arr.length, xp: totalXp / arr.length };
+      } else {
+        averages[s] = { level: 1, xp: 0 };
+      }
+    });
+  } catch (_) {
+    (window.SKILLS || []).forEach((s) => (averages[s] = { level: 1, xp: 0 }));
+  }
+  return averages;
+}
+
+// Local copy of tier inference for client-only usage
+function inferMetaTierWithContextFrontend(user, ctx) {
+  try {
+    const rank = Number(ctx?.rank) || Infinity;
+    const totalPlayers = Math.max(1, Number(ctx?.totalPlayers) || 1);
+    const top1SkillsCount = Math.max(0, Number(ctx?.top1SkillsCount) || 0);
+    if (rank === 1 || top1SkillsCount >= 3) return { name: 'Grandmaster', ordinal: 0 };
+    if (totalPlayers <= 500) {
+      if (rank <= 2) return { name: 'Master', ordinal: 1 };
+      if (rank <= 5) return { name: 'Diamond', ordinal: 2 };
+      if (rank <= 15) return { name: 'Platinum', ordinal: 3 };
+      if (rank <= Math.ceil(totalPlayers * 0.05)) return { name: 'Gold', ordinal: 4 };
+      if (rank <= Math.ceil(totalPlayers * 0.20)) return { name: 'Silver', ordinal: 5 };
+      if (rank <= Math.ceil(totalPlayers * 0.50)) return { name: 'Bronze', ordinal: 6 };
+    } else {
+      const percentile = rank / totalPlayers;
+      if (percentile <= 0.0001) return { name: 'Master', ordinal: 1 };
+      if (percentile <= 0.001) return { name: 'Diamond', ordinal: 2 };
+      if (percentile <= 0.01) return { name: 'Platinum', ordinal: 3 };
+      if (percentile <= 0.05) return { name: 'Gold', ordinal: 4 };
+      if (percentile <= 0.20) return { name: 'Silver', ordinal: 5 };
+      if (percentile <= 0.50) return { name: 'Bronze', ordinal: 6 };
+    }
+    const total = (window.SKILLS || []).map(s => user?.skills?.[s]?.level || 1).reduce((a, b) => a + b, 0);
+    if (total >= 1700) return { name: 'Expert', ordinal: 5 };
+    if (total >= 900) return { name: 'Adept', ordinal: 6 };
+    return { name: 'Novice', ordinal: 7 };
+  } catch (_) {
+    return { name: 'Novice', ordinal: 7 };
+  }
 }
 async function loadUser(username) {
   return fetchJSON("/api/users/" + encodeURIComponent(username));

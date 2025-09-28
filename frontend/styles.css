@@ -153,6 +153,254 @@ table th {
   align-items: start
 }
 
+.home-widgets-grid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr))
+}
+
+.home-widget-card {
+  display: flex;
+  flex-direction: column;
+  gap: .75rem
+}
+
+.home-widget-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem
+}
+
+.home-widget-body {
+  display: flex;
+  flex-direction: column;
+  gap: .75rem
+}
+
+.home-widget-meta {
+  font-size: .75rem;
+  color: var(--color-muted)
+}
+
+.on-rise-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .75rem
+}
+
+.on-rise-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem
+}
+
+.on-rise-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: .25rem
+}
+
+.on-rise-name-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .5rem
+}
+
+.on-rise-delta {
+  font-weight: 600;
+  color: var(--color-success);
+  font-variant-numeric: tabular-nums
+}
+
+.on-rise-meta {
+  font-size: .8rem;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums
+}
+
+.on-rise-empty {
+  font-size: .9rem;
+  color: var(--color-muted)
+}
+
+.weekly-rarest {
+  display: flex;
+  flex-direction: column;
+  gap: .75rem
+}
+
+.weekly-rarest-heading {
+  display: flex;
+  align-items: center;
+  gap: .75rem
+}
+
+.weekly-rarest-icon {
+  font-size: 1.5rem
+}
+
+.weekly-rarest-title {
+  font-weight: 600
+}
+
+.weekly-rarest-desc {
+  font-size: .85rem;
+  color: var(--color-muted)
+}
+
+.weekly-rarest-stats {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  font-size: .85rem
+}
+
+.weekly-rarest-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem;
+  align-items: baseline
+}
+
+.weekly-rarest-rarity {
+  font-weight: 600
+}
+
+.weekly-rarest-pct {
+  font-size: .75rem;
+  color: var(--color-muted)
+}
+
+.weekly-rarest-unlocks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  font-size: .85rem
+}
+
+.weekly-rarest-player {
+  display: flex;
+  align-items: center;
+  gap: .5rem
+}
+
+.weekly-rarest-player time {
+  font-size: .75rem;
+  color: var(--color-muted)
+}
+
+.weekly-rarest-empty {
+  font-size: .9rem;
+  color: var(--color-muted)
+}
+
+.home-trends-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .5rem
+}
+
+.home-trend-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  font-size: .9rem
+}
+
+.home-trend-label {
+  color: var(--color-muted)
+}
+
+.home-trend-value {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums
+}
+
+.trend-delta {
+  font-size: .75rem;
+  color: var(--color-muted)
+}
+
+.trend-delta.positive {
+  color: var(--color-success)
+}
+
+.trend-delta.negative {
+  color: var(--color-danger)
+}
+
+.watchlist-card {
+  display: flex;
+  flex-direction: column;
+  gap: .75rem
+}
+
+.watchlist-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem
+}
+
+.watchlist-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+  font-size: .9rem
+}
+
+.watchlist-empty {
+  font-size: .85rem;
+  color: var(--color-muted)
+}
+
+.watchlist-player {
+  display: flex;
+  align-items: center;
+  gap: .5rem
+}
+
+.watchlist-rank {
+  font-size: .75rem;
+  color: var(--color-muted)
+}
+
+.watchlist-more {
+  font-size: .75rem;
+  color: var(--color-muted)
+}
+
+.watchlist-badge {
+  font-size: .7rem;
+  padding: .15rem .6rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .08);
+  color: var(--color-muted)
+}
+
+.watchlist-card .btn-sm[disabled] {
+  opacity: .6;
+  cursor: not-allowed
+}
+
 .sidebar {
   position: static
 }
