@@ -351,10 +351,49 @@ table th {
   gap: .75rem
 }
 
+.watchlist-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  width: 100%
+}
+
+.watchlist-input {
+  flex: 1 1 140px;
+  min-width: 0;
+  padding: .45rem .6rem;
+  font-size: .85rem
+}
+
 .watchlist-actions {
   display: flex;
   flex-wrap: wrap;
   gap: .5rem
+}
+
+.watchlist-clear {
+  background: none;
+  color: var(--color-muted);
+  border: 1px dashed var(--color-border);
+  padding: .35rem .7rem;
+  font-weight: 600;
+  transition: border-color .15s ease, color .15s ease, background .15s ease
+}
+
+.watchlist-clear:hover,
+.watchlist-clear:focus {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+  background: rgba(255, 215, 0, .08);
+  outline: none
+}
+
+.watchlist-clear:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+  background: none;
+  color: var(--color-muted);
+  border-color: var(--color-border)
 }
 
 .watchlist-list {
@@ -375,12 +414,48 @@ table th {
 .watchlist-player {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: .5rem
+}
+
+.watchlist-player-info {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+  align-items: flex-start
+}
+
+.watchlist-player-actions {
+  display: flex;
+  align-items: center
 }
 
 .watchlist-rank {
   font-size: .75rem;
   color: var(--color-muted)
+}
+
+.watchlist-meta {
+  font-size: .75rem;
+  color: var(--color-muted)
+}
+
+.watchlist-remove {
+  border: none;
+  background: none;
+  color: var(--color-danger);
+  font-size: .75rem;
+  padding: .2rem .25rem;
+  border-radius: .3rem;
+  cursor: pointer;
+  transition: color .15s ease, background .15s ease
+}
+
+.watchlist-remove:hover,
+.watchlist-remove:focus {
+  color: var(--color-danger-strong);
+  background: rgba(220, 38, 38, .08);
+  outline: none
 }
 
 .watchlist-more {
