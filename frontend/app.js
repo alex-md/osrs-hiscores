@@ -143,6 +143,10 @@ function inferMetaTierWithContextFrontend(user, ctx) {
   }
 }
 function renderHomeView() {
+  if (window.__watchlistCleanup) {
+    try { window.__watchlistCleanup(); } catch (_) { }
+    window.__watchlistCleanup = null;
+  }
   const root = $("#viewRoot");
   root.innerHTML = "";
   const leftExtras = document.querySelector('#leftStackExtras');
@@ -150,31 +154,140 @@ function renderHomeView() {
   let watchlistBody = null;
   let watchlistList = null;
   let watchlistStatus = null;
-  let watchlistButton = null;
+  let watchlistForm = null;
+  let watchlistInput = null;
+  let watchlistClearBtn = null;
+  let watchlistLeaderboardIndex = null;
+  let watchlistHasLeaderboardData = null;
+  let watchlistEntries = [];
+  function renderWatchlist() {
+    if (!watchlistList || !watchlistStatus) return;
+    const entries = Array.isArray(watchlistEntries) ? watchlistEntries : [];
+    watchlistList.innerHTML = '';
+    if (!entries.length) {
+      watchlistStatus.textContent = 'No tracked players yet. This section will light up soon!';
+      watchlistList.appendChild(el('li', 'watchlist-empty', [text('No tracked players yet. This section will light up soon!')]));
+      if (watchlistClearBtn) watchlistClearBtn.disabled = true;
+      return;
+    }
+    const suffix = watchlistHasLeaderboardData === false ? ' (leaderboard offline)' : '';
+    watchlistStatus.textContent = `Tracking ${entries.length} player${entries.length === 1 ? '' : 's'}${suffix}.`;
+    const listFragment = document.createDocumentFragment();
+    entries.forEach((entry) => {
+      const li = el('li', 'watchlist-player');
+      const info = el('div', 'watchlist-player-info');
+      const userBtn = document.createElement('button');
+      userBtn.className = 'username-link';
+      userBtn.setAttribute('data-user', entry.username);
+      userBtn.setAttribute('aria-label', `View ${entry.username} stats`);
+      userBtn.textContent = entry.username;
+      info.appendChild(userBtn);
+      const leaderboardMatch = watchlistLeaderboardIndex && entry && entry.id ? watchlistLeaderboardIndex.get(entry.id) : null;
+      if (leaderboardMatch) {
+        const meta = el('div', 'watchlist-meta');
+        const rank = leaderboardMatch.rank ? `#${leaderboardMatch.rank}` : null;
+        const level = Number.isFinite(leaderboardMatch.totalLevel) ? `Lv. ${leaderboardMatch.totalLevel}` : null;
+        const pieces = [rank, level].filter(Boolean);
+        if (pieces.length) meta.appendChild(text(pieces.join(' • ')));
+        if (meta.childNodes.length) info.appendChild(meta);
+      } else if (entry.addedAt) {
+        const meta = el('div', 'watchlist-meta');
+        meta.appendChild(text(`Added ${formatRelativeTime(entry.addedAt)}`));
+        info.appendChild(meta);
+      }
+      li.appendChild(info);
+      const actions = el('div', 'watchlist-player-actions');
+      const removeBtn = el('button', 'watchlist-remove', [text('Remove')]);
+      removeBtn.type = 'button';
+      removeBtn.setAttribute('aria-label', `Remove ${entry.username} from watchlist`);
+      removeBtn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        if (window.watchlistStore) {
+          const result = window.watchlistStore.remove(entry.username);
+          if (result?.ok) toast(`${entry.username} removed from your watchlist.`);
+        }
+      });
+      actions.appendChild(removeBtn);
+      li.appendChild(actions);
+      listFragment.appendChild(li);
+    });
+    watchlistList.appendChild(listFragment);
+    if (watchlistClearBtn) watchlistClearBtn.disabled = entries.length === 0;
+  }
   if (leftExtras) {
     leftExtras.innerHTML = '';
     watchlistCard = el('section', 'card watchlist-card');
     watchlistCard.setAttribute('aria-live', 'polite');
     const header = el('div', 'flex-between items-center gap-2 flex-wrap');
     const heading = el('h2', 'text-base font-semibold flex-items-center gap-2', [text('👁️ Watchlist')]);
-    const badge = el('span', 'watchlist-badge', [text('Coming soon')]);
     header.appendChild(heading);
-    header.appendChild(badge);
     watchlistBody = el('div', 'watchlist-body flex flex-col gap-2');
-    watchlistStatus = el('p', 'watchlist-empty', [text('Keep tabs on favourite players once watchlists launch.')]);
+    watchlistStatus = el('p', 'watchlist-empty', [text('No tracked players yet. This section will light up soon!')]);
     watchlistBody.appendChild(watchlistStatus);
     watchlistList = el('ul', 'watchlist-list');
     watchlistBody.appendChild(watchlistList);
     const actions = el('div', 'watchlist-actions');
-    watchlistButton = el('button', 'btn-sm', [text('Add player')]);
-    watchlistButton.disabled = true;
-    watchlistButton.setAttribute('aria-disabled', 'true');
-    watchlistButton.title = 'Watchlist management is coming soon';
-    actions.appendChild(watchlistButton);
+    watchlistForm = document.createElement('form');
+    watchlistForm.className = 'watchlist-form';
+    watchlistInput = document.createElement('input');
+    watchlistInput.type = 'text';
+    watchlistInput.className = 'btn-input watchlist-input';
+    watchlistInput.placeholder = 'Add player…';
+    watchlistInput.setAttribute('aria-label', 'Player name to track');
+    watchlistInput.maxLength = 12;
+    watchlistForm.appendChild(watchlistInput);
+    const submitBtn = el('button', 'btn-sm', [text('Add')]);
+    submitBtn.type = 'submit';
+    watchlistForm.appendChild(submitBtn);
+    actions.appendChild(watchlistForm);
+    watchlistClearBtn = el('button', 'btn-sm watchlist-clear', [text('Clear all')]);
+    watchlistClearBtn.type = 'button';
+    watchlistClearBtn.disabled = true;
+    actions.appendChild(watchlistClearBtn);
     watchlistCard.appendChild(header);
     watchlistCard.appendChild(watchlistBody);
     watchlistCard.appendChild(actions);
     leftExtras.appendChild(watchlistCard);
+    const store = window.watchlistStore;
+    if (!store) {
+      watchlistStatus.textContent = 'Watchlist storage is unavailable in this browser.';
+      watchlistList.appendChild(el('li', 'watchlist-empty', [text('Watchlist unavailable.')]));
+      watchlistInput.disabled = true;
+      submitBtn.disabled = true;
+      watchlistClearBtn.disabled = true;
+    } else {
+      watchlistForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        if (!watchlistInput) return;
+        const value = watchlistInput.value.trim();
+        if (!value) {
+          toast('Enter a player name to add.', 'error');
+          return;
+        }
+        const result = store.add(value);
+        if (!result.ok) {
+          if (result.error) toast(result.error, 'error');
+        } else {
+          toast(`${result.entry.username} added to your watchlist.`);
+        }
+        watchlistInput.value = '';
+        watchlistInput.focus();
+      });
+      watchlistClearBtn.addEventListener('click', (event) => {
+        event.preventDefault();
+        if (!store) return;
+        if (!store.getAll().length) return;
+        const confirmed = window.confirm('Clear all tracked players from your watchlist?');
+        if (confirmed) {
+          const result = store.clear();
+          if (result?.ok) toast('Watchlist cleared.');
+        }
+      });
+      window.__watchlistCleanup = store.subscribe((entries) => {
+        watchlistEntries = entries || [];
+        renderWatchlist();
+      });
+    }
   }
   try { initRareBannerRotator(); } catch (_) { }
   const section = el('section', 'flex flex-col gap-6');
@@ -540,36 +653,17 @@ function renderHomeView() {
       }
     }
 
-    if (watchlistCard) {
-      const watch = data.watchlist || {};
-      const trackedRaw = Array.isArray(watch.tracked) ? watch.tracked : [];
-      const tracked = trackedRaw.map((item) => typeof item === 'string' ? { username: item } : item).filter((item) => item && item.username);
-      watchlistList.innerHTML = '';
-      if (watchlistStatus) {
-        if (tracked.length) {
-          watchlistStatus.textContent = `Tracking ${tracked.length} player${tracked.length === 1 ? '' : 's'} (preview)`;
-        } else {
-          watchlistStatus.textContent = watch.message || 'Watchlist tracking is coming soon.';
-        }
-      }
-      if (tracked.length) {
-        tracked.slice(0, 5).forEach((item) => {
-          const li = el('li', 'watchlist-player');
-          const btn = document.createElement('button');
-          btn.className = 'username-link';
-          btn.setAttribute('data-user', item.username);
-          btn.setAttribute('aria-label', `View ${item.username} stats`);
-          btn.textContent = item.username;
-          li.appendChild(btn);
-          if (item.rank) li.appendChild(el('span', 'watchlist-rank', [text(`#${item.rank}`)]));
-          watchlistList.appendChild(li);
+    if (watchlistCard && window.watchlistStore) {
+      watchlistHasLeaderboardData = true;
+      watchlistLeaderboardIndex = new Map();
+      if (Array.isArray(data.players)) {
+        data.players.forEach((player) => {
+          if (player && typeof player.username === 'string') {
+            watchlistLeaderboardIndex.set(player.username.toLowerCase(), player);
+          }
         });
-        if (tracked.length > 5) {
-          watchlistList.appendChild(el('li', 'watchlist-more', [text(`…and ${tracked.length - 5} more planned slots`)]));
-        }
-      } else {
-        watchlistList.appendChild(el('li', 'watchlist-empty', [text('No tracked players yet. This section will light up soon!')]));
       }
+      renderWatchlist();
     }
   }).catch((e) => {
     const htmlLike = /Received HTML|Unexpected content-type/.test(e.message);
@@ -592,9 +686,15 @@ function renderHomeView() {
       ]));
     }
     if (watchlistCard) {
-      watchlistList.innerHTML = '';
-      if (watchlistStatus) watchlistStatus.textContent = 'Watchlist data unavailable.';
-      watchlistList.appendChild(el('li', 'watchlist-empty', [text('Watchlist data unavailable. Check back soon.')]));
+      if (window.watchlistStore) {
+        watchlistHasLeaderboardData = false;
+        watchlistLeaderboardIndex = null;
+        renderWatchlist();
+      } else {
+        watchlistList.innerHTML = '';
+        if (watchlistStatus) watchlistStatus.textContent = 'Watchlist storage is unavailable in this browser.';
+        watchlistList.appendChild(el('li', 'watchlist-empty', [text('Watchlist unavailable.')]));
+      }
     }
   });
 }
@@ -691,6 +791,10 @@ async function loadUser(username) {
   return fetchJSON("/api/users/" + encodeURIComponent(username));
 }
 function renderUserView(username) {
+  if (window.__watchlistCleanup) {
+    try { window.__watchlistCleanup(); } catch (_) { }
+    window.__watchlistCleanup = null;
+  }
   let root = $("#viewRoot");
   root.innerHTML = '<div class="text-center text-muted py-8">⏳ Loading player data...</div>';
   let __leftExtrasInit = document.querySelector('#leftStackExtras');
