@@ -354,7 +354,10 @@ table th {
 .watchlist-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: .5rem
+  gap: .5rem;
+  align-items: center;
+  font-size: .75rem;
+  color: var(--color-muted)
 }
 
 .watchlist-list {
@@ -374,11 +377,24 @@ table th {
 
 .watchlist-player {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .3rem;
+  padding: .15rem 0
+}
+
+.watchlist-player-top {
+  display: flex;
   align-items: center;
-  gap: .5rem
+  gap: .4rem
 }
 
 .watchlist-rank {
+  font-size: .75rem;
+  color: var(--color-muted)
+}
+
+.watchlist-reason {
   font-size: .75rem;
   color: var(--color-muted)
 }
@@ -396,9 +412,30 @@ table th {
   color: var(--color-muted)
 }
 
-.watchlist-card .btn-sm[disabled] {
-  opacity: .6;
-  cursor: not-allowed
+.watchlist-status {
+  font-size: .75rem;
+  color: var(--color-muted)
+}
+
+.watchlist-meta {
+  font-size: .75rem;
+  color: var(--color-muted)
+}
+
+.watchlist-delta {
+  font-size: .75rem;
+  font-weight: 600;
+  color: var(--color-success)
+}
+
+.watchlist-tag {
+  font-size: .7rem;
+  padding: .1rem .45rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .12);
+  color: var(--color-accent);
+  text-transform: uppercase;
+  letter-spacing: .02em
 }
 
 .sidebar {

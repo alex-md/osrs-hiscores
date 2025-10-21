@@ -1,4 +1,5 @@
-let LEADERBOARD_LIMIT = 500, cache = {
+const LEADERBOARD_LIMIT = 500;
+const cache = {
   leaderboard: null,
   users: null,
   skillRankings: null,
@@ -34,6 +35,473 @@ function formatPercentage(value, digits = 2) {
   const trimmed = fixed.replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
   return `${trimmed}%`;
 }
+
+const ACHIEVEMENT_LABEL_OVERRIDES = {
+  'overall-rank-1': 'Overall Rank #1',
+  'first-99-any': 'First 99 (Any Skill)',
+  'first-top1-any': 'First #1 (Any Skill)',
+  'maxed-account': 'Maxed Account',
+  'combat-maxed': 'All Combat Skills 99',
+  'total-2277': 'Max Total Level (2277)',
+  'total-2200': 'Total Level 2200+',
+  'total-2000': 'Total Level 2000+',
+  'total-1500': 'Total Level 1500+',
+  'totalxp-200m': '200m Total XP',
+  'totalxp-100m': '100m Total XP',
+  'totalxp-50m': '50m Total XP',
+  'totalxp-10m': '10m Total XP',
+  'xp-billionaire': '1b Total XP',
+  'xp-millionaire': '1m Total XP',
+  'tier-grandmaster': 'Grandmaster Tier',
+  'tier-master': 'Master Tier',
+  'tier-diamond': 'Diamond Tier',
+  'tier-platinum': 'Platinum Tier',
+  'tier-gold': 'Gold Tier',
+  'tier-silver': 'Silver Tier',
+  'tier-bronze': 'Bronze Tier'
+};
+
+function capitalizeSkillName(skill) {
+  if (!skill) return '';
+  return skill.charAt(0).toUpperCase() + skill.slice(1);
+}
+
+function friendlyAchievementLabel(key) {
+  if (!key) return '';
+  const catalog = Array.isArray(window.ACHIEVEMENT_CATALOG) ? window.ACHIEVEMENT_CATALOG : [];
+  const found = catalog.find((item) => item && item.key === key);
+  if (found && found.label) return found.label;
+  if (ACHIEVEMENT_LABEL_OVERRIDES[key]) return ACHIEVEMENT_LABEL_OVERRIDES[key];
+  let match = /^skill-master-(.+)$/.exec(key);
+  if (match) return `99 ${capitalizeSkillName(match[1])}`;
+  match = /^skill-200m-(.+)$/.exec(key);
+  if (match) return `200m XP in ${capitalizeSkillName(match[1])}`;
+  match = /^totalxp-(\d+)([a-z]+)$/.exec(key);
+  if (match) return `${match[1]}${match[2].toUpperCase()} Total XP`;
+  if (key === 'triple-crown') return 'Three #1 Skill Ranks';
+  if (key === 'crowned-any') return '#1 Rank (Any Skill)';
+  if (key === 'top-10-any') return 'Top 10 (Any Skill)';
+  if (key === 'top-100-any') return 'Top 100 (Any Skill)';
+  if (key === 'gathering-elite') return '90+ Gathering Trio';
+  if (key === 'artisan-elite') return '90+ Artisan Trio';
+  if (key === 'support-elite') return '90+ Support Trio';
+  if (key === 'balanced') return 'Balanced Skill Spread';
+  if (key === 'glass-cannon') return 'Glass Cannon Build';
+  if (key === 'tank') return 'Tank Build';
+  if (key === 'skiller') return 'Skiller Build';
+  if (key === 'combat-pure') return 'Combat Pure Build';
+  return key.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function createUsernameLink(username) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'username-link';
+  btn.setAttribute('data-user', username);
+  btn.textContent = username;
+  return btn;
+}
+
+function createTierBadge(player) {
+  const tier = player?.tier;
+  if (!tier) return null;
+  const badge = document.createElement('span');
+  badge.className = `tier-badge tier--mini tier-${tier.toLowerCase()}`;
+  badge.textContent = tier;
+  const details = [];
+  if (Number.isFinite(player?.rank)) details.push(`Overall #${player.rank}`);
+  const top1 = Number(player?.tierInfo?.top1Skills || 0);
+  if (top1 > 0) details.push(`#1 in ${top1} skill${top1 === 1 ? '' : 's'}`);
+  if (details.length) badge.setAttribute('data-tooltip', details.join(' • '));
+  return badge;
+}
+
+function createDeltaSpan(value, digits = 0, { compact = false } = {}) {
+  if (!Number.isFinite(value) || value === 0) return null;
+  const span = document.createElement('span');
+  span.className = `trend-delta ${value > 0 ? 'positive' : 'negative'}`;
+  span.textContent = compact ? formatCompactNumber(value) : formatSigned(value, digits);
+  return span;
+}
+
+function describeWatchlistSource(entry) {
+  if (!entry) return '';
+  if (entry.source === 'rare-achievement') return 'Rare unlock';
+  if (entry.source === 'rank-climb') return 'Rank surge';
+  if (entry.source === 'top-tier') return entry.fallback ? 'Top tier (fallback)' : 'Top tier';
+  return 'Auto pick';
+}
+
+let rareBannerInitialized = false;
+
+function buildStatBlock(label, value, deltaEl = null) {
+  const block = el('div', 'flex flex-col gap-1');
+  block.appendChild(el('span', 'text-xs uppercase tracking-wide text-muted', [text(label)]));
+  const row = el('div', 'flex-items-center gap-2 text-lg font-semibold');
+  row.appendChild(text(typeof value === 'string' ? value : String(value)));
+  if (deltaEl) row.appendChild(deltaEl);
+  block.appendChild(row);
+  return block;
+}
+
+function buildOnTheRiseCard(onTheRise) {
+  const card = el('section', 'card home-widget-card');
+  const header = el('div', 'home-widget-header', [
+    el('div', 'flex-items-center gap-2', [text('📈 On the Rise')])
+  ]);
+  const hours = Number(onTheRise?.windowHours);
+  header.appendChild(el('div', 'home-widget-meta', [
+    text(hours ? `Rank climbs across the last ${hours}h` : 'Latest notable rank gains')
+  ]));
+  const body = el('div', 'home-widget-body');
+  const list = el('ul', 'on-rise-list');
+  const entries = Array.isArray(onTheRise?.players) ? onTheRise.players : [];
+  if (!entries.length) {
+    list.appendChild(el('li', 'on-rise-empty', [text('No major rank climbs detected yet.')]));
+  } else {
+    entries.forEach((player) => {
+      const li = el('li', 'on-rise-item');
+      const main = el('div', 'on-rise-item-main');
+      const nameRow = el('div', 'on-rise-name-row');
+      nameRow.appendChild(createUsernameLink(player.username));
+      const delta = Number(player.delta);
+      if (Number.isFinite(delta) && delta !== 0) {
+        const deltaEl = el('span', 'on-rise-delta', [text(formatSigned(delta))]);
+        nameRow.appendChild(deltaEl);
+      }
+      main.appendChild(nameRow);
+      const metaParts = [];
+      if (Number.isFinite(player.currentRank)) metaParts.push(`Now #${player.currentRank}`);
+      if (Number.isFinite(player.previousRank)) metaParts.push(`from #${player.previousRank}`);
+      if (Number.isFinite(player.totalLevel)) metaParts.push(`Lv ${player.totalLevel.toLocaleString()}`);
+      if (Number.isFinite(player.totalXP)) metaParts.push(`${formatCompactNumber(player.totalXP)} XP`);
+      if (metaParts.length) {
+        main.appendChild(el('div', 'on-rise-meta', [text(metaParts.join(' • '))]));
+      }
+      li.appendChild(main);
+      list.appendChild(li);
+    });
+  }
+  body.appendChild(list);
+  card.appendChild(header);
+  card.appendChild(body);
+  return card;
+}
+
+function buildTrendSummaryCard(summary) {
+  const card = el('section', 'card home-widget-card');
+  const header = el('div', 'home-widget-header', [
+    el('div', 'flex-items-center gap-2', [text('📊 Leaderboard Trends')])
+  ]);
+  if (summary) {
+    const sampleParts = [];
+    if (Number.isFinite(summary.sampleSize)) sampleParts.push(`${summary.sampleSize} players`);
+    if (Number.isFinite(summary.sampleWindowHours)) sampleParts.push(`${summary.sampleWindowHours}h window`);
+    if (sampleParts.length) header.appendChild(el('div', 'home-widget-meta', [text(sampleParts.join(' • '))]));
+  } else {
+    header.appendChild(el('div', 'home-widget-meta', [text('Awaiting recent history')]));
+  }
+  const body = el('div', 'home-widget-body');
+  const list = el('ul', 'home-trends-list');
+  if (!summary) {
+    list.appendChild(el('li', 'home-trend-item', [text('History unavailable yet.')]));
+  } else {
+    const totalPlayers = Number(summary.totalPlayers) || 0;
+    const playersDelta = createDeltaSpan(summary.totalPlayersChange24h, 0, { compact: true });
+    const totalRow = el('li', 'home-trend-item');
+    totalRow.appendChild(el('span', 'home-trend-label', [text('Total players')]));
+    const totalValue = el('span', 'home-trend-value', [text(totalPlayers.toLocaleString())]);
+    if (playersDelta) totalValue.appendChild(playersDelta);
+    totalRow.appendChild(totalValue);
+    list.appendChild(totalRow);
+
+    const avgLevel = summary.avgTotalLevel?.current;
+    const levelRow = el('li', 'home-trend-item');
+    levelRow.appendChild(el('span', 'home-trend-label', [text('Avg total level')]));
+    const levelValue = el('span', 'home-trend-value', [
+      text(Number.isFinite(avgLevel) ? avgLevel.toFixed(1) : '—')
+    ]);
+    const levelDelta = createDeltaSpan(summary.avgTotalLevel?.change, 1);
+    if (levelDelta) levelValue.appendChild(levelDelta);
+    levelRow.appendChild(levelValue);
+    list.appendChild(levelRow);
+
+    const avgXp = summary.avgTotalXP?.current;
+    const xpRow = el('li', 'home-trend-item');
+    xpRow.appendChild(el('span', 'home-trend-label', [text('Avg total XP')]));
+    const xpValue = el('span', 'home-trend-value', [
+      text(Number.isFinite(avgXp) ? formatCompactNumber(avgXp) : '—')
+    ]);
+    const xpDelta = createDeltaSpan(summary.avgTotalXP?.change, 0, { compact: true });
+    if (xpDelta) xpValue.appendChild(xpDelta);
+    xpRow.appendChild(xpValue);
+    list.appendChild(xpRow);
+  }
+  body.appendChild(list);
+  card.appendChild(header);
+  card.appendChild(body);
+  return card;
+}
+
+function buildWeeklyRarestCard(weeklyRarest) {
+  const card = el('section', 'card home-widget-card');
+  const header = el('div', 'home-widget-header', [
+    el('div', 'flex-items-center gap-2', [text('🏅 Weekly Rarest Unlock')])
+  ]);
+  header.appendChild(el('div', 'home-widget-meta', [
+    text(weeklyRarest ? `Window: last ${weeklyRarest.windowDays || 7} days` : 'Watching rare achievement unlocks')
+  ]));
+  card.appendChild(header);
+  const body = el('div', 'home-widget-body');
+  if (!weeklyRarest) {
+    body.appendChild(el('div', 'weekly-rarest-empty', [text('No rare achievements unlocked this week yet.')]));
+  } else {
+    const title = friendlyAchievementLabel(weeklyRarest.key) || weeklyRarest.key;
+    body.appendChild(el('div', 'text-base font-semibold', [text(title)]));
+    const statsParts = [];
+    if (Number.isFinite(weeklyRarest.globalCount)) statsParts.push(`${weeklyRarest.globalCount.toLocaleString()} total unlocks`);
+    if (Number.isFinite(weeklyRarest.weeklyCount)) statsParts.push(`${weeklyRarest.weeklyCount} this week`);
+    if (Number.isFinite(weeklyRarest.prevalencePct)) statsParts.push(`≈ ${formatPercentage(weeklyRarest.prevalencePct, 3)} of players`);
+    if (weeklyRarest.rarity) statsParts.push(`Rarity: ${weeklyRarest.rarity}`);
+    if (statsParts.length) body.appendChild(el('div', 'home-widget-meta', [text(statsParts.join(' • '))]));
+
+    const list = el('ul', 'weekly-rarest-unlocks');
+    const recent = Array.isArray(weeklyRarest.recentUnlocks) ? weeklyRarest.recentUnlocks : [];
+    if (!recent.length) {
+      list.appendChild(el('li', 'weekly-rarest-empty', [text('No unlocks recorded in the last few days.')]));
+    } else {
+      recent.forEach((unlock) => {
+        const item = el('li', 'weekly-rarest-player');
+        item.appendChild(createUsernameLink(unlock.username));
+        const timeEl = document.createElement('time');
+        const ts = unlock.timestamp ? new Date(unlock.timestamp) : null;
+        if (ts && !Number.isNaN(ts.getTime())) {
+          timeEl.dateTime = ts.toISOString();
+          timeEl.textContent = formatRelativeTime(ts.getTime());
+          timeEl.setAttribute('title', ts.toLocaleString());
+        } else {
+          timeEl.textContent = '—';
+        }
+        item.appendChild(timeEl);
+        list.appendChild(item);
+      });
+    }
+    body.appendChild(list);
+  }
+  card.appendChild(body);
+  return card;
+}
+
+function buildWatchlistCard(watchlist) {
+  const card = el('section', 'card home-widget-card watchlist-card');
+  const header = el('div', 'home-widget-header', [
+    el('div', 'flex-items-center gap-2', [text('🕵️ Auto Watchlist')])
+  ]);
+  const generated = Number(watchlist?.generatedAt);
+  const metaParts = [];
+  if (generated) metaParts.push(`Updated ${formatRelativeTime(generated)}`);
+  if (Number.isFinite(watchlist?.windowHours)) metaParts.push(`Window ${watchlist.windowHours}h`);
+  if (Number.isFinite(watchlist?.totalPlayers)) metaParts.push(`${watchlist.totalPlayers.toLocaleString()} players tracked`);
+  header.appendChild(el('div', 'home-widget-meta', [text(metaParts.length ? metaParts.join(' • ') : 'Auto-curated from leaderboard activity')]));
+  card.appendChild(header);
+
+  if (watchlist?.sources) {
+    const { rare = 0, climbers = 0, anchors = 0 } = watchlist.sources;
+    const summary = [];
+    if (rare) summary.push(`${rare} rare`);
+    if (climbers) summary.push(`${climbers} climbers`);
+    if (anchors) summary.push(`${anchors} anchors`);
+    if (summary.length) card.appendChild(el('div', 'watchlist-actions', [text(`Sources: ${summary.join(' • ')}`)]));
+  }
+
+  const list = el('ul', 'watchlist-list');
+  const tracked = Array.isArray(watchlist?.tracked) ? watchlist.tracked : [];
+  if (!tracked.length) {
+    list.appendChild(el('li', 'watchlist-empty', [text(watchlist?.message || 'No notable players detected yet.')]));
+  } else {
+    tracked.forEach((entry) => {
+      const li = el('li', 'watchlist-player');
+      const topRow = el('div', 'watchlist-player-top');
+      topRow.appendChild(createUsernameLink(entry.username));
+      const badge = createTierBadge(entry);
+      if (badge) topRow.appendChild(badge);
+      if (entry.source) {
+        const tag = el('span', 'watchlist-tag', [text(describeWatchlistSource(entry))]);
+        topRow.appendChild(tag);
+      }
+      if (Number.isFinite(entry.delta) && entry.delta > 0) {
+        topRow.appendChild(el('span', 'watchlist-delta', [text(formatSigned(entry.delta))]));
+      }
+      li.appendChild(topRow);
+
+      const reasonText = entry.reason || (entry.achievementKey ? friendlyAchievementLabel(entry.achievementKey) : '') || describeWatchlistSource(entry);
+      if (reasonText) li.appendChild(el('div', 'watchlist-reason', [text(reasonText)]));
+
+      const metaParts = [];
+      if (Number.isFinite(entry.rank)) metaParts.push(`Rank #${entry.rank}`);
+      if (Number.isFinite(entry.previousRank)) metaParts.push(`Prev #${entry.previousRank}`);
+      if (entry.tier && !badge) metaParts.push(entry.tier);
+      if (metaParts.length) li.appendChild(el('div', 'watchlist-meta', [text(metaParts.join(' • '))]));
+
+      if (entry.happenedAt) {
+        const ts = new Date(entry.happenedAt);
+        if (!Number.isNaN(ts.getTime())) {
+          const when = el('div', 'watchlist-status', [text(`Last event ${formatRelativeTime(ts.getTime())}`)]);
+          when.setAttribute('title', ts.toLocaleString());
+          li.appendChild(when);
+        }
+      }
+
+      list.appendChild(li);
+    });
+  }
+  card.appendChild(list);
+  if (watchlist?.message && tracked.length) {
+    card.appendChild(el('div', 'watchlist-more', [text(watchlist.message)]));
+  }
+  return card;
+}
+
+function buildLeaderboardTable(players) {
+  const wrapper = el('div', 'osrs-table home-leaderboard');
+  const scroll = el('div', 'table-scroll');
+  const table = document.createElement('table');
+  table.innerHTML = `
+      <thead>
+        <tr>
+          <th class="text-left">Rank</th>
+          <th class="text-left">Player</th>
+          <th class="text-center">Total Level</th>
+          <th class="text-right">Total XP</th>
+          <th class="text-right">Last Update</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    `;
+  const tbody = table.querySelector('tbody');
+  if (!players || !players.length) {
+    const row = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = 5;
+    cell.className = 'text-center py-6 text-muted';
+    cell.textContent = 'No leaderboard data available.';
+    row.appendChild(cell);
+    tbody.appendChild(row);
+  } else {
+    players.forEach((player) => {
+      const tr = document.createElement('tr');
+      tr.classList.add('top-player-row');
+      if (player.rank === 1) tr.classList.add('rank-1');
+      else if (player.rank === 2) tr.classList.add('rank-2');
+      else if (player.rank === 3) tr.classList.add('rank-3');
+
+      const rankCell = document.createElement('td');
+      rankCell.className = 'text-left insight-rank';
+      rankCell.textContent = Number.isFinite(player.rank) ? `#${player.rank}` : '—';
+      tr.appendChild(rankCell);
+
+      const playerCell = document.createElement('td');
+      playerCell.className = 'text-left';
+      playerCell.appendChild(createUsernameLink(player.username));
+      const badge = createTierBadge(player);
+      if (badge) playerCell.appendChild(badge);
+      const metaParts = [];
+      const top1 = Number(player?.tierInfo?.top1Skills || 0);
+      if (top1 > 0) metaParts.push(`#1 in ${top1} skill${top1 === 1 ? '' : 's'}`);
+      if (player.archetype) metaParts.push(player.archetype.replace(/-/g, ' '));
+      if (metaParts.length) {
+        playerCell.appendChild(el('div', 'text-xs text-muted flex gap-2 flex-wrap mt-1', [text(metaParts.join(' • '))]));
+      }
+      tr.appendChild(playerCell);
+
+      const levelCell = document.createElement('td');
+      levelCell.className = 'text-center skill-level';
+      levelCell.textContent = Number.isFinite(player.totalLevel) ? player.totalLevel.toLocaleString() : '—';
+      tr.appendChild(levelCell);
+
+      const xpCell = document.createElement('td');
+      xpCell.className = 'text-right skill-xp';
+      xpCell.textContent = Number.isFinite(player.totalXP) ? player.totalXP.toLocaleString() : '—';
+      tr.appendChild(xpCell);
+
+      const updatedCell = document.createElement('td');
+      updatedCell.className = 'text-right text-sm text-muted';
+      if (player.updatedAt) {
+        const ts = new Date(player.updatedAt);
+        if (!Number.isNaN(ts.getTime())) {
+          updatedCell.textContent = formatRelativeTime(ts.getTime());
+          updatedCell.setAttribute('title', ts.toLocaleString());
+        } else {
+          updatedCell.textContent = '—';
+        }
+      } else {
+        updatedCell.textContent = '—';
+      }
+      tr.appendChild(updatedCell);
+
+      tbody.appendChild(tr);
+    });
+  }
+  scroll.appendChild(table);
+  wrapper.appendChild(scroll);
+  return wrapper;
+}
+
+async function renderHomeView() {
+  const root = $('#viewRoot');
+  if (!root) return;
+  const extras = document.querySelector('#leftStackExtras');
+  if (extras) extras.innerHTML = '';
+  root.innerHTML = '<div class="card text-center py-6 text-muted">Loading leaderboard…</div>';
+  try {
+    const leaderboard = await loadLeaderboard();
+    const players = Array.isArray(leaderboard?.players) ? leaderboard.players : [];
+    root.innerHTML = '';
+    const container = el('div', 'flex flex-col gap-6');
+
+    const headerCard = el('section', 'card flex flex-col gap-4');
+    const headerRow = el('div', 'flex-between flex-wrap gap-3');
+    headerRow.appendChild(el('h2', 'text-2xl font-bold text-foreground', [text('Overall Leaderboard')]));
+    const generatedAt = Number(leaderboard?.generatedAt);
+    headerRow.appendChild(el('div', 'home-widget-meta', [
+      text(generatedAt ? `Updated ${formatRelativeTime(generatedAt)}` : 'Live snapshot')
+    ]));
+    headerCard.appendChild(headerRow);
+
+    const statsGrid = el('div', 'grid grid-cols-2 md:grid-cols-4 gap-4 text-sm');
+    const totalPlayers = Number(leaderboard?.totalPlayers) || players.length || 0;
+    statsGrid.appendChild(buildStatBlock('Total players', totalPlayers.toLocaleString(),
+      createDeltaSpan(leaderboard?.trendSummary?.totalPlayersChange24h, 0, { compact: true })));
+    const visible = Number(leaderboard?.returned) || players.length;
+    statsGrid.appendChild(buildStatBlock('Visible rows', visible.toLocaleString()));
+    const avgLevel = leaderboard?.trendSummary?.avgTotalLevel?.current;
+    statsGrid.appendChild(buildStatBlock('Avg total level', Number.isFinite(avgLevel) ? avgLevel.toFixed(1) : '—',
+      createDeltaSpan(leaderboard?.trendSummary?.avgTotalLevel?.change, 1)));
+    const avgXp = leaderboard?.trendSummary?.avgTotalXP?.current;
+    statsGrid.appendChild(buildStatBlock('Avg total XP', Number.isFinite(avgXp) ? formatCompactNumber(avgXp) : '—',
+      createDeltaSpan(leaderboard?.trendSummary?.avgTotalXP?.change, 0, { compact: true })));
+    headerCard.appendChild(statsGrid);
+    container.appendChild(headerCard);
+
+    const widgets = el('div', 'home-widgets-grid');
+    widgets.appendChild(buildOnTheRiseCard(leaderboard.onTheRise));
+    widgets.appendChild(buildTrendSummaryCard(leaderboard.trendSummary));
+    widgets.appendChild(buildWeeklyRarestCard(leaderboard.weeklyRarest));
+    widgets.appendChild(buildWatchlistCard(leaderboard.watchlist));
+    container.appendChild(widgets);
+
+    container.appendChild(buildLeaderboardTable(players));
+    root.appendChild(container);
+  } catch (err) {
+    console.error('Failed to render home view', err);
+    const message = err?.message || 'Check the console for more details.';
+    root.innerHTML = `<div class="card text-center py-6"><div class="text-danger text-lg font-semibold">Failed to load leaderboard</div><div class="text-muted mt-2">${message}</div></div>`;
+  }
+  if (!rareBannerInitialized) {
+    initRareBannerRotator();
+    rareBannerInitialized = true;
+  }
+}
 async function computeGlobalAchievementStats(skillRankings, leaderboard) {
   const averages = computeSkillAverages(skillRankings);
   try {
@@ -51,8 +519,10 @@ async function computeGlobalAchievementStats(skillRankings, leaderboard) {
     };
   }
 }
-async function loadLeaderboard(force = !1) {
-  return cache.leaderboard && !force || (cache.leaderboard = await fetchJSON("/api/leaderboard?limit=500")), cache.leaderboard;
+async function loadLeaderboard(force = false) {
+  if (cache.leaderboard && !force) return cache.leaderboard;
+  cache.leaderboard = await fetchJSON(`/api/leaderboard?limit=${LEADERBOARD_LIMIT}`);
+  return cache.leaderboard;
 }
 async function loadUsers(force = !1) {
   return cache.users && !force && Date.now() - cache.usersFetchedAt < 60_000 || (cache.users = await fetchJSON("/api/users"), cache.usersFetchedAt = Date.now()), cache.users;
@@ -62,35 +532,53 @@ async function loadSkillRankings(force = !1) {
 }
 function getUserSkillRank(skillRankings, username, skill) {
   if (!skillRankings || !skillRankings.rankings || !skillRankings.rankings[skill]) return null;
-  let skillData = void 0, playerData = skillRankings.rankings[skill].find((p) => p.username === username);
+  const playerData = skillRankings.rankings[skill].find((p) => p.username === username);
   return playerData ? playerData.rank : null;
 }
 function updateSummary(user, skillRankings) {
-  let rankEl = $("#topRankSummary span"), levelEl = $("#topLevelSummary span");
+  const rankEl = $("#topRankSummary span"), levelEl = $("#topLevelSummary span");
   if (!rankEl || !levelEl) return;
   if (!user) {
-    rankEl.textContent = "Highest rank: —", levelEl.textContent = "Highest level: —";
+    rankEl.textContent = "Highest rank: —";
+    levelEl.textContent = "Highest level: —";
     return;
   }
-  let bestRank = 1 / 0, bestRankSkill = null;
-  if (SKILLS.forEach((s) => {
-    let r = getUserSkillRank(skillRankings, user.username, s);
-    r && r < bestRank && (bestRank = r, bestRankSkill = s);
-  }), bestRankSkill) {
-    let name = bestRankSkill.charAt(0).toUpperCase() + bestRankSkill.slice(1);
+  let bestRank = Infinity;
+  let bestRankSkill = null;
+  SKILLS.forEach((s) => {
+    const r = getUserSkillRank(skillRankings, user.username, s);
+    if (r && r < bestRank) {
+      bestRank = r;
+      bestRankSkill = s;
+    }
+  });
+  if (bestRankSkill) {
+    const name = bestRankSkill.charAt(0).toUpperCase() + bestRankSkill.slice(1);
     rankEl.textContent = `Highest rank: ${name} (#${bestRank})`;
-  } else rankEl.textContent = "Highest rank: —";
-  let bestLevel = -1, bestXp = -1, bestLevelSkill = null;
-  if (SKILLS.forEach((s) => {
-    let skill = user.skills[s], lvl = skill?.level || 1, xp = skill?.xp || 0;
-    (lvl > bestLevel || lvl === bestLevel && xp > bestXp) && (bestLevel = lvl, bestXp = xp, bestLevelSkill = s);
-  }), bestLevelSkill) {
-    let name = bestLevelSkill.charAt(0).toUpperCase() + bestLevelSkill.slice(1);
+  } else {
+    rankEl.textContent = "Highest rank: —";
+  }
+  let bestLevel = -1;
+  let bestXp = -1;
+  let bestLevelSkill = null;
+  SKILLS.forEach((s) => {
+    const skill = user.skills[s];
+    const lvl = skill?.level || 1;
+    const xp = skill?.xp || 0;
+    if (lvl > bestLevel || (lvl === bestLevel && xp > bestXp)) {
+      bestLevel = lvl;
+      bestXp = xp;
+      bestLevelSkill = s;
+    }
+  });
+  if (bestLevelSkill) {
+    const name = bestLevelSkill.charAt(0).toUpperCase() + bestLevelSkill.slice(1);
     levelEl.textContent = `Highest level: ${name} (Lv. ${bestLevel}, ${bestXp.toLocaleString()} XP)`;
-  } else levelEl.textContent = "Highest level: —";
+  } else {
+    levelEl.textContent = "Highest level: —";
+  }
 }
 
-// Compute average level/xp per skill from skillRankings
 function computeSkillAverages(skillRankings) {
   const averages = {};
   try {
@@ -111,7 +599,6 @@ function computeSkillAverages(skillRankings) {
   return averages;
 }
 
-// Local copy of tier inference for client-only usage
 function inferMetaTierWithContextFrontend(user, ctx) {
   try {
     const rank = Number(ctx?.rank) || Infinity;
@@ -142,551 +629,7 @@ function inferMetaTierWithContextFrontend(user, ctx) {
     return { name: 'Novice', ordinal: 7 };
   }
 }
-function renderHomeView() {
-  const root = $("#viewRoot");
-  root.innerHTML = "";
-  const leftExtras = document.querySelector('#leftStackExtras');
-  let watchlistCard = null;
-  let watchlistBody = null;
-  let watchlistList = null;
-  let watchlistStatus = null;
-  let watchlistButton = null;
-  if (leftExtras) {
-    leftExtras.innerHTML = '';
-    watchlistCard = el('section', 'card watchlist-card');
-    watchlistCard.setAttribute('aria-live', 'polite');
-    const header = el('div', 'flex-between items-center gap-2 flex-wrap');
-    const heading = el('h2', 'text-base font-semibold flex-items-center gap-2', [text('👁️ Watchlist')]);
-    const badge = el('span', 'watchlist-badge', [text('Coming soon')]);
-    header.appendChild(heading);
-    header.appendChild(badge);
-    watchlistBody = el('div', 'watchlist-body flex flex-col gap-2');
-    watchlistStatus = el('p', 'watchlist-empty', [text('Keep tabs on favourite players once watchlists launch.')]);
-    watchlistBody.appendChild(watchlistStatus);
-    watchlistList = el('ul', 'watchlist-list');
-    watchlistBody.appendChild(watchlistList);
-    const actions = el('div', 'watchlist-actions');
-    watchlistButton = el('button', 'btn-sm', [text('Add player')]);
-    watchlistButton.disabled = true;
-    watchlistButton.setAttribute('aria-disabled', 'true');
-    watchlistButton.title = 'Watchlist management is coming soon';
-    actions.appendChild(watchlistButton);
-    watchlistCard.appendChild(header);
-    watchlistCard.appendChild(watchlistBody);
-    watchlistCard.appendChild(actions);
-    leftExtras.appendChild(watchlistCard);
-  }
-  try { initRareBannerRotator(); } catch (_) { }
-  const section = el('section', 'flex flex-col gap-6');
-  const headerDiv = el('div', 'flex-between flex-wrap gap-4 items-center');
-  const titleWrap = el('div', 'flex flex-col gap-1');
-  const titleEl = el('h2', 'text-2xl font-bold flex-items-center gap-2 text-foreground', [text('🏆 Overall Leaderboard')]);
-  titleWrap.appendChild(titleEl);
-  headerDiv.appendChild(titleWrap);
-  const statsDiv = el('div', 'flex gap-3 flex-wrap text-muted text-sm items-center');
-  statsDiv.appendChild(el('div', 'badge js-leaderboard-range', [text('Loading…')]));
-  headerDiv.appendChild(statsDiv);
-  section.appendChild(headerDiv);
 
-  function createWidgetCard(title, subtitle) {
-    const card = el('section', 'card home-widget-card');
-    const header = el('div', 'home-widget-header');
-    const headingWrap = el('div', 'flex flex-col gap-1');
-    const headingTitle = el('h3', 'text-lg font-semibold text-foreground', [text(title)]);
-    headingWrap.appendChild(headingTitle);
-    if (subtitle) headingWrap.appendChild(el('p', 'text-xs text-muted', [text(subtitle)]));
-    const meta = el('span', 'home-widget-meta');
-    meta.textContent = '—';
-    header.appendChild(headingWrap);
-    header.appendChild(meta);
-    const body = el('div', 'home-widget-body');
-    card.appendChild(header);
-    card.appendChild(body);
-    return { card, body, meta };
-  }
-
-  const widgetGrid = el('div', 'home-widgets-grid');
-  const onRiseCard = createWidgetCard('📈 On the Rise', 'Players climbing 100+ ranks in the last day');
-  const onRiseMeta = onRiseCard.meta;
-  onRiseMeta.textContent = '24h window';
-  const onRiseList = el('ul', 'on-rise-list');
-  onRiseList.appendChild(el('li', 'on-rise-empty', [text('Loading…')]));
-  onRiseCard.body.appendChild(onRiseList);
-  widgetGrid.appendChild(onRiseCard.card);
-
-  const weeklyCard = createWidgetCard('🧬 Weekly Rarest', 'Rarest achievement unlocked this week');
-  const weeklyMeta = weeklyCard.meta;
-  weeklyMeta.textContent = '7d window';
-  const weeklyBody = el('div', 'weekly-rarest');
-  weeklyBody.appendChild(el('div', 'weekly-rarest-empty', [text('Scanning achievements…')]));
-  weeklyCard.body.appendChild(weeklyBody);
-  widgetGrid.appendChild(weeklyCard.card);
-
-  const trendsCard = createWidgetCard('📊 Trends', 'Snapshot of the top cohort');
-  const trendsMeta = trendsCard.meta;
-  trendsMeta.textContent = 'Updating…';
-  const trendsList = el('ul', 'home-trends-list');
-  trendsList.appendChild(el('li', 'home-trend-item', [
-    el('span', 'home-trend-label', [text('Loading trend data…')])
-  ]));
-  trendsCard.body.appendChild(trendsList);
-  widgetGrid.appendChild(trendsCard.card);
-
-  section.appendChild(widgetGrid);
-
-  const tableWrap = el('div', 'osrs-table home-leaderboard');
-  tableWrap.classList.add('full-width');
-  const scrollWrap = el('div', 'table-scroll');
-  const table = el('table', 'min-w-full leaderboard-table');
-  table.innerHTML = '<thead><tr><th>Rank</th><th class="text-left">Player</th><th>Total Level</th><th>Total Experience</th></tr></thead><tbody></tbody>';
-  scrollWrap.appendChild(table);
-  tableWrap.appendChild(scrollWrap);
-  section.appendChild(tableWrap);
-  root.appendChild(section);
-
-  const tbody = table.querySelector('tbody');
-  tbody.innerHTML = Array.from({ length: 8 }).map(() => (
-    `<tr>
-      <td class="text-center"><div class="skeleton skeleton-line" style="width:40px;margin:0 auto;"></div></td>
-      <td><div class="skeleton skeleton-line" style="width:160px"></div></td>
-      <td class="text-center"><div class="skeleton skeleton-line" style="width:60px;margin:0 auto;"></div></td>
-      <td class="text-right"><div class="skeleton skeleton-line" style="width:120px; margin-left:auto;"></div></td>
-    </tr>`
-  )).join('');
-
-  let page = 1;
-  const controls = el('div', 'flex-between gap-4 flex-wrap text-sm bg-layer2 p-3 rounded border-2 border-border-dark');
-  controls.innerHTML = `
-      <div class="flex items-center gap-2">
-        <button class="btn-sm" data-action="prev">← Prev</button>
-        <button class="btn-sm" data-action="next">Next →</button>
-      </div>
-      <div class="font-semibold">Page <span class="js-page">1</span> / <span class="js-pages">1</span></div>
-      <div class="opacity-70 js-range"></div>
-    `;
-  section.appendChild(controls);
-
-  function renderTrendLine(label, valueText, deltaValue, digits = 0) {
-    const li = el('li', 'home-trend-item');
-    const labelEl = el('span', 'home-trend-label', [text(label)]);
-    const valueWrap = el('span', 'home-trend-value', [text(valueText)]);
-    if (deltaValue !== null && deltaValue !== undefined && Number.isFinite(deltaValue)) {
-      const deltaCls = deltaValue > 0 ? ' positive' : deltaValue < 0 ? ' negative' : '';
-      const deltaSpan = el('span', 'trend-delta' + deltaCls, [text(formatSigned(deltaValue, digits))]);
-      valueWrap.appendChild(deltaSpan);
-    }
-    li.appendChild(labelEl);
-    li.appendChild(valueWrap);
-    return li;
-  }
-
-  let rankingsCache = null;
-  function renderPage(data) {
-    const players = data.players || [];
-    const total = players.length;
-    const totalPages = Math.max(1, Math.ceil(total / 50));
-    if (page > totalPages) page = totalPages;
-    const start = (page - 1) * 50;
-    const slice = players.slice(start, start + 50);
-    tbody.innerHTML = "";
-    if (slice.length) {
-      slice.forEach((p) => {
-        const tr = document.createElement('tr');
-        let rankDisplay = p.rank;
-        if (p.rank === 1) rankDisplay = '🥇 ' + p.rank;
-        else if (p.rank === 2) rankDisplay = '🥈 ' + p.rank;
-        else if (p.rank === 3) rankDisplay = '🥉 ' + p.rank;
-        if (p.rank === 1) tr.classList.add('rank-1');
-        else if (p.rank === 2) tr.classList.add('rank-2');
-        else if (p.rank === 3) tr.classList.add('rank-3');
-        let tierAttrs = '';
-        if (p.tier) {
-          const tip = p.tierInfo && p.tierInfo.top1Skills != null
-            ? `${p.tier} • Overall #${p.rank}${p.tierInfo.top1Skills ? ` • #1 in ${p.tierInfo.top1Skills} skills` : ''}`
-            : p.tier;
-          tierAttrs = ` title="${tip}" data-tooltip="${tip}" aria-label="${p.tier}"`;
-        }
-        const tierBadge = p.tier ? `<span class="tier-badge tier-${p.tier.toLowerCase()} tier--icon-only"${tierAttrs}></span>` : '';
-        tr.innerHTML = `
-              <td class="text-center font-bold">${rankDisplay}</td>
-              <td>
-                  <button class="username-link" data-user="${p.username}" aria-label="View ${p.username} stats">${p.username}</button>
-                  ${tierBadge}
-              </td>
-              <td class="text-center skill-level">${p.totalLevel}</td>
-              <td class="text-right skill-xp">${p.totalXP.toLocaleString()}</td>`;
-        tbody.appendChild(tr);
-        (function (cell, player, rankings, totalPlayers) {
-          try {
-            const wrap = document.createElement('div');
-            wrap.className = 'mini-badges';
-            const add = (textContent, title, extraCls = '') => {
-              const b = document.createElement('span');
-              b.className = 'mini-badge' + (extraCls ? ' ' + extraCls : '');
-              b.textContent = textContent;
-              if (title) b.title = title;
-              wrap.appendChild(b);
-            };
-            let top1 = 0;
-            if (rankings) top1 = buildTop1Counts(rankings).get(player.username) || 0;
-            let tier = player.tier;
-            let inferred = null;
-            if (
-              tier ||
-              (inferred = inferMetaTierWithContextFrontend(player, {
-                rank: player.rank,
-                totalPlayers,
-                top1SkillsCount: top1
-              })),
-              tier = inferred?.name || null,
-              tier && !player.tier
-            ) {
-              const tb = document.createElement('span');
-              tb.className = `tier-badge tier-${tier.toLowerCase()} tier--icon-only`;
-              const tip = `${tier} • Overall #${player.rank}${top1 ? ` • #1 in ${top1} skills` : ''}`;
-              tb.setAttribute('title', tip);
-              tb.setAttribute('data-tooltip', tip);
-              tb.setAttribute('aria-label', tier);
-              cell.appendChild(tb);
-            }
-            deriveAchievementsForPlayer(player, rankings, totalPlayers).slice(0, 3).forEach((achievement) => {
-              const badge = document.createElement('span');
-              badge.className = 'mini-achievement-badge';
-              badge.textContent = achievement.icon;
-              badge.title = `${achievement.label}: ${achievement.desc}`;
-              badge.setAttribute('data-tooltip', `${achievement.label}\n${achievement.desc}`);
-              wrap.appendChild(badge);
-            });
-            let added = 0;
-            if (top1 >= 3 && added < 3) { add('👑 Three #1 Skills', '#1 in 3+ skills', 'mini-badge--highlight'); added++; }
-            else if (top1 >= 1 && added < 3) { add(`🥇 x${top1}`, 'Rank #1 in skills'); added++; }
-            if (player.totalLevel >= 2277 && added < 3) { add('👑 Maxed', 'All skills 99'); added++; }
-            else if (player.totalLevel >= 2000 && added < 3) { add('📈 2k+', 'Total level 2000+'); added++; }
-            if (player.updatedAt && added < 3) {
-              const diffH = (Date.now() - player.updatedAt) / 3600000;
-              if (diffH <= 24) { add('🕒 Today', 'Updated within 24h'); added++; }
-              else if (diffH <= 168) { add('🔄 Week', 'Updated within 7 days'); added++; }
-            }
-            if (wrap.childNodes.length) cell.appendChild(wrap);
-          } catch (_) { }
-        })(tr.children[1], p, rankingsCache, cache.leaderboard && cache.leaderboard.totalPlayers || players.length);
-      });
-    } else {
-      tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-6">No players</td></tr>';
-    }
-    controls.querySelector('.js-page').textContent = String(page);
-    controls.querySelector('.js-pages').textContent = String(totalPages);
-    const rangeStart = total ? start + 1 : 0;
-    const rangeEnd = Math.min(total, start + 50);
-    controls.querySelector('.js-range').textContent = `Showing ${rangeStart}–${rangeEnd} of ${total} (limit 500)`;
-    const pill = statsDiv.querySelector('.js-leaderboard-range');
-    if (pill) pill.textContent = `Players ${rangeStart}–${rangeEnd}`;
-  }
-
-  loadSkillRankings().then((r) => {
-    rankingsCache = r;
-    if (cache.leaderboard) renderPage(cache.leaderboard);
-  }).catch(() => { });
-
-  controls.addEventListener('click', (e) => {
-    const btn = e.target.closest('button[data-action]');
-    if (!btn) return;
-    const act = btn.getAttribute('data-action');
-    if (act === 'prev' && page > 1) {
-      page--;
-      renderPage(cache.leaderboard);
-    } else if (act === 'next') {
-      const maxPages = Math.ceil((cache.leaderboard?.players || []).length / 50) || 1;
-      if (page < maxPages) {
-        page++;
-        renderPage(cache.leaderboard);
-      }
-    }
-  });
-
-  loadLeaderboard().then((data) => {
-    renderPage(data);
-    if (data.totalPlayers > 0) {
-      statsDiv.appendChild(el('div', 'badge', [text(`${data.totalPlayers} total players`)]));
-    }
-    if (data.tiers) {
-      const tiers = data.tiers;
-      ['Grandmaster', 'Master', 'Diamond', 'Platinum', 'Gold', 'Silver', 'Bronze'].forEach((tn) => {
-        if (tiers[tn] > 0) {
-          const pct = data.totalPlayers ? Math.round(tiers[tn] / data.totalPlayers * 1000) / 10 : 0;
-          statsDiv.appendChild(el('div', `badge tier-badge tier-${tn.toLowerCase()}`, [text(`${tn} ${pct}%`)]));
-        }
-      });
-    }
-
-    const onRiseData = data.onTheRise && Array.isArray(data.onTheRise.players) ? data.onTheRise.players : [];
-    if (onRiseList) {
-      onRiseList.innerHTML = '';
-      const windowHours = data.onTheRise?.windowHours;
-      onRiseMeta.textContent = windowHours ? `${windowHours}h window` : '24h window';
-      if (!onRiseData.length) {
-        onRiseList.appendChild(el('li', 'on-rise-empty', [text('No major climbers detected in this window.')]));
-      } else {
-        onRiseData.forEach((entry) => {
-          const li = el('li', 'on-rise-item');
-          const main = el('div', 'on-rise-item-main');
-          const nameRow = el('div', 'on-rise-name-row');
-          const nameBtn = document.createElement('button');
-          nameBtn.className = 'username-link';
-          nameBtn.setAttribute('data-user', entry.username);
-          nameBtn.setAttribute('aria-label', `View ${entry.username} stats`);
-          nameBtn.textContent = entry.username;
-          const deltaSpan = el('span', 'on-rise-delta', [text(`${formatSigned(entry.delta)} ranks`)]);
-          nameRow.appendChild(nameBtn);
-          nameRow.appendChild(deltaSpan);
-          main.appendChild(nameRow);
-          main.appendChild(el('div', 'on-rise-meta', [text(`Now #${entry.currentRank} · Was #${entry.previousRank}`)]));
-          const totalsParts = [];
-          if (Number.isFinite(entry.totalLevel)) totalsParts.push(`Lv ${Number(entry.totalLevel).toLocaleString()}`);
-          if (Number.isFinite(entry.totalXP)) totalsParts.push(`${Number(entry.totalXP).toLocaleString()} XP`);
-          if (totalsParts.length) {
-            main.appendChild(el('div', 'on-rise-meta', [text(totalsParts.join(' • '))]));
-          }
-          li.appendChild(main);
-          onRiseList.appendChild(li);
-        });
-      }
-    }
-
-    if (weeklyBody) {
-      weeklyBody.innerHTML = '';
-      const rare = data.weeklyRarest || null;
-      if (!rare) {
-        weeklyMeta.textContent = '7d window';
-        weeklyBody.appendChild(el('div', 'weekly-rarest-empty', [text('No rare unlocks recorded this week yet.')]));
-      } else {
-        weeklyMeta.textContent = rare.windowDays ? `${rare.windowDays}d window` : 'This week';
-        const catalog = window.ACHIEVEMENT_CATALOG || [];
-        const info = catalog.find((a) => a.key === rare.key) || null;
-        const heading = el('div', 'weekly-rarest-heading');
-        heading.appendChild(el('span', 'weekly-rarest-icon', [text(info?.icon || '🏅')]));
-        const headingText = el('div', 'flex flex-col gap-1');
-        headingText.appendChild(el('span', 'weekly-rarest-title', [text(info?.label || rare.key)]));
-        if (info?.desc) headingText.appendChild(el('span', 'weekly-rarest-desc', [text(info.desc)]));
-        heading.appendChild(headingText);
-        weeklyBody.appendChild(heading);
-        const stats = el('div', 'weekly-rarest-stats');
-        const rarityName = rare.rarity ? rare.rarity.charAt(0).toUpperCase() + rare.rarity.slice(1) : 'Unknown';
-        const rarityLine = el('div', 'weekly-rarest-line', [text('Rarity: ')]);
-        rarityLine.appendChild(el('span', 'weekly-rarest-rarity', [text(rarityName)]));
-        if (rare.prevalencePct !== null && rare.prevalencePct !== undefined) {
-          rarityLine.appendChild(el('span', 'weekly-rarest-pct', [text(` (${formatPercentage(rare.prevalencePct, rare.prevalencePct < 1 ? 2 : 1)} of players)`) ]));
-        }
-        stats.appendChild(rarityLine);
-        if (Number.isFinite(rare.globalCount)) stats.appendChild(el('div', 'weekly-rarest-line', [text(`Global owners: ${rare.globalCount.toLocaleString()}`)]));
-        if (Number.isFinite(rare.weeklyCount)) stats.appendChild(el('div', 'weekly-rarest-line', [text(`Unlocks this week: ${rare.weeklyCount}`)]));
-        weeklyBody.appendChild(stats);
-        const recent = Array.isArray(rare.recentUnlocks) ? rare.recentUnlocks.slice(0, 3) : [];
-        if (recent.length) {
-          const list = el('ul', 'weekly-rarest-unlocks');
-          recent.forEach((unlock) => {
-            const li = el('li', 'weekly-rarest-player');
-            const btn = document.createElement('button');
-            btn.className = 'username-link';
-            btn.setAttribute('data-user', unlock.username);
-            btn.setAttribute('aria-label', `View ${unlock.username} stats`);
-            btn.textContent = unlock.username;
-            li.appendChild(btn);
-            const ts = Date.parse(unlock.timestamp);
-            if (Number.isFinite(ts)) {
-              const timeEl = document.createElement('time');
-              timeEl.dateTime = new Date(ts).toISOString();
-              timeEl.textContent = formatRelativeTime(ts);
-              li.appendChild(timeEl);
-            }
-            list.appendChild(li);
-          });
-          weeklyBody.appendChild(list);
-        }
-      }
-    }
-
-    if (trendsList) {
-      trendsList.innerHTML = '';
-      const summary = data.trendSummary || null;
-      if (!summary) {
-        trendsMeta.textContent = 'No data';
-        trendsList.appendChild(el('li', 'home-trend-item', [
-          el('span', 'home-trend-label', [text('Trend data unavailable')])
-        ]));
-      } else {
-        trendsMeta.textContent = summary.sampleWindowHours ? `${summary.sampleWindowHours}h window` : '24h snapshot';
-        trendsList.appendChild(renderTrendLine('Total players', (summary.totalPlayers || 0).toLocaleString(), summary.totalPlayersChange24h, 0));
-        const sample = summary.sampleSize || 0;
-        const avgLevel = summary.avgTotalLevel?.current || 0;
-        trendsList.appendChild(renderTrendLine(sample ? `Avg total level (top ${sample})` : 'Avg total level', Math.round(avgLevel).toLocaleString(), summary.avgTotalLevel?.change ?? null, 1));
-        const avgXp = summary.avgTotalXP?.current || 0;
-        trendsList.appendChild(renderTrendLine('Avg total XP', formatCompactNumber(avgXp), summary.avgTotalXP?.change ?? null, 0));
-        const topClimber = onRiseData[0];
-        if (topClimber) {
-          const li = el('li', 'home-trend-item');
-          li.appendChild(el('span', 'home-trend-label', [text('Top climber')]));
-          const value = el('span', 'home-trend-value');
-          const btn = document.createElement('button');
-          btn.className = 'username-link';
-          btn.setAttribute('data-user', topClimber.username);
-          btn.setAttribute('aria-label', `View ${topClimber.username} stats`);
-          btn.textContent = topClimber.username;
-          value.appendChild(btn);
-          value.appendChild(el('span', 'trend-delta positive', [text(`${formatSigned(topClimber.delta)} ranks`)]));
-          li.appendChild(value);
-          trendsList.appendChild(li);
-        }
-      }
-    }
-
-    if (watchlistCard) {
-      const watch = data.watchlist || {};
-      const trackedRaw = Array.isArray(watch.tracked) ? watch.tracked : [];
-      const tracked = trackedRaw.map((item) => typeof item === 'string' ? { username: item } : item).filter((item) => item && item.username);
-      watchlistList.innerHTML = '';
-      if (watchlistStatus) {
-        if (tracked.length) {
-          watchlistStatus.textContent = `Tracking ${tracked.length} player${tracked.length === 1 ? '' : 's'} (preview)`;
-        } else {
-          watchlistStatus.textContent = watch.message || 'Watchlist tracking is coming soon.';
-        }
-      }
-      if (tracked.length) {
-        tracked.slice(0, 5).forEach((item) => {
-          const li = el('li', 'watchlist-player');
-          const btn = document.createElement('button');
-          btn.className = 'username-link';
-          btn.setAttribute('data-user', item.username);
-          btn.setAttribute('aria-label', `View ${item.username} stats`);
-          btn.textContent = item.username;
-          li.appendChild(btn);
-          if (item.rank) li.appendChild(el('span', 'watchlist-rank', [text(`#${item.rank}`)]));
-          watchlistList.appendChild(li);
-        });
-        if (tracked.length > 5) {
-          watchlistList.appendChild(el('li', 'watchlist-more', [text(`…and ${tracked.length - 5} more planned slots`)]));
-        }
-      } else {
-        watchlistList.appendChild(el('li', 'watchlist-empty', [text('No tracked players yet. This section will light up soon!')]));
-      }
-    }
-  }).catch((e) => {
-    const htmlLike = /Received HTML|Unexpected content-type/.test(e.message);
-    tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8"><div class="text-danger font-semibold">❌ ${e.message}</div>${htmlLike ? '<div class="mt-4 text-sm text-left max-w-lg mx-auto p-4 bg-layer2 rounded border-l-4 border-accent">⚠️ <strong>Backend not mounted:</strong><br>Verify _worker.js is present at repo root and KV binding HISCORES_KV is configured in Pages project settings. Also ensure deployment finished successfully.<br><br><code class="bg-layer p-1 rounded text-xs">/api/health</code> should return JSON.</div>' : ''}</td></tr>`;
-    if (onRiseList) {
-      onRiseList.innerHTML = '';
-      onRiseMeta.textContent = '—';
-      onRiseList.appendChild(el('li', 'on-rise-empty', [text('Unable to load climb data.')]));
-    }
-    if (weeklyBody) {
-      weeklyBody.innerHTML = '';
-      weeklyMeta.textContent = '—';
-      weeklyBody.appendChild(el('div', 'weekly-rarest-empty', [text('Unable to load rare achievement data.')]));
-    }
-    if (trendsList) {
-      trendsList.innerHTML = '';
-      trendsMeta.textContent = '—';
-      trendsList.appendChild(el('li', 'home-trend-item', [
-        el('span', 'home-trend-label', [text('Trend data unavailable')])
-      ]));
-    }
-    if (watchlistCard) {
-      watchlistList.innerHTML = '';
-      if (watchlistStatus) watchlistStatus.textContent = 'Watchlist data unavailable.';
-      watchlistList.appendChild(el('li', 'watchlist-empty', [text('Watchlist data unavailable. Check back soon.')]));
-    }
-  });
-}
-
-async function loadUsers(force = !1) {
-  return cache.users && !force && Date.now() - cache.usersFetchedAt < 60_000 || (cache.users = await fetchJSON("/api/users"), cache.usersFetchedAt = Date.now()), cache.users;
-}
-async function loadSkillRankings(force = !1) {
-  return cache.skillRankings && !force || (cache.skillRankings = await fetchJSON("/api/skill-rankings")), cache.skillRankings;
-}
-function getUserSkillRank(skillRankings, username, skill) {
-  if (!skillRankings || !skillRankings.rankings || !skillRankings.rankings[skill]) return null;
-  let skillData = void 0, playerData = skillRankings.rankings[skill].find((p) => p.username === username);
-  return playerData ? playerData.rank : null;
-}
-function updateSummary(user, skillRankings) {
-  let rankEl = $("#topRankSummary span"), levelEl = $("#topLevelSummary span");
-  if (!rankEl || !levelEl) return;
-  if (!user) {
-    rankEl.textContent = "Highest rank: —", levelEl.textContent = "Highest level: —";
-    return;
-  }
-  let bestRank = 1 / 0, bestRankSkill = null;
-  if (SKILLS.forEach((s) => {
-    let r = getUserSkillRank(skillRankings, user.username, s);
-    r && r < bestRank && (bestRank = r, bestRankSkill = s);
-  }), bestRankSkill) {
-    let name = bestRankSkill.charAt(0).toUpperCase() + bestRankSkill.slice(1);
-    rankEl.textContent = `Highest rank: ${name} (#${bestRank})`;
-  } else rankEl.textContent = "Highest rank: —";
-  let bestLevel = -1, bestXp = -1, bestLevelSkill = null;
-  if (SKILLS.forEach((s) => {
-    let skill = user.skills[s], lvl = skill?.level || 1, xp = skill?.xp || 0;
-    (lvl > bestLevel || lvl === bestLevel && xp > bestXp) && (bestLevel = lvl, bestXp = xp, bestLevelSkill = s);
-  }), bestLevelSkill) {
-    let name = bestLevelSkill.charAt(0).toUpperCase() + bestLevelSkill.slice(1);
-    levelEl.textContent = `Highest level: ${name} (Lv. ${bestLevel}, ${bestXp.toLocaleString()} XP)`;
-  } else levelEl.textContent = "Highest level: —";
-}
-
-// Compute average level/xp per skill from skillRankings
-function computeSkillAverages(skillRankings) {
-  const averages = {};
-  try {
-    const all = (skillRankings && skillRankings.rankings) || {};
-    (window.SKILLS || []).forEach((s) => {
-      const arr = all[s] || [];
-      if (arr.length) {
-        const totalLvl = arr.reduce((sum, p) => sum + (p.level || 0), 0);
-        const totalXp = arr.reduce((sum, p) => sum + (p.xp || 0), 0);
-        averages[s] = { level: totalLvl / arr.length, xp: totalXp / arr.length };
-      } else {
-        averages[s] = { level: 1, xp: 0 };
-      }
-    });
-  } catch (_) {
-    (window.SKILLS || []).forEach((s) => (averages[s] = { level: 1, xp: 0 }));
-  }
-  return averages;
-}
-
-// Local copy of tier inference for client-only usage
-function inferMetaTierWithContextFrontend(user, ctx) {
-  try {
-    const rank = Number(ctx?.rank) || Infinity;
-    const totalPlayers = Math.max(1, Number(ctx?.totalPlayers) || 1);
-    const top1SkillsCount = Math.max(0, Number(ctx?.top1SkillsCount) || 0);
-    if (rank === 1 || top1SkillsCount >= 3) return { name: 'Grandmaster', ordinal: 0 };
-    if (totalPlayers <= 500) {
-      if (rank <= 2) return { name: 'Master', ordinal: 1 };
-      if (rank <= 5) return { name: 'Diamond', ordinal: 2 };
-      if (rank <= 15) return { name: 'Platinum', ordinal: 3 };
-      if (rank <= Math.ceil(totalPlayers * 0.05)) return { name: 'Gold', ordinal: 4 };
-      if (rank <= Math.ceil(totalPlayers * 0.20)) return { name: 'Silver', ordinal: 5 };
-      if (rank <= Math.ceil(totalPlayers * 0.50)) return { name: 'Bronze', ordinal: 6 };
-    } else {
-      const percentile = rank / totalPlayers;
-      if (percentile <= 0.0001) return { name: 'Master', ordinal: 1 };
-      if (percentile <= 0.001) return { name: 'Diamond', ordinal: 2 };
-      if (percentile <= 0.01) return { name: 'Platinum', ordinal: 3 };
-      if (percentile <= 0.05) return { name: 'Gold', ordinal: 4 };
-      if (percentile <= 0.20) return { name: 'Silver', ordinal: 5 };
-      if (percentile <= 0.50) return { name: 'Bronze', ordinal: 6 };
-    }
-    const total = (window.SKILLS || []).map(s => user?.skills?.[s]?.level || 1).reduce((a, b) => a + b, 0);
-    if (total >= 1700) return { name: 'Expert', ordinal: 5 };
-    if (total >= 900) return { name: 'Adept', ordinal: 6 };
-    return { name: 'Novice', ordinal: 7 };
-  } catch (_) {
-    return { name: 'Novice', ordinal: 7 };
-  }
-}
 async function loadUser(username) {
   return fetchJSON("/api/users/" + encodeURIComponent(username));
 }
