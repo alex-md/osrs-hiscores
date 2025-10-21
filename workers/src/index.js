@@ -50,6 +50,8 @@ const SKILL_RANKINGS_TOP_LIMIT = 100;
 const LEADERBOARD_HISTORY_KEY = 'stats:leaderboard:history';
 const LEADERBOARD_HISTORY_MAX_ENTRIES = 32;
 const LEADERBOARD_HISTORY_PLAYER_LIMIT = 200;
+const WATCHLIST_KEY = 'stats:watchlist:auto';
+const WATCHLIST_MAX_ENTRIES = 8;
 const DAY_MS = 24 * 3600 * 1000;
 const WEEK_MS = 7 * 24 * 3600 * 1000;
 
@@ -312,6 +314,236 @@ function computeWeeklyRarest(eventsPayload, prevalencePayload, now = Date.now())
         prevalencePct: rarity.pct,
         windowDays: 7
     };
+}
+
+const ACHIEVEMENT_LABEL_OVERRIDES = {
+    'overall-rank-1': 'Overall Rank #1',
+    'first-99-any': 'First 99 (Any Skill)',
+    'first-top1-any': 'First #1 (Any Skill)',
+    'maxed-account': 'Maxed Account',
+    'combat-maxed': 'All Combat Skills 99',
+    'total-2277': 'Max Total Level (2277)',
+    'total-2200': 'Total Level 2200+',
+    'total-2000': 'Total Level 2000+',
+    'total-1500': 'Total Level 1500+',
+    'totalxp-200m': '200m Total XP',
+    'totalxp-100m': '100m Total XP',
+    'totalxp-50m': '50m Total XP',
+    'totalxp-10m': '10m Total XP',
+    'xp-billionaire': '1b Total XP',
+    'xp-millionaire': '1m Total XP',
+    'tier-grandmaster': 'Grandmaster Tier',
+    'tier-master': 'Master Tier',
+    'tier-diamond': 'Diamond Tier',
+    'tier-platinum': 'Platinum Tier',
+    'tier-gold': 'Gold Tier',
+    'tier-silver': 'Silver Tier',
+    'tier-bronze': 'Bronze Tier'
+};
+
+function capitalizeSkillName(skill) {
+    if (!skill) return '';
+    return skill.charAt(0).toUpperCase() + skill.slice(1);
+}
+
+function friendlyAchievementLabel(key) {
+    if (!key) return '';
+    if (ACHIEVEMENT_LABEL_OVERRIDES[key]) return ACHIEVEMENT_LABEL_OVERRIDES[key];
+    let match = /^skill-master-(.+)$/.exec(key);
+    if (match) return `99 ${capitalizeSkillName(match[1])}`;
+    match = /^skill-200m-(.+)$/.exec(key);
+    if (match) return `200m XP in ${capitalizeSkillName(match[1])}`;
+    match = /^totalxp-(\d+)([a-z]+)$/.exec(key);
+    if (match) return `${match[1]}${match[2].toUpperCase()} Total XP`;
+    if (key === 'triple-crown') return 'Three #1 Skill Ranks';
+    if (key === 'crowned-any') return '#1 Rank (Any Skill)';
+    if (key === 'top-10-any') return 'Top 10 (Any Skill)';
+    if (key === 'top-100-any') return 'Top 100 (Any Skill)';
+    if (key === 'gathering-elite') return '90+ Gathering Trio';
+    if (key === 'artisan-elite') return '90+ Artisan Trio';
+    if (key === 'support-elite') return '90+ Support Trio';
+    if (key === 'balanced') return 'Balanced Skill Spread';
+    if (key === 'glass-cannon') return 'Glass Cannon Build';
+    if (key === 'tank') return 'Tank Build';
+    if (key === 'skiller') return 'Skiller Build';
+    if (key === 'combat-pure') return 'Combat Pure Build';
+    return key
+        .replace(/[-_]/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function isoFromValue(value) {
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'string') {
+        const parsed = Date.parse(value);
+        if (Number.isFinite(parsed)) {
+            return new Date(parsed).toISOString().replace(/\.\d{3}Z$/, 'Z');
+        }
+        return null;
+    }
+    const num = Number(value);
+    if (!Number.isFinite(num)) return null;
+    return new Date(num).toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
+function buildWatchlistFromData(leaderboard, { onTheRise, weeklyRarest, now = Date.now() } = {}) {
+    const players = Array.isArray(leaderboard?.players) ? leaderboard.players : [];
+    const playerMap = new Map();
+    for (const p of players) {
+        const lower = String(p?.username || '').toLowerCase();
+        if (lower) playerMap.set(lower, p);
+    }
+    const tracked = [];
+    const seen = new Set();
+    const counts = { rare: 0, climbers: 0, anchors: 0, fallback: 0 };
+
+    const pushEntry = (entry) => {
+        if (!entry) return false;
+        const rawName = String(entry.username || '').trim();
+        if (!rawName) return false;
+        const lower = rawName.toLowerCase();
+        if (seen.has(lower) || tracked.length >= WATCHLIST_MAX_ENTRIES) {
+            return tracked.length < WATCHLIST_MAX_ENTRIES;
+        }
+        const player = playerMap.get(lower);
+        const source = entry.source || 'top-tier';
+        const rankValue = Number.isFinite(entry.rank) ? Number(entry.rank)
+            : Number.isFinite(player?.rank) ? Number(player.rank) : null;
+        const tierValue = entry.tier || player?.tier || null;
+        const item = {
+            username: rawName,
+            rank: rankValue,
+            tier: tierValue,
+            source,
+            reason: entry.reason || null,
+            happenedAt: isoFromValue(entry.happenedAt) || null,
+            delta: Number.isFinite(entry.delta) ? Number(entry.delta) : null,
+            previousRank: Number.isFinite(entry.previousRank) ? Number(entry.previousRank) : null,
+            achievementKey: entry.achievementKey || null,
+            fallback: entry.fallback === true
+        };
+        if (!item.happenedAt) {
+            const ts = entry.updatedAt ?? player?.updatedAt;
+            item.happenedAt = isoFromValue(ts);
+        }
+        tracked.push(item);
+        seen.add(lower);
+        if (source === 'rare-achievement') counts.rare++;
+        else if (source === 'rank-climb') counts.climbers++;
+        else if (source === 'top-tier') {
+            counts.anchors++;
+            if (entry.fallback) counts.fallback++;
+        } else {
+            counts.fallback++;
+        }
+        return tracked.length < WATCHLIST_MAX_ENTRIES;
+    };
+
+    if (weeklyRarest && Array.isArray(weeklyRarest.recentUnlocks) && weeklyRarest.recentUnlocks.length) {
+        const label = friendlyAchievementLabel(weeklyRarest.key) || 'Unlocked a rare achievement';
+        const unlocks = weeklyRarest.recentUnlocks.slice(0, 4);
+        for (const unlock of unlocks) {
+            pushEntry({
+                username: unlock?.username,
+                source: 'rare-achievement',
+                reason: label,
+                happenedAt: unlock?.timestamp,
+                achievementKey: weeklyRarest.key
+            });
+        }
+    }
+
+    if (onTheRise && Array.isArray(onTheRise.players) && onTheRise.players.length) {
+        for (const climb of onTheRise.players.slice(0, 4)) {
+            const delta = Number(climb?.delta) || 0;
+            if (delta <= 0) continue;
+            pushEntry({
+                username: climb?.username,
+                rank: climb?.currentRank,
+                previousRank: climb?.previousRank,
+                delta,
+                source: 'rank-climb',
+                reason: `Climbed ${delta} ranks`
+            });
+        }
+    }
+
+    if (tracked.length < WATCHLIST_MAX_ENTRIES && players.length) {
+        const tierPriority = new Set(['Grandmaster', 'Master', 'Diamond', 'Platinum']);
+        for (const player of players) {
+            if (tracked.length >= WATCHLIST_MAX_ENTRIES) break;
+            if (!tierPriority.has(player?.tier)) continue;
+            pushEntry({
+                username: player?.username,
+                rank: player?.rank,
+                tier: player?.tier,
+                source: 'top-tier',
+                reason: `Holding overall rank #${player?.rank ?? ''}`,
+                updatedAt: player?.updatedAt
+            });
+        }
+    }
+
+    if (tracked.length < WATCHLIST_MAX_ENTRIES && players.length) {
+        for (const player of players) {
+            if (tracked.length >= WATCHLIST_MAX_ENTRIES) break;
+            pushEntry({
+                username: player?.username,
+                rank: player?.rank,
+                tier: player?.tier,
+                source: 'top-tier',
+                reason: `Overall rank #${player?.rank ?? ''}`,
+                updatedAt: player?.updatedAt,
+                fallback: true
+            });
+        }
+    }
+
+    const totalPlayers = Number(leaderboard?.totalPlayers) || players.length || 0;
+    const windowHours = Number.isFinite(onTheRise?.windowHours) ? Number(onTheRise.windowHours) : null;
+    return {
+        generatedAt: now,
+        totalPlayers,
+        windowHours,
+        tracked,
+        sources: { rare: counts.rare, climbers: counts.climbers, anchors: counts.anchors, fallback: counts.fallback },
+        message: tracked.length ? 'Auto-curated from recent leaderboard activity.' : 'No notable players detected yet.'
+    };
+}
+
+async function fetchWeeklyRarest(env) {
+    try {
+        const [eventsRaw, prevalenceRaw] = await Promise.all([
+            env.HISCORES_KV.get('ach:events'),
+            env.HISCORES_KV.get('stats:achievements:prevalence')
+        ]);
+        let eventsPayload = null;
+        let prevalencePayload = null;
+        if (eventsRaw) {
+            try { eventsPayload = JSON.parse(eventsRaw); }
+            catch (_) { eventsPayload = null; }
+        }
+        if (prevalenceRaw) {
+            try { prevalencePayload = JSON.parse(prevalenceRaw); }
+            catch (_) { prevalencePayload = null; }
+        }
+        return computeWeeklyRarest(eventsPayload, prevalencePayload);
+    } catch (_) {
+        return null;
+    }
+}
+
+async function readStoredWatchlist(env) {
+    try {
+        const raw = await env.HISCORES_KV.get(WATCHLIST_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') return null;
+        if (parsed.tracked && !Array.isArray(parsed.tracked)) return null;
+        return parsed;
+    } catch (_) {
+        return null;
+    }
 }
 
 // HTTP cache wrapper using Cloudflare cache API when available; falls back to direct handler
@@ -693,7 +925,17 @@ async function persistLeaderboardSnapshots(env, users, ctx = null, options = {})
     const skillRankings = buildSkillRankingsSnapshot(userList, skillTop);
     await env.HISCORES_KV.put('stats:leaderboard:top', JSON.stringify(leaderboard));
     await env.HISCORES_KV.put('stats:leaderboard:skills', JSON.stringify(skillRankings));
-    try { await updateLeaderboardHistory(env, leaderboard); } catch (_) { }
+    let history = null;
+    try { history = await updateLeaderboardHistory(env, leaderboard); }
+    catch (_) { history = null; }
+    try {
+        const onTheRise = computeOnTheRiseFromHistory(leaderboard.players || [], history || []);
+        const weeklyRarest = await fetchWeeklyRarest(env);
+        const watchlist = buildWatchlistFromData(leaderboard, { onTheRise, weeklyRarest, now: Date.now() });
+        await env.HISCORES_KV.put(WATCHLIST_KEY, JSON.stringify(watchlist));
+    } catch (err) {
+        console.log('watchlist persist error:', String(err));
+    }
     return { leaderboard, skillRankings };
 }
 
@@ -718,22 +960,31 @@ async function handleLeaderboard(env, url) {
     const history = await getLeaderboardHistory(env);
     const onTheRise = computeOnTheRiseFromHistory(payload.players || [], history);
     const trendSummary = computeTrendSummaryFromHistory(payload, history);
-    let weeklyRarest = null;
-    try {
-        const [eventsRaw, prevalenceRaw] = await Promise.all([
-            env.HISCORES_KV.get('ach:events'),
-            env.HISCORES_KV.get('stats:achievements:prevalence')
-        ]);
-        let eventsPayload = null;
-        let prevalencePayload = null;
-        if (eventsRaw) {
-            try { eventsPayload = JSON.parse(eventsRaw); } catch (_) { eventsPayload = null; }
+    const weeklyRarest = await fetchWeeklyRarest(env);
+    const now = Date.now();
+    let watchlist = buildWatchlistFromData(payload, { onTheRise, weeklyRarest, now });
+    let storedWatchlist = null;
+    try { storedWatchlist = await readStoredWatchlist(env); }
+    catch (_) { storedWatchlist = null; }
+    if ((!watchlist || !Array.isArray(watchlist.tracked) || watchlist.tracked.length === 0) && storedWatchlist) {
+        watchlist = storedWatchlist;
+    } else if (watchlist && watchlist.tracked && watchlist.tracked.length) {
+        const storedTs = Number(storedWatchlist?.generatedAt) || 0;
+        if (!storedWatchlist || (now - storedTs) > 5 * 60 * 1000) {
+            try { await env.HISCORES_KV.put(WATCHLIST_KEY, JSON.stringify(watchlist)); }
+            catch (_) { /* ignore */ }
         }
-        if (prevalenceRaw) {
-            try { prevalencePayload = JSON.parse(prevalenceRaw); } catch (_) { prevalencePayload = null; }
-        }
-        weeklyRarest = computeWeeklyRarest(eventsPayload, prevalencePayload);
-    } catch (_) { weeklyRarest = null; }
+    }
+    if (!watchlist) {
+        watchlist = { generatedAt: now, tracked: [], message: 'No watchlist data available.' };
+    }
+    if (!Number.isFinite(Number(watchlist.windowHours)) && Number.isFinite(onTheRise?.windowHours)) {
+        watchlist.windowHours = Number(onTheRise.windowHours);
+    }
+    if (!Number.isFinite(Number(watchlist.totalPlayers))) {
+        const playerCount = Array.isArray(payload.players) ? payload.players.length : players.length;
+        watchlist.totalPlayers = payload.totalPlayers || playerCount || 0;
+    }
     return jsonResponse({
         generatedAt: payload.generatedAt || Date.now(),
         totalPlayers: payload.totalPlayers || 0,
@@ -744,11 +995,7 @@ async function handleLeaderboard(env, url) {
         onTheRise,
         trendSummary,
         weeklyRarest,
-        watchlist: {
-            enabled: false,
-            tracked: [],
-            message: 'Watchlist tracking is coming soon'
-        }
+        watchlist
     }, { headers: { 'cache-control': 'public, max-age=30' } });
 }
 

@@ -5,6 +5,7 @@ export const SYNC_SNAPSHOT_VERSION = 1;
 export const DEFAULT_SNAPSHOT_KEYS = [
     { key: 'stats:leaderboard:top', required: true },
     { key: 'stats:leaderboard:skills', required: true },
+    { key: 'stats:watchlist:auto', required: false },
     { key: 'stats:achievements:prevalence', required: true },
     { key: 'ach:firsts:v2', required: true },
     { key: 'ach:firsts', required: false },
@@ -44,7 +45,7 @@ export function validateSnapshotObject(snapshot) {
             if (!item || typeof item !== 'string') throw new Error('Snapshot.keys must be strings');
         }
     }
-    return validateSnapshotObject(snapshot);
+    return snapshot;
 }
 
 export async function buildSnapshot(env, options = {}) {
