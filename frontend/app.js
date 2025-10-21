@@ -366,10 +366,11 @@ function buildLeaderboardTable(players) {
   const wrapper = el('div', 'osrs-table home-leaderboard');
   const scroll = el('div', 'table-scroll');
   const table = document.createElement('table');
+  table.className = 'leaderboard-table';
   table.innerHTML = `
       <thead>
         <tr>
-          <th class="text-left">Rank</th>
+          <th class="text-center">Rank</th>
           <th class="text-left">Player</th>
           <th class="text-center">Total Level</th>
           <th class="text-right">Total XP</th>
@@ -396,7 +397,7 @@ function buildLeaderboardTable(players) {
       else if (player.rank === 3) tr.classList.add('rank-3');
 
       const rankCell = document.createElement('td');
-      rankCell.className = 'text-left insight-rank';
+      rankCell.className = 'text-center insight-rank';
       rankCell.textContent = Number.isFinite(player.rank) ? `#${player.rank}` : '—';
       tr.appendChild(rankCell);
 

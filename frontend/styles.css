@@ -1264,6 +1264,12 @@ table th {
   text-align: right
 }
 
+.leaderboard-table td:nth-child(5),
+.leaderboard-table th:nth-child(5) {
+  width: 140px;
+  text-align: right
+}
+
 .leaderboard-table td:nth-child(2),
 .leaderboard-table th:nth-child(2) {
   width: auto
@@ -2606,6 +2612,11 @@ footer.site-footer .mt-2 {
 
 .flex-items-center.gap-4 {
   gap: 1rem
+}
+
+.text-xs {
+  font-size: 0.75rem;
+  line-height: 1.1rem
 }
 
 .text-sm {
