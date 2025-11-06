@@ -293,7 +293,7 @@ function buildWeeklyRarestCard(weeklyRarest) {
 }
 
 function buildWatchlistCard(watchlist) {
-  const card = el('section', 'card home-widget-card watchlist-card');
+  const card = el('section', 'watchlist-card');
   const header = el('div', 'home-widget-header', [
     el('div', 'flex-items-center gap-2', [text('🕵️ Auto Watchlist')])
   ]);
