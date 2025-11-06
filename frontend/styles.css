@@ -358,12 +358,12 @@ h2 {
 
 .watchlist-list {
     list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: .4rem;
+    margin: 0 auto;
     font-size: .9rem;
+    display: grid;
+    justify-content: center;
+    align-items: baseline;
+    justify-items: stretch;
 }
 
 .watchlist-empty {
@@ -373,16 +373,20 @@ h2 {
 
 .watchlist-player {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: .3rem;
-    padding: .15rem 0;
+    gap: .4em;
+    padding: 1em;
+    /* flex-direction: column; */
+    /* min-width: 100vw; */
+    /* width: 100vw; */
+    border-top-width: thin;
 }
 
 .watchlist-player-top {
     display: flex;
-    align-items: center;
-    gap: .4rem;
+    /* gap: .4rem; */
+    justify-content: space-evenly;
+    flex-wrap: nowrap;
+    flex-direction: column;
 }
 
 .watchlist-rank {
@@ -694,6 +698,7 @@ h2 {
 .tier-badge.tier--mini.tier-grandmaster {
     border-color: gold;
     color: gold;
+    visibility: hidden;
 }
 
 .tier-badge.tier--mini.tier-master {
@@ -1037,6 +1042,7 @@ input[type=number], input[type=text], select {
 .username-link+.tier-badge {
     margin-left: .4rem;
     vertical-align: middle;
+    visibility: hidden;
 }
 
 .username-link:hover {
