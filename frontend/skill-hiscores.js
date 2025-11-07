@@ -17,6 +17,112 @@ let maxLevel = null;
 let minXp = null;
 let maxXp = null;
 
+const describeRelativeTime = window.describeRelativeTime || ((ts) => {
+  if (!Number.isFinite(ts)) return null;
+  const diff = Date.now() - Number(ts);
+  if (!Number.isFinite(diff) || diff < 0) return null;
+  const seconds = Math.round(diff / 1000);
+  if (seconds < 5) return 'just now';
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.round(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  const years = Math.round(days / 365);
+  return `${years}y ago`;
+});
+
+function updateSkillHero(rows, data) {
+  const total = Array.isArray(rows) ? rows.length : 0;
+  const totalEl = document.getElementById('skillLeadersCount');
+  if (totalEl) totalEl.textContent = total ? total.toLocaleString() : '—';
+
+  const top = Array.isArray(rows) && rows.length ? rows[0] : null;
+  const playerEl = document.getElementById('skillTopPlayer');
+  if (playerEl) playerEl.textContent = top ? top.username : '—';
+  const levelEl = document.getElementById('skillTopLevel');
+  if (levelEl) levelEl.textContent = top ? `Lv ${top.level}` : '—';
+  const xpEl = document.getElementById('skillTopXp');
+  if (xpEl) xpEl.textContent = top ? `${top.xp.toLocaleString()} XP` : '—';
+
+  const spotlightWrap = document.getElementById('skillHeroSpotlight');
+  const spotlightName = document.getElementById('skillHeroHighlightName');
+  const spotlightMeta = document.getElementById('skillHeroHighlightMeta');
+  if (spotlightWrap && spotlightName && spotlightMeta) {
+    if (top) {
+      spotlightName.textContent = top.username;
+      const metaParts = [`Lv ${top.level}`];
+      if (Number.isFinite(top.rank)) metaParts.push(`#${top.rank}`);
+      if (Number.isFinite(top.xp)) metaParts.push(`${top.xp.toLocaleString()} XP`);
+      spotlightMeta.textContent = metaParts.join(' • ');
+      spotlightWrap.classList.add('is-active');
+    } else {
+      spotlightName.textContent = 'Choose a skill to see the pacesetter';
+      spotlightMeta.textContent = 'Live rankings update with every search.';
+      spotlightWrap.classList.remove('is-active');
+    }
+  }
+
+  const generatedAt = Number(data?.generatedAt || 0);
+  const lastEl = document.getElementById('skillLastUpdatedHero');
+  if (lastEl) {
+    if (generatedAt) {
+      const rel = describeRelativeTime(generatedAt);
+      lastEl.textContent = rel || new Date(generatedAt).toLocaleString();
+      lastEl.setAttribute('title', new Date(generatedAt).toLocaleString());
+    } else {
+      lastEl.textContent = 'Live snapshot';
+      lastEl.removeAttribute('title');
+    }
+  }
+
+  const tickerWrap = document.getElementById('skillHeroTicker');
+  if (tickerWrap) {
+    tickerWrap.innerHTML = '';
+    const track = document.createElement('div');
+    track.className = 'ticker-track';
+    const leaders = Array.isArray(rows) ? rows.slice(0, 4) : [];
+    if (!leaders.length) {
+      const empty = document.createElement('span');
+      empty.className = 'ticker-item';
+      empty.textContent = 'Awaiting ladder updates…';
+      track.appendChild(empty);
+    } else {
+      leaders.forEach((entry) => {
+        const item = document.createElement('span');
+        item.className = 'ticker-item';
+        const link = document.createElement('a');
+        link.className = 'username-link';
+        link.href = `index.html#user/${encodeURIComponent(entry.username)}`;
+        link.textContent = entry.username;
+        link.setAttribute('aria-label', `View ${entry.username} overall stats`);
+        item.appendChild(link);
+        const meta = document.createElement('span');
+        meta.className = 'ticker-meta';
+        const parts = [`Lv ${entry.level}`];
+        if (Number.isFinite(entry.xp)) parts.push(`${entry.xp.toLocaleString()} XP`);
+        meta.textContent = parts.join(' • ');
+        item.appendChild(meta);
+        track.appendChild(item);
+      });
+      if (leaders.length > 1) {
+        Array.from(track.children).forEach((node) => {
+          const clone = node.cloneNode(true);
+          clone.dataset.duplicate = 'true';
+          track.appendChild(clone);
+        });
+      }
+    }
+    tickerWrap.appendChild(track);
+    if (window.applyTickerMotion) window.applyTickerMotion(tickerWrap, track);
+    else tickerWrap.classList.toggle('paused', track.childElementCount <= 1);
+  }
+}
+
 function applyFilters(rows) {
   const q = (($("#filterName"))?.value || "").trim().toLowerCase();
   return rows.filter(r => {
@@ -45,6 +151,7 @@ function renderTable() {
     .then((data) => {
       const rows = data.rankings[currentSkill];
       const filtered = applyFilters(rows);
+      updateSkillHero(filtered, data);
       tableBody.innerHTML = "";
       const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
       if (page > totalPages) page = totalPages;
@@ -94,6 +201,7 @@ function renderTable() {
           "error",
         );
       else toast(e.message, "error");
+      updateSkillHero([], null);
     });
 }
 

@@ -32,18 +32,24 @@
 
     <body class="h-full bg-surface text-foreground transition-colors">
         <div id="app" class="min-h-full flex flex-col max-w-screen-xl mx-auto">
-            <header class="osrs-header px-6 py-4 flex-between">
-                <!-- Left Section: Logo + Nav -->
-                <div class="flex-items-center gap-8">
-                    <!-- Brand -->
-                    <a href="#"
-                        class="flex-items-center gap-2 text-2xl font-extrabold leading-none hover:text-gold transition-colors">
-                        <span class="text-gold">⚔️ OSRS</span>
-                        <span class="text-white">Hiscores</span>
-                    </a>
-
-                    <!-- Nav -->
-                    <nav class="flex-items-center gap-4 text-base font-semibold">
+            <header class="osrs-header px-6 py-4">
+                <div class="header-ambient" aria-hidden="true">
+                    <span class="header-ambient__orb header-ambient__orb--left"></span>
+                    <span class="header-ambient__orb header-ambient__orb--right"></span>
+                </div>
+                <div class="header-inner">
+                    <div class="header-brand">
+                        <a href="#"
+                            class="brand-link flex-items-center gap-2 text-2xl font-extrabold leading-none hover:text-gold transition-colors">
+                            <span class="text-gold">⚔️ OSRS</span>
+                            <span class="text-white">Hiscores</span>
+                        </a>
+                        <div class="header-subcopy">
+                            <span class="chip chip--live"><span class="chip-dot"></span>Live season feed</span>
+                            <span class="header-subtitle">Track every climb across Gielinor.</span>
+                        </div>
+                    </div>
+                    <nav class="header-nav" aria-label="Primary">
                         <a href="#" class="nav-pill active" data-view="home" data-tooltip="Overall rankings">
                             <i data-lucide="trophy" class="w-4 h-4"></i>
                             <span>Leaderboard</span>
@@ -57,25 +63,103 @@
                             <span>Achievements</span>
                         </a>
                     </nav>
-                </div>
-
-                <!-- Right Section: Search + Theme -->
-                <div class="flex-items-center gap-3">
-                    <div class="relative flex-items-center">
-                        <input id="playerSearch" type="text" placeholder="Search player..."
-                            class="btn-input px-4 py-2 h-10 rounded-md focus:outline-none focus:ring-2 focus:ring-gold"
-                            aria-label="Search player" autocomplete="off" />
-                        <div id="searchSuggest" class="search-suggestions hidden max-h-64 overflow-auto text-sm">
+                    <div class="header-tools">
+                        <div class="header-search">
+                            <label for="playerSearch" class="sr-only">Search player</label>
+                            <input id="playerSearch" type="text" placeholder="Search competitor…"
+                                class="btn-input" aria-label="Search player" autocomplete="off" />
+                            <div id="searchSuggest" class="search-suggestions hidden max-h-64 overflow-auto text-sm"></div>
                         </div>
+                        <button id="themeToggle" class="icon-button" title="Toggle Theme">
+                            <i data-lucide="sun" class="w-5 h-5"></i>
+                        </button>
                     </div>
-
-                    <button id="themeToggle" class="icon-button" title="Toggle Theme">
-                        <i data-lucide="sun" class="w-5 h-5"></i>
-                    </button>
                 </div>
             </header>
 
             <main class="flex-1 p-6 container-wrap">
+                <section id="homeHero" class="hero card hero-leaderboard" aria-live="polite">
+                    <div class="hero-atmosphere" aria-hidden="true">
+                        <span class="hero-orb hero-orb--north"></span>
+                        <span class="hero-orb hero-orb--south"></span>
+                        <span class="hero-gridlines"></span>
+                    </div>
+                    <div class="hero-grid">
+                        <div class="hero-copy">
+                            <p class="hero-kicker">Overall ladder</p>
+                            <h1 class="hero-title">Chase the throne and forge your legend</h1>
+                            <p class="hero-subtitle">Live rankings, climbing alerts, and prestige insights built for the
+                                most competitive Old School RuneScape players.</p>
+                            <div class="hero-tags">
+                                <span class="chip chip--live"><span class="chip-dot"></span>Live feed</span>
+                                <span class="chip" id="heroUpdateChip">Syncing snapshot…</span>
+                            </div>
+                            <div class="hero-actions">
+                                <a class="btn btn-primary" href="skill-hiscores.html">
+                                    <i data-lucide="zap" class="w-4 h-4"></i>
+                                    Skill ladders
+                                </a>
+                                <a class="btn btn-ghost" href="achievements.html">
+                                    <i data-lucide="award" class="w-4 h-4"></i>
+                                    View achievements
+                                </a>
+                            </div>
+                        </div>
+                    <div class="hero-metrics">
+                            <div class="hero-metric" data-metric="players">
+                                <span class="hero-metric__label">Active competitors</span>
+                                <div class="hero-metric__value">
+                                    <span id="heroTotalPlayers">—</span>
+                                    <span class="hero-metric__delta" id="heroTotalPlayersDelta"></span>
+                                </div>
+                            </div>
+                            <div class="hero-metric" data-metric="level">
+                                <span class="hero-metric__label">Average total level</span>
+                                <div class="hero-metric__value">
+                                    <span id="heroAvgLevel">—</span>
+                                    <span class="hero-metric__delta" id="heroAvgLevelDelta"></span>
+                                </div>
+                            </div>
+                            <div class="hero-metric" data-metric="xp">
+                                <span class="hero-metric__label">Average total XP</span>
+                                <div class="hero-metric__value">
+                                    <span id="heroAvgXp">—</span>
+                                    <span class="hero-metric__delta" id="heroAvgXpDelta"></span>
+                                </div>
+                            </div>
+                            <div class="hero-metric" data-metric="refresh">
+                                <span class="hero-metric__label">Last refresh</span>
+                                <div class="hero-metric__value">
+                                    <span id="heroLastUpdated">—</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="hero-spotlight" id="heroSpotlight" aria-live="polite">
+                        <div class="hero-spotlight__label">
+                            <i data-lucide="flame" class="w-4 h-4"></i>
+                            Momentum spotlight
+                        </div>
+                        <div class="hero-spotlight__content">
+                            <span id="heroSpotlightName">Awaiting challenger…</span>
+                            <span id="heroSpotlightMeta" class="hero-spotlight__meta">Stay tuned for the next dramatic climb.</span>
+                        </div>
+                    </div>
+                    <div class="hero-podium-wrap">
+                        <div class="hero-podium-header">
+                            <h2 class="hero-podium-title">Champions' podium</h2>
+                            <span class="hero-podium-meta">Top 3 overall leaders</span>
+                        </div>
+                        <ol class="hero-podium" id="heroPodium">
+                            <li class="hero-podium-empty">Loading podium…</li>
+                        </ol>
+                    </div>
+                    <div class="hero-ticker" id="heroTicker">
+                        <div class="ticker-track">
+                            <span class="ticker-item">Awaiting the next surge…</span>
+                        </div>
+                    </div>
+                </section>
                 <div id="bannerContainer" class="banner-container" aria-live="polite" aria-atomic="true"></div>
                 <nav aria-label="Breadcrumb" class="breadcrumb mb-4">
                     <ol>

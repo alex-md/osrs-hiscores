@@ -49,32 +49,102 @@
 
     <body class="h-full bg-surface text-foreground">
         <div class="min-h-full flex flex-col max-w-screen-xl mx-auto">
-            <header class="osrs-header p-4 flex-between flex-wrap gap-4">
-                <!-- Brand & Title -->
-                <div class="flex-items-center gap-4">
-                    <h1 class="flex-items-center gap-2 text-2xl font-extrabold text-white tracking-wide">
-                        <a href="index.html"
-                            class="brand-link flex-items-center gap-2 hover:text-gold transition-colors">
-                            <span class="text-gold">⚔️ OSRS</span>
-                            <span>Hiscores</span>
-                        </a>
-                    </h1>
-                    <div class="w-px h-6 bg-gold/50"></div>
-                    <span class="flex-items-center gap-2 text-xl font-semibold text-white/90">
-                        <i data-lucide="trophy" class="w-5 h-5"></i>
-                        Achievements
-                    </span>
+            <header class="osrs-header px-6 py-4">
+                <div class="header-ambient" aria-hidden="true">
+                    <span class="header-ambient__orb header-ambient__orb--left"></span>
+                    <span class="header-ambient__orb header-ambient__orb--right"></span>
                 </div>
-
-                <!-- Controls -->
-                <div class="flex-items-center gap-3">
-                    <!-- Theme Toggle -->
-                    <button id="themeToggle" class="icon-button" title="Toggle Theme">
-                        <i data-lucide="sun" class="w-5 h-5"></i>
-                    </button>
+                <div class="header-inner">
+                    <div class="header-brand">
+                        <a href="index.html"
+                            class="brand-link flex-items-center gap-2 text-2xl font-extrabold leading-none hover:text-gold transition-colors">
+                            <span class="text-gold">⚔️ OSRS</span>
+                            <span class="text-white">Hiscores</span>
+                        </a>
+                        <div class="header-subcopy">
+                            <span class="chip">Achievement atlas</span>
+                            <span class="header-subtitle">Map every legendary unlock in the realm.</span>
+                        </div>
+                    </div>
+                    <nav class="header-nav" aria-label="Primary">
+                        <a href="index.html" class="nav-pill" data-tooltip="Overall leaderboard">
+                            <i data-lucide="trophy" class="w-4 h-4"></i>
+                            <span>Leaderboard</span>
+                        </a>
+                        <a href="skill-hiscores.html" class="nav-pill" data-tooltip="Skill-specific ladders">
+                            <i data-lucide="zap" class="w-4 h-4"></i>
+                            <span>Skill Hiscores</span>
+                        </a>
+                        <a href="achievements.html" class="nav-pill active" data-tooltip="Achievement insights">
+                            <i data-lucide="award" class="w-4 h-4"></i>
+                            <span>Achievements</span>
+                        </a>
+                    </nav>
+                    <div class="header-tools">
+                        <button id="themeToggle" class="icon-button" title="Toggle Theme">
+                            <i data-lucide="sun" class="w-5 h-5"></i>
+                        </button>
+                    </div>
                 </div>
             </header>
             <main class="flex-1 p-6 container-wrap">
+                <section class="hero card hero--compact hero-achievements" aria-live="polite">
+                    <div class="hero-atmosphere" aria-hidden="true">
+                        <span class="hero-orb hero-orb--north"></span>
+                        <span class="hero-orb hero-orb--south"></span>
+                        <span class="hero-gridlines"></span>
+                    </div>
+                    <div class="hero-grid">
+                        <div class="hero-copy">
+                            <p class="hero-kicker">Achievement network</p>
+                            <h1 class="hero-title">Celebrate the rarest unlocks in Old School RuneScape</h1>
+                            <p class="hero-subtitle">Discover who holds the rare titles, which badges trend, and how elite
+                                players connect across the ladder.</p>
+                        </div>
+                    </div>
+                    <div class="hero-metrics hero-metrics--grid">
+                        <div class="hero-metric">
+                            <span class="hero-metric__label">Players tracked</span>
+                            <div class="hero-metric__value">
+                                <span id="achievementTotalPlayers">—</span>
+                            </div>
+                        </div>
+                        <div class="hero-metric">
+                            <span class="hero-metric__label">Total unlocks logged</span>
+                            <div class="hero-metric__value">
+                                <span id="achievementUnlocks">—</span>
+                            </div>
+                        </div>
+                        <div class="hero-metric">
+                            <span class="hero-metric__label">Grandmasters crowned</span>
+                            <div class="hero-metric__value">
+                                <span id="achievementMythics">—</span>
+                            </div>
+                        </div>
+                        <div class="hero-metric">
+                            <span class="hero-metric__label">Latest first unlock</span>
+                            <div class="hero-metric__value">
+                                <span id="achievementLatestFirst">—</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="hero-spotlight hero-spotlight--inline" id="achievementHeroSpotlight" aria-live="polite">
+                        <div class="hero-spotlight__label">
+                            <i data-lucide="stars" class="w-4 h-4"></i>
+                            Legendary firsts
+                        </div>
+                        <div class="hero-spotlight__content">
+                            <span id="achievementHeroSpotlightName">Tracking the rarest unlocks in the realm…</span>
+                            <span id="achievementHeroSpotlightMeta" class="hero-spotlight__meta">As soon as a badge is claimed
+                                you'll see it here.</span>
+                        </div>
+                    </div>
+                    <div class="hero-ticker" id="achievementHeroTicker">
+                        <div class="ticker-track">
+                            <span class="ticker-item">Compiling achievement stories…</span>
+                        </div>
+                    </div>
+                </section>
                 <nav aria-label="Breadcrumb" class="breadcrumb mb-4">
                     <ol>
                         <li>
