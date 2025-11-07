@@ -293,7 +293,7 @@ function buildWeeklyRarestCard(weeklyRarest) {
 }
 
 function buildWatchlistCard(watchlist) {
-  const card = el('section', 'watchlist-card');
+  const card = el('section', 'card watchlist-card');
   const header = el('div', 'home-widget-header', [
     el('div', 'flex-items-center gap-2', [text('🕵️ Auto Watchlist')])
   ]);
@@ -360,6 +360,183 @@ function buildWatchlistCard(watchlist) {
     card.appendChild(el('div', 'watchlist-more', [text(watchlist.message)]));
   }
   return card;
+}
+
+function setHomeHeroVisible(show) {
+  const hero = $('#homeHero');
+  if (!hero) return;
+  if (show) {
+    hero.classList.remove('is-hidden');
+    hero.removeAttribute('aria-hidden');
+  } else {
+    hero.classList.add('is-hidden');
+    hero.setAttribute('aria-hidden', 'true');
+  }
+}
+
+function buildHeroPodiumEntry(player, index) {
+  const rank = Number(player?.rank) || index + 1;
+  const li = el('li', `hero-podium-slot hero-podium-slot--${index + 1}`);
+  li.appendChild(el('span', 'hero-podium-rank', [text(`#${rank}`)]));
+
+  const nameRow = el('div', 'hero-podium-name');
+  nameRow.appendChild(createUsernameLink(player?.username || 'Unknown'));
+  const badge = createTierBadge(player);
+  if (badge) nameRow.appendChild(badge);
+  li.appendChild(nameRow);
+
+  const level = Number(player?.totalLevel);
+  const xp = Number(player?.totalXP);
+  if (Number.isFinite(level)) {
+    li.appendChild(el('div', 'hero-podium-meta', [text(`Total level ${level.toLocaleString()}`)]));
+  }
+  if (Number.isFinite(xp)) {
+    li.appendChild(el('div', 'hero-podium-meta', [text(`${formatCompactNumber(xp)} XP`)]));
+  }
+  const metaParts = [];
+  const top1 = Number(player?.tierInfo?.top1Skills || 0);
+  if (top1 > 0) metaParts.push(`#1 in ${top1} skill${top1 === 1 ? '' : 's'}`);
+  if (player?.archetype) metaParts.push(player.archetype.replace(/-/g, ' '));
+  if (player?.updatedAt) {
+    const ts = new Date(player.updatedAt);
+    if (!Number.isNaN(ts.getTime())) metaParts.push(`Updated ${formatRelativeTime(ts.getTime())}`);
+  }
+  if (metaParts.length) {
+    li.appendChild(el('div', 'hero-podium-meta', [text(metaParts.join(' • '))]));
+  }
+  return li;
+}
+
+function buildHeroTicker(onTheRise) {
+  const track = el('div', 'ticker-track');
+  const entries = Array.isArray(onTheRise?.players) ? onTheRise.players.slice(0, 4) : [];
+  if (!entries.length) {
+    track.appendChild(el('span', 'ticker-item', [text('Waiting for the next surge…')]));
+    return track;
+  }
+  const makeItem = (player) => {
+    const item = el('span', 'ticker-item');
+    item.appendChild(createUsernameLink(player?.username || 'Unknown'));
+    const delta = Number(player?.delta);
+    const metaParts = [];
+    if (Number.isFinite(delta) && delta !== 0) metaParts.push(formatSigned(delta));
+    if (Number.isFinite(player?.currentRank)) metaParts.push(`#${player.currentRank}`);
+    if (Number.isFinite(player?.totalLevel)) metaParts.push(`${player.totalLevel.toLocaleString()} total`);
+    if (Number.isFinite(player?.totalXP)) metaParts.push(`${formatCompactNumber(player.totalXP)} XP`);
+    if (metaParts.length) item.appendChild(el('span', 'ticker-meta', [text(metaParts.join(' • '))]));
+    return item;
+  };
+  const items = entries.map(makeItem);
+  items.forEach((node) => track.appendChild(node));
+  if (items.length > 1) {
+    items.forEach((node) => {
+      const clone = node.cloneNode(true);
+      clone.dataset.duplicate = 'true';
+      track.appendChild(clone);
+    });
+  }
+  return track;
+}
+
+function renderHeroSnapshot(leaderboard) {
+  const hero = $('#homeHero');
+  if (!hero) return;
+  hero.classList.remove('is-hidden');
+  hero.removeAttribute('aria-hidden');
+
+  const players = Array.isArray(leaderboard?.players) ? leaderboard.players : [];
+  const totalPlayers = Number(leaderboard?.totalPlayers) || players.length || 0;
+  const trend = leaderboard?.trendSummary || {};
+  const generatedAt = Number(leaderboard?.generatedAt) || null;
+
+  const totalEl = $('#heroTotalPlayers');
+  if (totalEl) totalEl.textContent = totalPlayers ? totalPlayers.toLocaleString() : '—';
+  const totalDeltaWrap = $('#heroTotalPlayersDelta');
+  if (totalDeltaWrap) {
+    totalDeltaWrap.innerHTML = '';
+    const delta = createDeltaSpan(trend.totalPlayersChange24h, 0, { compact: true });
+    if (delta) totalDeltaWrap.appendChild(delta);
+  }
+
+  const avgLevel = Number(trend?.avgTotalLevel?.current);
+  const avgLevelEl = $('#heroAvgLevel');
+  if (avgLevelEl) avgLevelEl.textContent = Number.isFinite(avgLevel) ? avgLevel.toFixed(1) : '—';
+  const avgLevelDeltaWrap = $('#heroAvgLevelDelta');
+  if (avgLevelDeltaWrap) {
+    avgLevelDeltaWrap.innerHTML = '';
+    const delta = createDeltaSpan(trend?.avgTotalLevel?.change, 1);
+    if (delta) avgLevelDeltaWrap.appendChild(delta);
+  }
+
+  const avgXp = Number(trend?.avgTotalXP?.current);
+  const avgXpEl = $('#heroAvgXp');
+  if (avgXpEl) avgXpEl.textContent = Number.isFinite(avgXp) ? formatCompactNumber(avgXp) : '—';
+  const avgXpDeltaWrap = $('#heroAvgXpDelta');
+  if (avgXpDeltaWrap) {
+    avgXpDeltaWrap.innerHTML = '';
+    const delta = createDeltaSpan(trend?.avgTotalXP?.change, 0, { compact: true });
+    if (delta) avgXpDeltaWrap.appendChild(delta);
+  }
+
+  const lastUpdated = $('#heroLastUpdated');
+  if (lastUpdated) {
+    if (generatedAt) {
+      lastUpdated.textContent = formatRelativeTime(generatedAt);
+      lastUpdated.setAttribute('title', new Date(generatedAt).toLocaleString());
+    } else {
+      lastUpdated.textContent = 'Live snapshot';
+      lastUpdated.removeAttribute('title');
+    }
+  }
+
+  const updateChip = $('#heroUpdateChip');
+  if (updateChip) {
+    updateChip.textContent = generatedAt ? `Updated ${formatRelativeTime(generatedAt)}` : 'Live snapshot';
+  }
+
+  const podium = $('#heroPodium');
+  if (podium) {
+    podium.innerHTML = '';
+    if (!players.length) {
+      podium.appendChild(el('li', 'hero-podium-empty', [text('Leaderboard warming up…')]));
+    } else {
+      players.slice(0, 3).forEach((player, index) => {
+        podium.appendChild(buildHeroPodiumEntry(player, index));
+      });
+    }
+  }
+
+  const momentum = Array.isArray(leaderboard?.onTheRise?.players) ? leaderboard.onTheRise.players : [];
+  const spotlightWrap = $('#heroSpotlight');
+  const spotlightName = $('#heroSpotlightName');
+  const spotlightMeta = $('#heroSpotlightMeta');
+  if (spotlightWrap && spotlightName && spotlightMeta) {
+    const focus = momentum.find(Boolean);
+    if (focus) {
+      spotlightName.textContent = focus.username || 'Unknown contender';
+      const details = [];
+      const delta = Number(focus.delta);
+      if (Number.isFinite(delta) && delta !== 0) details.push(`${formatSigned(delta)} ranks`);
+      if (Number.isFinite(focus.currentRank)) details.push(`Now #${focus.currentRank}`);
+      if (Number.isFinite(focus.totalLevel)) details.push(`Lv ${focus.totalLevel.toLocaleString()}`);
+      if (Number.isFinite(focus.totalXP)) details.push(`${formatCompactNumber(focus.totalXP)} XP`);
+      spotlightMeta.textContent = details.length ? details.join(' • ') : 'Surging through the standings right now.';
+      spotlightWrap.classList.add('is-active');
+    } else {
+      spotlightName.textContent = 'Awaiting challenger…';
+      spotlightMeta.textContent = 'Stay tuned for the next dramatic climb.';
+      spotlightWrap.classList.remove('is-active');
+    }
+  }
+
+  const tickerWrap = $('#heroTicker');
+  if (tickerWrap) {
+    tickerWrap.innerHTML = '';
+    const track = buildHeroTicker(leaderboard?.onTheRise || {});
+    tickerWrap.appendChild(track);
+    if (window.applyTickerMotion) window.applyTickerMotion(tickerWrap, track);
+    else tickerWrap.classList.toggle('paused', track.childElementCount <= 1);
+  }
 }
 
 function buildLeaderboardTable(players) {
@@ -449,6 +626,7 @@ function buildLeaderboardTable(players) {
 }
 
 async function renderHomeView() {
+  setHomeHeroVisible(true);
   const root = $('#viewRoot');
   if (!root) return;
   const extras = document.querySelector('#leftStackExtras');
@@ -456,6 +634,7 @@ async function renderHomeView() {
   root.innerHTML = '<div class="card text-center py-6 text-muted">Loading leaderboard…</div>';
   try {
     const leaderboard = await loadLeaderboard();
+    renderHeroSnapshot(leaderboard);
     const players = Array.isArray(leaderboard?.players) ? leaderboard.players : [];
     root.innerHTML = '';
     const container = el('div', 'flex flex-col gap-6');
@@ -497,6 +676,7 @@ async function renderHomeView() {
     console.error('Failed to render home view', err);
     const message = err?.message || 'Check the console for more details.';
     root.innerHTML = `<div class="card text-center py-6"><div class="text-danger text-lg font-semibold">Failed to load leaderboard</div><div class="text-muted mt-2">${message}</div></div>`;
+    renderHeroSnapshot(null);
   }
   if (!rareBannerInitialized) {
     initRareBannerRotator();
@@ -635,6 +815,7 @@ async function loadUser(username) {
   return fetchJSON("/api/users/" + encodeURIComponent(username));
 }
 function renderUserView(username) {
+  setHomeHeroVisible(false);
   let root = $("#viewRoot");
   root.innerHTML = '<div class="text-center text-muted py-8">⏳ Loading player data...</div>';
   let __leftExtrasInit = document.querySelector('#leftStackExtras');

@@ -66,6 +66,93 @@
     container.appendChild(div);
     setTimeout(() => div.remove(), timeout);
   }
+  function describeRelativeTime(input, { allowFuture = false } = {}) {
+    const value = Number(input);
+    if (!Number.isFinite(value)) return null;
+    const now = Date.now();
+    let diff = now - value;
+    if (!allowFuture && diff < 0) diff = 0;
+    const abs = Math.abs(diff);
+    const seconds = Math.round(abs / 1000);
+    if (seconds < 5) return allowFuture && diff < 0 ? 'in moments' : 'just now';
+    if (seconds < 60) return formatRelativeUnit(seconds, 's', diff < 0);
+    const minutes = Math.round(seconds / 60);
+    if (minutes < 60) return formatRelativeUnit(minutes, 'm', diff < 0);
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return formatRelativeUnit(hours, 'h', diff < 0);
+    const days = Math.round(hours / 24);
+    if (days < 30) return formatRelativeUnit(days, 'd', diff < 0);
+    const months = Math.round(days / 30);
+    if (months < 12) return formatRelativeUnit(months, 'mo', diff < 0);
+    const years = Math.round(days / 365);
+    return formatRelativeUnit(years, 'y', diff < 0);
+  }
+  function formatRelativeUnit(value, unit, future) {
+    return future ? `in ${value}${unit}` : `${value}${unit} ago`;
+  }
+  const trackedTickers = new Set();
+  let tickerRefreshRaf = null;
+  const tickerMotionQuery = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+  function applyTickerMotion(wrapper, track, opts = {}) {
+    if (!wrapper || !track) return;
+    if (!opts.skipTrackRegister) trackedTickers.add(track);
+    const reduceMotion = tickerMotionQuery ? tickerMotionQuery.matches : false;
+    const items = Array.from(track.querySelectorAll('.ticker-item'));
+    const baseItems = items.filter((node) => node.dataset.duplicate !== 'true');
+    const measuredItems = baseItems.length ? baseItems : items;
+    const shouldStatic = reduceMotion || measuredItems.length <= 1;
+    wrapper.classList.toggle('paused', shouldStatic);
+    wrapper.classList.toggle('ticker--static', shouldStatic);
+    if (shouldStatic) {
+      track.style.animation = 'none';
+      track.style.justifyContent = 'center';
+      track.style.removeProperty('--ticker-duration');
+      return;
+    }
+    track.style.animation = '';
+    track.style.justifyContent = '';
+    track.style.removeProperty('--ticker-duration');
+    const measure = () => {
+      if (!wrapper.isConnected || !track.isConnected) {
+        trackedTickers.delete(track);
+        return;
+      }
+      const wrapperWidth = wrapper.getBoundingClientRect().width;
+      if (!wrapperWidth) {
+        requestAnimationFrame(measure);
+        return;
+      }
+      const style = getComputedStyle(track);
+      const gap = parseFloat(style.columnGap || style.gap || '0') || 0;
+      const totalWidth = measuredItems.reduce((sum, item) => sum + item.getBoundingClientRect().width, 0) + Math.max(0, measuredItems.length - 1) * gap;
+      const distance = totalWidth + wrapperWidth;
+      const pixelsPerSecond = 110;
+      const duration = Math.max(14, distance / pixelsPerSecond);
+      track.style.setProperty('--ticker-duration', `${duration.toFixed(2)}s`);
+    };
+    requestAnimationFrame(measure);
+  }
+  function refreshTrackedTickers() {
+    trackedTickers.forEach((track) => {
+      const wrapper = track?.parentElement;
+      if (!wrapper || !track.isConnected) {
+        trackedTickers.delete(track);
+        return;
+      }
+      applyTickerMotion(wrapper, track, { skipTrackRegister: true });
+    });
+  }
+  function scheduleTickerRefresh() {
+    if (typeof requestAnimationFrame !== 'function') {
+      refreshTrackedTickers();
+      return;
+    }
+    if (tickerRefreshRaf) cancelAnimationFrame(tickerRefreshRaf);
+    tickerRefreshRaf = requestAnimationFrame(() => {
+      refreshTrackedTickers();
+      tickerRefreshRaf = null;
+    });
+  }
   function setTheme(theme) {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("theme", theme);
@@ -89,6 +176,10 @@
     updateThemeToggle();
     const skillRoot = document.getElementById("sidebarSkillList");
     if (skillRoot) populateSkillLinks(skillRoot);
+    document.querySelectorAll('.hero-ticker').forEach((wrapper) => {
+      const track = wrapper.querySelector('.ticker-track');
+      if (track) applyTickerMotion(wrapper, track);
+    });
   });
   window.API_BASE = apiBase;
   window.setApiBase = setApiBase;
@@ -101,6 +192,15 @@
   window.setTheme = setTheme;
   window.toggleTheme = toggleTheme;
   window.updateThemeToggle = updateThemeToggle;
+  window.describeRelativeTime = describeRelativeTime;
+  window.applyTickerMotion = (wrapper, track) => applyTickerMotion(wrapper, track);
+  window.refreshTickerMotion = scheduleTickerRefresh;
+  window.addEventListener('resize', scheduleTickerRefresh);
+  if (tickerMotionQuery) {
+    const motionHandler = () => scheduleTickerRefresh();
+    if (typeof tickerMotionQuery.addEventListener === 'function') tickerMotionQuery.addEventListener('change', motionHandler);
+    else if (typeof tickerMotionQuery.addListener === 'function') tickerMotionQuery.addListener(motionHandler);
+  }
   const SKILLS = [
     "attack",
     "defence",

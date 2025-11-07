@@ -48,6 +48,140 @@ function buildTierBadge(tierName) {
     return `<span class="tier-badge tier--mini tier-${tierName.toLowerCase()}" data-tooltip="${meta.label}: ${meta.desc}" aria-label="${meta.label}" title="${meta.label}"><span class="tier-mini-letter">${letter}</span></span>`;
 }
 
+const describeRelativeTime = window.describeRelativeTime || ((ts) => {
+    if (!Number.isFinite(ts)) return null;
+    const diff = Date.now() - Number(ts);
+    if (!Number.isFinite(diff) || diff < 0) return null;
+    const seconds = Math.round(diff / 1000);
+    if (seconds < 5) return 'just now';
+    if (seconds < 60) return `${seconds}s ago`;
+    const minutes = Math.round(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.round(hours / 24);
+    if (days < 30) return `${days}d ago`;
+    const months = Math.round(days / 30);
+    if (months < 12) return `${months}mo ago`;
+    const years = Math.round(days / 365);
+    return `${years}y ago`;
+});
+
+function getAchievementLabel(key) {
+    const found = ACHIEVEMENT_CATALOG.find((item) => item.key === key);
+    if (found && found.label) return found.label;
+    return key ? key.replace(/[-_]/g, ' ') : '';
+}
+
+function updateAchievementHero(globalStats, firstsMap = {}) {
+    const totalPlayers = Number(globalStats?.totalPlayers) || 0;
+    const totalEl = document.getElementById('achievementTotalPlayers');
+    if (totalEl) totalEl.textContent = totalPlayers ? totalPlayers.toLocaleString() : '—';
+
+    const counts = globalStats?.counts || {};
+    const totalUnlocks = Object.values(counts).reduce((sum, value) => sum + (Number(value) || 0), 0);
+    const unlockEl = document.getElementById('achievementUnlocks');
+    if (unlockEl) unlockEl.textContent = totalUnlocks ? totalUnlocks.toLocaleString() : '—';
+
+    const mythicCount = Number(counts['tier-grandmaster'] || counts['overall-rank-1'] || 0);
+    const mythicEl = document.getElementById('achievementMythics');
+    if (mythicEl) mythicEl.textContent = mythicCount ? mythicCount.toLocaleString() : '—';
+
+    const entries = Object.entries(firstsMap || {})
+        .map(([key, value]) => {
+            const rawTs = value?.timestamp;
+            const numericTs = Number(rawTs);
+            const safeTs = Number.isFinite(numericTs) ? numericTs : null;
+            return { key, ...(value || {}), __timestamp: safeTs };
+        })
+        .filter((entry) => entry && entry.username)
+        .sort((a, b) => (Number(b.__timestamp ?? 0) || 0) - (Number(a.__timestamp ?? 0) || 0));
+
+    const latest = entries[0];
+    const latestEl = document.getElementById('achievementLatestFirst');
+    if (latestEl) {
+        if (latest) {
+            const label = getAchievementLabel(latest.key);
+            const ts = Number(latest.__timestamp);
+            const rel = Number.isFinite(ts) ? describeRelativeTime(ts) : null;
+            const metaParts = [latest.username, label];
+            if (rel) metaParts.push(rel);
+            else if (Number.isFinite(ts)) metaParts.push(new Date(ts).toLocaleDateString());
+            else metaParts.push('Time unknown');
+            latestEl.textContent = metaParts.join(' • ');
+        } else {
+            latestEl.textContent = '—';
+        }
+    }
+
+    const spotlightWrap = document.getElementById('achievementHeroSpotlight');
+    const spotlightName = document.getElementById('achievementHeroSpotlightName');
+    const spotlightMeta = document.getElementById('achievementHeroSpotlightMeta');
+    if (spotlightWrap && spotlightName && spotlightMeta) {
+        if (latest) {
+            const label = getAchievementLabel(latest.key);
+            const ts = Number(latest.__timestamp);
+            const rel = Number.isFinite(ts) ? describeRelativeTime(ts) : null;
+            spotlightName.textContent = label;
+            const metaParts = [latest.username];
+            if (rel) metaParts.push(rel);
+            else if (Number.isFinite(ts)) metaParts.push(new Date(ts).toLocaleDateString());
+            else metaParts.push('Time unknown');
+            spotlightMeta.textContent = metaParts.join(' • ');
+            spotlightWrap.classList.add('is-active');
+        } else {
+            spotlightName.textContent = 'Tracking the rarest unlocks in the realm…';
+            spotlightMeta.textContent = "As soon as a badge is claimed you'll see it here.";
+            spotlightWrap.classList.remove('is-active');
+        }
+    }
+
+    const tickerWrap = document.getElementById('achievementHeroTicker');
+    if (tickerWrap) {
+        tickerWrap.innerHTML = '';
+        const track = document.createElement('div');
+        track.className = 'ticker-track';
+        const tickerEntries = entries.slice(0, 5);
+        if (!tickerEntries.length) {
+            const empty = document.createElement('span');
+            empty.className = 'ticker-item';
+            empty.textContent = 'Unlock a badge to light up the feed…';
+            track.appendChild(empty);
+        } else {
+            tickerEntries.forEach((entry) => {
+                const item = document.createElement('span');
+                item.className = 'ticker-item';
+                const strong = document.createElement('strong');
+                strong.textContent = getAchievementLabel(entry.key);
+                item.appendChild(strong);
+                const meta = document.createElement('span');
+                meta.className = 'ticker-meta';
+                const parts = [entry.username];
+                const ts = Number(entry.__timestamp);
+                if (Number.isFinite(ts)) {
+                    const rel = describeRelativeTime(ts);
+                    parts.push(rel || new Date(ts).toLocaleDateString());
+                } else {
+                    parts.push('Time unknown');
+                }
+                meta.textContent = parts.join(' • ');
+                item.appendChild(meta);
+                track.appendChild(item);
+            });
+            if (tickerEntries.length > 1) {
+                Array.from(track.children).forEach((node) => {
+                    const clone = node.cloneNode(true);
+                    clone.dataset.duplicate = 'true';
+                    track.appendChild(clone);
+                });
+            }
+        }
+        tickerWrap.appendChild(track);
+        if (window.applyTickerMotion) window.applyTickerMotion(tickerWrap, track);
+        else tickerWrap.classList.toggle('paused', track.childElementCount <= 1);
+    }
+}
+
 // ---------- Frontend full evaluation (mirrors worker logic) ----------
 // We replicate enough of backend logic so matrix can represent ALL achievements, not just rank & coarse milestones.
 function evaluateAchievementsFrontend(user, ctx) {
@@ -792,6 +926,8 @@ async function renderAchievementsPage() {
             globalStats.counts = { ...globalStats.counts, ...firstsResp.counts };
         }
     } catch (_) { firsts = {}; enrichedFirsts = {}; }
+
+    updateAchievementHero(globalStats, firsts);
 
     // Render insights and matrix
     try { await renderInsights(globalStats, leaderboard, skillRankings, firsts); } catch (_) { }
