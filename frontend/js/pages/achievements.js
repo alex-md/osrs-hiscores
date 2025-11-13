@@ -1,6 +1,10 @@
-// Achievements page logic
-// Reuse the shared catalog from common.js to avoid duplication.
-const ACHIEVEMENT_CATALOG = window.ACHIEVEMENT_CATALOG || [];
+import { initCommonUi } from '../bootstrap.js';
+import { fetchJson } from '../core/api.js';
+import { $, createElement as el, createText as text, showToast } from '../core/dom.js';
+import { formatRelativeTime, describeRelativeTime, friendlyAchievementLabel } from '../core/formatters.js';
+import { ACHIEVEMENT_CATALOG } from '../constants/achievements.js';
+import { SKILLS } from '../constants/skills.js';
+import { applyTickerMotion } from '../core/ticker.js';
 
 const CATEGORY_INFO = {
     tier: { name: 'Prestige Tiers', desc: 'Elite status based on overall ranking and skill dominance', color: 'tier-grandmaster' },
@@ -48,31 +52,6 @@ function buildTierBadge(tierName) {
     return `<span class="tier-badge tier--mini tier-${tierName.toLowerCase()}" data-tooltip="${meta.label}: ${meta.desc}" aria-label="${meta.label}" title="${meta.label}"><span class="tier-mini-letter">${letter}</span></span>`;
 }
 
-const describeRelativeTime = window.describeRelativeTime || ((ts) => {
-    if (!Number.isFinite(ts)) return null;
-    const diff = Date.now() - Number(ts);
-    if (!Number.isFinite(diff) || diff < 0) return null;
-    const seconds = Math.round(diff / 1000);
-    if (seconds < 5) return 'just now';
-    if (seconds < 60) return `${seconds}s ago`;
-    const minutes = Math.round(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.round(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.round(hours / 24);
-    if (days < 30) return `${days}d ago`;
-    const months = Math.round(days / 30);
-    if (months < 12) return `${months}mo ago`;
-    const years = Math.round(days / 365);
-    return `${years}y ago`;
-});
-
-function getAchievementLabel(key) {
-    const found = ACHIEVEMENT_CATALOG.find((item) => item.key === key);
-    if (found && found.label) return found.label;
-    return key ? key.replace(/[-_]/g, ' ') : '';
-}
-
 function updateAchievementHero(globalStats, firstsMap = {}) {
     const totalPlayers = Number(globalStats?.totalPlayers) || 0;
     const totalEl = document.getElementById('achievementTotalPlayers');
@@ -101,7 +80,7 @@ function updateAchievementHero(globalStats, firstsMap = {}) {
     const latestEl = document.getElementById('achievementLatestFirst');
     if (latestEl) {
         if (latest) {
-            const label = getAchievementLabel(latest.key);
+            const label = friendlyAchievementLabel(latest.key);
             const ts = Number(latest.__timestamp);
             const rel = Number.isFinite(ts) ? describeRelativeTime(ts) : null;
             const metaParts = [latest.username, label];
@@ -119,7 +98,7 @@ function updateAchievementHero(globalStats, firstsMap = {}) {
     const spotlightMeta = document.getElementById('achievementHeroSpotlightMeta');
     if (spotlightWrap && spotlightName && spotlightMeta) {
         if (latest) {
-            const label = getAchievementLabel(latest.key);
+            const label = friendlyAchievementLabel(latest.key);
             const ts = Number(latest.__timestamp);
             const rel = Number.isFinite(ts) ? describeRelativeTime(ts) : null;
             spotlightName.textContent = label;
@@ -152,7 +131,7 @@ function updateAchievementHero(globalStats, firstsMap = {}) {
                 const item = document.createElement('span');
                 item.className = 'ticker-item';
                 const strong = document.createElement('strong');
-                strong.textContent = getAchievementLabel(entry.key);
+                strong.textContent = friendlyAchievementLabel(entry.key);
                 item.appendChild(strong);
                 const meta = document.createElement('span');
                 meta.className = 'ticker-meta';
@@ -177,15 +156,13 @@ function updateAchievementHero(globalStats, firstsMap = {}) {
             }
         }
         tickerWrap.appendChild(track);
-        if (window.applyTickerMotion) window.applyTickerMotion(tickerWrap, track);
-        else tickerWrap.classList.toggle('paused', track.childElementCount <= 1);
+        applyTickerMotion(tickerWrap, track);
     }
 }
 
 // ---------- Frontend full evaluation (mirrors worker logic) ----------
 // We replicate enough of backend logic so matrix can represent ALL achievements, not just rank & coarse milestones.
 function evaluateAchievementsFrontend(user, ctx) {
-    const SKILLS = window.SKILLS || [];
     const out = new Set();
     const unameLower = String(user.username || '').toLowerCase();
     const levels = Object.fromEntries(SKILLS.map(s => [s, user?.skills?.[s]?.level || 1]));
@@ -290,7 +267,6 @@ function evaluateAchievementsFrontend(user, ctx) {
 
 // Build evaluation context from leaderboard + skillRankings for frontend
 function buildFrontendAchievementContext(players, skillRankings) {
-    const SKILLS = window.SKILLS || [];
     const rankByUser = new Map();
     players.forEach(p => { if (p.username && p.rank) rankByUser.set(p.username.toLowerCase(), p.rank); });
     const rankings = skillRankings?.rankings || {};
@@ -400,7 +376,7 @@ function computePlayerUnlocks(players, skillRankings) {
     const top10AnySet = new Set();
     const top100AnySet = new Set();
     try {
-        (window.SKILLS || []).forEach(s => {
+        SKILLS.forEach(s => {
             const arr = rankings[s] || [];
             if (arr[0]?.username) {
                 const u = arr[0].username;
@@ -553,7 +529,7 @@ async function renderInsights(globalStats, leaderboard, skillRankings, firsts) {
     // Enrich a subset with detailed user data to accurately count achievements (including historical chains)
     const sample = players.slice(0, Math.min(players.length, 50));
     const detailed = await Promise.all(sample.map(async p => {
-        try { return await window.fetchJSON(`/api/users/${encodeURIComponent(p.username)}`); } catch (_) { return p; }
+        try { return await fetchJson(`/api/users/${encodeURIComponent(p.username)}`); } catch (_) { return p; }
     }));
     const detailedByName = new Map();
     detailed.forEach(u => { if (u && u.username) detailedByName.set(u.username, u); });
@@ -660,7 +636,7 @@ async function renderRelationshipMatrix(globalStats, leaderboard, skillRankings,
 
     // Fetch detailed user objects (skills + achievements) for accuracy
     const detailed = await Promise.all(players.map(async p => {
-        try { return await window.fetchJSON(`/api/users/${encodeURIComponent(p.username)}`); } catch (_) { return p; }
+        try { return await fetchJson(`/api/users/${encodeURIComponent(p.username)}`); } catch (_) { return p; }
     }));
     // Merge base leaderboard metadata (rank, tier) into detailed objects
     const detailedByName = new Map();
@@ -898,15 +874,15 @@ async function renderAchievementsPage() {
     // Load data needed for insights
     let leaderboard = null, skillRankings = null, globalStats = null;
     try {
-        leaderboard = await window.fetchJSON('/api/leaderboard?limit=200');
+        leaderboard = await fetchJson('/api/leaderboard?limit=200');
     } catch (_) { }
     try {
-        skillRankings = await window.fetchJSON('/api/skill-rankings');
+        skillRankings = await fetchJson('/api/skill-rankings');
     } catch (_) { }
     let firsts = {};
     let enrichedFirsts = {};
     try {
-        const stats = await window.fetchJSON('/api/achievements/stats');
+        const stats = await fetchJson('/api/achievements/stats');
         globalStats = {
             counts: stats?.counts || {},
             totalPlayers: Number(stats?.totalPlayers) || leaderboard?.totalPlayers || leaderboard?.players?.length || 0
@@ -915,7 +891,7 @@ async function renderAchievementsPage() {
         globalStats = { counts: {}, totalPlayers: leaderboard?.totalPlayers || leaderboard?.players?.length || 0 };
     }
     try {
-        const firstsResp = await window.fetchJSON('/api/achievements/firsts');
+        const firstsResp = await fetchJson('/api/achievements/firsts');
         firsts = firstsResp?.firsts || {};
         enrichedFirsts = firstsResp?.enriched || {};
         if (!globalStats.totalPlayers && Number(firstsResp?.totalPlayers)) {
@@ -985,25 +961,13 @@ async function renderAchievementsPage() {
 }
 
 function init() {
-    // Set theme
-    const theme = localStorage.getItem("theme") || "dark";
-    setTheme(theme);
-
-    // Show current API base in footer
-    const apiSpan = $("#currentApiBase");
-    if (apiSpan && window.API_BASE) {
-        const displayBase = window.API_BASE === location.origin ? "Same-origin" : window.API_BASE;
-        apiSpan.textContent = displayBase;
-    }
+    initCommonUi();
 
     renderAchievementsPage().then(() => {
-        // Validate that key visuals exist; if not, surface a subtle toast
         const ok = !!document.querySelector('.insights-grid') && !!document.querySelector('.matrix');
         if (!ok) {
-            try { toast('Note: Some insights could not be rendered (missing data). Showing catalog.', 'info', 4000); } catch (_) { }
+            try { showToast('Note: Some insights could not be rendered (missing data). Showing catalog.', 'info', 4000); } catch (_) { }
         }
-
-        // Enhance tooltips for leaderboard badges with a portal (fixed) tooltip to avoid clipping
         try { setupPortalTooltips(); } catch (_) { }
     });
 }

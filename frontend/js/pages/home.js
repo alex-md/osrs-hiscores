@@ -1,62 +1,17 @@
-let apiSpan, cache = {
+import { initCommonUi } from '../bootstrap.js';
+import { fetchJson } from '../core/api.js';
+import { $, createElement as el, createText as text, showToast } from '../core/dom.js';
+import { formatRelativeTime, formatSigned, formatCompactNumber, friendlyAchievementLabel } from '../core/formatters.js';
+import { ACHIEVEMENT_CATALOG } from '../constants/achievements.js';
+import { SKILLS, getSkillIcon } from '../constants/skills.js';
+import { applyTickerMotion } from '../core/ticker.js';
+
+const cache = {
     leaderboard: null,
     users: null,
     skillRankings: null,
     usersFetchedAt: 0
 };
-function formatRelativeTime(ts) {
-    let date = new Date(ts), sec = Math.round((Date.now() - date.getTime()) / 1000), min = Math.round(sec / 60), hr = Math.round(min / 60), day = Math.round(hr / 24), month = Math.round(day / 30), year = Math.round(day / 365);
-    return sec < 5 ? 'just now' : sec < 60 ? `${sec}s ago` : min < 60 ? `${min}m ago` : hr < 24 ? `${hr}h ago` : day < 30 ? `${day}d ago` : month < 12 ? `${month}mo ago` : `${year}y ago`;
-}
-function formatSigned(value, digits = 0) {
-    if (!Number.isFinite(value)) return '—';
-    if (0 === value) return '±0';
-    let formatted = Math.abs(value).toLocaleString(void 0, {
-        maximumFractionDigits: digits,
-        minimumFractionDigits: +(digits > 0)
-    });
-    return `${value > 0 ? '+' : '−'}${formatted}`;
-}
-function formatCompactNumber(value) {
-    if (!Number.isFinite(value)) return '—';
-    let abs = Math.abs(value), format = (divisor, suffix, decimals)=>`${(value / divisor).toFixed(decimals).replace(/\.0+$/, '')}${suffix}`;
-    return abs >= 1e9 ? format(1e9, 'B', abs >= 1e10 ? 0 : 1) : abs >= 1e6 ? format(1e6, 'M', abs >= 1e7 ? 0 : 1) : abs >= 1e3 ? format(1e3, 'K', abs >= 1e4 ? 0 : 1) : value.toLocaleString();
-}
-let ACHIEVEMENT_LABEL_OVERRIDES = {
-    'overall-rank-1': 'Overall Rank #1',
-    'first-99-any': 'First 99 (Any Skill)',
-    'first-top1-any': 'First #1 (Any Skill)',
-    'maxed-account': 'Maxed Account',
-    'combat-maxed': 'All Combat Skills 99',
-    'total-2277': 'Max Total Level (2277)',
-    'total-2200': 'Total Level 2200+',
-    'total-2000': 'Total Level 2000+',
-    'total-1500': 'Total Level 1500+',
-    'totalxp-200m': '200m Total XP',
-    'totalxp-100m': '100m Total XP',
-    'totalxp-50m': '50m Total XP',
-    'totalxp-10m': '10m Total XP',
-    'xp-billionaire': '1b Total XP',
-    'xp-millionaire': '1m Total XP',
-    'tier-grandmaster': 'Grandmaster Tier',
-    'tier-master': 'Master Tier',
-    'tier-diamond': 'Diamond Tier',
-    'tier-platinum': 'Platinum Tier',
-    'tier-gold': 'Gold Tier',
-    'tier-silver': 'Silver Tier',
-    'tier-bronze': 'Bronze Tier'
-};
-function capitalizeSkillName(skill) {
-    return skill ? skill.charAt(0).toUpperCase() + skill.slice(1) : '';
-}
-function friendlyAchievementLabel(key) {
-    if (!key) return '';
-    let found = (Array.isArray(window.ACHIEVEMENT_CATALOG) ? window.ACHIEVEMENT_CATALOG : []).find((item)=>item && item.key === key);
-    if (found && found.label) return found.label;
-    if (ACHIEVEMENT_LABEL_OVERRIDES[key]) return ACHIEVEMENT_LABEL_OVERRIDES[key];
-    let match = /^skill-master-(.+)$/.exec(key);
-    return match ? `99 ${capitalizeSkillName(match[1])}` : (match = /^skill-200m-(.+)$/.exec(key)) ? `200m XP in ${capitalizeSkillName(match[1])}` : (match = /^totalxp-(\d+)([a-z]+)$/.exec(key)) ? `${match[1]}${match[2].toUpperCase()} Total XP` : 'triple-crown' === key ? 'Three #1 Skill Ranks' : 'crowned-any' === key ? '#1 Rank (Any Skill)' : 'top-10-any' === key ? 'Top 10 (Any Skill)' : 'top-100-any' === key ? 'Top 100 (Any Skill)' : 'gathering-elite' === key ? '90+ Gathering Trio' : 'artisan-elite' === key ? '90+ Artisan Trio' : 'support-elite' === key ? '90+ Support Trio' : 'balanced' === key ? 'Balanced Skill Spread' : 'glass-cannon' === key ? 'Glass Cannon Build' : 'tank' === key ? 'Tank Build' : 'skiller' === key ? 'Skiller Build' : 'combat-pure' === key ? 'Combat Pure Build' : key.replace(/[-_]/g, ' ').replace(/\b\w/g, (c)=>c.toUpperCase());
-}
 function createUsernameLink(username) {
     let btn = document.createElement('button');
     return btn.type = 'button', btn.className = 'username-link', btn.setAttribute('data-user', username), btn.textContent = username, btn;
@@ -187,7 +142,7 @@ function renderHeroSnapshot(leaderboard) {
                 clone.dataset.duplicate = 'true', track.appendChild(clone);
             }), track;
         }(leaderboard?.onTheRise || {});
-        tickerWrap.appendChild(track), window.applyTickerMotion ? window.applyTickerMotion(tickerWrap, track) : tickerWrap.classList.toggle('paused', track.childElementCount <= 1);
+        tickerWrap.appendChild(track), applyTickerMotion(tickerWrap, track);
     }
 }
 async function renderHomeView() {
@@ -466,7 +421,7 @@ async function renderHomeView() {
                 textWrap.appendChild(title), textWrap.appendChild(meta), left.appendChild(icon), left.appendChild(textWrap), div.appendChild(left), container.appendChild(div);
             })(banners[idx]);
         };
-        fetchJSON('/api/banners/rare').then((arr)=>{
+        fetchJson('/api/banners/rare').then((arr)=>{
             try {
                 if (!Array.isArray(arr)) return void console.error('rare banners: not array');
                 banners = arr.filter(validate), (()=>{
@@ -487,7 +442,7 @@ async function renderHomeView() {
 async function computeGlobalAchievementStats(skillRankings, leaderboard) {
     let averages = computeSkillAverages(skillRankings);
     try {
-        let stats = await fetchJSON('/api/achievements/stats'), counts = stats?.counts || {}, totalPlayers = Number(stats?.totalPlayers) || leaderboard?.totalPlayers || leaderboard?.players?.length || 0;
+        let stats = await fetchJson('/api/achievements/stats'), counts = stats?.counts || {}, totalPlayers = Number(stats?.totalPlayers) || leaderboard?.totalPlayers || leaderboard?.players?.length || 0;
         return {
             counts,
             totalPlayers,
@@ -502,13 +457,13 @@ async function computeGlobalAchievementStats(skillRankings, leaderboard) {
     }
 }
 async function loadLeaderboard(force = !1) {
-    return cache.leaderboard && !force || (cache.leaderboard = await fetchJSON("/api/leaderboard?limit=500")), cache.leaderboard;
+    return cache.leaderboard && !force || (cache.leaderboard = await fetchJson("/api/leaderboard?limit=500")), cache.leaderboard;
 }
 async function loadUsers(force = !1) {
-    return cache.users && !force && Date.now() - cache.usersFetchedAt < 60000 || (cache.users = await fetchJSON("/api/users"), cache.usersFetchedAt = Date.now()), cache.users;
+    return cache.users && !force && Date.now() - cache.usersFetchedAt < 60000 || (cache.users = await fetchJson("/api/users"), cache.usersFetchedAt = Date.now()), cache.users;
 }
 async function loadSkillRankings(force = !1) {
-    return cache.skillRankings && !force || (cache.skillRankings = await fetchJSON("/api/skill-rankings")), cache.skillRankings;
+    return cache.skillRankings && !force || (cache.skillRankings = await fetchJson("/api/skill-rankings")), cache.skillRankings;
 }
 function getUserSkillRank(skillRankings, username, skill) {
     if (!skillRankings || !skillRankings.rankings || !skillRankings.rankings[skill]) return null;
@@ -543,7 +498,7 @@ function computeSkillAverages(skillRankings) {
     let averages = {};
     try {
         let all = skillRankings && skillRankings.rankings || {};
-        (window.SKILLS || []).forEach((s)=>{
+        SKILLS.forEach((s)=>{
             let arr = all[s] || [];
             if (arr.length) {
                 let totalLvl = arr.reduce((sum, p)=>sum + (p.level || 0), 0), totalXp = arr.reduce((sum, p)=>sum + (p.xp || 0), 0);
@@ -557,7 +512,7 @@ function computeSkillAverages(skillRankings) {
             };
         });
     } catch (_) {
-        (window.SKILLS || []).forEach((s)=>averages[s] = {
+        SKILLS.forEach((s)=>averages[s] = {
                 level: 1,
                 xp: 0
             });
@@ -565,7 +520,7 @@ function computeSkillAverages(skillRankings) {
     return averages;
 }
 async function loadUser(username) {
-    return fetchJSON("/api/users/" + encodeURIComponent(username));
+    return fetchJson("/api/users/" + encodeURIComponent(username));
 }
 function handleRoute() {
     let hash = location.hash.slice(1);
@@ -609,7 +564,7 @@ function handleRoute() {
                 badge.setAttribute('title', `Updated ${updatedStr}`), meta.appendChild(badge);
             }
             userInfo.appendChild(meta), headerContent.appendChild(userInfo), headerSection.appendChild(headerContent);
-            let averages = computeSkillAverages(skillRankings), ACHIEVEMENT_CATALOG = window.ACHIEVEMENT_CATALOG || [
+            let averages = computeSkillAverages(skillRankings), ACHIEVEMENT_CATALOG = ACHIEVEMENT_CATALOG || [
                 {
                     key: 'tier-grandmaster',
                     icon: '👑',
@@ -1214,7 +1169,7 @@ function handleRoute() {
                 ((skill?.level || 1) > 1 || (skill?.xp || 0) > baseXP) && (tr.classList.add("clickable"), tr.addEventListener("click", ()=>{
                     window.open(`skill-hiscores.html?skill=${skillName}#skill=${skillName}`, "_blank");
                 }));
-                let iconUrl = window.getSkillIcon(skillName), nameCell = document.createElement("td");
+                let iconUrl = getSkillIcon(skillName), nameCell = document.createElement("td");
                 nameCell.className = "text-left", nameCell.innerHTML = `${iconUrl ? `<img src="${iconUrl}" class="skill-icon skill-icon--sm" alt="${skillName}">` : ""}<span class="skill-name text-capitalize">${skillName}</span>`;
                 let lvl = skill?.level ?? 1, xp = skill?.xp ?? 0;
                 tr.appendChild(nameCell), tr.appendChild(el("td", "text-center skill-level", [
@@ -1242,66 +1197,29 @@ document.addEventListener("click", (e)=>{
     }
     if (e.target.closest('#copyProfileLink')) {
         let href = window.location.href;
-        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(href).then(()=>toast('Profile link copied')).catch(()=>toast('Copy failed', 'error'));
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(href).then(()=>showToast('Profile link copied')).catch(()=>showToast('Copy failed', 'error'));
         else {
             let tmp = document.createElement('input');
             tmp.value = href, document.body.appendChild(tmp), tmp.select();
             try {
-                document.execCommand('copy'), toast('Profile link copied');
+                document.execCommand('copy'), showToast('Profile link copied');
             } catch (_) {
-                toast('Copy failed', 'error');
+                showToast('Copy failed', 'error');
             }
             tmp.remove();
         }
     }
-    ("themeToggle" === e.target.id || e.target.closest("#themeToggle")) && toggleTheme(), e.target.closest(".brand-link") && (e.preventDefault(), location.hash = "");
-}), window.addEventListener("hashchange", handleRoute), setTheme(localStorage.getItem("theme") || (matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")), function() {
-    let debounce, input = $("#playerSearch"), suggest = $("#searchSuggest"), activeIndex = -1, currentItems = [];
-    function hideSuggest() {
-        suggest.classList.add("hidden"), suggest.innerHTML = "", activeIndex = -1, currentItems = [], input.setAttribute("aria-expanded", "false");
+    if (e.target.closest('.brand-link')) {
+        e.preventDefault();
+        location.hash = '';
     }
-    function renderSuggest(matches) {
-        currentItems = matches, suggest.innerHTML = matches.map((m, i)=>`<button role="option" aria-selected="${i === activeIndex}" data-user="${m}" class="block${i === activeIndex ? " active" : ""}">${m}</button>`).join(""), suggest.classList.remove("hidden"), input.setAttribute("aria-expanded", "true");
-    }
-    input.addEventListener("input", ()=>{
-        clearTimeout(debounce), debounce = setTimeout(async ()=>{
-            let q = input.value.trim().toLowerCase();
-            if (!q) return void hideSuggest();
-            try {
-                suggest.innerHTML = '<div class="p-2 text-center text-xs text-muted">Loading…</div>', suggest.classList.remove('hidden');
-                let matches = (await loadUsers()).users.filter((u)=>u.toLowerCase().includes(q)).slice(0, 10);
-                if (!matches.length) return void hideSuggest();
-                activeIndex = -1, renderSuggest(matches);
-            } catch (e) {
-                hideSuggest();
-            } finally{}
-        }, 200);
-    }), input.addEventListener("keydown", (e)=>{
-        if (suggest.classList.contains("hidden")) {
-            "ArrowDown" === e.key && e.preventDefault();
-            return;
-        }
-        if ("Escape" === e.key) hideSuggest(), input.blur();
-        else if ("ArrowDown" === e.key) e.preventDefault(), activeIndex = Math.min(currentItems.length - 1, activeIndex + 1), renderSuggest(currentItems);
-        else if ("ArrowUp" === e.key) e.preventDefault(), activeIndex = Math.max(0, activeIndex - 1), renderSuggest(currentItems);
-        else if ("Enter" === e.key) {
-            e.preventDefault();
-            let u = null;
-            activeIndex >= 0 && currentItems[activeIndex] ? u = currentItems[activeIndex] : currentItems && currentItems.length && (u = currentItems[0]), u && (location.hash = "user/" + encodeURIComponent(u), hideSuggest());
-        }
-    }), document.addEventListener("click", (e)=>{
-        if (e.target.closest("#searchSuggest button")) {
-            let u = e.target.getAttribute("data-user");
-            location.hash = "user/" + encodeURIComponent(u), hideSuggest();
-        } else e.target.closest("#playerSearch") || e.target.closest("#searchSuggest") || hideSuggest();
-    }), input.addEventListener("change", async ()=>{
-        let q = input.value.trim().toLowerCase();
-        if (q) try {
-            let found = (await loadUsers()).users.find((u)=>u.toLowerCase() === q);
-            found && (location.hash = "user/" + encodeURIComponent(found));
-        } catch (_) {}
-    }), input.setAttribute("role", "combobox"), input.setAttribute("aria-autocomplete", "list"), input.setAttribute("aria-expanded", "false"), suggest.setAttribute("role", "listbox");
-}(), handleRoute(), (apiSpan = $("#currentApiBase")) && window.API_BASE && (apiSpan.textContent = window.API_BASE === location.origin ? "Same-origin" : window.API_BASE), document.addEventListener('keydown', (e)=>{
+});
+window.addEventListener("hashchange", handleRoute);
+
+initCommonUi();
+handleRoute();
+
+document.addEventListener('keydown', (e)=>{
     if ('/' === e.key && !e.ctrlKey && !e.metaKey && !e.altKey) {
         let tag = e.target && e.target.tagName || '';
         if ('INPUT' !== tag && 'TEXTAREA' !== tag && !e.target.isContentEditable) {

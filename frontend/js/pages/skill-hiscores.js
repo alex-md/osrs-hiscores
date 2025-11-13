@@ -1,11 +1,15 @@
-// Skill Hiscores page logic
-// API_BASE, setApiBase, fetchJSON provided by common.js
+import { initCommonUi } from '../bootstrap.js';
+import { fetchJson } from '../core/api.js';
+import { $, showToast } from '../core/dom.js';
+import { formatRelativeTime } from '../core/formatters.js';
+import { SKILLS } from '../constants/skills.js';
+import { applyTickerMotion } from '../core/ticker.js';
+
 const cache = { skillRankings: null };
 
-// fetchJSON now global (common.js)
 async function loadSkillRankings(force = false) {
   if (cache.skillRankings && !force) return cache.skillRankings;
-  cache.skillRankings = await fetchJSON("/api/skill-rankings");
+  cache.skillRankings = await fetchJson("/api/skill-rankings");
   return cache.skillRankings;
 }
 
@@ -16,25 +20,6 @@ let minLevel = null;
 let maxLevel = null;
 let minXp = null;
 let maxXp = null;
-
-const describeRelativeTime = window.describeRelativeTime || ((ts) => {
-  if (!Number.isFinite(ts)) return null;
-  const diff = Date.now() - Number(ts);
-  if (!Number.isFinite(diff) || diff < 0) return null;
-  const seconds = Math.round(diff / 1000);
-  if (seconds < 5) return 'just now';
-  if (seconds < 60) return `${seconds}s ago`;
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.round(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  const months = Math.round(days / 30);
-  if (months < 12) return `${months}mo ago`;
-  const years = Math.round(days / 365);
-  return `${years}y ago`;
-});
 
 function updateSkillHero(rows, data) {
   const total = Array.isArray(rows) ? rows.length : 0;
@@ -71,7 +56,7 @@ function updateSkillHero(rows, data) {
   const lastEl = document.getElementById('skillLastUpdatedHero');
   if (lastEl) {
     if (generatedAt) {
-      const rel = describeRelativeTime(generatedAt);
+      const rel = formatRelativeTime(generatedAt);
       lastEl.textContent = rel || new Date(generatedAt).toLocaleString();
       lastEl.setAttribute('title', new Date(generatedAt).toLocaleString());
     } else {
@@ -118,8 +103,7 @@ function updateSkillHero(rows, data) {
       }
     }
     tickerWrap.appendChild(track);
-    if (window.applyTickerMotion) window.applyTickerMotion(tickerWrap, track);
-    else tickerWrap.classList.toggle('paused', track.childElementCount <= 1);
+    applyTickerMotion(tickerWrap, track);
   }
 }
 
@@ -196,11 +180,11 @@ function renderTable() {
     .catch((e) => {
       const htmlLike = /Received HTML|Unexpected content-type/.test(e.message);
       if (htmlLike)
-        toast(
+        showToast(
           "API not mounted under /api - verify _worker.js deployment",
           "error",
         );
-      else toast(e.message, "error");
+      else showToast(e.message, "error");
       updateSkillHero([], null);
     });
 }
@@ -240,11 +224,11 @@ document.addEventListener("click", (e) => {
       );
       const csv = lines.join('\n');
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(csv).then(() => toast('CSV copied')).catch(() => downloadCsv(csv));
+        navigator.clipboard.writeText(csv).then(() => showToast('CSV copied')).catch(() => downloadCsv(csv));
       } else {
         downloadCsv(csv);
       }
-    }).catch(() => toast('Failed to build CSV', 'error'));
+    }).catch(() => showToast('Failed to build CSV', 'error'));
   }
 });
 
@@ -259,8 +243,8 @@ function downloadCsv(csv) {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    toast('CSV downloaded');
-  } catch (_) { toast('CSV download failed', 'error'); }
+    showToast('CSV downloaded');
+  } catch (_) { showToast('CSV download failed', 'error'); }
 }
 
 // filters (name + numeric)
@@ -310,9 +294,6 @@ function init() {
     });
   }
 
-  const theme = localStorage.getItem("theme") || "dark";
-  setTheme(theme);
-
   // perPage is fixed; page starts at 1
 
   // Page size selector
@@ -324,14 +305,6 @@ function init() {
       page = 1;
       renderTable();
     });
-  }
-
-  // Show current API base in footer
-  const apiSpan = $("#currentApiBase");
-  if (apiSpan && window.API_BASE) {
-    const displayBase =
-      window.API_BASE === location.origin ? "Same-origin" : window.API_BASE;
-    apiSpan.textContent = displayBase;
   }
 
   renderTable();

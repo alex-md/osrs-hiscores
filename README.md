@@ -56,9 +56,13 @@ osrs-hiscores/
 ├── frontend/                # Static client (no bundler)
 │   ├── index.html           # Leaderboard + profile (SPA-like via hash)
 │   ├── skill-hiscores.html  # Per-skill rankings UI
-│   ├── common.js            # Shared helpers (API base, DOM, theme, skill meta)
-│   ├── app.js               # Leaderboard + player profile logic
-│   ├── skill-hiscores.js    # Skill table view logic
+│   ├── achievements.html    # Achievement atlas and insights
+│   ├── js/                  # Frontend modules (vanilla ES modules)
+│   │   ├── bootstrap.js     # Shared UI bootstrapping (theme, API controls, ticker)
+│   │   ├── core/            # DOM, formatting, API, theme, ticker primitives
+│   │   ├── constants/       # Skill metadata & achievement catalog
+│   │   ├── components/      # Reusable UI generators (skill link list, etc.)
+│   │   └── pages/           # Page-specific controllers (home, achievements, skills)
 │   └── styles.css           # Custom theme / OSRS-inspired aesthetic
 ├── functions/
 │   └── api/[[path]].js      # Cloudflare Pages Function delegating to Worker
@@ -165,9 +169,14 @@ Scheduler will also lazily backfill missing fields during regular ticks.
 
 | File | Responsibility |
 | ---- | -------------- |
-| `common.js` | API base discovery, helper DOM factories, theme persistence, global constants (skill names & icons) |
-| `app.js` | Leaderboard rendering, user profile view, achievements derivation, client caches, routing (`hashchange`) |
-| `skill-hiscores.js` | Per-skill ranking screen, filtering logic, pagination state |
+| `js/bootstrap.js` | Shared bootstrapping (theme persistence, API base controls, ticker hydration) |
+| `js/core/api.js` | API base discovery, fetch helpers with TTL cache |
+| `js/core/dom.js` | DOM factories, toast notifications, query helpers |
+| `js/core/formatters.js` | Relative time, signed/compact number formatting, achievement labels |
+| `js/constants/achievements.js` | Canonical achievement catalog & metadata |
+| `js/pages/home.js` | Leaderboard rendering, watchlist, profile view, caches, hash routing |
+| `js/pages/achievements.js` | Achievement atlas, insights, rarity matrix |
+| `js/pages/skill-hiscores.js` | Skill ladder filters, CSV export, spotlight ticker |
 | `styles.css` | Layered theme tokens (CSS custom props), OSRS-style gradient & pixel font integration, achievement rarity styling |
 
 ### Client Caching & Performance

@@ -26,8 +26,7 @@
         <script src="https://cdn.tailwindcss.com"></script>
         <link rel="stylesheet" href="styles.css" />
         <script async src="https://unpkg.com/lucide@latest"></script>
-        <script defer src="common.js"></script>
-        <script defer src="app.js?v=20250903"></script>
+        <script type="module" src="js/pages/home.js"></script>
     </head>
 
     <body class="h-full bg-surface text-foreground transition-colors">
@@ -234,9 +233,8 @@
                 </div>
                 <div class="mt-2 opacity-60 text-xs">
                     API: <span id="currentApiBase"></span>
-                    <button onclick="window.setApiBase(prompt('Enter API base URL:', window.API_BASE))"
-                        class="ml-2 underline hover:text-accent">Change</button>
-                    <button onclick="window.clearApiBase()" class="ml-2 underline hover:text-accent">Reset</button>
+                    <button data-action="change-api-base" class="ml-2 underline hover:text-accent">Change</button>
+                    <button data-action="reset-api-base" class="ml-2 underline hover:text-accent">Reset</button>
                 </div>
             </footer>
         </div>

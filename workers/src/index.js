@@ -18,6 +18,17 @@ import {
     projectHighestAchievementFamilies,
     ACHIEVEMENT_KEYS
 } from './achievements.js';
+import { memGet, memSet, memDelete, kvGetCached } from './lib/cache.js';
+import {
+    getLeaderboardHistory,
+    updateLeaderboardHistory,
+    selectHistoryEntry,
+    computeOnTheRiseFromHistory,
+    computeTrendSummaryFromHistory
+} from './lib/history.js';
+import { friendlyAchievementLabel } from './lib/achievements-meta.js';
+import { buildWatchlistFromData } from './lib/watchlist.js';
+
 import {
     levelFromXp,
     xpForLevel,
@@ -39,45 +50,14 @@ import {
 } from './utils.js';
 import { buildSnapshot } from './data-sync.js';
 
-// ————————————————————————————————————————————————
-// Lightweight in-memory cache for hot KV reads and response caching (per Worker instance)
-const __memCache = new Map(); // key -> { value, expiresAt }
-
 // Top-N limits for leaderboard and per-skill rankings (frontend expects at most ~100 entries)
 const LEADERBOARD_TOP_LIMIT = 100;
 const SKILL_RANKINGS_TOP_LIMIT = 100;
 
-const LEADERBOARD_HISTORY_KEY = 'stats:leaderboard:history';
-const LEADERBOARD_HISTORY_MAX_ENTRIES = 32;
-const LEADERBOARD_HISTORY_PLAYER_LIMIT = 200;
 const WATCHLIST_KEY = 'stats:watchlist:auto';
 const WATCHLIST_MAX_ENTRIES = 8;
 const DAY_MS = 24 * 3600 * 1000;
 const WEEK_MS = 7 * 24 * 3600 * 1000;
-
-function memGet(key) {
-    const entry = __memCache.get(key);
-    if (!entry) return undefined;
-    if (entry.expiresAt && Date.now() > entry.expiresAt) {
-        __memCache.delete(key);
-        return undefined;
-    }
-    return entry.value;
-}
-
-function memSet(key, value, ttlSeconds = 0) {
-    const expiresAt = ttlSeconds > 0 ? (Date.now() + ttlSeconds * 1000) : 0;
-    __memCache.set(key, { value, expiresAt });
-}
-
-async function kvGetCached(env, key, { ttlSeconds = 10 } = {}) {
-    const memKey = `kv:text:${key}`;
-    const cached = memGet(memKey);
-    if (typeof cached === 'string') return cached;
-    const raw = await env.HISCORES_KV.get(key);
-    if (typeof raw === 'string') memSet(memKey, raw, ttlSeconds);
-    return raw || null;
-}
 
 // Simple chunk utility
 function chunk(arr, size) {
@@ -88,156 +68,6 @@ function chunk(arr, size) {
 
 // Sleep helper (ms)
 function sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
-
-async function getLeaderboardHistory(env) {
-    try {
-        const raw = await env.HISCORES_KV.get(LEADERBOARD_HISTORY_KEY);
-        if (!raw) return [];
-        const parsed = JSON.parse(raw);
-        return Array.isArray(parsed) ? parsed : [];
-    } catch (_) {
-        return [];
-    }
-}
-
-async function updateLeaderboardHistory(env, leaderboard) {
-    if (!leaderboard || !Array.isArray(leaderboard.players)) return;
-    const entry = {
-        generatedAt: Number(leaderboard.generatedAt) || Date.now(),
-        totalPlayers: Number(leaderboard.totalPlayers) || leaderboard.players.length || 0,
-        players: leaderboard.players.slice(0, LEADERBOARD_HISTORY_PLAYER_LIMIT).map(p => ({
-            username: p.username,
-            rank: Number(p.rank) || 0,
-            totalLevel: Number(p.totalLevel) || 0,
-            totalXP: Number(p.totalXP) || 0
-        }))
-    };
-    let history = await getLeaderboardHistory(env);
-    const last = history[history.length - 1];
-    const lastTs = Number(last?.generatedAt) || 0;
-    if (last && Math.abs(entry.generatedAt - lastTs) < (15 * 60 * 1000)) {
-        history[history.length - 1] = entry;
-    } else {
-        history.push(entry);
-    }
-    const cutoff = Date.now() - WEEK_MS;
-    history = history.filter(item => Number(item?.generatedAt) >= cutoff);
-    while (history.length > LEADERBOARD_HISTORY_MAX_ENTRIES) history.shift();
-    try { await env.HISCORES_KV.put(LEADERBOARD_HISTORY_KEY, JSON.stringify(history)); }
-    catch (_) { /* ignore history write errors */ }
-    return history;
-}
-
-function selectHistoryEntry(history, hoursBack = 24) {
-    if (!Array.isArray(history) || history.length === 0) return { entry: null, hours: null };
-    const now = Date.now();
-    const target = now - hoursBack * 3600000;
-    let candidate = null;
-    let candidateTs = -Infinity;
-    for (const item of history) {
-        const ts = Number(item?.generatedAt);
-        if (!Number.isFinite(ts)) continue;
-        if (ts <= target && ts > candidateTs) {
-            candidate = item;
-            candidateTs = ts;
-        }
-    }
-    if (!candidate) {
-        let earliest = null;
-        let earliestTs = Infinity;
-        for (const item of history) {
-            const ts = Number(item?.generatedAt);
-            if (!Number.isFinite(ts)) continue;
-            if (ts < earliestTs) {
-                earliest = item;
-                earliestTs = ts;
-            }
-        }
-        candidate = earliest || null;
-        candidateTs = Number(candidate?.generatedAt) || 0;
-    }
-    if (!candidate || !Number.isFinite(candidateTs)) return { entry: null, hours: null };
-    const hours = Math.max(1, Math.round((now - candidateTs) / 3600000));
-    return { entry: candidate, hours };
-}
-
-function computeOnTheRiseFromHistory(currentPlayers, history) {
-    const list = Array.isArray(currentPlayers) ? currentPlayers : [];
-    if (!list.length) return { players: [], windowHours: null };
-    const { entry, hours } = selectHistoryEntry(history, 24);
-    if (!entry || !Array.isArray(entry.players)) return { players: [], windowHours: hours };
-    const prevMap = new Map();
-    for (const p of entry.players) {
-        const uname = String(p?.username || '').toLowerCase();
-        const rank = Number(p?.rank);
-        if (!uname || !Number.isFinite(rank)) continue;
-        prevMap.set(uname, rank);
-    }
-    const climbers = [];
-    for (const player of list) {
-        const unameLower = String(player?.username || '').toLowerCase();
-        if (!unameLower) continue;
-        const prevRank = prevMap.get(unameLower);
-        const currentRank = Number(player?.rank);
-        if (!Number.isFinite(prevRank) || !Number.isFinite(currentRank)) continue;
-        const delta = prevRank - currentRank;
-        if (delta >= 100) {
-            climbers.push({
-                username: player.username,
-                currentRank,
-                previousRank: prevRank,
-                delta,
-                totalLevel: Number(player?.totalLevel) || 0,
-                totalXP: Number(player?.totalXP) || 0
-            });
-        }
-    }
-    climbers.sort((a, b) => b.delta - a.delta || a.currentRank - b.currentRank || a.username.localeCompare(b.username));
-    return { players: climbers.slice(0, 6), windowHours: hours };
-}
-
-function safeAverageFrom(list, accessor) {
-    if (!Array.isArray(list) || list.length === 0) return 0;
-    let sum = 0;
-    let count = 0;
-    for (const item of list) {
-        const value = Number(accessor(item));
-        if (!Number.isFinite(value)) continue;
-        sum += value;
-        count++;
-    }
-    return count ? sum / count : 0;
-}
-
-function computeTrendSummaryFromHistory(currentPayload, history) {
-    const players = Array.isArray(currentPayload?.players) ? currentPayload.players : [];
-    const totalPlayers = Number(currentPayload?.totalPlayers) || 0;
-    const currentAvgLevel = safeAverageFrom(players, p => p?.totalLevel || 0);
-    const currentAvgXp = safeAverageFrom(players, p => p?.totalXP || 0);
-    const { entry, hours } = selectHistoryEntry(history, 24);
-    let prevAvgLevel = currentAvgLevel;
-    let prevAvgXp = currentAvgXp;
-    let prevTotalPlayers = totalPlayers;
-    if (entry && Array.isArray(entry.players) && entry.players.length) {
-        prevAvgLevel = safeAverageFrom(entry.players, p => p?.totalLevel || 0);
-        prevAvgXp = safeAverageFrom(entry.players, p => p?.totalXP || 0);
-        prevTotalPlayers = Number(entry.totalPlayers) || prevTotalPlayers;
-    }
-    return {
-        totalPlayers,
-        totalPlayersChange24h: totalPlayers - prevTotalPlayers,
-        sampleSize: players.length,
-        sampleWindowHours: hours,
-        avgTotalLevel: {
-            current: currentAvgLevel,
-            change: currentAvgLevel - prevAvgLevel
-        },
-        avgTotalXP: {
-            current: currentAvgXp,
-            change: currentAvgXp - prevAvgXp
-        }
-    };
-}
 
 function classifyRarityFromCounts(count, totalPlayers) {
     const total = Number(totalPlayers);
@@ -344,171 +174,6 @@ const ACHIEVEMENT_LABEL_OVERRIDES = {
 function capitalizeSkillName(skill) {
     if (!skill) return '';
     return skill.charAt(0).toUpperCase() + skill.slice(1);
-}
-
-function friendlyAchievementLabel(key) {
-    if (!key) return '';
-    if (ACHIEVEMENT_LABEL_OVERRIDES[key]) return ACHIEVEMENT_LABEL_OVERRIDES[key];
-    let match = /^skill-master-(.+)$/.exec(key);
-    if (match) return `99 ${capitalizeSkillName(match[1])}`;
-    match = /^skill-200m-(.+)$/.exec(key);
-    if (match) return `200m XP in ${capitalizeSkillName(match[1])}`;
-    match = /^totalxp-(\d+)([a-z]+)$/.exec(key);
-    if (match) return `${match[1]}${match[2].toUpperCase()} Total XP`;
-    if (key === 'triple-crown') return 'Three #1 Skill Ranks';
-    if (key === 'crowned-any') return '#1 Rank (Any Skill)';
-    if (key === 'top-10-any') return 'Top 10 (Any Skill)';
-    if (key === 'top-100-any') return 'Top 100 (Any Skill)';
-    if (key === 'gathering-elite') return '90+ Gathering Trio';
-    if (key === 'artisan-elite') return '90+ Artisan Trio';
-    if (key === 'support-elite') return '90+ Support Trio';
-    if (key === 'balanced') return 'Balanced Skill Spread';
-    if (key === 'glass-cannon') return 'Glass Cannon Build';
-    if (key === 'tank') return 'Tank Build';
-    if (key === 'skiller') return 'Skiller Build';
-    if (key === 'combat-pure') return 'Combat Pure Build';
-    return key
-        .replace(/[-_]/g, ' ')
-        .replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function isoFromValue(value) {
-    if (value === null || value === undefined) return null;
-    if (typeof value === 'string') {
-        const parsed = Date.parse(value);
-        if (Number.isFinite(parsed)) {
-            return new Date(parsed).toISOString().replace(/\.\d{3}Z$/, 'Z');
-        }
-        return null;
-    }
-    const num = Number(value);
-    if (!Number.isFinite(num)) return null;
-    return new Date(num).toISOString().replace(/\.\d{3}Z$/, 'Z');
-}
-
-function buildWatchlistFromData(leaderboard, { onTheRise, weeklyRarest, now = Date.now() } = {}) {
-    const players = Array.isArray(leaderboard?.players) ? leaderboard.players : [];
-    const playerMap = new Map();
-    for (const p of players) {
-        const lower = String(p?.username || '').toLowerCase();
-        if (lower) playerMap.set(lower, p);
-    }
-    const tracked = [];
-    const seen = new Set();
-    const counts = { rare: 0, climbers: 0, anchors: 0, fallback: 0 };
-
-    const pushEntry = (entry) => {
-        if (!entry) return false;
-        const rawName = String(entry.username || '').trim();
-        if (!rawName) return false;
-        const lower = rawName.toLowerCase();
-        if (seen.has(lower) || tracked.length >= WATCHLIST_MAX_ENTRIES) {
-            return tracked.length < WATCHLIST_MAX_ENTRIES;
-        }
-        const player = playerMap.get(lower);
-        const source = entry.source || 'top-tier';
-        const rankValue = Number.isFinite(entry.rank) ? Number(entry.rank)
-            : Number.isFinite(player?.rank) ? Number(player.rank) : null;
-        const tierValue = entry.tier || player?.tier || null;
-        const item = {
-            username: rawName,
-            rank: rankValue,
-            tier: tierValue,
-            source,
-            reason: entry.reason || null,
-            happenedAt: isoFromValue(entry.happenedAt) || null,
-            delta: Number.isFinite(entry.delta) ? Number(entry.delta) : null,
-            previousRank: Number.isFinite(entry.previousRank) ? Number(entry.previousRank) : null,
-            achievementKey: entry.achievementKey || null,
-            fallback: entry.fallback === true
-        };
-        if (!item.happenedAt) {
-            const ts = entry.updatedAt ?? player?.updatedAt;
-            item.happenedAt = isoFromValue(ts);
-        }
-        tracked.push(item);
-        seen.add(lower);
-        if (source === 'rare-achievement') counts.rare++;
-        else if (source === 'rank-climb') counts.climbers++;
-        else if (source === 'top-tier') {
-            counts.anchors++;
-            if (entry.fallback) counts.fallback++;
-        } else {
-            counts.fallback++;
-        }
-        return tracked.length < WATCHLIST_MAX_ENTRIES;
-    };
-
-    if (weeklyRarest && Array.isArray(weeklyRarest.recentUnlocks) && weeklyRarest.recentUnlocks.length) {
-        const label = friendlyAchievementLabel(weeklyRarest.key) || 'Unlocked a rare achievement';
-        const unlocks = weeklyRarest.recentUnlocks.slice(0, 4);
-        for (const unlock of unlocks) {
-            pushEntry({
-                username: unlock?.username,
-                source: 'rare-achievement',
-                reason: label,
-                happenedAt: unlock?.timestamp,
-                achievementKey: weeklyRarest.key
-            });
-        }
-    }
-
-    if (onTheRise && Array.isArray(onTheRise.players) && onTheRise.players.length) {
-        for (const climb of onTheRise.players.slice(0, 4)) {
-            const delta = Number(climb?.delta) || 0;
-            if (delta <= 0) continue;
-            pushEntry({
-                username: climb?.username,
-                rank: climb?.currentRank,
-                previousRank: climb?.previousRank,
-                delta,
-                source: 'rank-climb',
-                reason: `Climbed ${delta} ranks`
-            });
-        }
-    }
-
-    if (tracked.length < WATCHLIST_MAX_ENTRIES && players.length) {
-        const tierPriority = new Set(['Grandmaster', 'Master', 'Diamond', 'Platinum']);
-        for (const player of players) {
-            if (tracked.length >= WATCHLIST_MAX_ENTRIES) break;
-            if (!tierPriority.has(player?.tier)) continue;
-            pushEntry({
-                username: player?.username,
-                rank: player?.rank,
-                tier: player?.tier,
-                source: 'top-tier',
-                reason: `Holding overall rank #${player?.rank ?? ''}`,
-                updatedAt: player?.updatedAt
-            });
-        }
-    }
-
-    if (tracked.length < WATCHLIST_MAX_ENTRIES && players.length) {
-        for (const player of players) {
-            if (tracked.length >= WATCHLIST_MAX_ENTRIES) break;
-            pushEntry({
-                username: player?.username,
-                rank: player?.rank,
-                tier: player?.tier,
-                source: 'top-tier',
-                reason: `Overall rank #${player?.rank ?? ''}`,
-                updatedAt: player?.updatedAt,
-                fallback: true
-            });
-        }
-    }
-
-    const totalPlayers = Number(leaderboard?.totalPlayers) || players.length || 0;
-    const windowHours = Number.isFinite(onTheRise?.windowHours) ? Number(onTheRise.windowHours) : null;
-    return {
-        generatedAt: now,
-        totalPlayers,
-        windowHours,
-        tracked,
-        sources: { rare: counts.rare, climbers: counts.climbers, anchors: counts.anchors, fallback: counts.fallback },
-        message: tracked.length ? 'Auto-curated from recent leaderboard activity.' : 'No notable players detected yet.'
-    };
 }
 
 async function fetchWeeklyRarest(env) {
@@ -671,8 +336,8 @@ function newUser(username) {
 async function putUser(env, user) {
     await env.HISCORES_KV.put(`user:${user.username.toLowerCase()}`, JSON.stringify(user));
     // Invalidate memory caches best-effort
-    __memCache.delete('all-users:v2');
-    __memCache.delete(`kv:text:user:${user.username.toLowerCase()}`);
+    memDelete('all-users:v2');
+    memDelete(`kv:text:user:${user.username.toLowerCase()}`);
 }
 
 async function getUser(env, username) {
@@ -931,7 +596,7 @@ async function persistLeaderboardSnapshots(env, users, ctx = null, options = {})
     try {
         const onTheRise = computeOnTheRiseFromHistory(leaderboard.players || [], history || []);
         const weeklyRarest = await fetchWeeklyRarest(env);
-        const watchlist = buildWatchlistFromData(leaderboard, { onTheRise, weeklyRarest, now: Date.now() });
+        const watchlist = buildWatchlistFromData(leaderboard, { onTheRise, weeklyRarest, now: Date.now(), maxEntries: WATCHLIST_MAX_ENTRIES });
         await env.HISCORES_KV.put(WATCHLIST_KEY, JSON.stringify(watchlist));
     } catch (err) {
         console.log('watchlist persist error:', String(err));
@@ -962,7 +627,7 @@ async function handleLeaderboard(env, url) {
     const trendSummary = computeTrendSummaryFromHistory(payload, history);
     const weeklyRarest = await fetchWeeklyRarest(env);
     const now = Date.now();
-    let watchlist = buildWatchlistFromData(payload, { onTheRise, weeklyRarest, now });
+    let watchlist = buildWatchlistFromData(payload, { onTheRise, weeklyRarest, now, maxEntries: WATCHLIST_MAX_ENTRIES });
     let storedWatchlist = null;
     try { storedWatchlist = await readStoredWatchlist(env); }
     catch (_) { storedWatchlist = null; }
