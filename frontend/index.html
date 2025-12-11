@@ -23,6 +23,38 @@
                 }
             })();
         </script>
+        <script>
+            // Tailwind (CDN) integration: map utilities to our CSS variables.
+            // This keeps the project build-free while enabling shadcn-like tokens.
+            window.tailwind = window.tailwind || {};
+            window.tailwind.config = {
+                darkMode: ['class', '[data-theme="dark"]'],
+                theme: {
+                    extend: {
+                        colors: {
+                            background: 'var(--background)',
+                            foreground: 'var(--foreground)',
+                            card: 'var(--card)',
+                            'card-foreground': 'var(--card-foreground)',
+                            popover: 'var(--popover)',
+                            'popover-foreground': 'var(--popover-foreground)',
+                            muted: 'var(--muted)',
+                            'muted-foreground': 'var(--muted-foreground)',
+                            border: 'var(--border)',
+                            input: 'var(--input)',
+                            primary: 'var(--primary)',
+                            ring: 'var(--ring)'
+                        },
+                        borderRadius: {
+                            lg: 'var(--radius)'
+                        },
+                        fontFamily: {
+                            sans: ['Inter', 'ui-sans-serif', 'system-ui', 'Segoe UI', 'Helvetica Neue', 'Arial']
+                        }
+                    }
+                }
+            };
+        </script>
         <script src="https://cdn.tailwindcss.com"></script>
         <link rel="stylesheet" href="styles.css" />
         <script async src="https://unpkg.com/lucide@latest"></script>
@@ -31,7 +63,7 @@
     </head>
 
     <body class="h-full bg-surface text-foreground transition-colors">
-        <div id="app" class="min-h-full flex flex-col max-w-screen-xl mx-auto">
+        <div id="app" class="min-h-full flex flex-col mx-auto app-shell">
             <header class="osrs-header px-6 py-4">
                 <div class="header-ambient" aria-hidden="true">
                     <span class="header-ambient__orb header-ambient__orb--left"></span>
@@ -49,7 +81,7 @@
                             <span class="header-subtitle">Track every climb across Gielinor.</span>
                         </div>
                     </div>
-                    <nav class="header-nav" aria-label="Primary">
+                    <nav class="header-nav header-nav--scroll" aria-label="Primary">
                         <a href="#" class="nav-pill active" data-view="home" data-tooltip="Overall rankings">
                             <i data-lucide="trophy" class="w-4 h-4"></i>
                             <span>Leaderboard</span>
@@ -66,9 +98,14 @@
                     <div class="header-tools">
                         <div class="header-search">
                             <label for="playerSearch" class="sr-only">Search player</label>
-                            <input id="playerSearch" type="text" placeholder="Search competitor…"
-                                class="btn-input" aria-label="Search player" autocomplete="off" />
-                            <div id="searchSuggest" class="search-suggestions hidden max-h-64 overflow-auto text-sm"></div>
+                            <input id="playerSearch" type="text" placeholder="Search competitor…" class="ui-input"
+                                aria-label="Search player" autocomplete="off" />
+                            <span class="search-icon" aria-hidden="true">
+                                <i data-lucide="search" class="w-4 h-4"></i>
+                            </span>
+                            <kbd class="search-kbd" aria-hidden="true">/</kbd>
+                            <div id="searchSuggest" class="search-suggestions hidden max-h-64 overflow-auto text-sm">
+                            </div>
                         </div>
                         <button id="themeToggle" class="icon-button" title="Toggle Theme">
                             <i data-lucide="sun" class="w-5 h-5"></i>
@@ -105,7 +142,7 @@
                                 </a>
                             </div>
                         </div>
-                    <div class="hero-metrics">
+                        <div class="hero-metrics">
                             <div class="hero-metric" data-metric="players">
                                 <span class="hero-metric__label">Active competitors</span>
                                 <div class="hero-metric__value">
@@ -142,7 +179,8 @@
                         </div>
                         <div class="hero-spotlight__content">
                             <span id="heroSpotlightName">Awaiting challenger…</span>
-                            <span id="heroSpotlightMeta" class="hero-spotlight__meta">Stay tuned for the next dramatic climb.</span>
+                            <span id="heroSpotlightMeta" class="hero-spotlight__meta">Stay tuned for the next dramatic
+                                climb.</span>
                         </div>
                     </div>
                     <div class="hero-podium-wrap">
@@ -175,7 +213,7 @@
                 </nav>
                 <div class="main-grid" data-home-layout="overview">
                     <div class="left-stack">
-                        <aside class="sidebar card">
+                        <aside class="sidebar card ui-card--subtle">
                             <nav class="flex-col gap-3">
                                 <a href="#" class="flex-items-center gap-2 hover:text-accent">
                                     <i data-lucide="list" class="w-4 h-4"></i>

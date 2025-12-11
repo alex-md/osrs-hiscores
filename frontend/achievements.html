@@ -23,32 +23,47 @@
                 }
             })();
         </script>
+        <script>
+            // Tailwind (CDN) integration: map utilities to our CSS variables.
+            // This keeps the project build-free while enabling shadcn-like tokens.
+            window.tailwind = window.tailwind || {};
+            window.tailwind.config = {
+                darkMode: ['class', '[data-theme="dark"]'],
+                theme: {
+                    extend: {
+                        colors: {
+                            background: 'var(--background)',
+                            foreground: 'var(--foreground)',
+                            card: 'var(--card)',
+                            'card-foreground': 'var(--card-foreground)',
+                            popover: 'var(--popover)',
+                            'popover-foreground': 'var(--popover-foreground)',
+                            muted: 'var(--muted)',
+                            'muted-foreground': 'var(--muted-foreground)',
+                            border: 'var(--border)',
+                            input: 'var(--input)',
+                            primary: 'var(--primary)',
+                            ring: 'var(--ring)'
+                        },
+                        borderRadius: {
+                            lg: 'var(--radius)'
+                        },
+                        fontFamily: {
+                            sans: ['Inter', 'ui-sans-serif', 'system-ui', 'Segoe UI', 'Helvetica Neue', 'Arial']
+                        }
+                    }
+                }
+            };
+        </script>
         <script src="https://cdn.tailwindcss.com"></script>
         <link rel="stylesheet" href="styles.css" />
         <script defer src="https://unpkg.com/lucide@latest"></script>
         <script defer src="common.js"></script>
         <script defer src="achievements.js"></script>
-
-        <style>
-            section#insightsContainer {
-                display: flex;
-                flex-direction: column;
-                align-items: stretch;
-            }
-
-            .min-h-full.flex-col {
-                margin: 0 auto;
-            }
-
-            main.flex-1.p-6.container-wrap {
-                margin: 0 auto;
-                width: 100%;
-            }
-        </style>
     </head>
 
-    <body class="h-full bg-surface text-foreground">
-        <div class="min-h-full flex flex-col max-w-screen-xl mx-auto">
+    <body class="h-full bg-surface text-foreground transition-colors">
+        <div id="app" class="min-h-full flex flex-col mx-auto app-shell">
             <header class="osrs-header px-6 py-4">
                 <div class="header-ambient" aria-hidden="true">
                     <span class="header-ambient__orb header-ambient__orb--left"></span>
@@ -66,7 +81,7 @@
                             <span class="header-subtitle">Map every legendary unlock in the realm.</span>
                         </div>
                     </div>
-                    <nav class="header-nav" aria-label="Primary">
+                    <nav class="header-nav header-nav--scroll" aria-label="Primary">
                         <a href="index.html" class="nav-pill" data-tooltip="Overall leaderboard">
                             <i data-lucide="trophy" class="w-4 h-4"></i>
                             <span>Leaderboard</span>
@@ -98,7 +113,8 @@
                         <div class="hero-copy">
                             <p class="hero-kicker">Achievement network</p>
                             <h1 class="hero-title">Celebrate the rarest unlocks in Old School RuneScape</h1>
-                            <p class="hero-subtitle">Discover who holds the rare titles, which badges trend, and how elite
+                            <p class="hero-subtitle">Discover who holds the rare titles, which badges trend, and how
+                                elite
                                 players connect across the ladder.</p>
                         </div>
                     </div>
@@ -135,7 +151,8 @@
                         </div>
                         <div class="hero-spotlight__content">
                             <span id="achievementHeroSpotlightName">Tracking the rarest unlocks in the realm…</span>
-                            <span id="achievementHeroSpotlightMeta" class="hero-spotlight__meta">As soon as a badge is claimed
+                            <span id="achievementHeroSpotlightMeta" class="hero-spotlight__meta">As soon as a badge is
+                                claimed
                                 you'll see it here.</span>
                         </div>
                     </div>

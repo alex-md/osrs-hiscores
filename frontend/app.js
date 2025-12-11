@@ -19,7 +19,7 @@ function formatSigned(value, digits = 0) {
 }
 function formatCompactNumber(value) {
     if (!Number.isFinite(value)) return '—';
-    let abs = Math.abs(value), format = (divisor, suffix, decimals)=>`${(value / divisor).toFixed(decimals).replace(/\.0+$/, '')}${suffix}`;
+    let abs = Math.abs(value), format = (divisor, suffix, decimals) => `${(value / divisor).toFixed(decimals).replace(/\.0+$/, '')}${suffix}`;
     return abs >= 1e9 ? format(1e9, 'B', abs >= 1e10 ? 0 : 1) : abs >= 1e6 ? format(1e6, 'M', abs >= 1e7 ? 0 : 1) : abs >= 1e3 ? format(1e3, 'K', abs >= 1e4 ? 0 : 1) : value.toLocaleString();
 }
 let ACHIEVEMENT_LABEL_OVERRIDES = {
@@ -51,11 +51,11 @@ function capitalizeSkillName(skill) {
 }
 function friendlyAchievementLabel(key) {
     if (!key) return '';
-    let found = (Array.isArray(window.ACHIEVEMENT_CATALOG) ? window.ACHIEVEMENT_CATALOG : []).find((item)=>item && item.key === key);
+    let found = (Array.isArray(window.ACHIEVEMENT_CATALOG) ? window.ACHIEVEMENT_CATALOG : []).find((item) => item && item.key === key);
     if (found && found.label) return found.label;
     if (ACHIEVEMENT_LABEL_OVERRIDES[key]) return ACHIEVEMENT_LABEL_OVERRIDES[key];
     let match = /^skill-master-(.+)$/.exec(key);
-    return match ? `99 ${capitalizeSkillName(match[1])}` : (match = /^skill-200m-(.+)$/.exec(key)) ? `200m XP in ${capitalizeSkillName(match[1])}` : (match = /^totalxp-(\d+)([a-z]+)$/.exec(key)) ? `${match[1]}${match[2].toUpperCase()} Total XP` : 'triple-crown' === key ? 'Three #1 Skill Ranks' : 'crowned-any' === key ? '#1 Rank (Any Skill)' : 'top-10-any' === key ? 'Top 10 (Any Skill)' : 'top-100-any' === key ? 'Top 100 (Any Skill)' : 'gathering-elite' === key ? '90+ Gathering Trio' : 'artisan-elite' === key ? '90+ Artisan Trio' : 'support-elite' === key ? '90+ Support Trio' : 'balanced' === key ? 'Balanced Skill Spread' : 'glass-cannon' === key ? 'Glass Cannon Build' : 'tank' === key ? 'Tank Build' : 'skiller' === key ? 'Skiller Build' : 'combat-pure' === key ? 'Combat Pure Build' : key.replace(/[-_]/g, ' ').replace(/\b\w/g, (c)=>c.toUpperCase());
+    return match ? `99 ${capitalizeSkillName(match[1])}` : (match = /^skill-200m-(.+)$/.exec(key)) ? `200m XP in ${capitalizeSkillName(match[1])}` : (match = /^totalxp-(\d+)([a-z]+)$/.exec(key)) ? `${match[1]}${match[2].toUpperCase()} Total XP` : 'triple-crown' === key ? 'Three #1 Skill Ranks' : 'crowned-any' === key ? '#1 Rank (Any Skill)' : 'top-10-any' === key ? 'Top 10 (Any Skill)' : 'top-100-any' === key ? 'Top 100 (Any Skill)' : 'gathering-elite' === key ? '90+ Gathering Trio' : 'artisan-elite' === key ? '90+ Artisan Trio' : 'support-elite' === key ? '90+ Support Trio' : 'balanced' === key ? 'Balanced Skill Spread' : 'glass-cannon' === key ? 'Glass Cannon Build' : 'tank' === key ? 'Tank Build' : 'skiller' === key ? 'Skiller Build' : 'combat-pure' === key ? 'Combat Pure Build' : key.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 function createUsernameLink(username) {
     let btn = document.createElement('button');
@@ -129,8 +129,8 @@ function renderHeroSnapshot(leaderboard) {
     let updateChip = $('#heroUpdateChip');
     updateChip && (updateChip.textContent = generatedAt ? `Updated ${formatRelativeTime(generatedAt)}` : 'Live snapshot');
     let podium = $('#heroPodium');
-    podium && (podium.innerHTML = '', players.length ? players.slice(0, 3).forEach((player, index)=>{
-        podium.appendChild(function(player, index) {
+    podium && (podium.innerHTML = '', players.length ? players.slice(0, 3).forEach((player, index) => {
+        podium.appendChild(function (player, index) {
             let rank = Number(player?.rank) || index + 1, li = el('li', `hero-podium-slot hero-podium-slot--${index + 1}`);
             li.appendChild(el('span', 'hero-podium-rank', [
                 text(`#${rank}`)
@@ -169,12 +169,12 @@ function renderHeroSnapshot(leaderboard) {
     let tickerWrap = $('#heroTicker');
     if (tickerWrap) {
         tickerWrap.innerHTML = '';
-        let track = function(onTheRise) {
+        let track = function (onTheRise) {
             let track = el('div', 'ticker-track'), entries = Array.isArray(onTheRise?.players) ? onTheRise.players.slice(0, 4) : [];
             if (!entries.length) return track.appendChild(el('span', 'ticker-item', [
                 text('Waiting for the next surge…')
             ])), track;
-            let items = entries.map((player)=>{
+            let items = entries.map((player) => {
                 let item = el('span', 'ticker-item');
                 item.appendChild(createUsernameLink(player?.username || 'Unknown'));
                 let delta = Number(player?.delta), metaParts = [];
@@ -182,7 +182,7 @@ function renderHeroSnapshot(leaderboard) {
                     text(metaParts.join(' • '))
                 ])), item;
             });
-            return items.forEach((node)=>track.appendChild(node)), items.length > 1 && items.forEach((node)=>{
+            return items.forEach((node) => track.appendChild(node)), items.length > 1 && items.forEach((node) => {
                 let clone = node.cloneNode(!0);
                 clone.dataset.duplicate = 'true', track.appendChild(clone);
             }), track;
@@ -195,14 +195,14 @@ async function renderHomeView() {
     let root = $('#viewRoot');
     if (!root) return;
     let extras = document.querySelector('#leftStackExtras');
-    extras && (extras.innerHTML = ''), root.innerHTML = '<div class="card text-center py-6 text-muted">Loading leaderboard…</div>';
+    extras && (extras.innerHTML = ''), root.innerHTML = '<div class="ui-card ui-card--subtle text-center py-6 text-muted">Loading leaderboard…</div>';
     try {
         var onTheRise;
         let card, header, hours, body, list, entries, leaderboard = await loadLeaderboard();
         renderHeroSnapshot(leaderboard);
         let players = Array.isArray(leaderboard?.players) ? leaderboard.players : [];
         root.innerHTML = '';
-        let container = el('div', 'flex flex-col gap-6'), headerCard = el('section', 'card flex flex-col gap-4'), headerRow = el('div', 'flex-between flex-wrap gap-3');
+        let container = el('div', 'flex flex-col gap-6'), headerCard = el('section', 'ui-card ui-card--glass flex flex-col gap-4'), headerRow = el('div', 'flex-between flex-wrap gap-3');
         headerRow.appendChild(el('h2', 'text-2xl font-bold text-foreground', [
             text('Overall Leaderboard')
         ]));
@@ -210,7 +210,7 @@ async function renderHomeView() {
         headerRow.appendChild(el('div', 'home-widget-meta', [
             text(generatedAt ? `Updated ${formatRelativeTime(generatedAt)}` : 'Live snapshot')
         ])), headerCard.appendChild(headerRow);
-        let statsGrid = el('div', 'grid grid-cols-2 md:grid-cols-4 gap-4 text-sm'), totalPlayers = Number(leaderboard?.totalPlayers) || players.length || 0;
+        let statsGrid = el('div', 'grid grid-cols-2 md:grid-cols-4 gap-6 text-sm'), totalPlayers = Number(leaderboard?.totalPlayers) || players.length || 0;
         statsGrid.appendChild(buildStatBlock('Total players', totalPlayers.toLocaleString(), createDeltaSpan(leaderboard?.trendSummary?.totalPlayersChange24h, 0, {
             compact: !0
         })));
@@ -223,13 +223,13 @@ async function renderHomeView() {
             compact: !0
         }))), headerCard.appendChild(statsGrid), container.appendChild(headerCard);
         let widgets = el('div', 'home-widgets-grid');
-        widgets.appendChild((onTheRise = leaderboard.onTheRise, card = el('section', 'card home-widget-card'), header = el('div', 'home-widget-header', [
+        widgets.appendChild((onTheRise = leaderboard.onTheRise, card = el('section', 'ui-card ui-card--glass home-widget-card'), header = el('div', 'home-widget-header', [
             el('div', 'flex-items-center gap-2', [
                 text('📈 On the Rise')
             ])
         ]), hours = Number(onTheRise?.windowHours), header.appendChild(el('div', 'home-widget-meta', [
             text(hours ? `Rank climbs across the last ${hours}h` : 'Latest notable rank gains')
-        ])), body = el('div', 'home-widget-body'), list = el('ul', 'on-rise-list'), (entries = Array.isArray(onTheRise?.players) ? onTheRise.players : []).length ? entries.forEach((player)=>{
+        ])), body = el('div', 'home-widget-body'), list = el('ul', 'on-rise-list'), (entries = Array.isArray(onTheRise?.players) ? onTheRise.players : []).length ? entries.forEach((player) => {
             let li = el('li', 'on-rise-item'), main = el('div', 'on-rise-item-main'), nameRow = el('div', 'on-rise-name-row');
             nameRow.appendChild(createUsernameLink(player.username));
             let delta = Number(player.delta);
@@ -246,8 +246,8 @@ async function renderHomeView() {
             ])), li.appendChild(main), list.appendChild(li);
         }) : list.appendChild(el('li', 'on-rise-empty', [
             text('No major rank climbs detected yet.')
-        ])), body.appendChild(list), card.appendChild(header), card.appendChild(body), card)), widgets.appendChild(function(summary) {
-            let card = el('section', 'card home-widget-card'), header = el('div', 'home-widget-header', [
+        ])), body.appendChild(list), card.appendChild(header), card.appendChild(body), card)), widgets.appendChild(function (summary) {
+            let card = el('section', 'ui-card ui-card--glass home-widget-card'), header = el('div', 'home-widget-header', [
                 el('div', 'flex-items-center gap-2', [
                     text('📊 Leaderboard Trends')
                 ])
@@ -294,8 +294,8 @@ async function renderHomeView() {
                 text('History unavailable yet.')
             ]));
             return body.appendChild(list), card.appendChild(header), card.appendChild(body), card;
-        }(leaderboard.trendSummary)), widgets.appendChild(function(weeklyRarest) {
-            let card = el('section', 'card home-widget-card'), header = el('div', 'home-widget-header', [
+        }(leaderboard.trendSummary)), widgets.appendChild(function (weeklyRarest) {
+            let card = el('section', 'ui-card ui-card--glass home-widget-card'), header = el('div', 'home-widget-header', [
                 el('div', 'flex-items-center gap-2', [
                     text('🏅 Weekly Rarest Unlock')
                 ])
@@ -310,7 +310,7 @@ async function renderHomeView() {
                     text(title)
                 ]));
                 let statsParts = [];
-                Number.isFinite(weeklyRarest.globalCount) && statsParts.push(`${weeklyRarest.globalCount.toLocaleString()} total unlocks`), Number.isFinite(weeklyRarest.weeklyCount) && statsParts.push(`${weeklyRarest.weeklyCount} this week`), Number.isFinite(weeklyRarest.prevalencePct) && statsParts.push(`≈ ${function(value, digits = 2) {
+                Number.isFinite(weeklyRarest.globalCount) && statsParts.push(`${weeklyRarest.globalCount.toLocaleString()} total unlocks`), Number.isFinite(weeklyRarest.weeklyCount) && statsParts.push(`${weeklyRarest.weeklyCount} this week`), Number.isFinite(weeklyRarest.prevalencePct) && statsParts.push(`≈ ${function (value, digits = 2) {
                     if (!Number.isFinite(value)) return '—';
                     let trimmed = value.toFixed(digits).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
                     return `${trimmed}%`;
@@ -318,7 +318,7 @@ async function renderHomeView() {
                     text(statsParts.join(' • '))
                 ]));
                 let list = el('ul', 'weekly-rarest-unlocks'), recent = Array.isArray(weeklyRarest.recentUnlocks) ? weeklyRarest.recentUnlocks : [];
-                recent.length ? recent.forEach((unlock)=>{
+                recent.length ? recent.forEach((unlock) => {
                     let item = el('li', 'weekly-rarest-player');
                     item.appendChild(createUsernameLink(unlock.username));
                     let timeEl = document.createElement('time'), ts = unlock.timestamp ? new Date(unlock.timestamp) : null;
@@ -330,8 +330,8 @@ async function renderHomeView() {
                 text('No rare achievements unlocked this week yet.')
             ]));
             return card.appendChild(body), card;
-        }(leaderboard.weeklyRarest)), widgets.appendChild(function(watchlist) {
-            let card = el('section', 'card watchlist-card'), header = el('div', 'home-widget-header', [
+        }(leaderboard.weeklyRarest)), widgets.appendChild(function (watchlist) {
+            let card = el('section', 'ui-card ui-card--glass watchlist-card'), header = el('div', 'home-widget-header', [
                 el('div', 'flex-items-center gap-2', [
                     text('🕵️ Auto Watchlist')
                 ])
@@ -345,7 +345,7 @@ async function renderHomeView() {
                 ]));
             }
             let list = el('ul', 'watchlist-list'), tracked = Array.isArray(watchlist?.tracked) ? watchlist.tracked : [];
-            return tracked.length ? tracked.forEach((entry)=>{
+            return tracked.length ? tracked.forEach((entry) => {
                 let li = el('li', 'watchlist-player'), topRow = el('div', 'watchlist-player-top');
                 topRow.appendChild(createUsernameLink(entry.username));
                 let badge = createTierBadge(entry);
@@ -380,8 +380,8 @@ async function renderHomeView() {
             ])), card.appendChild(list), watchlist?.message && tracked.length && card.appendChild(el('div', 'watchlist-more', [
                 text(watchlist.message)
             ])), card;
-        }(leaderboard.watchlist)), container.appendChild(widgets), container.appendChild(function(players) {
-            let wrapper = el('div', 'osrs-table home-leaderboard'), scroll = el('div', 'table-scroll'), table = document.createElement('table');
+        }(leaderboard.watchlist)), container.appendChild(widgets), container.appendChild(function (players) {
+            let wrapper = el('div', 'osrs-table ui-table home-leaderboard'), scroll = el('div', 'table-scroll'), table = document.createElement('table');
             table.className = 'leaderboard-table', table.innerHTML = `
       <thead>
         <tr>
@@ -395,7 +395,7 @@ async function renderHomeView() {
       <tbody></tbody>
     `;
             let tbody = table.querySelector('tbody');
-            if (players && players.length) players.forEach((player)=>{
+            if (players && players.length) players.forEach((player) => {
                 let tr = document.createElement('tr');
                 tr.classList.add('top-player-row'), 1 === player.rank ? tr.classList.add('rank-1') : 2 === player.rank ? tr.classList.add('rank-2') : 3 === player.rank && tr.classList.add('rank-3');
                 let rankCell = document.createElement('td');
@@ -428,17 +428,17 @@ async function renderHomeView() {
     } catch (err) {
         console.error('Failed to render home view', err);
         let message = err?.message || 'Check the console for more details.';
-        root.innerHTML = `<div class="card text-center py-6"><div class="text-danger text-lg font-semibold">Failed to load leaderboard</div><div class="text-muted mt-2">${message}</div></div>`, renderHeroSnapshot(null);
+        root.innerHTML = `<div class="ui-card ui-card--subtle text-center py-6"><div class="text-danger text-lg font-semibold">Failed to load leaderboard</div><div class="text-muted mt-2">${message}</div></div>`, renderHeroSnapshot(null);
     }
-    rareBannerInitialized || (function() {
+    rareBannerInitialized || (function () {
         let container = document.getElementById('bannerContainer');
         if (!container) return;
-        let banners = [], idx = 0, timer = null, isIso = (s)=>'string' == typeof s && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/.test(s), validate = (b)=>!(!b || 'object' != typeof b || !Array.isArray(b.playerNames) || !b.playerNames.length || b.playerNames.some((n)=>'string' != typeof n || !n.trim()) || 'string' != typeof b.achievement || !b.achievement.trim() || !isIso(b.timestamp) || !isIso(b.expiry) || !b.details || 'object' != typeof b.details || null !== b.details.skill && 'string' != typeof b.details.skill || null !== b.details.title && 'string' != typeof b.details.title || Date.parse(b.expiry) <= Date.now()), next = ()=>{
+        let banners = [], idx = 0, timer = null, isIso = (s) => 'string' == typeof s && /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/.test(s), validate = (b) => !(!b || 'object' != typeof b || !Array.isArray(b.playerNames) || !b.playerNames.length || b.playerNames.some((n) => 'string' != typeof n || !n.trim()) || 'string' != typeof b.achievement || !b.achievement.trim() || !isIso(b.timestamp) || !isIso(b.expiry) || !b.details || 'object' != typeof b.details || null !== b.details.skill && 'string' != typeof b.details.skill || null !== b.details.title && 'string' != typeof b.details.title || Date.parse(b.expiry) <= Date.now()), next = () => {
             if (!banners.length) {
                 container.innerHTML = '';
                 return;
             }
-            idx = (idx + 1) % banners.length, ((b)=>{
+            idx = (idx + 1) % banners.length, ((b) => {
                 if (container.innerHTML = '', !b) return;
                 let div = document.createElement('div');
                 div.className = 'rare-banner active';
@@ -466,20 +466,20 @@ async function renderHomeView() {
                 textWrap.appendChild(title), textWrap.appendChild(meta), left.appendChild(icon), left.appendChild(textWrap), div.appendChild(left), container.appendChild(div);
             })(banners[idx]);
         };
-        fetchJSON('/api/banners/rare').then((arr)=>{
+        fetchJSON('/api/banners/rare').then((arr) => {
             try {
                 if (!Array.isArray(arr)) return void console.error('rare banners: not array');
-                banners = arr.filter(validate), (()=>{
+                banners = arr.filter(validate), (() => {
                     if (timer && clearInterval(timer), !banners.length) {
                         container.innerHTML = '';
                         return;
                     }
-                    banners.sort((a, b)=>Date.parse(b.timestamp) - Date.parse(a.timestamp)), idx = -1, next(), timer = setInterval(next, 10000);
+                    banners.sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp)), idx = -1, next(), timer = setInterval(next, 10000);
                 })();
             } catch (e) {
                 console.error('rare banners parse error', e);
             }
-        }).catch((e)=>{
+        }).catch((e) => {
             console.debug('No rare banners', e?.message || e);
         });
     }(), rareBannerInitialized = !0);
@@ -512,7 +512,7 @@ async function loadSkillRankings(force = !1) {
 }
 function getUserSkillRank(skillRankings, username, skill) {
     if (!skillRankings || !skillRankings.rankings || !skillRankings.rankings[skill]) return null;
-    let playerData = skillRankings.rankings[skill].find((p)=>p.username === username);
+    let playerData = skillRankings.rankings[skill].find((p) => p.username === username);
     return playerData ? playerData.rank : null;
 }
 function updateSummary(user, skillRankings) {
@@ -523,7 +523,7 @@ function updateSummary(user, skillRankings) {
         return;
     }
     let bestRank = 1 / 0, bestRankSkill = null;
-    if (SKILLS.forEach((s)=>{
+    if (SKILLS.forEach((s) => {
         let r = getUserSkillRank(skillRankings, user.username, s);
         r && r < bestRank && (bestRank = r, bestRankSkill = s);
     }), bestRankSkill) {
@@ -531,7 +531,7 @@ function updateSummary(user, skillRankings) {
         rankEl.textContent = `Highest rank: ${name} (#${bestRank})`;
     } else rankEl.textContent = "Highest rank: —";
     let bestLevel = -1, bestXp = -1, bestLevelSkill = null;
-    if (SKILLS.forEach((s)=>{
+    if (SKILLS.forEach((s) => {
         let skill = user.skills[s], lvl = skill?.level || 1, xp = skill?.xp || 0;
         (lvl > bestLevel || lvl === bestLevel && xp > bestXp) && (bestLevel = lvl, bestXp = xp, bestLevelSkill = s);
     }), bestLevelSkill) {
@@ -543,10 +543,10 @@ function computeSkillAverages(skillRankings) {
     let averages = {};
     try {
         let all = skillRankings && skillRankings.rankings || {};
-        (window.SKILLS || []).forEach((s)=>{
+        (window.SKILLS || []).forEach((s) => {
             let arr = all[s] || [];
             if (arr.length) {
-                let totalLvl = arr.reduce((sum, p)=>sum + (p.level || 0), 0), totalXp = arr.reduce((sum, p)=>sum + (p.xp || 0), 0);
+                let totalLvl = arr.reduce((sum, p) => sum + (p.level || 0), 0), totalXp = arr.reduce((sum, p) => sum + (p.xp || 0), 0);
                 averages[s] = {
                     level: totalLvl / arr.length,
                     xp: totalXp / arr.length
@@ -557,10 +557,10 @@ function computeSkillAverages(skillRankings) {
             };
         });
     } catch (_) {
-        (window.SKILLS || []).forEach((s)=>averages[s] = {
-                level: 1,
-                xp: 0
-            });
+        (window.SKILLS || []).forEach((s) => averages[s] = {
+            level: 1,
+            xp: 0
+        });
     }
     return averages;
 }
@@ -572,14 +572,14 @@ function handleRoute() {
     if (hash) if (hash.startsWith("user/")) {
         var username;
         let root, __leftExtrasInit;
-        username = decodeURIComponent(hash.split("/")[1]), setHomeHeroVisible(!1), (root = $("#viewRoot")).innerHTML = '<div class="text-center text-muted py-8">⏳ Loading player data...</div>', (__leftExtrasInit = document.querySelector('#leftStackExtras')) && (__leftExtrasInit.innerHTML = ''), Promise.all([
+        username = decodeURIComponent(hash.split("/")[1]), setHomeHeroVisible(!1), (root = $("#viewRoot")).innerHTML = '<div class="ui-card ui-card--subtle text-center py-6 text-muted">⏳ Loading player data...</div>', (__leftExtrasInit = document.querySelector('#leftStackExtras')) && (__leftExtrasInit.innerHTML = ''), Promise.all([
             loadUser(username),
             loadSkillRankings(),
-            loadLeaderboard().catch(()=>null)
-        ]).then(([user, skillRankings, leaderboard])=>{
-            let wrap = el("div", "flex flex-col gap-8"), headerSection = el("div", "bg-layer2 p-6 rounded-lg border-2 border-border-dark primary-header-card"), headerContent = el("div", "flex-between flex-wrap gap-4"), userInfo = el("div", "flex-items-center gap-3 flex-wrap"), nameWrap = el("h3", "font-bold text-foreground flex-items-center gap-2");
+            loadLeaderboard().catch(() => null)
+        ]).then(([user, skillRankings, leaderboard]) => {
+            let wrap = el("div", "flex flex-col gap-8"), headerSection = el("div", "ui-card ui-card--glass primary-header-card"), headerContent = el("div", "flex-between flex-wrap gap-4"), userInfo = el("div", "flex-items-center gap-3 flex-wrap"), nameWrap = el("h3", "font-bold text-foreground flex-items-center gap-2");
             if (nameWrap.appendChild(text(`⚔️ ${user.username}`)), leaderboard && leaderboard.players) {
-                let me = leaderboard.players.find((p)=>p.username === user.username);
+                let me = leaderboard.players.find((p) => p.username === user.username);
                 if (me && me.tier) {
                     let b = document.createElement('span');
                     b.className = `tier-badge tier-${me.tier.toLowerCase()}`, b.textContent = me.tier, (me.rank || me.tierInfo && 'number' == typeof me.tierInfo.top1Skills) && (b.title = `${me.tier} • Overall #${me.rank}${me.tierInfo && me.tierInfo.top1Skills ? ` • #1 in ${me.tierInfo.top1Skills} skills` : ''}`), nameWrap.appendChild(b);
@@ -591,7 +591,7 @@ function handleRoute() {
             if (meta.appendChild(el("span", "meta-badge", [
                 text(`Combat Lv. ${combatLevel}`)
             ])), leaderboard && leaderboard.players) {
-                let me = leaderboard.players.find((p)=>p.username === user.username);
+                let me = leaderboard.players.find((p) => p.username === user.username);
                 me && me.rank && meta.appendChild(el('span', 'meta-badge', [
                     text(`Overall #${me.rank}`)
                 ]));
@@ -1037,21 +1037,21 @@ function handleRoute() {
             ];
             function deriveUserAchievements(user, averages) {
                 Date.now();
-                let results = [], push = (key)=>results.push({
-                        key
-                    });
+                let results = [], push = (key) => results.push({
+                    key
+                });
                 if (leaderboard && leaderboard.players) {
-                    let me = leaderboard.players.find((p)=>p.username === user.username);
+                    let me = leaderboard.players.find((p) => p.username === user.username);
                     me?.tier === 'Grandmaster' && push('tier-grandmaster'), me?.tier === 'Master' && push('tier-master'), me?.tier === 'Diamond' && push('tier-diamond'), me?.rank === 1 && push('overall-rank-1');
                     let top1Count = me?.tierInfo?.top1Skills ?? 0;
-                    top1Count || SKILLS.forEach((s)=>{
+                    top1Count || SKILLS.forEach((s) => {
                         1 === getUserSkillRank(skillRankings, user.username, s) && top1Count++;
                     }), top1Count >= 3 && push('triple-crown'), top1Count >= 1 && push('crowned-any');
                 }
-                let levels = SKILLS.map((s)=>user.skills[s]?.level || 1), total = levels.reduce((a, b)=>a + b, 0);
+                let levels = SKILLS.map((s) => user.skills[s]?.level || 1), total = levels.reduce((a, b) => a + b, 0);
                 total >= 2277 ? push('total-2277') : total >= 2200 ? push('total-2200') : total >= 2000 ? push('total-2000') : total >= 1500 && push('total-1500');
-                let count99 = levels.filter((l)=>l >= 99).length;
-                levels.every((l)=>l >= 99) && push('maxed-account'), count99 >= 7 && push('seven-99s'), count99 >= 5 && push('five-99s'), [
+                let count99 = levels.filter((l) => l >= 99).length;
+                levels.every((l) => l >= 99) && push('maxed-account'), count99 >= 7 && push('seven-99s'), count99 >= 5 && push('five-99s'), [
                     'attack',
                     'strength',
                     'defence',
@@ -1059,7 +1059,7 @@ function handleRoute() {
                     'ranged',
                     'magic',
                     'prayer'
-                ].every((skill)=>(user.skills[skill]?.level || 1) >= 99) && push('combat-maxed'), Object.entries({
+                ].every((skill) => (user.skills[skill]?.level || 1) >= 99) && push('combat-maxed'), Object.entries({
                     'skill-master-attack': 'attack',
                     'skill-master-strength': 'strength',
                     'skill-master-defence': 'defence',
@@ -1067,7 +1067,7 @@ function handleRoute() {
                     'skill-master-ranged': 'ranged',
                     'skill-master-magic': 'magic',
                     'skill-master-prayer': 'prayer'
-                }).forEach(([achievement, skill])=>{
+                }).forEach(([achievement, skill]) => {
                     (user.skills[skill]?.level || 1) >= 99 && push(achievement);
                 });
                 let woodcutting = user.skills.woodcutting?.level || 1, fishing = user.skills.fishing?.level || 1, mining = user.skills.mining?.level || 1;
@@ -1090,19 +1090,19 @@ function handleRoute() {
                     'ranged',
                     'magic',
                     'prayer'
-                ].map((s)=>user.skills[s]?.level || 1), nonCombatLevels = SKILLS.filter((s)=>![
-                        'attack',
-                        'strength',
-                        'defence',
-                        'hitpoints',
-                        'ranged',
-                        'magic',
-                        'prayer'
-                    ].includes(s)).map((s)=>user.skills[s]?.level || 1), avgCombat = combatLevels.reduce((a, b)=>a + b, 0) / combatLevels.length, avgNonCombat = nonCombatLevels.reduce((a, b)=>a + b, 0) / nonCombatLevels.length;
+                ].map((s) => user.skills[s]?.level || 1), nonCombatLevels = SKILLS.filter((s) => ![
+                    'attack',
+                    'strength',
+                    'defence',
+                    'hitpoints',
+                    'ranged',
+                    'magic',
+                    'prayer'
+                ].includes(s)).map((s) => user.skills[s]?.level || 1), avgCombat = combatLevels.reduce((a, b) => a + b, 0) / combatLevels.length, avgNonCombat = nonCombatLevels.reduce((a, b) => a + b, 0) / nonCombatLevels.length;
                 avgNonCombat >= 70 && avgCombat <= 50 && push('skiller'), avgCombat >= 80 && avgNonCombat <= 30 && push('combat-pure');
-                let ratio = SKILLS.filter((s)=>(user.skills[s]?.level || 1) > (averages[s]?.level || 1)).length / SKILLS.length;
+                let ratio = SKILLS.filter((s) => (user.skills[s]?.level || 1) > (averages[s]?.level || 1)).length / SKILLS.length;
                 ratio >= 0.90 ? push('elite') : ratio >= 0.75 ? push('versatile') : ratio >= 0.50 && push('consistent');
-                let totalXP = SKILLS.reduce((sum, s)=>sum + (user.skills[s]?.xp || 0), 0);
+                let totalXP = SKILLS.reduce((sum, s) => sum + (user.skills[s]?.xp || 0), 0);
                 totalXP >= 1000000000 && push('xp-billionaire'), totalXP >= 200000000 && push('totalxp-200m'), totalXP >= 100000000 && push('totalxp-100m'), totalXP >= 50000000 && push('totalxp-50m'), totalXP >= 10000000 && push('totalxp-10m');
                 let avgLevel = total / SKILLS.length;
                 avgLevel >= 90 ? push('level-90-average') : avgLevel >= 75 ? push('level-75-average') : avgLevel >= 50 && push('level-50-average');
@@ -1111,16 +1111,16 @@ function handleRoute() {
                 try {
                     let pray = user.skills.prayer?.level || 1, base = 0.25 * (def + hitpoints + Math.floor(pray / 2)), ranger = 0.325 * Math.floor(1.5 * ranged), mager = 0.325 * Math.floor(1.5 * (user.skills.magic?.level || 1)), cl = Math.floor(base + Math.max(0.325 * (attack + strength), ranger, mager));
                     cl >= 100 && push('combat-level-100'), cl >= 110 && push('combat-level-110'), cl >= 120 && push('combat-level-120'), cl >= 126 && push('combat-level-126');
-                } catch (_) {}
-                return SKILLS.forEach((s)=>{
+                } catch (_) { }
+                return SKILLS.forEach((s) => {
                     (user.skills[s]?.xp || 0) >= 200000000 && push(`skill-200m-${s}`);
                 }), [
-                    ...new Set(results.map((r)=>r.key))
-                ];
+                        ...new Set(results.map((r) => r.key))
+                    ];
             }
             function renderAchievementsHero(container, me, achievements) {
                 if (container.innerHTML = '', !achievements || 0 === achievements.length) return;
-                let section = el('section', 'bg-layer2 p-6 rounded-lg border-2 border-border-dark achievements-hero'), header = el('div', 'flex-between flex-wrap gap-3 mb-4'), title = el('h3', 'text-2xl font-bold text-foreground flex-items-center gap-2', [
+                let section = el('section', 'ui-card ui-card--glass achievements-hero'), header = el('div', 'flex-between flex-wrap gap-3 mb-4'), title = el('h3', 'text-2xl font-bold text-foreground flex-items-center gap-2', [
                     text('🏅 Achievements')
                 ]);
                 if (header.appendChild(title), me && me.tier) {
@@ -1129,7 +1129,7 @@ function handleRoute() {
                 }
                 section.appendChild(header);
                 let featured = achievements.slice(0, 3), featuredWrap = el('div', 'featured-grid');
-                if (featured.forEach((a)=>{
+                if (featured.forEach((a) => {
                     let card, icon, title, desc;
                     return featuredWrap.appendChild(((card = el('div', `achievement-card rarity-${a.rarity}`)).setAttribute('data-tooltip', `${a.label}\n${a.desc}`), 'number' == typeof a.prevalence && card.setAttribute('data-prevalence', `${a.prevalence.toFixed(1)}%`), icon = el('div', 'ach-icon', [
                         text(a.icon)
@@ -1144,7 +1144,7 @@ function handleRoute() {
                     ]);
                     toggleBtn.setAttribute('aria-expanded', 'false'), toggleBtn.type = 'button', toggleRow.appendChild(toggleBtn), section.appendChild(toggleRow);
                     let allWrap = el('div', 'achievements-inline-grid mt-3 hidden');
-                    rest.forEach((a)=>{
+                    rest.forEach((a) => {
                         let prevalence, rarityClass, card, icon, content;
                         return allWrap.appendChild((prevalence = a.prevalence ?? 100, rarityClass = 'common', prevalence < 1 ? rarityClass = 'mythic' : prevalence < 5 ? rarityClass = 'legendary' : prevalence < 15 ? rarityClass = 'epic' : prevalence < 35 && (rarityClass = 'rare'), (card = el('div', `achievement-inline-card ach-${rarityClass}`)).setAttribute('data-tooltip', `${a.label}\n${a.desc}${'number' == typeof prevalence ? `\n${prevalence.toFixed(1)}% of players` : ''}`), icon = el('div', 'ach-inline-icon', [
                             text(a.icon)
@@ -1153,7 +1153,7 @@ function handleRoute() {
                         ])), 'number' == typeof prevalence && content.appendChild(el('div', 'ach-inline-rarity', [
                             text(`${prevalence.toFixed(1)}%`)
                         ])), card.appendChild(icon), card.appendChild(content), card));
-                    }), section.appendChild(allWrap), toggleBtn.addEventListener('click', ()=>{
+                    }), section.appendChild(allWrap), toggleBtn.addEventListener('click', () => {
                         allWrap.classList.contains('hidden') ? (allWrap.classList.remove('hidden'), toggleBtn.textContent = 'View fewer', toggleBtn.setAttribute('aria-expanded', 'true')) : (allWrap.classList.add('hidden'), toggleBtn.textContent = 'View all', toggleBtn.setAttribute('aria-expanded', 'false'));
                     });
                 }
@@ -1162,29 +1162,29 @@ function handleRoute() {
             let leftExtras = document.querySelector('#leftStackExtras');
             leftExtras && leftExtras.appendChild(headerSection);
             let achievementsData = null, achievementsMount = el('div', '');
-            computeGlobalAchievementStats(skillRankings, leaderboard).then((globalStats)=>{
+            computeGlobalAchievementStats(skillRankings, leaderboard).then((globalStats) => {
                 let unlockedSet = new Set(deriveUserAchievements(user, globalStats.averages));
-                unlockedSet.size > 0 && (achievementsData = ACHIEVEMENT_CATALOG.filter((a)=>unlockedSet.has(a.key)).map((achievement)=>{
+                unlockedSet.size > 0 && (achievementsData = ACHIEVEMENT_CATALOG.filter((a) => unlockedSet.has(a.key)).map((achievement) => {
                     let prevalence = globalStats.counts[achievement.key] || 0, percentage = globalStats.totalPlayers > 0 ? prevalence / globalStats.totalPlayers * 100 : 0;
                     return {
                         ...achievement,
                         prevalence: percentage
                     };
-                }).sort((a, b)=>a.prevalence - b.prevalence), renderAchievementsHero(achievementsMount, leaderboard && leaderboard.players ? leaderboard.players.find((p)=>p.username === user.username) : null, achievementsData));
-            }).catch(()=>{
+                }).sort((a, b) => a.prevalence - b.prevalence), renderAchievementsHero(achievementsMount, leaderboard && leaderboard.players ? leaderboard.players.find((p) => p.username === user.username) : null, achievementsData));
+            }).catch(() => {
                 try {
                     let userAchievementKeys = deriveUserAchievements(user, averages);
                     if (userAchievementKeys && userAchievementKeys.length) {
-                        let unlockedAchievements = ACHIEVEMENT_CATALOG.filter((a)=>userAchievementKeys.includes(a.key)), me = leaderboard && leaderboard.players ? leaderboard.players.find((p)=>p.username === user.username) : null;
+                        let unlockedAchievements = ACHIEVEMENT_CATALOG.filter((a) => userAchievementKeys.includes(a.key)), me = leaderboard && leaderboard.players ? leaderboard.players.find((p) => p.username === user.username) : null;
                         renderAchievementsHero(achievementsMount, me, unlockedAchievements);
                     }
-                } catch (_) {}
+                } catch (_) { }
             });
-            let section = el("section", "flex-col gap-4"), headerRow = el("div", "flex-between");
+            let section = el("section", "ui-card ui-card--glass flex flex-col gap-4"), headerRow = el("div", "flex-between");
             headerRow.appendChild(el("h3", "text-2xl font-bold text-foreground", [
                 text("📜 Hiscores")
             ])), section.appendChild(headerRow);
-            let tableWrap = el("div", "osrs-table"), table = el("table", "min-w-full text-sm");
+            let tableWrap = el("div", "osrs-table ui-table"), table = el("table", "min-w-full text-sm");
             table.innerHTML = `
             <thead>
                 <tr>
@@ -1198,20 +1198,20 @@ function handleRoute() {
         `, tableWrap.appendChild(table), section.appendChild(tableWrap), wrap.appendChild(achievementsMount), wrap.appendChild(section);
             let tbody = table.querySelector("tbody"), overallRank = null;
             if (leaderboard && leaderboard.players) {
-                let found = leaderboard.players.find((p)=>p.username === user.username);
+                let found = leaderboard.players.find((p) => p.username === user.username);
                 found && (overallRank = found.rank);
             }
-            let totalLevel = user.totalLevel || SKILLS.reduce((sum, s)=>sum + (user.skills[s]?.level || 1), 0), totalXP = user.totalXP || SKILLS.reduce((sum, s)=>sum + (user.skills[s]?.xp || 0), 0), overallTr = document.createElement("tr");
+            let totalLevel = user.totalLevel || SKILLS.reduce((sum, s) => sum + (user.skills[s]?.level || 1), 0), totalXP = user.totalXP || SKILLS.reduce((sum, s) => sum + (user.skills[s]?.xp || 0), 0), overallTr = document.createElement("tr");
             overallTr.classList.add("font-bold"), overallTr.innerHTML = `
           <td class="text-left">Overall</td>
           <td class="text-center skill-level">${totalLevel}</td>
           <td class="text-right skill-xp">${totalXP.toLocaleString()}</td>
           <td class="text-center skill-rank">${overallRank ? "#" + overallRank : "—"}</td>
-        `, tbody.appendChild(overallTr), SKILLS.forEach((skillName)=>{
+        `, tbody.appendChild(overallTr), SKILLS.forEach((skillName) => {
                 let skill = user.skills[skillName], rank = getUserSkillRank(skillRankings, username, skillName), tr = document.createElement("tr");
                 1 === rank ? tr.classList.add("rank-1") : 2 === rank ? tr.classList.add("rank-2") : 3 === rank && tr.classList.add("rank-3");
                 let baseXP = 1154 * ("hitpoints" === skillName);
-                ((skill?.level || 1) > 1 || (skill?.xp || 0) > baseXP) && (tr.classList.add("clickable"), tr.addEventListener("click", ()=>{
+                ((skill?.level || 1) > 1 || (skill?.xp || 0) > baseXP) && (tr.classList.add("clickable"), tr.addEventListener("click", () => {
                     window.open(`skill-hiscores.html?skill=${skillName}#skill=${skillName}`, "_blank");
                 }));
                 let iconUrl = window.getSkillIcon(skillName), nameCell = document.createElement("td");
@@ -1225,7 +1225,7 @@ function handleRoute() {
                     text(rank ? `#${rank}` : "—")
                 ])), tbody.appendChild(tr);
             }), updateSummary(user, skillRankings), root.innerHTML = "", root.appendChild(wrap);
-        }).catch((err)=>{
+        }).catch((err) => {
             let __leftExtrasErr = document.querySelector('#leftStackExtras');
             __leftExtrasErr && (__leftExtrasErr.innerHTML = '');
             let is404 = err && /404/.test(String(err.message || err));
@@ -1234,7 +1234,7 @@ function handleRoute() {
     } else renderHomeView(), updateSummary(null);
     else renderHomeView(), updateSummary(null);
 }
-document.addEventListener("click", (e)=>{
+document.addEventListener("click", (e) => {
     let btn = e.target.closest(".username-link");
     if (btn) {
         let u = btn.getAttribute("data-user");
@@ -1242,7 +1242,7 @@ document.addEventListener("click", (e)=>{
     }
     if (e.target.closest('#copyProfileLink')) {
         let href = window.location.href;
-        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(href).then(()=>toast('Profile link copied')).catch(()=>toast('Copy failed', 'error'));
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(href).then(() => toast('Profile link copied')).catch(() => toast('Copy failed', 'error'));
         else {
             let tmp = document.createElement('input');
             tmp.value = href, document.body.appendChild(tmp), tmp.select();
@@ -1255,28 +1255,28 @@ document.addEventListener("click", (e)=>{
         }
     }
     ("themeToggle" === e.target.id || e.target.closest("#themeToggle")) && toggleTheme(), e.target.closest(".brand-link") && (e.preventDefault(), location.hash = "");
-}), window.addEventListener("hashchange", handleRoute), setTheme(localStorage.getItem("theme") || (matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")), function() {
+}), window.addEventListener("hashchange", handleRoute), setTheme(localStorage.getItem("theme") || (matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")), function () {
     let debounce, input = $("#playerSearch"), suggest = $("#searchSuggest"), activeIndex = -1, currentItems = [];
     function hideSuggest() {
         suggest.classList.add("hidden"), suggest.innerHTML = "", activeIndex = -1, currentItems = [], input.setAttribute("aria-expanded", "false");
     }
     function renderSuggest(matches) {
-        currentItems = matches, suggest.innerHTML = matches.map((m, i)=>`<button role="option" aria-selected="${i === activeIndex}" data-user="${m}" class="block${i === activeIndex ? " active" : ""}">${m}</button>`).join(""), suggest.classList.remove("hidden"), input.setAttribute("aria-expanded", "true");
+        currentItems = matches, suggest.innerHTML = matches.map((m, i) => `<button role="option" aria-selected="${i === activeIndex}" data-user="${m}" class="block${i === activeIndex ? " active" : ""}">${m}</button>`).join(""), suggest.classList.remove("hidden"), input.setAttribute("aria-expanded", "true");
     }
-    input.addEventListener("input", ()=>{
-        clearTimeout(debounce), debounce = setTimeout(async ()=>{
+    input.addEventListener("input", () => {
+        clearTimeout(debounce), debounce = setTimeout(async () => {
             let q = input.value.trim().toLowerCase();
             if (!q) return void hideSuggest();
             try {
                 suggest.innerHTML = '<div class="p-2 text-center text-xs text-muted">Loading…</div>', suggest.classList.remove('hidden');
-                let matches = (await loadUsers()).users.filter((u)=>u.toLowerCase().includes(q)).slice(0, 10);
+                let matches = (await loadUsers()).users.filter((u) => u.toLowerCase().includes(q)).slice(0, 10);
                 if (!matches.length) return void hideSuggest();
                 activeIndex = -1, renderSuggest(matches);
             } catch (e) {
                 hideSuggest();
-            } finally{}
+            } finally { }
         }, 200);
-    }), input.addEventListener("keydown", (e)=>{
+    }), input.addEventListener("keydown", (e) => {
         if (suggest.classList.contains("hidden")) {
             "ArrowDown" === e.key && e.preventDefault();
             return;
@@ -1289,19 +1289,19 @@ document.addEventListener("click", (e)=>{
             let u = null;
             activeIndex >= 0 && currentItems[activeIndex] ? u = currentItems[activeIndex] : currentItems && currentItems.length && (u = currentItems[0]), u && (location.hash = "user/" + encodeURIComponent(u), hideSuggest());
         }
-    }), document.addEventListener("click", (e)=>{
+    }), document.addEventListener("click", (e) => {
         if (e.target.closest("#searchSuggest button")) {
             let u = e.target.getAttribute("data-user");
             location.hash = "user/" + encodeURIComponent(u), hideSuggest();
         } else e.target.closest("#playerSearch") || e.target.closest("#searchSuggest") || hideSuggest();
-    }), input.addEventListener("change", async ()=>{
+    }), input.addEventListener("change", async () => {
         let q = input.value.trim().toLowerCase();
         if (q) try {
-            let found = (await loadUsers()).users.find((u)=>u.toLowerCase() === q);
+            let found = (await loadUsers()).users.find((u) => u.toLowerCase() === q);
             found && (location.hash = "user/" + encodeURIComponent(found));
-        } catch (_) {}
+        } catch (_) { }
     }), input.setAttribute("role", "combobox"), input.setAttribute("aria-autocomplete", "list"), input.setAttribute("aria-expanded", "false"), suggest.setAttribute("role", "listbox");
-}(), handleRoute(), (apiSpan = $("#currentApiBase")) && window.API_BASE && (apiSpan.textContent = window.API_BASE === location.origin ? "Same-origin" : window.API_BASE), document.addEventListener('keydown', (e)=>{
+}(), handleRoute(), (apiSpan = $("#currentApiBase")) && window.API_BASE && (apiSpan.textContent = window.API_BASE === location.origin ? "Same-origin" : window.API_BASE), document.addEventListener('keydown', (e) => {
     if ('/' === e.key && !e.ctrlKey && !e.metaKey && !e.altKey) {
         let tag = e.target && e.target.tagName || '';
         if ('INPUT' !== tag && 'TEXTAREA' !== tag && !e.target.isContentEditable) {

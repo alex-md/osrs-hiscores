@@ -23,6 +23,37 @@
                 }
             })();
         </script>
+        <script>
+            // Tailwind (CDN) integration: map utilities to our CSS variables.
+            window.tailwind = window.tailwind || {};
+            window.tailwind.config = {
+                darkMode: ['class', '[data-theme="dark"]'],
+                theme: {
+                    extend: {
+                        colors: {
+                            background: 'var(--background)',
+                            foreground: 'var(--foreground)',
+                            card: 'var(--card)',
+                            'card-foreground': 'var(--card-foreground)',
+                            popover: 'var(--popover)',
+                            'popover-foreground': 'var(--popover-foreground)',
+                            muted: 'var(--muted)',
+                            'muted-foreground': 'var(--muted-foreground)',
+                            border: 'var(--border)',
+                            input: 'var(--input)',
+                            primary: 'var(--primary)',
+                            ring: 'var(--ring)'
+                        },
+                        borderRadius: {
+                            lg: 'var(--radius)'
+                        },
+                        fontFamily: {
+                            sans: ['Inter', 'ui-sans-serif', 'system-ui', 'Segoe UI', 'Helvetica Neue', 'Arial']
+                        }
+                    }
+                }
+            };
+        </script>
         <script src="https://cdn.tailwindcss.com"></script>
         <link rel="stylesheet" href="styles.css" />
         <script defer src="https://unpkg.com/lucide@latest"></script>
@@ -30,8 +61,8 @@
         <script defer src="skill-hiscores.js"></script>
     </head>
 
-    <body class="h-full bg-surface text-foreground">
-        <div class="min-h-full flex flex-col max-w-screen-xl mx-auto">
+    <body class="h-full bg-surface text-foreground transition-colors">
+        <div id="app" class="min-h-full flex flex-col mx-auto app-shell">
             <header class="osrs-header px-6 py-4">
                 <div class="header-ambient" aria-hidden="true">
                     <span class="header-ambient__orb header-ambient__orb--left"></span>
@@ -49,7 +80,7 @@
                             <span class="header-subtitle">Dial into the battle for every level.</span>
                         </div>
                     </div>
-                    <nav class="header-nav" aria-label="Primary">
+                    <nav class="header-nav header-nav--scroll" aria-label="Primary">
                         <a href="index.html" class="nav-pill" data-tooltip="Overall leaderboard">
                             <i data-lucide="trophy" class="w-4 h-4"></i>
                             <span>Leaderboard</span>
@@ -87,11 +118,12 @@
                         <div class="hero-controls">
                             <label class="field">
                                 <span class="field-label">Skill</span>
-                                <select id="skillSelect" class="btn-input" aria-label="Select skill"></select>
+                                <select id="skillSelect" class="ui-input" aria-label="Select skill"></select>
                             </label>
                             <label class="field">
                                 <span class="field-label">Search competitor</span>
-                                <input id="filterName" class="btn-input" placeholder="Search player…" autocomplete="off" />
+                                <input id="filterName" class="ui-input" placeholder="Search player…"
+                                    autocomplete="off" />
                             </label>
                         </div>
                     </div>
@@ -129,7 +161,8 @@
                         </div>
                         <div class="hero-spotlight__content">
                             <span id="skillHeroHighlightName">Choose a skill to see the pacesetter</span>
-                            <span id="skillHeroHighlightMeta" class="hero-spotlight__meta">Live rankings update with every
+                            <span id="skillHeroHighlightMeta" class="hero-spotlight__meta">Live rankings update with
+                                every
                                 search.</span>
                         </div>
                     </div>
@@ -152,7 +185,7 @@
                     </ol>
                 </nav>
                 <div class="main-grid">
-                    <aside class="sidebar card">
+                    <aside class="sidebar card ui-card--subtle">
                         <nav class="flex-col gap-3">
                             <a href="index.html" class="flex-items-center gap-2 hover:text-accent">
                                 <i data-lucide="trophy" class="w-4 h-4"></i>
@@ -182,7 +215,7 @@
                     </aside>
                     <section class="space-y-6">
 
-                        <div class="osrs-table" id="skillTableWrap">
+                        <div class="osrs-table ui-table" id="skillTableWrap">
                             <table class="min-w-full text-sm" id="skillTable">
                                 <thead>
                                     <tr>
@@ -195,12 +228,12 @@
                                 <tbody></tbody>
                             </table>
                         </div>
-                        <div
-                            class="flex-between gap-4 text-sm flex-wrap bg-layer2 p-4 rounded-lg border-2 border-border">
+                        <div class="ui-card ui-card--subtle ui-card--glass flex-between gap-4 text-sm flex-wrap">
                             <div class="flex-items-center gap-3">
                                 <button id="prevPage" class="btn-sm">← Previous</button>
                                 <button id="nextPage" class="btn-sm">Next →</button>
-                                <button id="copyCsv" class="btn-sm" title="Copy filtered results as CSV">Copy CSV</button>
+                                <button id="copyCsv" class="btn-sm" title="Copy filtered results as CSV">Copy
+                                    CSV</button>
                             </div>
                             <div class="font-semibold">
                                 Page <span id="pageNum" class="text-accent">1</span> of <span id="pageTotal"
@@ -208,7 +241,7 @@
                             </div>
                             <div class="flex-items-center gap-2">
                                 <label for="pageSize" class="opacity-70">Rows per page</label>
-                                <select id="pageSize" class="btn-input px-2 py-1">
+                                <select id="pageSize" class="ui-input" style="padding:.35rem .6rem; font-size:.85rem;">
                                     <option value="25">25</option>
                                     <option value="50" selected>50</option>
                                     <option value="100">100</option>
