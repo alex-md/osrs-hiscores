@@ -1,11 +1,15 @@
-// Skill Hiscores page logic
-// API_BASE, setApiBase, fetchJSON provided by common.js
+import { initCommonUi } from '../bootstrap.js';
+import { fetchJson } from '../core/api.js';
+import { $, showToast } from '../core/dom.js';
+import { formatRelativeTime } from '../core/formatters.js';
+import { SKILLS } from '../constants/skills.js';
+import { applyTickerMotion } from '../core/ticker.js';
+
 const cache = { skillRankings: null };
 
-// fetchJSON now global (common.js)
 async function loadSkillRankings(force = false) {
   if (cache.skillRankings && !force) return cache.skillRankings;
-  cache.skillRankings = await fetchJSON("/api/skill-rankings");
+  cache.skillRankings = await fetchJson("/api/skill-rankings");
   return cache.skillRankings;
 }
 
@@ -16,6 +20,92 @@ let minLevel = null;
 let maxLevel = null;
 let minXp = null;
 let maxXp = null;
+
+function updateSkillHero(rows, data) {
+  const total = Array.isArray(rows) ? rows.length : 0;
+  const totalEl = document.getElementById('skillLeadersCount');
+  if (totalEl) totalEl.textContent = total ? total.toLocaleString() : '—';
+
+  const top = Array.isArray(rows) && rows.length ? rows[0] : null;
+  const playerEl = document.getElementById('skillTopPlayer');
+  if (playerEl) playerEl.textContent = top ? top.username : '—';
+  const levelEl = document.getElementById('skillTopLevel');
+  if (levelEl) levelEl.textContent = top ? `Lv ${top.level}` : '—';
+  const xpEl = document.getElementById('skillTopXp');
+  if (xpEl) xpEl.textContent = top ? `${top.xp.toLocaleString()} XP` : '—';
+
+  const spotlightWrap = document.getElementById('skillHeroSpotlight');
+  const spotlightName = document.getElementById('skillHeroHighlightName');
+  const spotlightMeta = document.getElementById('skillHeroHighlightMeta');
+  if (spotlightWrap && spotlightName && spotlightMeta) {
+    if (top) {
+      spotlightName.textContent = top.username;
+      const metaParts = [`Lv ${top.level}`];
+      if (Number.isFinite(top.rank)) metaParts.push(`#${top.rank}`);
+      if (Number.isFinite(top.xp)) metaParts.push(`${top.xp.toLocaleString()} XP`);
+      spotlightMeta.textContent = metaParts.join(' • ');
+      spotlightWrap.classList.add('is-active');
+    } else {
+      spotlightName.textContent = 'Choose a skill to see the pacesetter';
+      spotlightMeta.textContent = 'Live rankings update with every search.';
+      spotlightWrap.classList.remove('is-active');
+    }
+  }
+
+  const generatedAt = Number(data?.generatedAt || 0);
+  const lastEl = document.getElementById('skillLastUpdatedHero');
+  if (lastEl) {
+    if (generatedAt) {
+      const rel = formatRelativeTime(generatedAt);
+      lastEl.textContent = rel || new Date(generatedAt).toLocaleString();
+      lastEl.setAttribute('title', new Date(generatedAt).toLocaleString());
+    } else {
+      lastEl.textContent = 'Live snapshot';
+      lastEl.removeAttribute('title');
+    }
+  }
+
+  const tickerWrap = document.getElementById('skillHeroTicker');
+  if (tickerWrap) {
+    tickerWrap.innerHTML = '';
+    const track = document.createElement('div');
+    track.className = 'ticker-track';
+    const leaders = Array.isArray(rows) ? rows.slice(0, 4) : [];
+    if (!leaders.length) {
+      const empty = document.createElement('span');
+      empty.className = 'ticker-item';
+      empty.textContent = 'Awaiting ladder updates…';
+      track.appendChild(empty);
+    } else {
+      leaders.forEach((entry) => {
+        const item = document.createElement('span');
+        item.className = 'ticker-item';
+        const link = document.createElement('a');
+        link.className = 'username-link';
+        link.href = `index.html#user/${encodeURIComponent(entry.username)}`;
+        link.textContent = entry.username;
+        link.setAttribute('aria-label', `View ${entry.username} overall stats`);
+        item.appendChild(link);
+        const meta = document.createElement('span');
+        meta.className = 'ticker-meta';
+        const parts = [`Lv ${entry.level}`];
+        if (Number.isFinite(entry.xp)) parts.push(`${entry.xp.toLocaleString()} XP`);
+        meta.textContent = parts.join(' • ');
+        item.appendChild(meta);
+        track.appendChild(item);
+      });
+      if (leaders.length > 1) {
+        Array.from(track.children).forEach((node) => {
+          const clone = node.cloneNode(true);
+          clone.dataset.duplicate = 'true';
+          track.appendChild(clone);
+        });
+      }
+    }
+    tickerWrap.appendChild(track);
+    applyTickerMotion(tickerWrap, track);
+  }
+}
 
 function applyFilters(rows) {
   const q = (($("#filterName"))?.value || "").trim().toLowerCase();
@@ -45,6 +135,7 @@ function renderTable() {
     .then((data) => {
       const rows = data.rankings[currentSkill];
       const filtered = applyFilters(rows);
+      updateSkillHero(filtered, data);
       tableBody.innerHTML = "";
       const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
       if (page > totalPages) page = totalPages;
@@ -89,11 +180,12 @@ function renderTable() {
     .catch((e) => {
       const htmlLike = /Received HTML|Unexpected content-type/.test(e.message);
       if (htmlLike)
-        toast(
+        showToast(
           "API not mounted under /api - verify _worker.js deployment",
           "error",
         );
-      else toast(e.message, "error");
+      else showToast(e.message, "error");
+      updateSkillHero([], null);
     });
 }
 
@@ -132,11 +224,11 @@ document.addEventListener("click", (e) => {
       );
       const csv = lines.join('\n');
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(csv).then(() => toast('CSV copied')).catch(() => downloadCsv(csv));
+        navigator.clipboard.writeText(csv).then(() => showToast('CSV copied')).catch(() => downloadCsv(csv));
       } else {
         downloadCsv(csv);
       }
-    }).catch(() => toast('Failed to build CSV', 'error'));
+    }).catch(() => showToast('Failed to build CSV', 'error'));
   }
 });
 
@@ -151,8 +243,8 @@ function downloadCsv(csv) {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    toast('CSV downloaded');
-  } catch (_) { toast('CSV download failed', 'error'); }
+    showToast('CSV downloaded');
+  } catch (_) { showToast('CSV download failed', 'error'); }
 }
 
 // filters (name + numeric)
@@ -202,9 +294,6 @@ function init() {
     });
   }
 
-  const theme = localStorage.getItem("theme") || "dark";
-  setTheme(theme);
-
   // perPage is fixed; page starts at 1
 
   // Page size selector
@@ -216,14 +305,6 @@ function init() {
       page = 1;
       renderTable();
     });
-  }
-
-  // Show current API base in footer
-  const apiSpan = $("#currentApiBase");
-  if (apiSpan && window.API_BASE) {
-    const displayBase =
-      window.API_BASE === location.origin ? "Same-origin" : window.API_BASE;
-    apiSpan.textContent = displayBase;
   }
 
   renderTable();

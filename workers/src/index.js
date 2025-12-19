@@ -18,230 +18,326 @@ import {
     projectHighestAchievementFamilies,
     ACHIEVEMENT_KEYS
 } from './achievements.js';
+import { memGet, memSet, memDelete, kvGetCached } from './lib/cache.js';
 import {
-    weekendBonusMultiplier,
+    getLeaderboardHistory,
+    updateLeaderboardHistory,
+    selectHistoryEntry,
+    computeOnTheRiseFromHistory,
+    computeTrendSummaryFromHistory
+} from './lib/history.js';
+import { friendlyAchievementLabel } from './lib/achievements-meta.js';
+import { buildWatchlistFromData } from './lib/watchlist.js';
+
+import {
     levelFromXp,
-    totalLevel,
-    totalXP,
-    weightedRandomChoice,
-    assignRandomArchetype,
-    sanitizeUsername,
-    fetchRandomWords,
-    inferMetaTierWithContext,
-    sampleInitialTotalXP,
-    distributeInitialXP,
-    assignArchetypeForTotalXP,
-    computeHitpointsLevelFromCombat,
     xpForLevel,
+    computeHitpointsLevelFromCombat,
+    syncHitpointsFromCombat,
+    inferMetaTierWithContext,
     determineXpGainTierFromTotal,
     buildSkillMultipliers,
-    chooseActivityForUser
+    chooseActivityForUser,
+    assignRandomArchetype,
+    assignArchetypeForTotalXP,
+    sampleInitialTotalXP,
+    distributeInitialXP,
+    sanitizeUsername,
+    fetchRandomWords,
+    weekendBonusMultiplier,
+    totalLevel as totalLevelFromSkills,
+    totalXP as totalXPFromSkills
 } from './utils.js';
+import { buildSnapshot } from './data-sync.js';
 
-// Lightweight per-isolate memory cache and throttling to lower KV pressure
-const __memCache = new Map(); // key -> { value, expires }
-const __inflight = new Map(); // key -> Promise
+// Top-N limits for leaderboard and per-skill rankings (frontend expects at most ~100 entries)
+const LEADERBOARD_TOP_LIMIT = 100;
+const SKILL_RANKINGS_TOP_LIMIT = 100;
 
-function nowMs() { return Date.now(); }
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+const WATCHLIST_KEY = 'stats:watchlist:auto';
+const WATCHLIST_MAX_ENTRIES = 8;
+const DAY_MS = 24 * 3600 * 1000;
+const WEEK_MS = 7 * 24 * 3600 * 1000;
 
-// Shared small utility to split an array into chunks of size n
-const chunk = (arr, n) => arr.reduce((acc, _, i) => (i % n ? acc : [...acc, arr.slice(i, i + n)]), []);
-
-const LEADERBOARD_TOP_LIMIT = 5000;
-const SKILL_RANKINGS_TOP_LIMIT = 500;
-
-function memGet(key) {
-    const e = __memCache.get(key);
-    if (!e) return undefined;
-    if (e.expires <= nowMs()) { __memCache.delete(key); return undefined; }
-    return e.value;
+// Simple chunk utility
+function chunk(arr, size) {
+    const out = [];
+    for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+    return out;
 }
 
-function memSet(key, value, ttlSeconds = 10) {
-    const ttl = Math.max(0, Number(ttlSeconds) || 0);
-    if (ttl <= 0) { __memCache.delete(key); return; }
-    __memCache.set(key, { value, expires: nowMs() + ttl * 1000 });
+// Sleep helper (ms)
+function sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
+
+function classifyRarityFromCounts(count, totalPlayers) {
+    const total = Number(totalPlayers);
+    const numericCount = Number(count);
+    if (!Number.isFinite(numericCount) || !Number.isFinite(total) || total <= 0) {
+        return { rarity: 'unknown', pct: null };
+    }
+    const pct = (numericCount / total) * 100;
+    if (pct <= 0) return { rarity: 'mythic', pct: 0 };
+    if (pct < 0.05) return { rarity: 'mythic', pct };
+    if (pct < 0.2) return { rarity: 'legendary', pct };
+    if (pct < 1) return { rarity: 'epic', pct };
+    if (pct < 5) return { rarity: 'rare', pct };
+    if (pct < 15) return { rarity: 'uncommon', pct };
+    return { rarity: 'common', pct };
 }
 
-async function withInflightDedup(key, fn) {
-    if (__inflight.has(key)) return __inflight.get(key);
-    const p = (async () => {
-        try { return await fn(); }
-        finally { __inflight.delete(key); }
-    })();
-    __inflight.set(key, p);
-    return p;
-}
-
-// KV get with brief per-isolate memoization and inflight dedupe
-async function kvGetCached(env, key, { ttlSeconds = 10 } = {}) {
-    const memKey = `kv:text:${key}`;
-    const cached = memGet(memKey);
-    if (cached !== undefined) return cached;
-    return withInflightDedup(memKey, async () => {
-        const raw = await env.HISCORES_KV.get(key);
-        memSet(memKey, raw, ttlSeconds);
-        return raw;
-    });
-}
-
-// Limit parallel async ops
-async function mapWithConcurrency(items, limit, mapper) {
-    const results = new Array(items.length);
-    let i = 0; let running = 0;
-    return new Promise((resolve) => {
-        const pump = () => {
-            while (running < limit && i < items.length) {
-                const idx = i++;
-                running++;
-                Promise.resolve(mapper(items[idx], idx))
-                    .then(v => { results[idx] = v; })
-                    .catch(err => { results[idx] = undefined; console.log('KV op error:', String(err)); })
-                    .finally(() => { running--; if (i >= items.length && running === 0) resolve(results); else pump(); });
-            }
-            if (i >= items.length && running === 0) resolve(results);
-        };
-        if (!items.length) resolve(results); else pump();
-    });
-}
-
-// Cache API wrapper for GET routes; respects response cache-control
-async function cacheResponseIfPossible(request, compute) {
-    if ((request.method || 'GET').toUpperCase() !== 'GET') return compute();
-    try {
-        const cache = caches.default;
-        const hit = await cache.match(request);
-        if (hit) return hit;
-        const resp = await compute();
-        const cc = (resp.headers.get('cache-control') || '').toLowerCase();
-        if (!cc.includes('no-store')) {
-            try { await cache.put(request, resp.clone()); } catch (_) { }
+function computeWeeklyRarest(eventsPayload, prevalencePayload, now = Date.now()) {
+    const events = Array.isArray(eventsPayload?.events) ? eventsPayload.events : Array.isArray(eventsPayload) ? eventsPayload : [];
+    if (!events.length) return null;
+    const counts = prevalencePayload?.counts || {};
+    const totalPlayers = Number(prevalencePayload?.totalPlayers) || 0;
+    const cutoff = now - WEEK_MS;
+    const perKey = new Map();
+    for (const event of events) {
+        const key = String(event?.key || '').trim();
+        const username = String(event?.username || '').trim();
+        const ts = Number(event?.timestamp);
+        if (!key || !username || !Number.isFinite(ts) || ts < cutoff) continue;
+        let arr = perKey.get(key);
+        if (!arr) { arr = []; perKey.set(key, arr); }
+        arr.push({ username, timestamp: ts });
+    }
+    if (perKey.size === 0) return null;
+    let best = null;
+    for (const [key, unlocks] of perKey.entries()) {
+        if (!unlocks.length) continue;
+        const globalCountRaw = counts[key];
+        const globalCount = Number.isFinite(Number(globalCountRaw)) ? Number(globalCountRaw) : null;
+        const normalized = Number.isFinite(Number(globalCountRaw)) ? Number(globalCountRaw) : Infinity;
+        const weeklyCount = unlocks.length;
+        const latestTs = unlocks.reduce((max, item) => item.timestamp > max ? item.timestamp : max, 0);
+        const score = { global: normalized, weekly: weeklyCount, latest: latestTs };
+        if (!best) {
+            best = { key, unlocks, globalCount, weeklyCount, latestTs, score };
+            continue;
         }
-        return resp;
-    } catch (_) {
-        return compute();
+        const b = best.score;
+        let replace = false;
+        if (score.global < b.global) replace = true;
+        else if (score.global === b.global) {
+            if (score.weekly < b.weekly) replace = true;
+            else if (score.weekly === b.weekly && score.latest > b.latest) replace = true;
+        }
+        if (replace) best = { key, unlocks, globalCount, weeklyCount, latestTs, score };
     }
-}
-
-function newUser(username) {
-    // 1. Sample an initial total XP budget (top heavy; per-tier power-law weighting)
-    const totalInitialXP = sampleInitialTotalXP();
-    // 2. Pick an archetype influenced by the sampled total XP (biases distribution focus)
-    const archetype = assignArchetypeForTotalXP(totalInitialXP);
-    // 3. Distribute across skills using archetype-weighted allocation (hitpoints handled after)
-    const distributed = distributeInitialXP(totalInitialXP, Math.random, archetype);
-    const skills = {};
-    for (const s of SKILLS) {
-        if (s === 'hitpoints') continue; // handle after baseline
-        const xp = distributed[s] || 1; // baseline is 1 XP for non-HP
-        skills[s] = { xp, level: levelFromXp(xp) };
-    }
-    // 4. Derive hitpoints from combat stats average (attack/strength/defence/ranged/magic/prayer)
-    const hpLevel = computeHitpointsLevelFromCombat(skills);
-    const hpXp = xpForLevel(hpLevel);
-    skills.hitpoints = { xp: hpXp, level: hpLevel };
-    // 5. Recalculate totals
-    const userTotalLevel = totalLevel(skills);
-    const userTotalXP = totalXP(skills);
-    // Persistent XP tier and multipliers, determined once at creation
-    const xpGainTier = determineXpGainTierFromTotal(userTotalXP);
-    const multipliers = buildSkillMultipliers(archetype, xpGainTier);
+    if (!best) return null;
+    const rarity = classifyRarityFromCounts(best.globalCount, totalPlayers);
+    const recentUnlocks = [...best.unlocks]
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(0, 5)
+        .map(item => ({
+            username: item.username,
+            timestamp: new Date(item.timestamp).toISOString().replace(/\.\d{3}Z$/, 'Z')
+        }));
     return {
-        username,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        skills,
-        totalLevel: userTotalLevel,
-        totalXP: userTotalXP,
-        activity: "INACTIVE",
-        archetype,
-        xpGainTier,
-        multipliers,
-        achievements: {},
-        needsHpMigration: false,
-        version: 4
+        key: best.key,
+        globalCount: best.globalCount,
+        totalPlayers,
+        weeklyCount: best.weeklyCount,
+        latestTimestamp: new Date(best.latestTs).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+        recentUnlocks,
+        rarity: rarity.rarity,
+        prevalencePct: rarity.pct,
+        windowDays: 7
     };
 }
-function recalcTotals(user) {
-    user.totalLevel = totalLevel(user.skills);
-    user.totalXP = totalXP(user.skills);
+
+const ACHIEVEMENT_LABEL_OVERRIDES = {
+    'overall-rank-1': 'Overall Rank #1',
+    'first-99-any': 'First 99 (Any Skill)',
+    'first-top1-any': 'First #1 (Any Skill)',
+    'maxed-account': 'Maxed Account',
+    'combat-maxed': 'All Combat Skills 99',
+    'total-2277': 'Max Total Level (2277)',
+    'total-2200': 'Total Level 2200+',
+    'total-2000': 'Total Level 2000+',
+    'total-1500': 'Total Level 1500+',
+    'totalxp-200m': '200m Total XP',
+    'totalxp-100m': '100m Total XP',
+    'totalxp-50m': '50m Total XP',
+    'totalxp-10m': '10m Total XP',
+    'xp-billionaire': '1b Total XP',
+    'xp-millionaire': '1m Total XP',
+    'tier-grandmaster': 'Grandmaster Tier',
+    'tier-master': 'Master Tier',
+    'tier-diamond': 'Diamond Tier',
+    'tier-platinum': 'Platinum Tier',
+    'tier-gold': 'Gold Tier',
+    'tier-silver': 'Silver Tier',
+    'tier-bronze': 'Bronze Tier'
+};
+
+function capitalizeSkillName(skill) {
+    if (!skill) return '';
+    return skill.charAt(0).toUpperCase() + skill.slice(1);
 }
 
-
-function applyXpGain(user, skill, gainedXp) {
-    const s = user.skills[skill];
-    s.xp += Math.floor(gainedXp);
-    const newLevel = levelFromXp(s.xp);
-    if (newLevel !== s.level) s.level = newLevel;
-}
-
-function simulateUserProgress(user, activityName, date = new Date()) {
-    const act = PLAYER_ACTIVITY_TYPES[activityName];
-    if (!act || act.xpRange[1] === 0) return;
-    const [minXp, maxXp] = act.xpRange;
-    const weekendMult = weekendBonusMultiplier(date);
-    // Apply persistent global multiplier if present
-    const globalMult = Math.max(0.2, Math.min(3.0, user?.multipliers?.global || 1.0));
-    let budget = (Math.random() * (maxXp - minXp) + minXp) * weekendMult * globalMult;
-    const skillsChosen = [...SKILLS].sort(() => Math.random() - 0.5).slice(0, Math.ceil(Math.random() * 5));
-    let totalWeight = skillsChosen.reduce((a, s) => a + (SKILL_POPULARITY[s] || 1), 0);
-    for (const skill of skillsChosen) {
-        const w = SKILL_POPULARITY[skill] || 1;
-        const portionBase = budget * (w / totalWeight) * (0.8 + Math.random() * 0.4);
-        const perSkillMult = Math.max(0.2, Math.min(3.0, user?.multipliers?.perSkill?.[skill] || 1.0));
-        applyXpGain(user, skill, portionBase * perSkillMult);
+async function fetchWeeklyRarest(env) {
+    try {
+        const [eventsRaw, prevalenceRaw] = await Promise.all([
+            env.HISCORES_KV.get('ach:events'),
+            env.HISCORES_KV.get('stats:achievements:prevalence')
+        ]);
+        let eventsPayload = null;
+        let prevalencePayload = null;
+        if (eventsRaw) {
+            try { eventsPayload = JSON.parse(eventsRaw); }
+            catch (_) { eventsPayload = null; }
+        }
+        if (prevalenceRaw) {
+            try { prevalencePayload = JSON.parse(prevalenceRaw); }
+            catch (_) { prevalencePayload = null; }
+        }
+        return computeWeeklyRarest(eventsPayload, prevalencePayload);
+    } catch (_) {
+        return null;
     }
-    user.updatedAt = Date.now();
-    recalcTotals(user);
 }
 
-function migrateHitpoints(user) {
-    const hp = user.skills.hitpoints;
-    const correctLevel = levelFromXp(hp.xp);
-    if (hp.level !== correctLevel) {
-        hp.level = correctLevel;
-        user.needsHpMigration = false;
-        recalcTotals(user);
-        return true;
+async function readStoredWatchlist(env) {
+    try {
+        const raw = await env.HISCORES_KV.get(WATCHLIST_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') return null;
+        if (parsed.tracked && !Array.isArray(parsed.tracked)) return null;
+        return parsed;
+    } catch (_) {
+        return null;
     }
-    user.needsHpMigration = false;
-    return false;
 }
 
-async function getAllUsers(env, opts = {}) {
-    const { fresh = false } = opts;
+// HTTP cache wrapper using Cloudflare cache API when available; falls back to direct handler
+async function cacheResponseIfPossible(request, handler) {
+    try {
+        const method = (request.method || 'GET').toUpperCase();
+        if (method !== 'GET') return await handler();
+        const reqCacheControl = String(request.headers.get('cache-control') || '').toLowerCase();
+        const bypass = reqCacheControl.includes('no-cache') || reqCacheControl.includes('no-store');
+        const cache = caches?.default;
+        if (!cache || bypass) return await handler();
+        const cacheKey = new Request(request.url, request);
+        const hit = await cache.match(cacheKey);
+        if (hit) return hit;
+        const resp = await handler();
+        try {
+            const cc = String(resp.headers.get('cache-control') || '').toLowerCase();
+            if (resp.ok && cc && !cc.includes('no-store') && !cc.includes('private')) {
+                // Put a clone to cache; ignore failures
+                event?.waitUntil?.(cache.put(cacheKey, resp.clone()));
+                // If event not available, best-effort await put
+                if (!event?.waitUntil) await cache.put(cacheKey, resp.clone());
+            }
+        } catch (_) { /* ignore cache put issues */ }
+        return resp;
+    } catch (_) {
+        // On any failure, just serve the handler
+        return handler();
+    }
+}
+
+// Get all users from KV, with optional short-lived memory cache
+async function getAllUsers(env, { fresh = false } = {}) {
     const MEM_KEY = 'all-users:v2';
     if (!fresh) {
         const cached = memGet(MEM_KEY);
-        if (cached) return cached;
+        if (Array.isArray(cached)) return cached;
     }
-
     const users = [];
     let cursor;
-    const perPageLimit = 1000;
-    const getConcurrency = Math.min(16, Math.max(1, Number(env.KV_GET_CONCURRENCY) || 8));
-    const betweenPageDelayMs = Math.max(0, Number(env.KV_LIST_PAGE_DELAY_MS) || 10);
     do {
-        const list = await env.HISCORES_KV.list({ prefix: 'user:', cursor, limit: perPageLimit });
+        const list = await env.HISCORES_KV.list({ prefix: 'user:', limit: 1000, cursor });
         cursor = list.list_complete ? undefined : list.cursor;
-        const keys = list.keys.map(k => k.name);
-        const values = await mapWithConcurrency(keys, getConcurrency, async (k) => kvGetCached(env, k, { ttlSeconds: 10 }));
-        for (const v of values) {
-            if (!v) continue;
-            try { users.push(JSON.parse(v)); } catch (_) { }
+        for (const k of list.keys) {
+            const raw = await kvGetCached(env, k.name, { ttlSeconds: 10 });
+            if (!raw) continue;
+            try { users.push(JSON.parse(raw)); } catch (_) { }
         }
-        if (cursor && betweenPageDelayMs) await sleep(betweenPageDelayMs);
     } while (cursor);
-    memSet(MEM_KEY, users, 10);
+    memSet(MEM_KEY, users, 5);
     return users;
+}
+
+// Minimal totals recomputation
+function recalcTotals(user) {
+    try {
+        user.totalLevel = totalLevelFromSkills(user.skills || {});
+        user.totalXP = totalXPFromSkills(user.skills || {});
+        user.updatedAt = Date.now();
+    } catch (_) { }
+}
+
+function migrateHitpoints(user) {
+    try { return syncHitpointsFromCombat(user.skills || {}); } catch (_) { return false; }
+}
+
+// Very lightweight progress simulator based on activity and multipliers
+function simulateUserProgress(user, activity, now = new Date()) {
+    const type = PLAYER_ACTIVITY_TYPES[activity] ? activity : 'CASUAL';
+    const [minXp, maxXp] = PLAYER_ACTIVITY_TYPES[type]?.xpRange || [500, 3000];
+    const weekend = weekendBonusMultiplier(now);
+    const baseGain = Math.floor((minXp + Math.random() * (maxXp - minXp)) * weekend);
+    const mult = (user.multipliers?.global) || 1.0;
+    const totalGain = Math.max(1, Math.floor(baseGain * mult));
+    // allocate gains across a few random skills (prefer focus if exists)
+    const perSkillMult = user.multipliers?.perSkill || {};
+    const skills = [...SKILLS];
+    for (let i = 0; i < 3; i++) {
+        const idx = Math.floor(Math.random() * skills.length);
+        const s = skills[idx];
+        const tilt = Math.max(0.5, Math.min(2.0, perSkillMult[s] || 1.0));
+        const delta = Math.max(1, Math.floor((totalGain / 5) * tilt));
+        const cur = user.skills?.[s] || { xp: 0, level: 1 };
+        const newXp = cur.xp + delta;
+        user.skills = user.skills || {};
+        user.skills[s] = { xp: newXp, level: levelFromXp(newXp) };
+    }
+    // Recompute HP from combat skills occasionally
+    if (Math.random() < 0.3) migrateHitpoints(user);
+    recalcTotals(user);
+}
+
+// Seed guard for admin-only endpoints
+function ensureAdminAuthorized(request, env) {
+    const token = env?.ADMIN_TOKEN;
+    if (!token) return null; // no auth required if not configured
+    const got = request.headers.get('x-admin-token');
+    if (got === token) return null;
+    return jsonResponse({ error: 'Unauthorized' }, { status: 401 });
+}
+
+// Create a new baseline user
+function newUser(username) {
+    const name = sanitizeUsername(username);
+    const skills = {};
+    for (const s of SKILLS) {
+        if (s === 'hitpoints') skills[s] = { xp: 1154, level: 10 };
+        else skills[s] = { xp: 0, level: 1 };
+    }
+    const user = {
+        username: name,
+        skills,
+        achievements: {},
+        version: 1,
+        createdAt: Date.now()
+    };
+    // Initialize persistent fields
+    recalcTotals(user);
+    user.xpGainTier = determineXpGainTierFromTotal(user.totalXP);
+    user.archetype = assignRandomArchetype();
+    user.multipliers = buildSkillMultipliers(user.archetype, user.xpGainTier);
+    return user;
 }
 
 async function putUser(env, user) {
     await env.HISCORES_KV.put(`user:${user.username.toLowerCase()}`, JSON.stringify(user));
     // Invalidate memory caches best-effort
-    __memCache.delete('all-users:v2');
-    __memCache.delete(`kv:text:user:${user.username.toLowerCase()}`);
+    memDelete('all-users:v2');
+    memDelete(`kv:text:user:${user.username.toLowerCase()}`);
 }
 
 async function getUser(env, username) {
@@ -494,6 +590,17 @@ async function persistLeaderboardSnapshots(env, users, ctx = null, options = {})
     const skillRankings = buildSkillRankingsSnapshot(userList, skillTop);
     await env.HISCORES_KV.put('stats:leaderboard:top', JSON.stringify(leaderboard));
     await env.HISCORES_KV.put('stats:leaderboard:skills', JSON.stringify(skillRankings));
+    let history = null;
+    try { history = await updateLeaderboardHistory(env, leaderboard); }
+    catch (_) { history = null; }
+    try {
+        const onTheRise = computeOnTheRiseFromHistory(leaderboard.players || [], history || []);
+        const weeklyRarest = await fetchWeeklyRarest(env);
+        const watchlist = buildWatchlistFromData(leaderboard, { onTheRise, weeklyRarest, now: Date.now(), maxEntries: WATCHLIST_MAX_ENTRIES });
+        await env.HISCORES_KV.put(WATCHLIST_KEY, JSON.stringify(watchlist));
+    } catch (err) {
+        console.log('watchlist persist error:', String(err));
+    }
     return { leaderboard, skillRankings };
 }
 
@@ -508,19 +615,52 @@ async function handleLeaderboard(env, url) {
         const ctx = computeAchievementContext(users);
         payload = buildLeaderboardSnapshot(users, ctx, LEADERBOARD_TOP_LIMIT);
         try { await env.HISCORES_KV.put('stats:leaderboard:top', JSON.stringify(payload)); } catch (_) { }
+        try { await updateLeaderboardHistory(env, payload); } catch (_) { }
     }
     const limitParam = url.searchParams.get('limit');
     let limit = Number(limitParam);
     if (!Number.isFinite(limit) || limit <= 0) limit = payload.players?.length || 0;
     if (limit > LEADERBOARD_TOP_LIMIT) limit = LEADERBOARD_TOP_LIMIT;
     const players = Array.isArray(payload.players) ? payload.players.slice(0, limit) : [];
+    const history = await getLeaderboardHistory(env);
+    const onTheRise = computeOnTheRiseFromHistory(payload.players || [], history);
+    const trendSummary = computeTrendSummaryFromHistory(payload, history);
+    const weeklyRarest = await fetchWeeklyRarest(env);
+    const now = Date.now();
+    let watchlist = buildWatchlistFromData(payload, { onTheRise, weeklyRarest, now, maxEntries: WATCHLIST_MAX_ENTRIES });
+    let storedWatchlist = null;
+    try { storedWatchlist = await readStoredWatchlist(env); }
+    catch (_) { storedWatchlist = null; }
+    if ((!watchlist || !Array.isArray(watchlist.tracked) || watchlist.tracked.length === 0) && storedWatchlist) {
+        watchlist = storedWatchlist;
+    } else if (watchlist && watchlist.tracked && watchlist.tracked.length) {
+        const storedTs = Number(storedWatchlist?.generatedAt) || 0;
+        if (!storedWatchlist || (now - storedTs) > 5 * 60 * 1000) {
+            try { await env.HISCORES_KV.put(WATCHLIST_KEY, JSON.stringify(watchlist)); }
+            catch (_) { /* ignore */ }
+        }
+    }
+    if (!watchlist) {
+        watchlist = { generatedAt: now, tracked: [], message: 'No watchlist data available.' };
+    }
+    if (!Number.isFinite(Number(watchlist.windowHours)) && Number.isFinite(onTheRise?.windowHours)) {
+        watchlist.windowHours = Number(onTheRise.windowHours);
+    }
+    if (!Number.isFinite(Number(watchlist.totalPlayers))) {
+        const playerCount = Array.isArray(payload.players) ? payload.players.length : players.length;
+        watchlist.totalPlayers = payload.totalPlayers || playerCount || 0;
+    }
     return jsonResponse({
         generatedAt: payload.generatedAt || Date.now(),
         totalPlayers: payload.totalPlayers || 0,
         tiers: payload.tiers || {},
         returned: players.length,
         topN: payload.topN || players.length,
-        players
+        players,
+        onTheRise,
+        trendSummary,
+        weeklyRarest,
+        watchlist
     }, { headers: { 'cache-control': 'public, max-age=30' } });
 }
 
@@ -1116,6 +1256,35 @@ async function handleGenerateUsersDryRun(env, url) {
     }, { headers: { 'cache-control': 'no-store' } });
 }
 
+async function handleSyncSnapshotPublic(env) {
+    try {
+        const cached = await env.HISCORES_KV.get('sync:snapshot');
+        if (cached) {
+            try {
+                const parsed = JSON.parse(cached);
+                return jsonResponse(parsed, { headers: { 'cache-control': 'public, max-age=30' } });
+            } catch (_) {
+                // fall through to rebuild on malformed cache
+            }
+        }
+    } catch (err) {
+        console.log('sync snapshot cache read failed:', String(err));
+    }
+
+    try {
+        const snapshot = await buildSnapshot(env, {
+            allowPartial: true,
+            meta: { source: 'api-sync-snapshot' }
+        });
+        snapshot.meta = { ...(snapshot.meta || {}), generatedBy: 'handleSyncSnapshotPublic' };
+        await env.HISCORES_KV.put('sync:snapshot', JSON.stringify(snapshot));
+        return jsonResponse(snapshot, { headers: { 'cache-control': 'public, max-age=30' } });
+    } catch (err) {
+        console.log('sync snapshot build failure:', String(err));
+        return jsonResponse({ error: 'Snapshot unavailable' }, { status: 503, headers: { 'cache-control': 'no-store' } });
+    }
+}
+
 async function handleCronTrigger(env) {
     const result = await runScheduled(env);
     return jsonResponse({ triggered: true, ...result });
@@ -1143,11 +1312,8 @@ async function handleUserHpCheck(env, username) {
 }
 
 async function handleSeed(env, request) {
-    if (!env.ADMIN_TOKEN || env.ADMIN_TOKEN === 'CHANGE_ME_ADMIN_TOKEN') {
-        return jsonResponse({ error: 'Seed disabled (missing ADMIN_TOKEN)' }, { status: 403 });
-    }
-    const authToken = request.headers.get('x-admin-token') || new URL(request.url).searchParams.get('token');
-    if (authToken !== env.ADMIN_TOKEN) return jsonResponse({ error: 'Unauthorized' }, { status: 401 });
+    const auth = ensureAdminAuthorized(request, env);
+    if (auth) return auth;
     let payload;
     try { payload = await request.json(); } catch (_) { return jsonResponse({ error: 'Invalid JSON' }, { status: 400 }); }
     if (!payload || !Array.isArray(payload.usernames)) return jsonResponse({ error: 'Expected { usernames: [] }' }, { status: 400 });
@@ -1425,6 +1591,18 @@ async function runScheduled(env) {
         const ctx = computeAchievementContext(users);
         await persistAchievementStats(env, users, ctx);
         await persistLeaderboardSnapshots(env, users, ctx);
+        if (String(env.SYNC_SNAPSHOT_DISABLED || 'false').toLowerCase() !== 'true') {
+            try {
+                const snapshot = await buildSnapshot(env, {
+                    allowPartial: false,
+                    meta: { source: 'scheduled', totalPlayers: users.length }
+                });
+                snapshot.meta = { ...(snapshot.meta || {}), generatedBy: 'runScheduled' };
+                await env.HISCORES_KV.put('sync:snapshot', JSON.stringify(snapshot));
+            } catch (snapErr) {
+                console.log('runScheduled snapshot error:', String(snapErr));
+            }
+        }
     } catch (e) { console.log('runScheduled stats error:', String(e)); }
     return { processed: toUpdate, newUsers: created, totalPlayers: users.length };
 }
@@ -1467,7 +1645,7 @@ function jsonResponse(obj, init = {}) {
         'content-type': 'application/json',
         'access-control-allow-origin': '*',
         'access-control-allow-methods': 'GET,POST,OPTIONS',
-        'access-control-allow-headers': 'Content-Type, X-Admin-Token',
+        'access-control-allow-headers': 'Content-Type',
         'vary': 'Origin, Accept-Encoding'
     };
     const provided = init.headers || {};
@@ -1487,10 +1665,10 @@ async function router(request, env) {
             path,
             method,
             hasKV: !!env.HISCORES_KV,
-            availableBindings: Object.keys(env || {}),
-            adminToken: Boolean(env.ADMIN_TOKEN)
+            availableBindings: Object.keys(env || {})
         });
     }
+    if (path === '/api/sync/snapshot' && method === 'GET') return cacheResponseIfPossible(request, () => handleSyncSnapshotPublic(env));
     if (path === '/api/leaderboard' && method === 'GET') return cacheResponseIfPossible(request, () => handleLeaderboard(env, url));
     if (path === '/api/users' && method === 'GET') return cacheResponseIfPossible(request, () => handleUsersList(env));
     if (path === '/api/skill-rankings' && method === 'GET') return cacheResponseIfPossible(request, () => handleSkillRankings(env));
@@ -1500,11 +1678,7 @@ async function router(request, env) {
     if (path === '/api/banners/rare' && method === 'GET') return cacheResponseIfPossible(request, () => handleRareBanners(env));
     if (path === '/api/cron/trigger' && method === 'POST') return handleCronTrigger(env);
     if (path === '/api/migrate/hitpoints' && method === 'POST') return handleHitpointsMigration(env);
-    if (path === '/api/seed' && method === 'POST') return handleSeed(env, request);
     if (path === '/api/generate/users/dry-run' && method === 'GET') return handleGenerateUsersDryRun(env, url);
-    if (path === '/api/admin/users/delete-batch' && method === 'POST') return handleDeleteUsersBatch(env, request);
-    if (path === '/api/admin/users/delete-bad' && method === 'POST') return handleDeleteBadUsernames(env, request);
-    if (path === '/api/admin/users/delete-bottom-quartile' && method === 'POST') return handleDeleteBottomQuartile(env, request);
     if (path === '/api/admin/migrate/v3' && method === 'POST') {
         // Publicly callable (NO ADMIN TOKEN). Use responsibly.
         const started = Date.now();
@@ -1567,7 +1741,7 @@ async function router(request, env) {
     const userMatch = path.match(/^\/api\/users\/([^\/]+)$/); if (userMatch && method === 'GET') return cacheResponseIfPossible(request, () => handleUser(env, decodeURIComponent(userMatch[1])));
     const userAchMatch = path.match(/^\/api\/users\/([^\/]+)\/achievements$/); if (userAchMatch && method === 'GET') return cacheResponseIfPossible(request, () => handleUserAchievements(env, decodeURIComponent(userAchMatch[1])));
     const hpCheckMatch = path.match(/^\/api\/users\/([^\/]+)\/hitpoints-check$/); if (hpCheckMatch && method === 'GET') return handleUserHpCheck(env, decodeURIComponent(hpCheckMatch[1]));
-    if (method === 'OPTIONS') return new Response(null, { headers: { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET,POST,OPTIONS', 'access-control-allow-headers': 'Content-Type, X-Admin-Token' } });
+    if (method === 'OPTIONS') return new Response(null, { headers: { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET,POST,OPTIONS', 'access-control-allow-headers': 'Content-Type' } });
     return notFound();
 }
 
