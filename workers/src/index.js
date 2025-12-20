@@ -176,25 +176,58 @@ function applyXpGain(user, skill, gainedXp) {
     if (newLevel !== s.level) s.level = newLevel;
 }
 
-function simulateUserProgress(user, activityName, date = new Date()) {
-    const act = PLAYER_ACTIVITY_TYPES[activityName];
-    if (!act || act.xpRange[1] === 0) return;
-    const [minXp, maxXp] = act.xpRange;
-    const weekendMult = weekendBonusMultiplier(date);
-    // Apply persistent global multiplier if present
-    const globalMult = Math.max(0.2, Math.min(3.0, user?.multipliers?.global || 1.0));
-    let budget = (Math.random() * (maxXp - minXp) + minXp) * weekendMult * globalMult;
-    const skillsChosen = [...SKILLS].sort(() => Math.random() - 0.5).slice(0, Math.ceil(Math.random() * 5));
-    let totalWeight = skillsChosen.reduce((a, s) => a + (SKILL_POPULARITY[s] || 1), 0);
-    for (const skill of skillsChosen) {
-        const w = SKILL_POPULARITY[skill] || 1;
-        const portionBase = budget * (w / totalWeight) * (0.8 + Math.random() * 0.4);
-        const perSkillMult = Math.max(0.2, Math.min(3.0, user?.multipliers?.perSkill?.[skill] || 1.0));
-        applyXpGain(user, skill, portionBase * perSkillMult);
-    }
-    user.updatedAt = Date.now();
-    recalcTotals(user);
+// workers/src/index.js
+
+function clamp(num, min, max) {
+  return Math.max(min, Math.min(max, num));
 }
+
+function getMult(user, skill) {
+  const global = clamp(user?.multipliers?.global ?? 1.0, 0.2, 3.0);
+  const perSkill = clamp(user?.multipliers?.perSkill?.[skill] ?? 1.0, 0.2, 3.0);
+  return { global, perSkill };
+}
+
+function pickRandomSkills(maxCount = 5) {
+  const count = Math.ceil(Math.random() * maxCount);
+  // Quick shuffle copy
+  const shuffled = [...SKILLS].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count);
+}
+
+function simulateUserProgress(user, activityName, date = new Date()) {
+  const act = PLAYER_ACTIVITY_TYPES[activityName];
+  if (!act) return;
+
+  const [minXp, maxXp] = act.xpRange ?? [0, 0];
+  if (!maxXp) return;
+
+  const weekendMult = weekendBonusMultiplier(date);
+  const { global: globalMult } = getMult(user);
+
+  // ✅ Updated edit: apply 20% increase to overall budget
+  const baseRoll = Math.random() * (maxXp - minXp) + minXp;
+  let budget = baseRoll * weekendMult * globalMult * 1.2;
+
+  const skillsChosen = pickRandomSkills(5);
+
+  let totalWeight = 0;
+  for (const skill of skillsChosen) totalWeight += (SKILL_POPULARITY[skill] ?? 1);
+
+  for (const skill of skillsChosen) {
+    const w = SKILL_POPULARITY[skill] ?? 1;
+    const jitter = 0.8 + Math.random() * 0.4;
+
+    const portionBase = budget * (w / totalWeight) * jitter;
+    const { perSkill: perSkillMult } = getMult(user, skill);
+
+    applyXpGain(user, skill, portionBase * perSkillMult);
+  }
+
+  user.updatedAt = Date.now();
+  recalcTotals(user);
+}
+
 
 function migrateHitpoints(user) {
     const hp = user.skills.hitpoints;
