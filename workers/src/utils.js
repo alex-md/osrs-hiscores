@@ -4,14 +4,8 @@ const XP_LEVEL_MAX = 126;
 const XP_SKILL_MAX = 99;
 const XP_TABLE = [0];
 const XP_POINTS_TABLE = [0];
-(function bootstrapXpTables() {
-  let points = 0;
-  for (let lvl = 1; lvl <= XP_LEVEL_MAX; lvl++) {
-    points += Math.floor(lvl + 300 * Math.pow(2, lvl / 7));
-    XP_POINTS_TABLE[lvl] = points;
-    XP_TABLE[lvl] = Math.floor(points / 4);
-  }
-})();
+// XP tables initialized lazily by ensureXpTable
+
 
 function ensureXpTable(level) {
   if (level < XP_TABLE.length) return;
@@ -23,6 +17,12 @@ function ensureXpTable(level) {
     XP_TABLE[lvl] = Math.floor(points / 4);
   }
 }
+
+export function clamp(num, min, max) {
+  return Math.max(min, Math.min(max, num));
+}
+
+export const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 export function weekendBonusMultiplier(date = new Date()) {
   const day = date.getUTCDay();
@@ -310,22 +310,64 @@ export function sanitizeUsername(name) {
   return n.slice(0, 12);
 }
 
+const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+const randChoice = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const roll = (p) => Math.random() < p;
+const isAlpha = (w) => /^[a-z]+$/i.test(w);
+const hasVowel = (w) => /[aeiou]/i.test(w);
+const noLongConsonantRuns = (w) => !/[bcdfghjklmnpqrstvwxyz]{4,}/i.test(w);
+const looksLikeWord = (w) => isAlpha(w) && hasVowel(w) && noLongConsonantRuns(w);
+const capFirst = (w) => w.replace(/^[a-z]/, ch => ch.toUpperCase());
+
+function normalize(u) { return u.toLowerCase(); }
+
+const GOOD_MIN = 2;
+const GOOD_MAX = 12;
+
+function buildName(w1, w2) {
+  const a = String(w1 || '').trim();
+  const b = String(w2 || '').trim();
+
+  const pool = [a, b].filter(
+    w => w.length >= GOOD_MIN && w.length <= GOOD_MAX && looksLikeWord(w)
+  );
+  if (pool.length === 0) return null;
+
+  const tryTwoWords = roll(0.5) && pool.length >= 2;
+  const joiners = ['', ' ', '-', '_'];
+
+  const words = [...new Set(pool.map(w => w.toLowerCase()))].sort((x, y) => x.length - y.length);
+
+  const combos = [];
+  if (tryTwoWords && words.length >= 2) {
+    const wA = words[0], wB = words[1];
+    for (const j of joiners) {
+      combos.push(capFirst(wA) + j + capFirst(wB));
+      combos.push(capFirst(wB) + j + capFirst(wA));
+    }
+  }
+
+  for (const w of words) combos.push(capFirst(w));
+
+  const clean = combos.filter(c => c.length <= 12 && !/^\d/.test(c));
+  if (clean.length === 0) return null;
+
+  let base = randChoice(clean);
+  if (roll(0.25)) {
+    const suffix = String(randInt(1, 999));
+    if (base.length + suffix.length <= 12) base = base + suffix;
+  }
+
+  if (/^\d/.test(base) || base.length > 12) return null;
+  return base;
+}
+
+const isValidSanitizedName = (sanitizedName) =>
+  sanitizedName &&
+  !/^\d/.test(sanitizedName) &&
+  sanitizedName.length <= 12;
+
 export async function fetchRandomWords(count = 2, existingUsernames = new Set()) {
-  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-  const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-  const randChoice = (arr) => arr[Math.floor(Math.random() * arr.length)];
-  const roll = (p) => Math.random() < p;
-
-  const isAlpha = (w) => /^[a-z]+$/i.test(w);
-  const hasVowel = (w) => /[aeiou]/i.test(w);
-  const noLongConsonantRuns = (w) => !/[bcdfghjklmnpqrstvwxyz]{4,}/i.test(w);
-  const looksLikeWord = (w) => isAlpha(w) && hasVowel(w) && noLongConsonantRuns(w);
-
-  const GOOD_MIN = 2;
-  const GOOD_MAX = 12;
-
-  function normalize(u) { return u.toLowerCase(); }
-
   async function fetchBatch(n) {
     while (true) {
       try {
@@ -339,51 +381,6 @@ export async function fetchRandomWords(count = 2, existingUsernames = new Set())
       await sleep(2000);
     }
   }
-
-  function capFirst(w) { return w.replace(/^[a-z]/, ch => ch.toUpperCase()); }
-
-  function buildName(w1, w2) {
-    const a = String(w1 || '').trim();
-    const b = String(w2 || '').trim();
-
-    const pool = [a, b].filter(
-      w => w.length >= GOOD_MIN && w.length <= GOOD_MAX && looksLikeWord(w)
-    );
-    if (pool.length === 0) return null;
-
-    const tryTwoWords = roll(0.5) && pool.length >= 2;
-    const joiners = ['', ' ', '-', '_'];
-
-    const words = [...new Set(pool.map(w => w.toLowerCase()))].sort((x, y) => x.length - y.length);
-
-    const combos = [];
-    if (tryTwoWords && words.length >= 2) {
-      const wA = words[0], wB = words[1];
-      for (const j of joiners) {
-        combos.push(capFirst(wA) + j + capFirst(wB));
-        combos.push(capFirst(wB) + j + capFirst(wA));
-      }
-    }
-
-    for (const w of words) combos.push(capFirst(w));
-
-    const clean = combos.filter(c => c.length <= 12 && !/^\d/.test(c));
-    if (clean.length === 0) return null;
-
-    let base = randChoice(clean);
-    if (roll(0.25)) {
-      const suffix = String(randInt(1, 999));
-      if (base.length + suffix.length <= 12) base = base + suffix;
-    }
-
-    if (/^\d/.test(base) || base.length > 12) return null;
-    return base;
-  }
-
-  const isValidSanitizedName = (sanitizedName) =>
-    sanitizedName &&
-    !/^\d/.test(sanitizedName) &&
-    sanitizedName.length <= 12;
 
   const results = [];
   const maxAttempts = Math.max(10, count * 5); // Lower min attempts for small counts, scale with count
@@ -466,19 +463,7 @@ export function buildSkillMultipliers(archetype, xpTier) {
   let global = baseGlobalByTier[xpTier] ?? 1.0;
 
   // Archetype specific focus areas
-  const focusByArchetype = {
-    SKILLER: ['crafting', 'fletching', 'cooking', 'herblore', 'agility', 'thieving', 'farming', 'construction', 'runecraft'],
-    PVMER: ['attack', 'strength', 'defence', 'ranged', 'magic', 'slayer', 'hitpoints', 'prayer'],
-    IRON_SOUL: ['mining', 'smithing', 'fishing', 'cooking', 'woodcutting', 'crafting', 'herblore', 'farming'],
-    HARDCORE: ['attack', 'strength', 'defence', 'ranged', 'magic', 'slayer'],
-    EFFICIENT_MAXER: SKILLS,
-    ELITE_GRINDER: SKILLS,
-    FOCUSED: ['slayer', 'magic', 'ranged', 'agility'],
-    CASUAL: [],
-    AFKER: ['woodcutting', 'fishing', 'mining'],
-    SOCIALITE: [],
-    IDLER: []
-  };
+  const focusByArchetype = INITIAL_DISTRIBUTION_ARCHETYPE_FOCUS;
 
   const perSkill = Object.fromEntries(SKILLS.map(s => [s, 1.0]));
   const foci = new Set(focusByArchetype[archetype] || []);

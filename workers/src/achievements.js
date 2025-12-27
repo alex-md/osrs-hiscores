@@ -442,3 +442,53 @@ export function projectHighestAchievementFamilies(achievementsObj) {
     for (const key of keep) projected[key] = achievementsObj[key];
     return projected;
 }
+
+// Helper to extract skill from key
+export function getSkillFromKey(key) {
+    let m = /^skill-master-(.+)$/.exec(key);
+    if (m) return m[1];
+    m = /^skill-200m-(.+)$/.exec(key);
+    if (m) return m[1];
+    return null;
+}
+
+export function getAchievementDescription(key, skillName = null, friendlySkillName = null) {
+    if (key === 'overall-rank-1') return 'First to claim Overall Rank #1';
+    if (key === 'first-99-any') return 'First to reach 99 in any skill';
+    if (key === 'first-top1-any') return 'First to become #1 in any skill';
+
+    // Milestones generic
+    if (key === 'total-2277') return 'First to max total level (2277)';
+    if (key === 'total-2200') return 'First to reach total level 2200+';
+    if (key === 'total-2000') return 'First to reach total level 2000+';
+    if (key === 'maxed-account') return 'First to max their account (all skills 99)';
+    if (key === 'combat-maxed') return 'First to max all combat skills (99)';
+
+    // Skill specific
+    const skill = skillName || getSkillFromKey(key);
+    const friendly = friendlySkillName || (skill ? (skill.charAt(0).toUpperCase() + skill.slice(1)) : null);
+
+    if (key.startsWith('skill-master-') && friendly) return `First to reach 99 ${friendly}`;
+    if (key.startsWith('skill-200m-') && friendly) return `First to reach 200m XP in ${friendly}`;
+
+    return 'First to achieve a rare milestone';
+}
+
+export function getAchievementDescriptionEvent(key, skillName = null, friendlySkillName = null) {
+    const skill = skillName || getSkillFromKey(key);
+    const friendly = friendlySkillName || (skill ? (skill.charAt(0).toUpperCase() + skill.slice(1)) : null);
+
+    if (key.startsWith('skill-master-') && friendly) return `Reached 99 ${friendly}`;
+    if (key.startsWith('skill-200m-') && friendly) return `Reached 200m XP in ${friendly}`;
+
+    if (key === 'total-2277') return 'Reached max total level (2277)';
+    if (key === 'total-2200') return 'Reached total level 2200+';
+    if (key === 'total-2000') return 'Reached total level 2000+';
+    if (key === 'maxed-account') return 'Maxed their account (all skills 99)';
+    if (key === 'combat-maxed') return 'Maxed all combat skills (99)';
+    if (key === 'xp-billionaire') return 'Reached 1,000,000,000 total XP';
+    if (key === 'totalxp-200m') return 'Reached 200,000,000 total XP';
+
+    return 'Achieved a notable milestone';
+}
+

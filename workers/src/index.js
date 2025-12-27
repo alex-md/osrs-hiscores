@@ -16,7 +16,10 @@ import {
     mergeNewUnlocks,
     computePrevalenceCounts,
     projectHighestAchievementFamilies,
-    ACHIEVEMENT_KEYS
+    ACHIEVEMENT_KEYS,
+    getAchievementDescription,
+    getAchievementDescriptionEvent,
+    getSkillFromKey
 } from './achievements.js';
 import {
     weekendBonusMultiplier,
@@ -35,7 +38,9 @@ import {
     xpForLevel,
     determineXpGainTierFromTotal,
     buildSkillMultipliers,
-    chooseActivityForUser
+    chooseActivityForUser,
+    clamp,
+    sleep
 } from './utils.js';
 
 // Lightweight per-isolate memory cache and throttling to lower KV pressure
@@ -43,7 +48,7 @@ const __memCache = new Map(); // key -> { value, expires }
 const __inflight = new Map(); // key -> Promise
 
 function nowMs() { return Date.now(); }
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function nowMs() { return Date.now(); }
 
 // Shared small utility to split an array into chunks of size n
 const chunk = (arr, n) => arr.reduce((acc, _, i) => (i % n ? acc : [...acc, arr.slice(i, i + n)]), []);
@@ -178,54 +183,50 @@ function applyXpGain(user, skill, gainedXp) {
 
 // workers/src/index.js
 
-function clamp(num, min, max) {
-  return Math.max(min, Math.min(max, num));
-}
-
 function getMult(user, skill) {
-  const global = clamp(user?.multipliers?.global ?? 1.0, 0.2, 3.0);
-  const perSkill = clamp(user?.multipliers?.perSkill?.[skill] ?? 1.0, 0.2, 3.0);
-  return { global, perSkill };
+    const global = clamp(user?.multipliers?.global ?? 1.0, 0.2, 3.0);
+    const perSkill = clamp(user?.multipliers?.perSkill?.[skill] ?? 1.0, 0.2, 3.0);
+    return { global, perSkill };
 }
 
 function pickRandomSkills(maxCount = 5) {
-  const count = Math.ceil(Math.random() * maxCount);
-  // Quick shuffle copy
-  const shuffled = [...SKILLS].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, count);
+    const count = Math.ceil(Math.random() * maxCount);
+    // Quick shuffle copy
+    const shuffled = [...SKILLS].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, count);
 }
 
 function simulateUserProgress(user, activityName, date = new Date()) {
-  const act = PLAYER_ACTIVITY_TYPES[activityName];
-  if (!act) return;
+    const act = PLAYER_ACTIVITY_TYPES[activityName];
+    if (!act) return;
 
-  const [minXp, maxXp] = act.xpRange ?? [0, 0];
-  if (!maxXp) return;
+    const [minXp, maxXp] = act.xpRange ?? [0, 0];
+    if (!maxXp) return;
 
-  const weekendMult = weekendBonusMultiplier(date);
-  const { global: globalMult } = getMult(user);
+    const weekendMult = weekendBonusMultiplier(date);
+    const { global: globalMult } = getMult(user);
 
-  // ✅ Updated edit: apply 20% increase to overall budget
-  const baseRoll = Math.random() * (maxXp - minXp) + minXp;
-  let budget = baseRoll * weekendMult * globalMult * 1.2;
+    // ✅ Updated edit: apply 20% increase to overall budget
+    const baseRoll = Math.random() * (maxXp - minXp) + minXp;
+    let budget = baseRoll * weekendMult * globalMult * 1.2;
 
-  const skillsChosen = pickRandomSkills(5);
+    const skillsChosen = pickRandomSkills(5);
 
-  let totalWeight = 0;
-  for (const skill of skillsChosen) totalWeight += (SKILL_POPULARITY[skill] ?? 1);
+    let totalWeight = 0;
+    for (const skill of skillsChosen) totalWeight += (SKILL_POPULARITY[skill] ?? 1);
 
-  for (const skill of skillsChosen) {
-    const w = SKILL_POPULARITY[skill] ?? 1;
-    const jitter = 0.8 + Math.random() * 0.4;
+    for (const skill of skillsChosen) {
+        const w = SKILL_POPULARITY[skill] ?? 1;
+        const jitter = 0.8 + Math.random() * 0.4;
 
-    const portionBase = budget * (w / totalWeight) * jitter;
-    const { perSkill: perSkillMult } = getMult(user, skill);
+        const portionBase = budget * (w / totalWeight) * jitter;
+        const { perSkill: perSkillMult } = getMult(user, skill);
 
-    applyXpGain(user, skill, portionBase * perSkillMult);
-  }
+        applyXpGain(user, skill, portionBase * perSkillMult);
+    }
 
-  user.updatedAt = Date.now();
-  recalcTotals(user);
+    user.updatedAt = Date.now();
+    recalcTotals(user);
 }
 
 
@@ -766,13 +767,7 @@ async function handleRareBanners(env) {
     }
 
     // Helper to extract skill from key
-    const skillFromKey = (key) => {
-        let m = /^skill-master-(.+)$/.exec(key);
-        if (m) return m[1];
-        m = /^skill-200m-(.+)$/.exec(key);
-        if (m) return m[1];
-        return null;
-    };
+    const skillFromKey = getSkillFromKey;
 
     // Build banner objects and combine ties (same key and same timestamp across multiple users)
     const byKeyTs = new Map(); // `${key}:${ts}` -> { playerNames:Set, achievement, timestamp, details, expiry }
@@ -792,18 +787,7 @@ async function handleRareBanners(env) {
         }
         const skill = skillFromKey(key);
         const friendlySkill = skill ? (skill.charAt(0).toUpperCase() + skill.slice(1)) : null;
-        let achievementDesc = '';
-        if (key === 'overall-rank-1') achievementDesc = 'First to claim Overall Rank #1';
-        else if (key === 'first-99-any') achievementDesc = 'First to reach 99 in any skill';
-        else if (key === 'first-top1-any') achievementDesc = 'First to become #1 in any skill';
-        else if (skill && key.startsWith('skill-master-')) achievementDesc = `First to reach 99 ${friendlySkill}`;
-        else if (skill && key.startsWith('skill-200m-')) achievementDesc = `First to reach 200m XP in ${friendlySkill}`;
-        else if (key === 'total-2000') achievementDesc = 'First to reach total level 2000+';
-        else if (key === 'total-2200') achievementDesc = 'First to reach total level 2200+';
-        else if (key === 'total-2277') achievementDesc = 'First to max total level (2277)';
-        else if (key === 'maxed-account') achievementDesc = 'First to max their account (all skills 99)';
-        else if (key === 'combat-maxed') achievementDesc = 'First to max all combat skills (99)';
-        else achievementDesc = 'First to achieve a rare milestone';
+        const achievementDesc = getAchievementDescription(key, skill, friendlySkill);
 
         const id = `${key}:${ts}`;
         const existing = byKeyTs.get(id);
@@ -862,25 +846,10 @@ async function handleRareBanners(env) {
                 if (byKeyTs.has(firstId)) continue;
 
                 // Derive friendly skill and description
-                const skillFromKey = (k) => {
-                    let m = /^skill-master-(.+)$/.exec(k); if (m) return m[1];
-                    m = /^skill-200m-(.+)$/.exec(k); if (m) return m[1];
-                    return null;
-                };
                 const skill = skillFromKey(key);
                 const friendlySkill = skill ? (skill.charAt(0).toUpperCase() + skill.slice(1)) : null;
 
-                let achievementDesc = '';
-                if (skill && key.startsWith('skill-master-')) achievementDesc = `Reached 99 ${friendlySkill}`;
-                else if (skill && key.startsWith('skill-200m-')) achievementDesc = `Reached 200m XP in ${friendlySkill}`;
-                else if (key === 'total-2277') achievementDesc = 'Reached max total level (2277)';
-                else if (key === 'total-2200') achievementDesc = 'Reached total level 2200+';
-                else if (key === 'total-2000') achievementDesc = 'Reached total level 2000+';
-                else if (key === 'maxed-account') achievementDesc = 'Maxed their account (all skills 99)';
-                else if (key === 'combat-maxed') achievementDesc = 'Maxed all combat skills (99)';
-                else if (key === 'xp-billionaire') achievementDesc = 'Reached 1,000,000,000 total XP';
-                else if (key === 'totalxp-200m') achievementDesc = 'Reached 200,000,000 total XP';
-                else achievementDesc = 'Achieved a notable milestone';
+                const achievementDesc = getAchievementDescriptionEvent(key, skill, friendlySkill);
 
                 // Title: prefer title snapshot on event, else infer current
                 let title = null;
@@ -1463,36 +1432,42 @@ async function runScheduled(env) {
 }
 
 // ———————————————————————————————————————————————————————————————
-// v3 Migration: Upgrade all users not yet at version 3.
-// Strategy: process in chunks; for each user version <3 apply archetype recalculation
-// based on current totalXP (do NOT reshuffle existing skill XP to avoid retroactive distortion).
-// Idempotent: users with version >=3 are skipped.
-async function migrateAllUsersToV3(env, { chunkSize = 200 } = {}) {
-    const users = await getAllUsers(env, { fresh: true });
-    const outdated = users.filter(u => (u.version || 1) < 3);
+// Generic User Migration HOF
+// Encapsulates fetching, filtering, chunking, and error handling pattern.
+// transformFn(user) -> Promise<void> | void. if it throws, user is skipped.
+// Auto-saves unless dryRun is true.
+async function processUserMigration(env, options, transformFn) {
+    const { fresh = true, chunkSize = 200, dryRun = false, filter = null, pacing = 5 } = options;
+    const users = await getAllUsers(env, { fresh });
+    const candidates = filter ? users.filter(filter) : users;
     let migrated = 0;
-    const total = outdated.length;
-    for (let i = 0; i < outdated.length; i += chunkSize) {
-        const slice = outdated.slice(i, i + chunkSize);
+    const total = candidates.length;
+
+    for (let i = 0; i < total; i += chunkSize) {
+        const slice = candidates.slice(i, i + chunkSize);
         for (const u of slice) {
             try {
-                // Recalculate totals just in case
-                recalcTotals(u);
-                // Assign archetype based on weighted XP distribution logic if missing or legacy
-                u.archetype = assignArchetypeForTotalXP(u.totalXP);
-                u.version = 3;
-                u.updatedAt = Date.now();
-                await putUser(env, u);
+                await transformFn(u);
+                if (!dryRun) await putUser(env, u);
                 migrated++;
             } catch (e) {
-                // Log and continue
-                console.log('migrate v3 user failed', u.username, String(e));
+                console.log('Migration error', u.username, String(e));
             }
         }
-        // Light pacing to avoid write spikes
-        if (outdated.length > 500) await sleep(5);
+        if (total > 500 && !dryRun) await sleep(pacing);
     }
     return { scanned: users.length, candidates: total, migrated };
+}
+
+// ———————————————————————————————————————————————————————————————
+// v3 Migration: Upgrade all users not yet at version 3.
+async function migrateAllUsersToV3(env, { chunkSize = 200 } = {}) {
+    return processUserMigration(env, { chunkSize, filter: u => (u.version || 1) < 3 }, (u) => {
+        recalcTotals(u);
+        u.archetype = assignArchetypeForTotalXP(u.totalXP);
+        u.version = 3;
+        u.updatedAt = Date.now();
+    });
 }
 
 function jsonResponse(obj, init = {}) {
@@ -1633,78 +1608,47 @@ export { runScheduled };
 
 // ———————————————————————————————————————————————————————————————
 // v4 Migration: Backfill persistent XP gain tier and multipliers for all users.
-// Uses current totalXP as proxy for starting XP where historical data is unavailable.
 async function migrateAllUsersToV4(env, { chunkSize = 200 } = {}) {
-    const users = await getAllUsers(env, { fresh: true });
-    const candidates = users.filter(u => !u.xpGainTier || !u.multipliers || (u.version || 1) < 4);
-    let migrated = 0;
-    for (let i = 0; i < candidates.length; i += chunkSize) {
-        const slice = candidates.slice(i, i + chunkSize);
-        for (const u of slice) {
-            try {
-                recalcTotals(u);
-                if (!u.xpGainTier) u.xpGainTier = determineXpGainTierFromTotal(u.totalXP);
-                if (!u.multipliers) u.multipliers = buildSkillMultipliers(u.archetype || assignRandomArchetype(), u.xpGainTier);
-                u.version = Math.max(4, u.version || 1);
-                u.updatedAt = Date.now();
-                await putUser(env, u);
-                migrated++;
-            } catch (e) {
-                console.log('migrate v4 user failed', u.username, String(e));
-            }
-        }
-        if (candidates.length > 500) await sleep(5);
-    }
-    return { scanned: users.length, candidates: candidates.length, migrated };
+    return processUserMigration(env, { chunkSize, filter: u => !u.xpGainTier || !u.multipliers || (u.version || 1) < 4 }, (u) => {
+        recalcTotals(u);
+        if (!u.xpGainTier) u.xpGainTier = determineXpGainTierFromTotal(u.totalXP);
+        if (!u.multipliers) u.multipliers = buildSkillMultipliers(u.archetype || assignRandomArchetype(), u.xpGainTier);
+        u.version = Math.max(4, u.version || 1);
+        u.updatedAt = Date.now();
+    });
 }
 
 // ———————————————————————————————————————————————————————————————
 // One-off migration: Fix users whose non-HP skills are all at 1154 XP.
-// Strategy: resample a fresh initial total XP budget and redistribute across non-HP skills
-// using archetype-weighted initial distribution, then recompute hitpoints from combat.
-// Updates persistent xpGainTier and multipliers to match the new totals.
 async function migrateUsersFixAll1154(env, { chunkSize = 200, dryRun = false } = {}) {
-    const users = await getAllUsers(env, { fresh: true });
     const nonHpSkills = SKILLS.filter(s => s !== 'hitpoints');
-    const candidates = users.filter(u => {
+    const filter = u => {
         if (!u?.skills) return false;
         for (const s of nonHpSkills) {
             if ((u.skills[s]?.xp || 0) !== 1154) return false;
         }
         return true;
-    });
-    let migrated = 0; let scanned = users.length;
-    for (let i = 0; i < candidates.length; i += chunkSize) {
-        const slice = candidates.slice(i, i + chunkSize);
-        for (const u of slice) {
-            try {
-                const archetype = u.archetype || assignArchetypeForTotalXP(u.totalXP);
-                const totalInitialXP = sampleInitialTotalXP();
-                const distributed = distributeInitialXP(totalInitialXP, Math.random, archetype);
-                // apply new distribution to non-HP skills
-                for (const s of nonHpSkills) {
-                    const xp = distributed[s] || 1;
-                    u.skills[s] = { xp, level: levelFromXp(xp) };
-                }
-                // recompute HP from combat stats
-                const hpLevel = computeHitpointsLevelFromCombat(u.skills);
-                u.skills.hitpoints = { xp: xpForLevel(hpLevel), level: hpLevel };
-                // recalc totals and persistent fields
-                recalcTotals(u);
-                u.xpGainTier = determineXpGainTierFromTotal(u.totalXP);
-                u.multipliers = buildSkillMultipliers(archetype, u.xpGainTier);
-                u.archetype = archetype;
-                u.version = Math.max(5, u.version || 1);
-                u.updatedAt = Date.now();
-                if (!dryRun) await putUser(env, u);
-                migrated++;
-            } catch (e) {
-                console.log('migrate fix-1154 failed', u.username, String(e));
-            }
+    };
+    return processUserMigration(env, { chunkSize, dryRun, filter }, (u) => {
+        const archetype = u.archetype || assignArchetypeForTotalXP(u.totalXP);
+        const totalInitialXP = sampleInitialTotalXP();
+        const distributed = distributeInitialXP(totalInitialXP, Math.random, archetype);
+        // apply new distribution to non-HP skills
+        for (const s of nonHpSkills) {
+            const xp = distributed[s] || 1;
+            u.skills[s] = { xp, level: levelFromXp(xp) };
         }
-        if (candidates.length > 500 && !dryRun) await sleep(5);
-    }
-    return { scanned, candidates: candidates.length, migrated };
+        // recompute HP from combat stats
+        const hpLevel = computeHitpointsLevelFromCombat(u.skills);
+        u.skills.hitpoints = { xp: xpForLevel(hpLevel), level: hpLevel };
+        // recalc totals and persistent fields
+        recalcTotals(u);
+        u.xpGainTier = determineXpGainTierFromTotal(u.totalXP);
+        u.multipliers = buildSkillMultipliers(archetype, u.xpGainTier);
+        u.archetype = archetype;
+        u.version = Math.max(5, u.version || 1);
+        u.updatedAt = Date.now();
+    });
 }
 
 // ———————————————————————————————————————————————————————————————
@@ -1712,7 +1656,6 @@ async function migrateUsersFixAll1154(env, { chunkSize = 200, dryRun = false } =
 // and gently uplift multipliers to make gameplay feel more alive without punishing low tiers.
 function upliftMultipliersForTenTier(multipliers, tierName) {
     const out = { global: multipliers.global, perSkill: { ...multipliers.perSkill } };
-    const clamp = (v) => Math.max(0.2, Math.min(3.0, v));
     // Tier-based uplift factors (low tiers get a bigger boost)
     const uplifts = {
         T1: 1.15, T2: 1.12, T3: 1.10, T4: 1.08, T5: 1.06,
@@ -1721,37 +1664,24 @@ function upliftMultipliersForTenTier(multipliers, tierName) {
     const minFloors = { T1: 0.95, T2: 0.95, T3: 0.95, T4: 1.0 };
     const u = uplifts[tierName] || 1.0;
     const floor = minFloors[tierName] || 0.0;
-    out.global = clamp(Math.max(floor, out.global) * u);
+    out.global = clamp(Math.max(floor, out.global) * u, 0.2, 3.0);
     // Light per-skill uplift (uniform), capped to avoid extremes
     const perSkillUplift = Math.min(1.08, Math.max(1.02, u));
-    for (const s of SKILLS) out.perSkill[s] = clamp((out.perSkill[s] || 1.0) * perSkillUplift);
+    for (const s of SKILLS) out.perSkill[s] = clamp((out.perSkill[s] || 1.0) * perSkillUplift, 0.2, 3.0);
     return out;
 }
 
 async function migrateAllUsersToTenTier(env, { chunkSize = 200, dryRun = false } = {}) {
-    const users = await getAllUsers(env, { fresh: true });
-    let migrated = 0; const total = users.length;
-    for (let i = 0; i < users.length; i += chunkSize) {
-        const slice = users.slice(i, i + chunkSize);
-        for (const u of slice) {
-            try {
-                recalcTotals(u);
-                const newTier = determineXpGainTierFromTotal(u.totalXP); // maps to T1..T10
-                u.xpGainTier = newTier;
-                // Ensure an archetype exists
-                if (!u.archetype) u.archetype = assignRandomArchetype();
-                // Rebuild multipliers and apply tier uplift
-                const base = buildSkillMultipliers(u.archetype, newTier);
-                u.multipliers = upliftMultipliersForTenTier(base, newTier);
-                u.version = Math.max(6, u.version || 1);
-                u.updatedAt = Date.now();
-                if (!dryRun) await putUser(env, u);
-                migrated++;
-            } catch (e) {
-                console.log('migrate v10 tiers failed', u.username, String(e));
-            }
-        }
-        if (total > 500 && !dryRun) await sleep(5);
-    }
-    return { scanned: total, migrated };
+    return processUserMigration(env, { chunkSize, dryRun }, (u) => {
+        recalcTotals(u);
+        const newTier = determineXpGainTierFromTotal(u.totalXP); // maps to T1..T10
+        u.xpGainTier = newTier;
+        // Ensure an archetype exists
+        if (!u.archetype) u.archetype = assignRandomArchetype();
+        // Rebuild multipliers and apply tier uplift
+        const base = buildSkillMultipliers(u.archetype, newTier);
+        u.multipliers = upliftMultipliersForTenTier(base, newTier);
+        u.version = Math.max(6, u.version || 1);
+        u.updatedAt = Date.now();
+    });
 }
