@@ -951,7 +951,7 @@ function renderUserView(username) {
         window.open(`skill-hiscores.html?skill=${skillName}#skill=${skillName}`, "_blank");
       }));
       let iconUrl = window.getSkillIcon(skillName), nameCell = document.createElement("td");
-      nameCell.className = "text-left", nameCell.innerHTML = `${iconUrl ? `<img src="${iconUrl}" class="skill-icon skill-icon--sm" alt="${skillName}">` : ""}<span class="skill-name text-capitalize">${skillName}</span>`;
+      nameCell.className = "text-left", nameCell.innerHTML = `${iconUrl ? `<img src="${iconUrl}" class="skill-icon skill-icon--sm" alt="${skillName}" loading="lazy" decoding="async">` : ""}<span class="skill-name text-capitalize">${skillName}</span>`;
       let lvl = skill?.level ?? 1, xp = skill?.xp ?? 0;
       tr.appendChild(nameCell), tr.appendChild(el("td", "text-center skill-level", [
         text(String(lvl))
