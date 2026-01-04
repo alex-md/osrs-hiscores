@@ -281,6 +281,8 @@
         img.src = icon;
         img.alt = s;
         img.className = "skill-icon skill-icon--xs";
+        img.loading = "lazy";
+        img.decoding = "async";
         link.appendChild(img);
       }
       const span = document.createElement("span");
