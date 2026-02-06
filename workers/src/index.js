@@ -79,6 +79,59 @@ async function withInflightDedup(key, fn) {
     return p;
 }
 
+function parseLockPayload(raw) {
+    if (!raw) return null;
+    try {
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') return null;
+        const token = String(parsed.token || '');
+        const expiresAt = Number(parsed.expiresAt) || 0;
+        if (!token || !expiresAt) return null;
+        return { token, expiresAt };
+    } catch (_) {
+        return null;
+    }
+}
+
+async function tryAcquireOperationLock(env, lockName, ttlSeconds = 120) {
+    const key = `lock:${lockName}`;
+    const now = Date.now();
+    const existingRaw = await env.HISCORES_KV.get(key);
+    const existing = parseLockPayload(existingRaw);
+    if (existing && existing.expiresAt > now) return null;
+
+    const token = crypto.randomUUID();
+    const expiresAt = now + ttlSeconds * 1000;
+    await env.HISCORES_KV.put(
+        key,
+        JSON.stringify({ token, expiresAt }),
+        { expirationTtl: ttlSeconds + 60 }
+    );
+
+    const confirmed = parseLockPayload(await env.HISCORES_KV.get(key));
+    if (!confirmed || confirmed.token !== token) return null;
+    return { key, token };
+}
+
+async function releaseOperationLock(env, lock) {
+    if (!lock?.key || !lock?.token) return;
+    const latest = parseLockPayload(await env.HISCORES_KV.get(lock.key));
+    if (latest && latest.token === lock.token) {
+        await env.HISCORES_KV.delete(lock.key);
+    }
+}
+
+async function withOperationLock(env, lockName, ttlSeconds, fn) {
+    const lock = await tryAcquireOperationLock(env, lockName, ttlSeconds);
+    if (!lock) return { ok: false, locked: true, lockName };
+    try {
+        const result = await fn();
+        return { ok: true, result };
+    } finally {
+        await releaseOperationLock(env, lock);
+    }
+}
+
 // KV get with brief per-isolate memoization and inflight dedupe
 async function kvGetCached(env, key, { ttlSeconds = 10 } = {}) {
     const memKey = `kv:text:${key}`;
@@ -127,6 +180,20 @@ async function cacheResponseIfPossible(request, compute) {
     } catch (_) {
         return compute();
     }
+}
+
+async function persistUsersListSnapshot(env, users = null) {
+    let list = users;
+    if (!Array.isArray(list)) {
+        list = await getAllUsers(env, { fresh: true });
+    }
+    const payload = {
+        generatedAt: Date.now(),
+        users: list.map(u => u.username).sort((a, b) => a.localeCompare(b))
+    };
+    await env.HISCORES_KV.put('stats:users:list', JSON.stringify(payload));
+    memSet('stats:users:list', payload, 30);
+    return payload;
 }
 
 function newUser(username) {
@@ -189,11 +256,19 @@ function getMult(user, skill) {
     return { global, perSkill };
 }
 
+function sampleWithoutReplacement(items, count) {
+    const arr = [...items];
+    const picks = Math.max(0, Math.min(arr.length, Number(count) || 0));
+    for (let i = 0; i < picks; i++) {
+        const j = i + Math.floor(Math.random() * (arr.length - i));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr.slice(0, picks);
+}
+
 function pickRandomSkills(maxCount = 5) {
     const count = Math.ceil(Math.random() * maxCount);
-    // Quick shuffle copy
-    const shuffled = [...SKILLS].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, count);
+    return sampleWithoutReplacement(SKILLS, count);
 }
 
 function simulateUserProgress(user, activityName, date = new Date()) {
@@ -275,6 +350,7 @@ async function putUser(env, user) {
     await env.HISCORES_KV.put(`user:${user.username.toLowerCase()}`, JSON.stringify(user));
     // Invalidate memory caches best-effort
     __memCache.delete('all-users:v2');
+    __memCache.delete('stats:users:list');
     __memCache.delete(`kv:text:user:${user.username.toLowerCase()}`);
 }
 
@@ -295,6 +371,7 @@ async function ensureInitialData(env) {
             const u = newUser(username);
             await putUser(env, u);
         }
+        await persistUsersListSnapshot(env);
     }
 }
 
@@ -475,6 +552,7 @@ function buildLeaderboardSnapshot(users, ctx = null, topLimit = LEADERBOARD_TOP_
                 rank: perUserCtx.rank,
                 updatedAt: u.updatedAt,
                 archetype: u.archetype || null,
+                achievements: projectHighestAchievementFamilies(u.achievements || {}),
                 tier: tierInfo.name,
                 tierInfo: { ...tierInfo, top1Skills: perUserCtx.top1SkillsCount }
             });
@@ -565,8 +643,42 @@ async function handleUser(env, username) {
 }
 
 async function handleUsersList(env) {
-    const users = await getAllUsers(env, { fresh: false });
-    return jsonResponse({ users: users.map(u => u.username).sort() }, { headers: { 'cache-control': 'public, max-age=120' } });
+    const mem = memGet('stats:users:list');
+    if (mem && Array.isArray(mem.users)) {
+        return jsonResponse(mem, { headers: { 'cache-control': 'public, max-age=120' } });
+    }
+    let payload = null;
+    try {
+        const raw = await env.HISCORES_KV.get('stats:users:list');
+        if (raw) payload = JSON.parse(raw);
+    } catch (_) { payload = null; }
+    if (!payload || !Array.isArray(payload.users)) {
+        payload = await persistUsersListSnapshot(env);
+    } else {
+        memSet('stats:users:list', payload, 30);
+    }
+    return jsonResponse(payload, { headers: { 'cache-control': 'public, max-age=120' } });
+}
+
+async function handleUsersBatch(env, url) {
+    const raw = String(url.searchParams.get('usernames') || '');
+    const usernames = raw
+        .split(',')
+        .map(s => sanitizeUsername(s.trim()))
+        .filter(Boolean)
+        .slice(0, 200);
+    const unique = [...new Set(usernames.map(u => u.toLowerCase()))];
+    const users = await mapWithConcurrency(unique, 12, async (lower) => {
+        const user = await getUser(env, lower);
+        if (!user) return null;
+        return user;
+    });
+    const found = users.filter(Boolean);
+    return jsonResponse({
+        requested: unique.length,
+        returned: found.length,
+        users: found
+    }, { headers: { 'cache-control': 'public, max-age=30' } });
 }
 
 async function handleSkillRankings(env) {
@@ -1112,7 +1224,7 @@ async function handleGenerateUsersDryRun(env, url) {
         generated: results.length,
         usernames: results,
         details: generationDetails,
-        scrapingEnabled: env.ALLOW_TWDNE_SCRAPE !== 'false',
+        scrapingEnabled: env.ALLOW_TWODNE_SCRAPE !== 'false',
         existingUsersCount: users.length,
         generatedAt: Date.now()
     }, { headers: { 'cache-control': 'no-store' } });
@@ -1156,6 +1268,7 @@ async function handleSeed(env, request) {
     const input = payload.usernames.slice(0, 200);
     const seen = new Set();
     const results = [];
+    let seeded = 0;
     for (const raw of input) {
         const sanitized = sanitizeUsername(String(raw || '').trim());
         if (!sanitized) { results.push({ input: raw, ok: false, error: 'empty' }); continue; }
@@ -1166,9 +1279,11 @@ async function handleSeed(env, request) {
         if (existing) { results.push({ username: sanitized, ok: false, error: 'exists' }); continue; }
         const user = newUser(sanitized);
         await putUser(env, user);
+        seeded++;
         results.push({ username: sanitized, ok: true });
     }
-    return jsonResponse({ seeded: results.filter(r => r.ok).length, total: results.length, results });
+    if (seeded > 0) await persistUsersListSnapshot(env);
+    return jsonResponse({ seeded, total: results.length, results });
 }
 
 async function handleDeleteUsersBatch(env, request) {
@@ -1267,6 +1382,7 @@ async function handleDeleteUsersBatch(env, request) {
             deletedRelated += res.deletedRelated;
         }
     }
+    await persistUsersListSnapshot(env);
     return jsonResponse({
         deleted,
         deletedRelated,
@@ -1320,6 +1436,7 @@ async function handleDeleteBadUsernames(env, request) {
             deletedRelated += res.deletedRelated;
         }
     }
+    await persistUsersListSnapshot(env);
     return jsonResponse({ pattern: patternSource, deleted, deletedRelated, matched: matched.length, scanned });
 }
 
@@ -1352,7 +1469,7 @@ async function handleDeleteBottomQuartile(env, request) {
             deletedRelated += res.deletedRelated;
         }
     }
-
+    await persistUsersListSnapshot(env);
     return jsonResponse({ deleted, deletedRelated, totalPlayers: users.length, target: keysToDelete.length });
 }
 
@@ -1384,7 +1501,7 @@ async function runScheduled(env) {
     const now = new Date();
     const fraction = 0.10 + Math.random() * 0.25;
     const toUpdate = Math.max(1, Math.floor(users.length * fraction));
-    const shuffled = [...users].sort(() => Math.random() - 0.5).slice(0, toUpdate);
+    const shuffled = sampleWithoutReplacement(users, toUpdate);
     for (const u of shuffled) {
         if (!u.archetype) {
             u.archetype = assignRandomArchetype();
@@ -1427,6 +1544,7 @@ async function runScheduled(env) {
         const ctx = computeAchievementContext(users);
         await persistAchievementStats(env, users, ctx);
         await persistLeaderboardSnapshots(env, users, ctx);
+        await persistUsersListSnapshot(env, users);
     } catch (e) { console.log('runScheduled stats error:', String(e)); }
     return { processed: toUpdate, newUsers: created, totalPlayers: users.length };
 }
@@ -1486,6 +1604,14 @@ function notFound(message = 'Not found') {
     return jsonResponse({ error: message }, { status: 404, headers: { 'cache-control': 'no-store' } });
 }
 
+async function runLocked(env, lockName, ttlSeconds, fn) {
+    const locked = await withOperationLock(env, lockName, ttlSeconds, fn);
+    if (!locked.ok) {
+        return jsonResponse({ error: 'Operation already in progress', lock: lockName }, { status: 409 });
+    }
+    return locked.result;
+}
+
 async function router(request, env) {
     const url = new URL(request.url); const path = url.pathname; const method = request.method.toUpperCase();
     if (path === '/api/health') return handleHealth();
@@ -1501,76 +1627,104 @@ async function router(request, env) {
     }
     if (path === '/api/leaderboard' && method === 'GET') return cacheResponseIfPossible(request, () => handleLeaderboard(env, url));
     if (path === '/api/users' && method === 'GET') return cacheResponseIfPossible(request, () => handleUsersList(env));
+    if (path === '/api/users/batch' && method === 'GET') return cacheResponseIfPossible(request, () => handleUsersBatch(env, url));
     if (path === '/api/skill-rankings' && method === 'GET') return cacheResponseIfPossible(request, () => handleSkillRankings(env));
     if (path === '/api/fake-word' && method === 'GET') return cacheResponseIfPossible(request, () => handleFakeWord(env));
     if (path === '/api/achievements/stats' && method === 'GET') return cacheResponseIfPossible(request, () => handleAchievementsStats(env));
     if (path === '/api/achievements/firsts' && method === 'GET') return cacheResponseIfPossible(request, () => handleAchievementsFirsts(env));
     if (path === '/api/banners/rare' && method === 'GET') return cacheResponseIfPossible(request, () => handleRareBanners(env));
-    if (path === '/api/cron/trigger' && method === 'POST') return handleCronTrigger(env);
-    if (path === '/api/migrate/hitpoints' && method === 'POST') return handleHitpointsMigration(env);
-    if (path === '/api/seed' && method === 'POST') return handleSeed(env, request);
+    if (path === '/api/cron/trigger' && method === 'POST') return runLocked(env, 'scheduled', 300, () => handleCronTrigger(env));
+    if (path === '/api/migrate/hitpoints' && method === 'POST') return runLocked(env, 'migration', 900, () => handleHitpointsMigration(env));
+    if (path === '/api/seed' && method === 'POST') return runLocked(env, 'mutation', 900, () => handleSeed(env, request));
     if (path === '/api/generate/users/dry-run' && method === 'GET') return handleGenerateUsersDryRun(env, url);
-    if (path === '/api/admin/users/delete-batch' && method === 'POST') return handleDeleteUsersBatch(env, request);
-    if (path === '/api/admin/users/delete-bad' && method === 'POST') return handleDeleteBadUsernames(env, request);
-    if (path === '/api/admin/users/delete-bottom-quartile' && method === 'POST') return handleDeleteBottomQuartile(env, request);
+    if (path === '/api/admin/users/delete-batch' && method === 'POST') return runLocked(env, 'mutation', 900, () => handleDeleteUsersBatch(env, request));
+    if (path === '/api/admin/users/delete-bad' && method === 'POST') return runLocked(env, 'mutation', 900, () => handleDeleteBadUsernames(env, request));
+    if (path === '/api/admin/users/delete-bottom-quartile' && method === 'POST') return runLocked(env, 'mutation', 900, () => handleDeleteBottomQuartile(env, request));
     if (path === '/api/admin/migrate/v3' && method === 'POST') {
         // Publicly callable (NO ADMIN TOKEN). Use responsibly.
-        const started = Date.now();
-        let chunkSize = Number(url.searchParams.get('chunkSize'));
-        if (!Number.isFinite(chunkSize) || chunkSize <= 0) chunkSize = 200;
-        if (chunkSize > 1000) chunkSize = 1000; // hard cap
-        const result = await migrateAllUsersToV3(env, { chunkSize });
-        return jsonResponse({ ...result, chunkSize, durationMs: Date.now() - started, public: true });
+        return runLocked(env, 'migration', 900, async () => {
+            const started = Date.now();
+            let chunkSize = Number(url.searchParams.get('chunkSize'));
+            if (!Number.isFinite(chunkSize) || chunkSize <= 0) chunkSize = 200;
+            if (chunkSize > 1000) chunkSize = 1000; // hard cap
+            const result = await migrateAllUsersToV3(env, { chunkSize });
+            await persistUsersListSnapshot(env);
+            return jsonResponse({ ...result, chunkSize, durationMs: Date.now() - started, public: true });
+        });
     }
     if (path === '/api/admin/migrate/v4' && method === 'POST') {
         // Public migration to backfill persistent xpGainTier and multipliers
-        const started = Date.now();
-        let chunkSize = Number(url.searchParams.get('chunkSize'));
-        if (!Number.isFinite(chunkSize) || chunkSize <= 0) chunkSize = 200;
-        if (chunkSize > 1000) chunkSize = 1000; // hard cap
-        const result = await migrateAllUsersToV4(env, { chunkSize });
-        return jsonResponse({ ...result, chunkSize, durationMs: Date.now() - started, public: true });
+        return runLocked(env, 'migration', 900, async () => {
+            const started = Date.now();
+            let chunkSize = Number(url.searchParams.get('chunkSize'));
+            if (!Number.isFinite(chunkSize) || chunkSize <= 0) chunkSize = 200;
+            if (chunkSize > 1000) chunkSize = 1000; // hard cap
+            const result = await migrateAllUsersToV4(env, { chunkSize });
+            await persistUsersListSnapshot(env);
+            return jsonResponse({ ...result, chunkSize, durationMs: Date.now() - started, public: true });
+        });
     }
     if (path === '/api/admin/migrate/xp-tiers-v10' && method === 'POST') {
         // Public migration: upgrade all users to new 10-tier xpGainTier names, recalculated from current totals
-        const started = Date.now();
-        let chunkSize = Number(url.searchParams.get('chunkSize'));
-        if (!Number.isFinite(chunkSize) || chunkSize <= 0) chunkSize = 200;
-        if (chunkSize > 1000) chunkSize = 1000;
-        const dryRun = String(url.searchParams.get('dryRun') || 'false').toLowerCase() === 'true';
-        const result = await migrateAllUsersToTenTier(env, { chunkSize, dryRun });
-        return jsonResponse({ ...result, chunkSize, durationMs: Date.now() - started, public: true, dryRun });
+        return runLocked(env, 'migration', 900, async () => {
+            const started = Date.now();
+            let chunkSize = Number(url.searchParams.get('chunkSize'));
+            if (!Number.isFinite(chunkSize) || chunkSize <= 0) chunkSize = 200;
+            if (chunkSize > 1000) chunkSize = 1000;
+            const dryRun = String(url.searchParams.get('dryRun') || 'false').toLowerCase() === 'true';
+            const result = await migrateAllUsersToTenTier(env, { chunkSize, dryRun });
+            if (!dryRun) await persistUsersListSnapshot(env);
+            return jsonResponse({ ...result, chunkSize, durationMs: Date.now() - started, public: true, dryRun });
+        });
     }
     if (path === '/api/admin/migrate/fix-1154' && method === 'POST') {
         // One-off public migration: for users whose non-HP skills are all 1154 XP, regenerate initial allocation.
-        const started = Date.now();
-        let chunkSize = Number(url.searchParams.get('chunkSize'));
-        if (!Number.isFinite(chunkSize) || chunkSize <= 0) chunkSize = 200;
-        if (chunkSize > 1000) chunkSize = 1000; // hard cap
-        const dryRun = String(url.searchParams.get('dryRun') || 'false').toLowerCase() === 'true';
-        const result = await migrateUsersFixAll1154(env, { chunkSize, dryRun });
-        return jsonResponse({ ...result, chunkSize, durationMs: Date.now() - started, public: true, dryRun });
+        return runLocked(env, 'migration', 900, async () => {
+            const started = Date.now();
+            let chunkSize = Number(url.searchParams.get('chunkSize'));
+            if (!Number.isFinite(chunkSize) || chunkSize <= 0) chunkSize = 200;
+            if (chunkSize > 1000) chunkSize = 1000; // hard cap
+            const dryRun = String(url.searchParams.get('dryRun') || 'false').toLowerCase() === 'true';
+            const result = await migrateUsersFixAll1154(env, { chunkSize, dryRun });
+            if (!dryRun) await persistUsersListSnapshot(env);
+            return jsonResponse({ ...result, chunkSize, durationMs: Date.now() - started, public: true, dryRun });
+        });
+    }
+    if (path === '/api/admin/migrate/recalc-levels' && method === 'POST') {
+        return runLocked(env, 'migration', 900, async () => {
+            const started = Date.now();
+            let chunkSize = Number(url.searchParams.get('chunkSize'));
+            if (!Number.isFinite(chunkSize) || chunkSize <= 0) chunkSize = 200;
+            if (chunkSize > 1000) chunkSize = 1000;
+            const dryRun = String(url.searchParams.get('dryRun') || 'false').toLowerCase() === 'true';
+            const result = await migrateRecalculateAllLevels(env, { chunkSize, dryRun });
+            if (!dryRun) await persistUsersListSnapshot(env);
+            return jsonResponse({ ...result, chunkSize, durationMs: Date.now() - started, public: true, dryRun });
+        });
     }
     if (path === '/api/admin/rebalance/hitpoints' && method === 'POST') {
-        const users = await getAllUsers(env, { fresh: true });
-        let adjusted = 0; let scanned = 0;
-        for (const u of users) {
-            scanned++;
-            if (!u?.skills) continue;
-            const combatStats = ['attack', 'strength', 'defence', 'ranged', 'magic', 'prayer'];
-            const avg = combatStats.reduce((a, s) => a + (u.skills[s]?.level || 1), 0) / combatStats.length;
-            const desiredLevel = Math.max(10, Math.round(avg));
-            const hp = u.skills.hitpoints || { level: 10, xp: 1154 };
-            if (hp.level !== desiredLevel) {
-                hp.level = desiredLevel;
-                hp.xp = xpForLevel(desiredLevel);
-                u.skills.hitpoints = hp;
-                recalcTotals(u);
-                await putUser(env, u);
-                adjusted++;
+        return runLocked(env, 'migration', 900, async () => {
+            const users = await getAllUsers(env, { fresh: true });
+            let adjusted = 0; let scanned = 0;
+            for (const u of users) {
+                scanned++;
+                if (!u?.skills) continue;
+                const combatStats = ['attack', 'strength', 'defence', 'ranged', 'magic', 'prayer'];
+                const avg = combatStats.reduce((a, s) => a + (u.skills[s]?.level || 1), 0) / combatStats.length;
+                const desiredLevel = Math.max(10, Math.round(avg));
+                const hp = u.skills.hitpoints || { level: 10, xp: 1154 };
+                if (hp.level !== desiredLevel) {
+                    hp.level = desiredLevel;
+                    hp.xp = xpForLevel(desiredLevel);
+                    u.skills.hitpoints = hp;
+                    recalcTotals(u);
+                    await putUser(env, u);
+                    adjusted++;
+                }
             }
-        }
-        return jsonResponse({ scanned, adjusted });
+            await persistUsersListSnapshot(env, users);
+            return jsonResponse({ scanned, adjusted });
+        });
     }
     const userMatch = path.match(/^\/api\/users\/([^\/]+)$/); if (userMatch && method === 'GET') return cacheResponseIfPossible(request, () => handleUser(env, decodeURIComponent(userMatch[1])));
     const userAchMatch = path.match(/^\/api\/users\/([^\/]+)\/achievements$/); if (userAchMatch && method === 'GET') return cacheResponseIfPossible(request, () => handleUserAchievements(env, decodeURIComponent(userAchMatch[1])));
@@ -1594,7 +1748,10 @@ export default {
         }
     },
     async scheduled(_event, env, ctx) {
-        ctx.waitUntil(runScheduled(env));
+        ctx.waitUntil((async () => {
+            const locked = await withOperationLock(env, 'scheduled', 300, () => runScheduled(env));
+            if (!locked.ok) console.log('scheduled skipped: lock held');
+        })());
     }
 };
 
@@ -1684,4 +1841,33 @@ async function migrateAllUsersToTenTier(env, { chunkSize = 200, dryRun = false }
         u.version = Math.max(6, u.version || 1);
         u.updatedAt = Date.now();
     });
+}
+
+// Recalculate all skill levels from stored XP values.
+async function migrateRecalculateAllLevels(env, { chunkSize = 200, dryRun = false } = {}) {
+    return processUserMigration(
+        env,
+        {
+            chunkSize,
+            dryRun,
+            filter: (u) => SKILLS.some((s) => {
+                const xp = Number(u?.skills?.[s]?.xp) || 0;
+                const cur = Number(u?.skills?.[s]?.level) || 1;
+                return levelFromXp(xp) !== cur;
+            })
+        },
+        (u) => {
+            for (const s of SKILLS) {
+                const xp = Number(u?.skills?.[s]?.xp) || 0;
+                const lvl = levelFromXp(xp);
+                if (!u.skills[s]) u.skills[s] = { xp, level: lvl };
+                else u.skills[s].level = lvl;
+            }
+            recalcTotals(u);
+            if (!u.xpGainTier) u.xpGainTier = determineXpGainTierFromTotal(u.totalXP);
+            if (!u.multipliers) u.multipliers = buildSkillMultipliers(u.archetype || assignRandomArchetype(), u.xpGainTier);
+            u.version = Math.max(7, u.version || 1);
+            u.updatedAt = Date.now();
+        }
+    );
 }

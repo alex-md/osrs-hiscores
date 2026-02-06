@@ -9,7 +9,7 @@ enabled = true
 head_sampling_rate = 1
 
 
-# Cron Trigger: Once per hour per specification
+# Cron Trigger: Every 4 hours
 [triggers]
 crons = ["0 */4 * * *"]
 

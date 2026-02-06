@@ -48,145 +48,27 @@ function buildTierBadge(tierName) {
     return `<span class="tier-badge tier--mini tier-${tierName.toLowerCase()}" data-tooltip="${meta.label}: ${meta.desc}" aria-label="${meta.label}" title="${meta.label}"><span class="tier-mini-letter">${letter}</span></span>`;
 }
 
-// ---------- Frontend full evaluation (mirrors worker logic) ----------
-// We replicate enough of backend logic so matrix can represent ALL achievements, not just rank & coarse milestones.
-function evaluateAchievementsFrontend(user, ctx) {
-    const SKILLS = window.SKILLS || [];
-    const out = new Set();
-    const unameLower = String(user.username || '').toLowerCase();
-    const levels = Object.fromEntries(SKILLS.map(s => [s, user?.skills?.[s]?.level || 1]));
-    const totalLvl = Number(user.totalLevel || 0);
-    const totalXp = Number(user.totalXP || 0);
-    const now = Date.now();
-    // Prestige tiers (simplified: use ctx.rankByUser if present)
-    if (ctx) {
-        const rank = ctx.rankByUser?.get(unameLower) || Infinity;
-        const top1Count = ctx.top1SkillsByUserCount?.get(unameLower) || 0;
-        // Derive tier using simplified logic consistent with backend thresholds
-        if (rank === 1 || top1Count >= 3) out.add('tier-grandmaster');
-        else if (rank <= Math.max(2, Math.ceil((ctx.totalPlayers || 1) * 0.0001))) out.add('tier-master');
-        else if (rank <= Math.max(5, Math.ceil((ctx.totalPlayers || 1) * 0.001))) out.add('tier-diamond');
+function achievementKeysFromUser(user) {
+    if (!user || typeof user !== 'object') return [];
+    if (user.achievements && typeof user.achievements === 'object') {
+        return Object.keys(user.achievements);
     }
-    // Ranking family
-    if (ctx) {
-        const top10Any = SKILLS.some(s => ctx.top10BySkill?.get(s)?.has(unameLower));
-        const top100Any = SKILLS.some(s => ctx.top100BySkill?.get(s)?.has(unameLower));
-        const top1Count = ctx.top1SkillsByUserCount?.get(unameLower) || 0;
-        if (top1Count >= 3) out.add('triple-crown');
-        else if (top1Count >= 1) out.add('crowned-any');
-        if (top10Any) out.add('top-10-any');
-        else if (top100Any) out.add('top-100-any');
+    if (Array.isArray(user.achievementKeys)) {
+        return user.achievementKeys;
     }
-    // Account progression
-    if (totalLvl >= 2000) out.add('total-2000');
-    else if (totalLvl >= 1500) out.add('total-1500');
-    const SKILL_COUNT = SKILLS.length || 1;
-    const count99 = SKILLS.filter(s => levels[s] >= 99).length;
-    if (count99 >= SKILL_COUNT) out.add('maxed-account');
-    else if (count99 >= 7) out.add('seven-99s');
-    else if (count99 >= 5) out.add('five-99s');
-    const combatSkills = ['attack', 'strength', 'defence', 'hitpoints', 'ranged', 'magic', 'prayer'];
-    if (combatSkills.every(s => levels[s] >= 99)) out.add('combat-maxed');
-    // Skill mastery
-    ['attack', 'strength', 'defence', 'hitpoints', 'ranged', 'magic', 'prayer'].forEach(s => { if (levels[s] >= 99) out.add('skill-master-' + s); });
-    // Gathering
-    if (levels.woodcutting >= 90 && levels.fishing >= 90 && levels.mining >= 90) out.add('gathering-elite');
-    if (levels.woodcutting >= 85) out.add('woodcutting-expert');
-    if (levels.fishing >= 85) out.add('fishing-expert');
-    if (levels.mining >= 85) out.add('mining-expert');
-    // Artisan
-    if (levels.smithing >= 90 && levels.crafting >= 90 && levels.fletching >= 90) out.add('artisan-elite');
-    if (levels.cooking >= 85) out.add('cooking-expert');
-    if (levels.firemaking >= 85) out.add('firemaking-expert');
-    if (levels.smithing >= 85) out.add('smithing-expert');
-    // Support
-    if (levels.herblore >= 90 && levels.runecraft >= 90 && levels.slayer >= 90) out.add('support-elite');
-    if (levels.herblore >= 85) out.add('herblore-expert');
-    if (levels.agility >= 85) out.add('agility-expert');
-    if (levels.thieving >= 85) out.add('thieving-expert');
-    // Playstyle
-    const levelVals = SKILLS.map(s => levels[s]);
-    if (levelVals.length) {
-        const minLvl = Math.min(...levelVals);
-        const maxLvl = Math.max(...levelVals);
-        if (minLvl >= 40 && (maxLvl - minLvl) <= 30) out.add('balanced');
-    }
-    const offense = (levels.attack || 1) + (levels.strength || 1);
-    if (offense >= 180 && levels.defence <= 60) out.add('glass-cannon');
-    if ((levels.defence || 1) >= 90 && (levels.hitpoints || 1) >= 85) out.add('tank');
-    const nonCombatSkills = SKILLS.filter(s => !combatSkills.includes(s));
-    const avg = arr => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
-    const nonCombatAvg = avg(nonCombatSkills.map(s => levels[s] || 1));
-    const combatAvg = avg(combatSkills.map(s => levels[s] || 1));
-    if (nonCombatAvg >= 70 && combatAvg <= 50) out.add('skiller');
-    if (combatAvg >= 80 && nonCombatAvg <= 30) out.add('combat-pure');
-    // Performance (needs population averages from ctx)
-    if (ctx?.skillAvgLevel) {
-        let above = 0; SKILLS.forEach(s => { if ((levels[s] || 1) > (ctx.skillAvgLevel.get(s) || 0)) above++; });
-        const ratio = above / SKILLS.length;
-        if (ratio >= 0.90) out.add('elite');
-        else if (ratio >= 0.75) out.add('versatile');
-        else if (ratio >= 0.50) out.add('consistent');
-    }
-    // XP thresholds
-    if (totalXp >= 1_000_000_000) out.add('xp-billionaire');
-    else if (totalXp >= 1_000_000) out.add('xp-millionaire');
-    // Activity
-    if (user.updatedAt) {
-        const ageMs = Date.now() - Number(user.updatedAt);
-        if (ageMs <= 24 * 3600 * 1000) out.add('daily-grinder');
-        else if (ageMs <= 3 * 24 * 3600 * 1000) out.add('dedicated');
-        else if (ageMs <= 7 * 24 * 3600 * 1000) out.add('weekly-active');
-        else if (ageMs <= 30 * 24 * 3600 * 1000) out.add('monthly-active');
-    }
-    // Average level milestones
-    if (SKILLS.length) {
-        const avgLevel = totalLvl / SKILLS.length;
-        if (avgLevel >= 90) out.add('level-90-average');
-        else if (avgLevel >= 75) out.add('level-75-average');
-        else if (avgLevel >= 50) out.add('level-50-average');
-    }
-    // Special combos
-    if ((levels.magic || 1) >= 80 && (levels.ranged || 1) >= 80) out.add('magic-ranged');
-    if ((levels.attack || 1) >= 85 && (levels.strength || 1) >= 85 && (levels.defence || 1) >= 85) out.add('melee-specialist');
-    if ((levels.prayer || 1) >= 80 && (levels.herblore || 1) >= 80 && (levels.runecraft || 1) >= 80) out.add('support-master');
-    if ((levels.woodcutting || 1) >= 80 && (levels.fishing || 1) >= 80 && (levels.mining || 1) >= 80) out.add('gathering-master');
-    return out;
+    return [];
 }
 
-// Build evaluation context from leaderboard + skillRankings for frontend
-function buildFrontendAchievementContext(players, skillRankings) {
-    const SKILLS = window.SKILLS || [];
-    const rankByUser = new Map();
-    players.forEach(p => { if (p.username && p.rank) rankByUser.set(p.username.toLowerCase(), p.rank); });
-    const rankings = skillRankings?.rankings || {};
-    const top1SkillsByUserCount = new Map();
-    const top10BySkill = new Map();
-    const top100BySkill = new Map();
-    const skillAvgLevel = new Map();
-    SKILLS.forEach(skill => {
-        const arr = rankings[skill] || [];
-        if (arr[0]?.username) {
-            const topXp = arr[0].xp || 0;
-            let leaders = new Set();
-            arr.forEach(r => { if (r.xp === topXp && topXp > 0) leaders.add(r.username.toLowerCase()); });
-            leaders.forEach(name => top1SkillsByUserCount.set(name, (top1SkillsByUserCount.get(name) || 0) + 1));
-        }
-        const top10 = new Set();
-        const top100 = new Set();
-        for (let i = 0; i < arr.length && i < 100; i++) {
-            const name = arr[i].username.toLowerCase();
-            if (i < 10) top10.add(name);
-            top100.add(name);
-        }
-        top10BySkill.set(skill, top10);
-        top100BySkill.set(skill, top100);
-        // Average level (approx) use entries (level field)
-        let lvlSum = 0;
-        arr.forEach(r => { lvlSum += (r.level || 1); });
-        skillAvgLevel.set(skill, arr.length ? (lvlSum / arr.length) : 1);
-    });
-    return { rankByUser, top1SkillsByUserCount, top10BySkill, top100BySkill, skillAvgLevel, totalPlayers: players.length };
+async function fetchUsersBatch(usernames) {
+    const cleaned = [...new Set((usernames || []).map(u => String(u || '').trim()).filter(Boolean))].slice(0, 200);
+    if (!cleaned.length) return [];
+    try {
+        const payload = await window.fetchJSON(`/api/users/batch?usernames=${encodeURIComponent(cleaned.join(','))}`);
+        if (Array.isArray(payload?.users)) return payload.users;
+    } catch (_) { }
+    return Promise.all(cleaned.map(async (name) => {
+        try { return await window.fetchJSON(`/api/users/${encodeURIComponent(name)}`); } catch (_) { return null; }
+    })).then(arr => arr.filter(Boolean));
 }
 
 function getRarityColor(rarity) {
@@ -259,49 +141,10 @@ function pickTop(arr, n, keyFn) {
     return [...arr].sort((a, b) => keyFn(b) - keyFn(a)).slice(0, n);
 }
 
-function computePlayerUnlocks(players, skillRankings) {
-    const rankings = skillRankings?.rankings || {};
-    // Build a map of username -> count of #1 skills
-    const top1 = new Map();
-    const top10AnySet = new Set();
-    const top100AnySet = new Set();
-    try {
-        (window.SKILLS || []).forEach(s => {
-            const arr = rankings[s] || [];
-            if (arr[0]?.username) {
-                const u = arr[0].username;
-                top1.set(u, (top1.get(u) || 0) + 1);
-            }
-            // Mark top 10 / top 100 membership
-            for (let i = 0; i < arr.length; i++) {
-                const entry = arr[i];
-                if (!entry || !entry.username) continue;
-                if (i < 10) top10AnySet.add(entry.username);
-                if (i < 100) top100AnySet.add(entry.username);
-                if (i >= 100) break; // no need to scan further
-            }
-        });
-    } catch (_) { }
-
+function computePlayerUnlocks(players) {
     const map = new Map();
     players.forEach(p => {
-        const set = new Set();
-        // Tier-based
-        if (p.tier === 'Grandmaster') set.add('tier-grandmaster');
-        if (p.tier === 'Master') set.add('tier-master');
-        if (p.tier === 'Diamond') set.add('tier-diamond');
-        // Top ranks in skills
-        const c = top1.get(p.username) || 0;
-        if (c >= 3) set.add('triple-crown');
-        if (c >= 1) set.add('crowned-any');
-        // Generic top placement achievements (independent chain)
-        if (top10AnySet.has(p.username)) set.add('top-10-any');
-        else if (top100AnySet.has(p.username)) set.add('top-100-any');
-        // Account progression
-        if (p.totalLevel >= 2277) set.add('maxed-account');
-        else if (p.totalLevel >= 2000) set.add('total-2000');
-        else if (p.totalLevel >= 1500) set.add('total-1500');
-        // Activity achievements removed
+        const set = new Set(achievementKeysFromUser(p));
         map.set(p.username, set);
     });
     return map; // username => Set(keys)
@@ -353,16 +196,12 @@ function expandHistorical(activeSet, achievementsObj) {
 }
 
 // New helper returning map username -> { active:Set, historical:Set }
-function computePlayerUnlocksWithHistory(players, skillRankings) {
-    const inferred = computePlayerUnlocks(players, skillRankings); // username -> Set(active inferred)
+function computePlayerUnlocksWithHistory(players) {
+    const inferred = computePlayerUnlocks(players); // username -> Set(active inferred)
     const map = new Map();
     players.forEach(p => {
         // Start with inferred active
         const active = new Set(inferred.get(p.username) || []);
-        // Merge actual achievements object keys (these are authoritative unlock evidence)
-        if (p.achievements && typeof p.achievements === 'object') {
-            Object.keys(p.achievements).forEach(k => active.add(k));
-        }
         // Prune by keeping only highest tiers in each chain for "active" representation
         for (const chain of ACHIEVEMENT_FAMILY_CHAINS) {
             const present = chain.filter(k => active.has(k));
@@ -371,7 +210,10 @@ function computePlayerUnlocksWithHistory(players, skillRankings) {
                 for (let i = 1; i < present.length; i++) active.delete(present[i]);
             }
         }
-        const historical = expandHistorical(active, p.achievements || {});
+        const ownedObj = p.achievements && typeof p.achievements === 'object'
+            ? p.achievements
+            : Object.fromEntries(achievementKeysFromUser(p).map(k => [k, true]));
+        const historical = expandHistorical(active, ownedObj);
         map.set(p.username, { active, historical });
     });
     return map;
@@ -407,7 +249,7 @@ function formatPrevalenceShort(pct, count, total) {
     return Math.round(pct) + '%';
 }
 
-async function renderInsights(globalStats, leaderboard, skillRankings, firsts) {
+async function renderInsights(globalStats, leaderboard, firsts) {
     const wrap = $('#insightsContainer');
     if (!wrap) return;
     wrap.innerHTML = '';
@@ -418,14 +260,12 @@ async function renderInsights(globalStats, leaderboard, skillRankings, firsts) {
     const prevalence = prevalenceForKeys(totalPlayers, counts);
     // Enrich a subset with detailed user data to accurately count achievements (including historical chains)
     const sample = players.slice(0, Math.min(players.length, 50));
-    const detailed = await Promise.all(sample.map(async p => {
-        try { return await window.fetchJSON(`/api/users/${encodeURIComponent(p.username)}`); } catch (_) { return p; }
-    }));
+    const detailed = await fetchUsersBatch(sample.map(p => p.username));
     const detailedByName = new Map();
     detailed.forEach(u => { if (u && u.username) detailedByName.set(u.username, u); });
     // Replace sampled entries with detailed variants where available for accurate counts
     const merged = sample.map(p => detailedByName.get(p.username) ? { ...p, ...detailedByName.get(p.username) } : p);
-    const unlocksWithHistory = computePlayerUnlocksWithHistory(merged, skillRankings); // username -> { active, historical }
+    const unlocksWithHistory = computePlayerUnlocksWithHistory(merged); // username -> { active, historical }
 
     // Top players by total earned (active + historical unique)
     const earnedCount = (name) => {
@@ -516,7 +356,7 @@ async function renderInsights(globalStats, leaderboard, skillRankings, firsts) {
     wrap.appendChild(chips);
 }
 
-async function renderRelationshipMatrix(globalStats, leaderboard, skillRankings, firsts) {
+async function renderRelationshipMatrix(globalStats, leaderboard, firsts) {
     const mount = $('#relationshipMatrix');
     if (!mount) return;
     mount.innerHTML = '';
@@ -525,9 +365,7 @@ async function renderRelationshipMatrix(globalStats, leaderboard, skillRankings,
     if (!players.length) return;
 
     // Fetch detailed user objects (skills + achievements) for accuracy
-    const detailed = await Promise.all(players.map(async p => {
-        try { return await window.fetchJSON(`/api/users/${encodeURIComponent(p.username)}`); } catch (_) { return p; }
-    }));
+    const detailed = await fetchUsersBatch(players.map(p => p.username));
     // Merge base leaderboard metadata (rank, tier) into detailed objects
     const detailedByName = new Map();
     detailed.forEach(u => { if (u && u.username) detailedByName.set(u.username, u); });
@@ -536,17 +374,11 @@ async function renderRelationshipMatrix(globalStats, leaderboard, skillRankings,
         if (d) { d.rank = p.rank; d.tier = p.tier; }
     });
 
-    const ctx = buildFrontendAchievementContext(players, skillRankings);
     const unlocks = new Map(); // username -> { active:Set, historical:Set }
     detailed.forEach(u => {
         if (!u || !u.username) return;
-        const activeEval = evaluateAchievementsFrontend(u, ctx);
-        // Merge stored achievements as proof (some might have been pruned visually but we treat them historical if implied)
-        if (u.achievements) {
-            Object.keys(u.achievements).forEach(k => activeEval.add(k));
-        }
-        // Prune to highest tiers for active visual set
-        const active = new Set(activeEval);
+        // Prune to highest tiers for active visual set using backend-provided unlocks only.
+        const active = new Set(achievementKeysFromUser(u));
         for (const chain of ACHIEVEMENT_FAMILY_CHAINS) {
             const present = chain.filter(k => active.has(k));
             if (present.length > 1) {
@@ -554,7 +386,10 @@ async function renderRelationshipMatrix(globalStats, leaderboard, skillRankings,
                 for (let i = 1; i < present.length; i++) active.delete(present[i]);
             }
         }
-        const historical = expandHistorical(active, u.achievements || {});
+        const ownedObj = u.achievements && typeof u.achievements === 'object'
+            ? u.achievements
+            : Object.fromEntries(achievementKeysFromUser(u).map(k => [k, true]));
+        const historical = expandHistorical(active, ownedObj);
         unlocks.set(u.username, { active, historical });
     });
     const totalPlayers = globalStats?.totalPlayers || 0;
@@ -762,12 +597,9 @@ async function renderAchievementsPage() {
     const matrixWrap = $('#relationshipMatrix');
 
     // Load data needed for insights
-    let leaderboard = null, skillRankings = null, globalStats = null;
+    let leaderboard = null, globalStats = null;
     try {
         leaderboard = await window.fetchJSON('/api/leaderboard?limit=200');
-    } catch (_) { }
-    try {
-        skillRankings = await window.fetchJSON('/api/skill-rankings');
     } catch (_) { }
     let firsts = {};
     let enrichedFirsts = {};
@@ -794,8 +626,8 @@ async function renderAchievementsPage() {
     } catch (_) { firsts = {}; enrichedFirsts = {}; }
 
     // Render insights and matrix
-    try { await renderInsights(globalStats, leaderboard, skillRankings, firsts); } catch (_) { }
-    try { await renderRelationshipMatrix(globalStats, leaderboard, skillRankings, firsts); } catch (_) { }
+    try { await renderInsights(globalStats, leaderboard, firsts); } catch (_) { }
+    try { await renderRelationshipMatrix(globalStats, leaderboard, firsts); } catch (_) { }
 
     // Group achievements by category for catalog
     if (container) {

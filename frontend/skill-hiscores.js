@@ -18,8 +18,9 @@ let minXp = null;
 let maxXp = null;
 
 function applyFilters(rows) {
+  const safeRows = Array.isArray(rows) ? rows : [];
   const q = (($("#filterName"))?.value || "").trim().toLowerCase();
-  return rows.filter(r => {
+  return safeRows.filter(r => {
     if (q && !r.username.toLowerCase().includes(q)) return false;
     if (minLevel != null && r.level < minLevel) return false;
     if (maxLevel != null && r.level > maxLevel) return false;
@@ -43,7 +44,7 @@ function renderTable() {
   }
   loadSkillRankings()
     .then((data) => {
-      const rows = data.rankings[currentSkill];
+      const rows = data?.rankings?.[currentSkill] || [];
       const filtered = applyFilters(rows);
       tableBody.innerHTML = "";
       const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
@@ -170,7 +171,8 @@ $("#filterName").addEventListener("input", queueFilterRender);
   if (elInput) {
     elInput.addEventListener('input', () => {
       const v = elInput.value.trim();
-      const num = v === '' ? null : Number(v);
+      const parsed = v === '' ? null : Number(v);
+      const num = Number.isFinite(parsed) ? parsed : null;
       if (id === 'minLevel') minLevel = num;
       if (id === 'maxLevel') maxLevel = num;
       if (id === 'minXp') minXp = num;

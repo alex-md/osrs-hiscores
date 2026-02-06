@@ -2,10 +2,31 @@
   const qApi = new URLSearchParams(location.search).get("api");
   if (qApi) localStorage.setItem("apiBaseOverride", qApi);
   let apiBase = (localStorage.getItem("apiBaseOverride") || document.documentElement.getAttribute("data-api-base") || location.origin).replace(/\/$/, "");
+  function normalizeApiBase(candidate) {
+    const trimmed = String(candidate || "").trim();
+    if (!trimmed) return null;
+    try {
+      const u = new URL(trimmed, location.origin);
+      if (!/^https?:$/.test(u.protocol)) return null;
+      return u.href.replace(/\/$/, "");
+    } catch (_) {
+      return null;
+    }
+  }
+  function updateApiBaseLabels() {
+    const apiSpan = document.getElementById("currentApiBase");
+    if (!apiSpan) return;
+    apiSpan.textContent = apiBase === location.origin ? "Same-origin" : apiBase;
+  }
   function setApiBase(newBase) {
-    if (!newBase) return;
-    apiBase = newBase.replace(/\/$/, "");
+    const normalized = normalizeApiBase(newBase);
+    if (!normalized) {
+      if (window.toast) toast("Invalid API base URL", "error");
+      return;
+    }
+    apiBase = normalized;
     localStorage.setItem("apiBaseOverride", apiBase);
+    updateApiBaseLabels();
     if (window.toast) try {
       toast("API base set to " + apiBase + " – reloading");
     } catch (_) { }
@@ -13,10 +34,47 @@
   }
   function clearApiBase() {
     localStorage.removeItem("apiBaseOverride");
+    apiBase = (document.documentElement.getAttribute("data-api-base") || location.origin).replace(/\/$/, "");
+    updateApiBaseLabels();
     if (window.toast) try {
       toast("API base override cleared – reloading");
     } catch (_) { }
     setTimeout(() => location.reload(), 400);
+  }
+  function initApiBaseControls() {
+    const panel = document.getElementById("apiBasePanel");
+    const openBtn = document.getElementById("openApiSettings");
+    const clearBtn = document.getElementById("clearApiBase");
+    const saveBtn = document.getElementById("apiBaseSave");
+    const cancelBtn = document.getElementById("apiBaseCancel");
+    const input = document.getElementById("apiBaseInput");
+    if (!panel || !input) {
+      if (clearBtn) clearBtn.addEventListener("click", clearApiBase);
+      return;
+    }
+    const openPanel = () => {
+      panel.classList.remove("hidden");
+      input.value = apiBase;
+      input.focus();
+      input.select();
+    };
+    const closePanel = () => {
+      panel.classList.add("hidden");
+    };
+    if (openBtn) openBtn.addEventListener("click", openPanel);
+    if (clearBtn) clearBtn.addEventListener("click", clearApiBase);
+    if (cancelBtn) cancelBtn.addEventListener("click", closePanel);
+    if (saveBtn) {
+      saveBtn.addEventListener("click", () => {
+        setApiBase(input.value);
+      });
+    }
+    panel.addEventListener("click", (e) => {
+      if (e.target === panel) closePanel();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !panel.classList.contains("hidden")) closePanel();
+    });
   }
   // Lightweight GET cache with TTL
   const __FETCH_CACHE = new Map(); // key -> { exp:number, value:any }
@@ -87,6 +145,8 @@
   document.addEventListener("DOMContentLoaded", () => {
     if (window.lucide) window.lucide.createIcons();
     updateThemeToggle();
+    updateApiBaseLabels();
+    initApiBaseControls();
     const skillRoot = document.getElementById("sidebarSkillList");
     if (skillRoot) populateSkillLinks(skillRoot);
   });

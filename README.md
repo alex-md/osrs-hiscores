@@ -25,7 +25,7 @@ The result: a self-refreshing dataset, fast responses (all JSON assembly happens
 ### Gameplay / Data Simulation
 * Weighted skill XP gain influenced by configurable **activity archetypes** & skill popularity weights.
 * Weekend global XP bonus multiplier for variation.
-* Automatic scheduled updates every **10 minutes** (see `wrangler.toml`) updating a random 10–35% sample and spawning 1–3 new accounts.
+* Automatic scheduled updates every **4 hours** (see `wrangler.toml`) updating a random 10–35% sample and spawning 1–2 new accounts.
 * Safe maintenance flags (e.g. `needsHpMigration`) + migration endpoints simulate real-world data correction tasks.
 
 ### Player & Ranking Experience
@@ -35,7 +35,7 @@ The result: a self-refreshing dataset, fast responses (all JSON assembly happens
 * Achievement showcase (rarity‑sorted) with rarity tiers computed client-side from global distributions.
 * Debounced, accessible player search (ARIA combobox + keyboard navigation) with suggestions.
 * Dark / light theme toggle persisted via `localStorage` and pre-applied to eliminate FOUC.
-* API base override via query (`?api=`) or prompt; persisted for local / staging testing.
+* API base override via query (`?api=`) or in-app settings modal; persisted for local / staging testing.
 
 ### Operations & Admin Tooling
 * `/api/seed` bulk creation (admin token) – allows deterministic population during demos.
@@ -47,7 +47,7 @@ The result: a self-refreshing dataset, fast responses (all JSON assembly happens
 * Zero build: Tailwind CDN, vanilla modules, and dynamic DOM construction utilities (`el`, `text`, `$`).
 * Optimistic progressive rendering (placeholder rows + error hints if backend misconfigured).
 * Accessibility: standardized ARIA roles, keyboard navigation for search & pagination; semantic table markup.
-* Achievement system intentionally **ephemeral** (not persisted) to reduce write amplification & keep KV hot path simple.
+* Achievement system is persisted server-side and projected client-side from backend truth.
 
 ## 3. Project Structure
 
@@ -88,7 +88,8 @@ osrs-hiscores/
 | GET | `/api/debug` | Deployment diagnostics (non-secret) | no-store |
 | GET | `/api/leaderboard?limit=N` | Overall ranking (rank, total level, XP) (cap 5000) | max-age=30 |
 | GET | `/api/skill-rankings` | Full per-skill ranking arrays (XP+level) | max-age=30 |
-| GET | `/api/users` | Flat list of usernames | max-age=120 |
+| GET | `/api/users` | Flat list of usernames (snapshot-backed) | max-age=120 |
+| GET | `/api/users/batch?usernames=a,b,c` | Bulk user fetch for selected usernames (cap 200) | max-age=30 |
 | GET | `/api/users/:username` | Full user document | max-age=15 |
 | GET | `/api/users/:username/hitpoints-check` | Validates HP migration need | max-age=15 |
 | POST | `/api/cron/trigger` | Manually run scheduled simulation | - |
@@ -130,7 +131,7 @@ Key pattern: `user:<lowercased_username>`
    * Draw XP budget from activity’s `[min,max]` with weekend multiplier (1.15 Sat/Sun).
    * Select 1–5 random skills; allocate XP proportionally to skill popularity weights plus a small random jitter.
    * Recompute levels (`levelFromXp`) + totals; maybe flag `needsHpMigration` (1% chance).
-3. Create 1–3 new users (random generated names) each cycle.
+3. Create 1–2 new users (random generated names) each cycle.
 
 ### Maintenance & Migration
 * `needsHpMigration` simulates deferred consistency tasks; endpoint `/api/migrate/hitpoints` corrects stale HP levels.
@@ -184,7 +185,7 @@ Scheduler will also lazily backfill missing fields during regular ticks.
 | ------ | -------- | ------- |
 | `HISCORES_KV` | `wrangler.toml` binding | KV namespace storing user JSON blobs |
 | `ADMIN_TOKEN` | `wrangler.toml` / secret | Auth gate for mutation endpoints (seed / delete) |
-| Cron `*/10 * * * *` | `wrangler.toml` | Triggers simulation every 10 minutes |
+| Cron `0 */4 * * *` | `wrangler.toml` | Triggers simulation every 4 hours |
 
 ### Local Development
 ```powershell

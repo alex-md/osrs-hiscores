@@ -1,18 +1,17 @@
 import { PLAYER_ARCHETYPES, SKILLS, INITIAL_TOTAL_XP_TIERS, SKILL_POPULARITY, XP_GAIN_TIER_THRESHOLDS, XP_GAIN_TIER_ACTIVITY_WEIGHTS, ARCHETYPE_TO_ACTIVITY_PROBABILITY, INITIAL_DISTRIBUTION_ARCHETYPE_FOCUS, INITIAL_DISTRIBUTION_ARCHETYPE_GLOBAL } from './constants.js';
 
-const XP_LEVEL_MAX = 126;
 const XP_SKILL_MAX = 99;
-const XP_TABLE = [0];
-const XP_POINTS_TABLE = [0];
+const XP_TABLE = [0, 0]; // xp required for level N at index N
+const XP_POINTS_TABLE = [0, 0];
 // XP tables initialized lazily by ensureXpTable
 
 
 function ensureXpTable(level) {
   if (level < XP_TABLE.length) return;
-  let lastLevel = XP_TABLE.length - 1;
-  let points = XP_POINTS_TABLE[lastLevel] || 0;
-  for (let lvl = lastLevel + 1; lvl <= level; lvl++) {
-    points += Math.floor(lvl + 300 * Math.pow(2, lvl / 7));
+  for (let lvl = XP_TABLE.length; lvl <= level; lvl++) {
+    const prevPoints = XP_POINTS_TABLE[lvl - 1] || 0;
+    const i = lvl - 1;
+    const points = prevPoints + Math.floor(i + 300 * Math.pow(2, i / 7));
     XP_POINTS_TABLE[lvl] = points;
     XP_TABLE[lvl] = Math.floor(points / 4);
   }
@@ -368,8 +367,9 @@ const isValidSanitizedName = (sanitizedName) =>
   sanitizedName.length <= 12;
 
 export async function fetchRandomWords(count = 2, existingUsernames = new Set()) {
-  async function fetchBatch(n) {
-    while (true) {
+  async function fetchBatch(n, deadlineMs) {
+    const maxRetries = 3;
+    for (let attempt = 0; attempt < maxRetries && Date.now() < deadlineMs; attempt++) {
       try {
         const resp = await fetch(`https://random-word-api.herokuapp.com/word?number=${n}`, {
           cf: { cacheTtl: 60, cacheEverything: true }
@@ -378,8 +378,12 @@ export async function fetchRandomWords(count = 2, existingUsernames = new Set())
         const data = await resp.json();
         if (Array.isArray(data) && data.length) return data.map(String);
       } catch (_) { }
-      await sleep(2000);
+      const remaining = Math.max(0, deadlineMs - Date.now());
+      if (!remaining) break;
+      const backoffMs = Math.min(remaining, 300 + attempt * 350);
+      await sleep(backoffMs);
     }
+    return [];
   }
 
   const results = [];
@@ -411,7 +415,9 @@ export async function fetchRandomWords(count = 2, existingUsernames = new Set())
     (Date.now() - startTime) < maxTimeMs
   ) {
     const need = Math.max(6, (count - results.length) * 6);
-    const batch = await fetchBatch(need);
+    const deadlineMs = startTime + maxTimeMs;
+    const batch = await fetchBatch(need, deadlineMs);
+    if (!batch.length) break;
     const good = batch
       .map(w => String(w || '').trim())
       .filter(w => w.length >= GOOD_MIN && w.length <= GOOD_MAX && looksLikeWord(w));
