@@ -1,10 +1,19 @@
-import { PLAYER_ARCHETYPES, SKILLS, INITIAL_TOTAL_XP_TIERS, SKILL_POPULARITY, XP_GAIN_TIER_THRESHOLDS, XP_GAIN_TIER_ACTIVITY_WEIGHTS, ARCHETYPE_TO_ACTIVITY_PROBABILITY, INITIAL_DISTRIBUTION_ARCHETYPE_FOCUS, INITIAL_DISTRIBUTION_ARCHETYPE_GLOBAL } from './constants.js';
+import {
+  PLAYER_ARCHETYPES,
+  SKILLS,
+  INITIAL_TOTAL_XP_TIERS,
+  SKILL_POPULARITY,
+  XP_GAIN_TIER_THRESHOLDS,
+  XP_GAIN_TIER_ACTIVITY_WEIGHTS,
+  ARCHETYPE_TO_ACTIVITY_PROBABILITY,
+  INITIAL_DISTRIBUTION_ARCHETYPE_FOCUS,
+  INITIAL_DISTRIBUTION_ARCHETYPE_GLOBAL,
+} from "./constants.js";
 
 const XP_SKILL_MAX = 99;
 const XP_TABLE = [0, 0]; // xp required for level N at index N
 const XP_POINTS_TABLE = [0, 0];
 // XP tables initialized lazily by ensureXpTable
-
 
 function ensureXpTable(level) {
   if (level < XP_TABLE.length) return;
@@ -21,11 +30,9 @@ export function clamp(num, min, max) {
   return Math.max(min, Math.min(max, num));
 }
 
-export const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-
 export function weekendBonusMultiplier(date = new Date()) {
   const day = date.getUTCDay();
-  return (day === 6 || day === 0) ? 1.15 : 1.0;
+  return day === 6 || day === 0 ? 1.15 : 1.0;
 }
 
 export function levelFromXp(xp) {
@@ -61,25 +68,19 @@ export function xpForLevel(level) {
 }
 
 // Compute hitpoints level as the rounded average of primary combat skills.
-// You mentioned: "based on all other combat stats, basically the average of all of them".
-// We'll treat attack, strength, defence, ranged, magic, prayer as the contributors.
-// (Prayer often has different weighting in OSRS combat level, but per your instruction we use a simple average.)
 export function computeHitpointsLevelFromCombat(skills) {
-  const combatStats = ['attack', 'strength', 'defence', 'ranged', 'magic', 'prayer'];
-  const levels = combatStats.map(s => skills?.[s]?.level || 1);
+  const combatStats = [
+    "attack",
+    "strength",
+    "defence",
+    "ranged",
+    "magic",
+    "prayer",
+  ];
+  const levels = combatStats.map((s) => skills?.[s]?.level || 1);
   const avg = levels.reduce((a, b) => a + b, 0) / levels.length;
   // Minimum starting HP level often is 10; respect that floor.
   return Math.max(10, Math.round(avg));
-}
-
-export function syncHitpointsFromCombat(skills) {
-  if (!skills) return;
-  const desiredLevel = computeHitpointsLevelFromCombat(skills);
-  const current = skills.hitpoints || { xp: 1154, level: 10 };
-  if (current.level === desiredLevel) return false;
-  const newXp = xpForLevel(desiredLevel);
-  skills.hitpoints = { xp: newXp, level: desiredLevel };
-  return true;
 }
 
 // Meta tier inference prioritizing overall rank percentiles with fallbacks.
@@ -91,37 +92,41 @@ export function inferMetaTierWithContext(user, ctx) {
     const top1SkillsCount = Math.max(0, Number(ctx?.top1SkillsCount) || 0);
 
     // Grandmaster: absolute #1 or #1 in 3+ skills
-    if (rank === 1 || top1SkillsCount >= 3) return { name: 'Grandmaster', ordinal: 0 };
+    if (rank === 1 || top1SkillsCount >= 3)
+      return { name: "Grandmaster", ordinal: 0 };
 
     if (totalPlayers <= 500) {
       // Absolute thresholds for small ladders
-      if (rank <= 2) return { name: 'Master', ordinal: 1 };
-      if (rank <= 5) return { name: 'Diamond', ordinal: 2 };
-      if (rank <= 15) return { name: 'Platinum', ordinal: 3 };
+      if (rank <= 2) return { name: "Master", ordinal: 1 };
+      if (rank <= 5) return { name: "Diamond", ordinal: 2 };
+      if (rank <= 15) return { name: "Platinum", ordinal: 3 };
 
       // Scaled broader tiers
-      if (rank <= Math.ceil(totalPlayers * 0.05)) return { name: 'Gold', ordinal: 4 };
-      if (rank <= Math.ceil(totalPlayers * 0.20)) return { name: 'Silver', ordinal: 5 };
-      if (rank <= Math.ceil(totalPlayers * 0.50)) return { name: 'Bronze', ordinal: 6 };
+      if (rank <= Math.ceil(totalPlayers * 0.05))
+        return { name: "Gold", ordinal: 4 };
+      if (rank <= Math.ceil(totalPlayers * 0.2))
+        return { name: "Silver", ordinal: 5 };
+      if (rank <= Math.ceil(totalPlayers * 0.5))
+        return { name: "Bronze", ordinal: 6 };
     } else {
       // Percentile thresholds for big ladders
       const percentile = rank / totalPlayers; // 0..1
-      if (percentile <= 0.0001) return { name: 'Master', ordinal: 1 };
-      if (percentile <= 0.001) return { name: 'Diamond', ordinal: 2 };
-      if (percentile <= 0.01) return { name: 'Platinum', ordinal: 3 };
-      if (percentile <= 0.05) return { name: 'Gold', ordinal: 4 };
-      if (percentile <= 0.20) return { name: 'Silver', ordinal: 5 };
-      if (percentile <= 0.50) return { name: 'Bronze', ordinal: 6 };
+      if (percentile <= 0.0001) return { name: "Master", ordinal: 1 };
+      if (percentile <= 0.001) return { name: "Diamond", ordinal: 2 };
+      if (percentile <= 0.01) return { name: "Platinum", ordinal: 3 };
+      if (percentile <= 0.05) return { name: "Gold", ordinal: 4 };
+      if (percentile <= 0.2) return { name: "Silver", ordinal: 5 };
+      if (percentile <= 0.5) return { name: "Bronze", ordinal: 6 };
     }
 
     // Fallback by account maturity if no rank context available or below 50%
-    const levels = SKILLS.map(s => user.skills?.[s]?.level || 1);
+    const levels = SKILLS.map((s) => user.skills?.[s]?.level || 1);
     const total = levels.reduce((a, b) => a + b, 0);
-    if (total >= 1700) return { name: 'Expert', ordinal: 5 };
-    if (total >= 900) return { name: 'Adept', ordinal: 6 };
-    return { name: 'Novice', ordinal: 7 };
+    if (total >= 1700) return { name: "Expert", ordinal: 5 };
+    if (total >= 900) return { name: "Adept", ordinal: 6 };
+    return { name: "Novice", ordinal: 7 };
   } catch (_) {
-    return { name: 'Novice', ordinal: 7 };
+    return { name: "Novice", ordinal: 7 };
   }
 }
 
@@ -142,7 +147,9 @@ export function weightedRandomChoice(choices) {
 // After choosing tier: value = min + (max-min) * u^(gamma) with gamma>1.
 // Higher tiers get slightly larger gamma to further bias downward.
 export function sampleInitialTotalXP(rng = Math.random) {
-  const tiers = Array.isArray(INITIAL_TOTAL_XP_TIERS) ? INITIAL_TOTAL_XP_TIERS : [];
+  const tiers = Array.isArray(INITIAL_TOTAL_XP_TIERS)
+    ? INITIAL_TOTAL_XP_TIERS
+    : [];
   if (!tiers.length) return 1_154;
   // Build cumulative weights
   let totalW = 0;
@@ -150,14 +157,20 @@ export function sampleInitialTotalXP(rng = Math.random) {
   if (totalW <= 0) return 1_154;
   let r = rng() * totalW;
   let chosen = tiers[0];
-  for (const t of tiers) { r -= Math.max(0, t.weight || 0); if (r <= 0) { chosen = t; break; } }
-  const span = Math.max(1, (chosen.max - chosen.min));
+  for (const t of tiers) {
+    r -= Math.max(0, t.weight || 0);
+    if (r <= 0) {
+      chosen = t;
+      break;
+    }
+  }
+  const span = Math.max(1, chosen.max - chosen.min);
   // gamma decreases with tier index to reduce downward bias at higher tiers
   // This lessens clustering near the lower bound of high tiers (e.g., ~20m).
   const idx = tiers.indexOf(chosen);
-  const maxGamma = 1.6;    // stronger skew toward min in early tiers
-  const minGamma = 1.15;   // flatter in later tiers
-  const t = idx / Math.max(1, (tiers.length - 1));
+  const maxGamma = 1.6; // stronger skew toward min in early tiers
+  const minGamma = 1.15; // flatter in later tiers
+  const t = idx / Math.max(1, tiers.length - 1);
   const gamma = maxGamma - (maxGamma - minGamma) * t;
   const u = rng();
   const scaled = chosen.min + Math.floor(span * Math.pow(u, gamma));
@@ -168,11 +181,16 @@ export function sampleInitialTotalXP(rng = Math.random) {
 // Distribute a total XP budget across skills (excluding hitpoints baseline which will be overridden later).
 // Approach: choose a dynamic number of active skills based on total XP magnitude, then allocate using
 // normalized popularity weights with a Dirichlet-like randomization (via exponential sampling).
-export function distributeInitialXP(totalXp, rng = Math.random, archetype = null, xpTier = null) {
+export function distributeInitialXP(
+  totalXp,
+  rng = Math.random,
+  archetype = null,
+  xpTier = null,
+) {
   // Baseline for non-HP skills must be 1 XP, not 1154.
   const MIN_PER_SKILL = 1;
   const MAX_PER_SKILL = 10_000_000; // hard cap per requirement
-  const skillNames = SKILLS.filter((s) => s !== 'hitpoints');
+  const skillNames = SKILLS.filter((s) => s !== "hitpoints");
 
   // Determine how many skills are meaningfully "active" based on total starting XP
   const tiers = [
@@ -180,15 +198,24 @@ export function distributeInitialXP(totalXp, rng = Math.random, archetype = null
     { max: 5e5, count: [5, 9] },
     { max: 5e6, count: [7, 15] },
     { max: 2e7, count: [12, 19] },
-    { max: 5.5e7, count: [18, skillNames.length - 3] }
+    { max: 5.5e7, count: [18, skillNames.length - 3] },
   ];
   let targetRange = tiers[tiers.length - 1].count;
   for (const t of tiers) {
-    if (totalXp <= t.max) { targetRange = t.count; break; }
+    if (totalXp <= t.max) {
+      targetRange = t.count;
+      break;
+    }
   }
   const minCount = Math.min(skillNames.length, targetRange[0]);
   const maxCount = Math.min(skillNames.length, targetRange[1]);
-  const activeCount = Math.max(minCount, Math.min(maxCount, Math.floor(minCount + rng() * (maxCount - minCount + 1))));
+  const activeCount = Math.max(
+    minCount,
+    Math.min(
+      maxCount,
+      Math.floor(minCount + rng() * (maxCount - minCount + 1)),
+    ),
+  );
 
   // Select active skills uniformly at random (then weight allocation below)
   const shuffled = [...skillNames];
@@ -200,7 +227,11 @@ export function distributeInitialXP(totalXp, rng = Math.random, archetype = null
 
   // Build per-skill weights: popularity tempered by initial distribution archetype focus
   const weights = {};
-  const focus = new Set((INITIAL_DISTRIBUTION_ARCHETYPE_FOCUS[archetype] || []).filter(s => s !== 'hitpoints'));
+  const focus = new Set(
+    (INITIAL_DISTRIBUTION_ARCHETYPE_FOCUS[archetype] || []).filter(
+      (s) => s !== "hitpoints",
+    ),
+  );
   const globalTilt = INITIAL_DISTRIBUTION_ARCHETYPE_GLOBAL[archetype] || 1.0;
   for (const s of selected) {
     const base = SKILL_POPULARITY[s] || 1;
@@ -213,7 +244,7 @@ export function distributeInitialXP(totalXp, rng = Math.random, archetype = null
   const allocatable = Math.max(0, (Number(totalXp) || 0) - baselineTotal);
   if (allocatable <= 0) {
     // Not enough to distribute; everyone gets baseline 1
-    const xpMap = Object.fromEntries(skillNames.map(s => [s, MIN_PER_SKILL]));
+    const xpMap = Object.fromEntries(skillNames.map((s) => [s, MIN_PER_SKILL]));
     return xpMap;
   }
 
@@ -221,7 +252,7 @@ export function distributeInitialXP(totalXp, rng = Math.random, archetype = null
   const raw = selected.map((s) => -Math.log(1 - rng()) * (weights[s] || 1));
   const rawSum = raw.reduce((a, b) => a + b, 0) || 1;
 
-  const xpMap = Object.fromEntries(skillNames.map(s => [s, MIN_PER_SKILL]));
+  const xpMap = Object.fromEntries(skillNames.map((s) => [s, MIN_PER_SKILL]));
   // First pass allocation
   for (let i = 0; i < selected.length; i++) {
     const portion = allocatable * (raw[i] / rawSum);
@@ -243,21 +274,28 @@ export function distributeInitialXP(totalXp, rng = Math.random, archetype = null
   let overflow = 0;
   for (const s of skillNames) {
     if (xpMap[s] > MAX_PER_SKILL) {
-      overflow += (xpMap[s] - MAX_PER_SKILL);
+      overflow += xpMap[s] - MAX_PER_SKILL;
       xpMap[s] = MAX_PER_SKILL;
     }
   }
   if (overflow > 0) {
     // Repeatedly distribute overflow until exhausted or everyone is capped
-    const recipients = () => skillNames.filter(s => xpMap[s] < MAX_PER_SKILL);
+    const recipients = () => skillNames.filter((s) => xpMap[s] < MAX_PER_SKILL);
     let guard = 0;
-    while (overflow > 0 && recipients().length && guard++ < 10 * skillNames.length) {
+    while (
+      overflow > 0 &&
+      recipients().length &&
+      guard++ < 10 * skillNames.length
+    ) {
       const pool = recipients();
       for (const s of pool) {
         if (overflow <= 0) break;
         const space = MAX_PER_SKILL - xpMap[s];
         if (space <= 0) continue;
-        const take = Math.min(space, Math.max(1, Math.ceil(overflow / pool.length)));
+        const take = Math.min(
+          space,
+          Math.max(1, Math.ceil(overflow / pool.length)),
+        );
         xpMap[s] += take;
         overflow -= take;
       }
@@ -273,12 +311,102 @@ export function distributeInitialXP(totalXp, rng = Math.random, archetype = null
 // We adjust base archetype weights with multipliers per XP threshold, favoring rarer endgame at high XP.
 export function assignArchetypeForTotalXP(totalXP2, rng = Math.random) {
   const modifiers = [
-    { max: 5e4, mult: { IDLER: 1.3, SOCIALITE: 1.2, AFKER: 1.1, CASUAL: 1, FOCUSED: 0.9, SKILLER: 0.8, PVMER: 0.7, IRON_SOUL: 0.6, HARDCORE: 0.5, EFFICIENT_MAXER: 0.4, ELITE_GRINDER: 0.4 } },
-    { max: 5e5, mult: { IDLER: 1, SOCIALITE: 1, AFKER: 1, CASUAL: 1, FOCUSED: 1.05, SKILLER: 1.05, PVMER: 1, IRON_SOUL: 0.9, HARDCORE: 0.9, EFFICIENT_MAXER: 0.7, ELITE_GRINDER: 0.7 } },
-    { max: 5e6, mult: { IDLER: 0.8, SOCIALITE: 0.8, AFKER: 0.85, CASUAL: 1, FOCUSED: 1.15, SKILLER: 1.2, PVMER: 1.15, IRON_SOUL: 1, HARDCORE: 1, EFFICIENT_MAXER: 0.9, ELITE_GRINDER: 0.9 } },
-    { max: 2e7, mult: { IDLER: 0.6, SOCIALITE: 0.6, AFKER: 0.7, CASUAL: 0.9, FOCUSED: 1.2, SKILLER: 1.3, PVMER: 1.3, IRON_SOUL: 1.2, HARDCORE: 1.25, EFFICIENT_MAXER: 1.3, ELITE_GRINDER: 1.35 } },
-    { max: 5.5e7, mult: { IDLER: 0.5, SOCIALITE: 0.5, AFKER: 0.6, CASUAL: 0.85, FOCUSED: 1.15, SKILLER: 1.3, PVMER: 1.35, IRON_SOUL: 1.3, HARDCORE: 1.4, EFFICIENT_MAXER: 1.5, ELITE_GRINDER: 1.6 } },
-    { max: 1e8, mult: { IDLER: 0.4, SOCIALITE: 0.4, AFKER: 0.5, CASUAL: 0.8, FOCUSED: 1.1, SKILLER: 1.35, PVMER: 1.4, IRON_SOUL: 1.4, HARDCORE: 1.5, EFFICIENT_MAXER: 1.7, ELITE_GRINDER: 1.8 } }
+    {
+      max: 5e4,
+      mult: {
+        IDLER: 1.3,
+        SOCIALITE: 1.2,
+        AFKER: 1.1,
+        CASUAL: 1,
+        FOCUSED: 0.9,
+        SKILLER: 0.8,
+        PVMER: 0.7,
+        IRON_SOUL: 0.6,
+        HARDCORE: 0.5,
+        EFFICIENT_MAXER: 0.4,
+        ELITE_GRINDER: 0.4,
+      },
+    },
+    {
+      max: 5e5,
+      mult: {
+        IDLER: 1,
+        SOCIALITE: 1,
+        AFKER: 1,
+        CASUAL: 1,
+        FOCUSED: 1.05,
+        SKILLER: 1.05,
+        PVMER: 1,
+        IRON_SOUL: 0.9,
+        HARDCORE: 0.9,
+        EFFICIENT_MAXER: 0.7,
+        ELITE_GRINDER: 0.7,
+      },
+    },
+    {
+      max: 5e6,
+      mult: {
+        IDLER: 0.8,
+        SOCIALITE: 0.8,
+        AFKER: 0.85,
+        CASUAL: 1,
+        FOCUSED: 1.15,
+        SKILLER: 1.2,
+        PVMER: 1.15,
+        IRON_SOUL: 1,
+        HARDCORE: 1,
+        EFFICIENT_MAXER: 0.9,
+        ELITE_GRINDER: 0.9,
+      },
+    },
+    {
+      max: 2e7,
+      mult: {
+        IDLER: 0.6,
+        SOCIALITE: 0.6,
+        AFKER: 0.7,
+        CASUAL: 0.9,
+        FOCUSED: 1.2,
+        SKILLER: 1.3,
+        PVMER: 1.3,
+        IRON_SOUL: 1.2,
+        HARDCORE: 1.25,
+        EFFICIENT_MAXER: 1.3,
+        ELITE_GRINDER: 1.35,
+      },
+    },
+    {
+      max: 5.5e7,
+      mult: {
+        IDLER: 0.5,
+        SOCIALITE: 0.5,
+        AFKER: 0.6,
+        CASUAL: 0.85,
+        FOCUSED: 1.15,
+        SKILLER: 1.3,
+        PVMER: 1.35,
+        IRON_SOUL: 1.3,
+        HARDCORE: 1.4,
+        EFFICIENT_MAXER: 1.5,
+        ELITE_GRINDER: 1.6,
+      },
+    },
+    {
+      max: 1e8,
+      mult: {
+        IDLER: 0.4,
+        SOCIALITE: 0.4,
+        AFKER: 0.5,
+        CASUAL: 0.8,
+        FOCUSED: 1.1,
+        SKILLER: 1.35,
+        PVMER: 1.4,
+        IRON_SOUL: 1.4,
+        HARDCORE: 1.5,
+        EFFICIENT_MAXER: 1.7,
+        ELITE_GRINDER: 1.8,
+      },
+    },
   ];
   let multSet = modifiers[modifiers.length - 1].mult;
   for (const m of modifiers) {
@@ -296,149 +424,6 @@ export function assignArchetypeForTotalXP(totalXP2, rng = Math.random) {
   return weightedRandomChoice(weights);
 }
 
-export function assignRandomArchetype() {
-  const weights = Object.fromEntries(
-    Object.entries(PLAYER_ARCHETYPES).map(([name, data]) => [name, data.weight])
-  );
-  return weightedRandomChoice(weights);
-}
-
-export function sanitizeUsername(name) {
-  let n = String(name || '').replace(/[^a-zA-Z0-9_ -]/g, '');
-  n = n.replace(/^[_\-\s]+|[_\-\s]+$/g, '');
-  return n.slice(0, 12);
-}
-
-const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-const randChoice = (arr) => arr[Math.floor(Math.random() * arr.length)];
-const roll = (p) => Math.random() < p;
-const isAlpha = (w) => /^[a-z]+$/i.test(w);
-const hasVowel = (w) => /[aeiou]/i.test(w);
-const noLongConsonantRuns = (w) => !/[bcdfghjklmnpqrstvwxyz]{4,}/i.test(w);
-const looksLikeWord = (w) => isAlpha(w) && hasVowel(w) && noLongConsonantRuns(w);
-const capFirst = (w) => w.replace(/^[a-z]/, ch => ch.toUpperCase());
-
-function normalize(u) { return u.toLowerCase(); }
-
-const GOOD_MIN = 2;
-const GOOD_MAX = 12;
-
-function buildName(w1, w2) {
-  const a = String(w1 || '').trim();
-  const b = String(w2 || '').trim();
-
-  const pool = [a, b].filter(
-    w => w.length >= GOOD_MIN && w.length <= GOOD_MAX && looksLikeWord(w)
-  );
-  if (pool.length === 0) return null;
-
-  const tryTwoWords = roll(0.5) && pool.length >= 2;
-  const joiners = ['', ' ', '-', '_'];
-
-  const words = [...new Set(pool.map(w => w.toLowerCase()))].sort((x, y) => x.length - y.length);
-
-  const combos = [];
-  if (tryTwoWords && words.length >= 2) {
-    const wA = words[0], wB = words[1];
-    for (const j of joiners) {
-      combos.push(capFirst(wA) + j + capFirst(wB));
-      combos.push(capFirst(wB) + j + capFirst(wA));
-    }
-  }
-
-  for (const w of words) combos.push(capFirst(w));
-
-  const clean = combos.filter(c => c.length <= 12 && !/^\d/.test(c));
-  if (clean.length === 0) return null;
-
-  let base = randChoice(clean);
-  if (roll(0.25)) {
-    const suffix = String(randInt(1, 999));
-    if (base.length + suffix.length <= 12) base = base + suffix;
-  }
-
-  if (/^\d/.test(base) || base.length > 12) return null;
-  return base;
-}
-
-const isValidSanitizedName = (sanitizedName) =>
-  sanitizedName &&
-  !/^\d/.test(sanitizedName) &&
-  sanitizedName.length <= 12;
-
-export async function fetchRandomWords(count = 2, existingUsernames = new Set()) {
-  async function fetchBatch(n, deadlineMs) {
-    const maxRetries = 3;
-    for (let attempt = 0; attempt < maxRetries && Date.now() < deadlineMs; attempt++) {
-      try {
-        const resp = await fetch(`https://random-word-api.herokuapp.com/word?number=${n}`, {
-          cf: { cacheTtl: 60, cacheEverything: true }
-        });
-        if (!resp.ok) throw new Error('bad status');
-        const data = await resp.json();
-        if (Array.isArray(data) && data.length) return data.map(String);
-      } catch (_) { }
-      const remaining = Math.max(0, deadlineMs - Date.now());
-      if (!remaining) break;
-      const backoffMs = Math.min(remaining, 300 + attempt * 350);
-      await sleep(backoffMs);
-    }
-    return [];
-  }
-
-  const results = [];
-  const maxAttempts = Math.max(10, count * 5); // Lower min attempts for small counts, scale with count
-  let attempts = 0;
-  const maxTimeMs = 8000; // 8 seconds timeout
-  const startTime = Date.now();
-
-  const tryAddCandidate = (primary, secondary = null) => {
-    attempts++;
-    const name = buildName(primary, secondary);
-    if (!name) return false;
-    const sanitizedName = sanitizeUsername(name);
-    const key = normalize(sanitizedName);
-    if (
-      isValidSanitizedName(sanitizedName) &&
-      !existingUsernames.has(key)
-    ) {
-      results.push(sanitizedName);
-      existingUsernames.add(key);
-      return true;
-    }
-    return false;
-  };
-
-  while (
-    results.length < count &&
-    attempts < maxAttempts &&
-    (Date.now() - startTime) < maxTimeMs
-  ) {
-    const need = Math.max(6, (count - results.length) * 6);
-    const deadlineMs = startTime + maxTimeMs;
-    const batch = await fetchBatch(need, deadlineMs);
-    if (!batch.length) break;
-    const good = batch
-      .map(w => String(w || '').trim())
-      .filter(w => w.length >= GOOD_MIN && w.length <= GOOD_MAX && looksLikeWord(w));
-
-    for (let i = 0; i + 1 < good.length && results.length < count && attempts < maxAttempts; i += 2) {
-      const w1 = good[i];
-      const w2 = good[i + 1];
-      tryAddCandidate(w1, w2);
-    }
-
-    // Handle the last word if good.length is odd and more results are needed
-    if (good.length % 2 === 1 && results.length < count && attempts < maxAttempts) {
-      const w = good[good.length - 1];
-      tryAddCandidate(w, null);
-    }
-  }
-
-  return results;
-}
-
-// ———————————————————————————————————————————————————————————————
 // Persistent XP tier logic and per-user multipliers
 
 // Determine XP gain tier based on starting total XP; tier is persisted and not changed later.
@@ -449,7 +434,7 @@ export function determineXpGainTierFromTotal(startingTotalXp) {
     if (!Number.isFinite(max)) return row.tier; // Infinity catch-all
     if (n < max) return row.tier; // strict less-than keeps upper boundary in next tier
   }
-  return 'LOW';
+  return "LOW";
 }
 
 // Build per-user skill multipliers influenced by archetype and tier.
@@ -461,27 +446,38 @@ export function buildSkillMultipliers(archetype, xpTier) {
   // Base global multiplier by tier (higher tiers gain more per tick)
   const baseGlobalByTier = {
     // New 10-tier ladder
-    T1: 0.55, T2: 0.7, T3: 0.85, T4: 1.0, T5: 1.1,
-    T6: 1.25, T7: 1.4, T8: 1.6, T9: 1.9, T10: 2.2,
+    T1: 0.55,
+    T2: 0.7,
+    T3: 0.85,
+    T4: 1.0,
+    T5: 1.1,
+    T6: 1.25,
+    T7: 1.4,
+    T8: 1.6,
+    T9: 1.9,
+    T10: 2.2,
     // Backward-compat for previously stored tiers
-    LOW: 0.6, MID: 0.95, HIGH: 1.35, ELITE: 1.8
+    LOW: 0.6,
+    MID: 0.95,
+    HIGH: 1.35,
+    ELITE: 1.8,
   };
   let global = baseGlobalByTier[xpTier] ?? 1.0;
 
   // Archetype specific focus areas
   const focusByArchetype = INITIAL_DISTRIBUTION_ARCHETYPE_FOCUS;
 
-  const perSkill = Object.fromEntries(SKILLS.map(s => [s, 1.0]));
+  const perSkill = Object.fromEntries(SKILLS.map((s) => [s, 1.0]));
   const foci = new Set(focusByArchetype[archetype] || []);
   for (const s of SKILLS) {
     let mult = 1.0;
     if (foci.has(s)) mult *= 1.25; // 25% buff on focus skills
-    if (archetype === 'EFFICIENT_MAXER') mult *= 1.15;
-    if (archetype === 'ELITE_GRINDER') mult *= 1.20;
-    if (archetype === 'IDLER') mult *= 0.85;
-    if (archetype === 'SOCIALITE') mult *= 0.9;
-    if (archetype === 'AFKER') {
-      mult *= (foci.has(s) ? 1.05 : 0.95);
+    if (archetype === "EFFICIENT_MAXER") mult *= 1.15;
+    if (archetype === "ELITE_GRINDER") mult *= 1.2;
+    if (archetype === "IDLER") mult *= 0.85;
+    if (archetype === "SOCIALITE") mult *= 0.9;
+    if (archetype === "AFKER") {
+      mult *= foci.has(s) ? 1.05 : 0.95;
     }
     perSkill[s] = Math.min(3.0, Math.max(0.2, mult));
   }
@@ -495,5 +491,8 @@ export function buildSkillMultipliers(archetype, xpTier) {
 export function chooseActivityForUser(archetype, xpTier) {
   const tierProbs = XP_GAIN_TIER_ACTIVITY_WEIGHTS[xpTier];
   if (tierProbs) return weightedRandomChoice(tierProbs);
-  return weightedRandomChoice(ARCHETYPE_TO_ACTIVITY_PROBABILITY[archetype] || ARCHETYPE_TO_ACTIVITY_PROBABILITY.CASUAL);
+  return weightedRandomChoice(
+    ARCHETYPE_TO_ACTIVITY_PROBABILITY[archetype] ||
+      ARCHETYPE_TO_ACTIVITY_PROBABILITY.CASUAL,
+  );
 }

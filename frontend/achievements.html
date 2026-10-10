@@ -1,151 +1,26 @@
-<!DOCTYPE html>
-<html lang="en" class="h-full" data-theme="dark" data-api-base="https://osrs-hiscores-clone.vs.workers.dev">
-
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <meta name="color-scheme" content="light dark" />
-        <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f2e8" />
-        <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1a1611" />
-        <title>Achievements • OSRS Hiscores</title>
-        <link rel="preconnect" href="https://fonts.googleapis.com">
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300..800&display=swap" rel="stylesheet" />
-        <script>
-            // Apply saved theme early (default: dark) to avoid flash
-            (function () {
-                try {
-                    var saved = localStorage.getItem('theme');
-                    var t = saved || (matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-                    document.documentElement.setAttribute('data-theme', t);
-                } catch (_) {
-                    document.documentElement.setAttribute('data-theme', 'dark');
-                }
-            })();
-        </script>
-        <script src="https://cdn.tailwindcss.com"></script>
-        <link rel="stylesheet" href="styles.css" />
-        <script defer src="https://unpkg.com/lucide@latest"></script>
-        <script defer src="common.js"></script>
-        <script defer src="achievements.js"></script>
-
-        <style>
-            section#insightsContainer {
-                display: flex;
-                flex-direction: column;
-                align-items: stretch;
-            }
-
-            .min-h-full.flex-col {
-                margin: 0 auto;
-            }
-
-            main.flex-1.p-6.container-wrap {
-                margin: 0 auto;
-                width: 100%;
-            }
-        </style>
-    </head>
-
-    <body class="h-full bg-surface text-foreground transition-colors">
-        <div class="min-h-full flex flex-col w-full">
-            <header class="osrs-header p-4 flex-between flex-wrap gap-4">
-                <!-- Brand & Title -->
-                <div class="flex-items-center gap-4">
-                    <h1 class="flex-items-center gap-2 text-2xl font-extrabold text-white tracking-wide">
-                        <a href="index.html"
-                            class="brand-link flex-items-center gap-2 hover:text-gold transition-colors">
-                            <span class="text-gold">⚔️ OSRS</span>
-                            <span>Hiscores</span>
-                        </a>
-                    </h1>
-                    <div class="w-px h-6 bg-gold/50"></div>
-                    <span class="flex-items-center gap-2 text-xl font-semibold text-white/90">
-                        <i data-lucide="trophy" class="w-5 h-5"></i>
-                        Achievements
-                    </span>
-                </div>
-
-                <!-- Controls -->
-                <div class="flex-items-center gap-3">
-                    <!-- Theme Toggle -->
-                    <button id="themeToggle" class="icon-button" title="Toggle Theme">
-                        <i data-lucide="sun" class="w-5 h-5"></i>
-                    </button>
-                </div>
-            </header>
-            <main class="flex-1 p-6 container-wrap">
-                <nav aria-label="Breadcrumb" class="breadcrumb mb-4">
-                    <ol>
-                        <li>
-                            <a href="index.html" class="flex-items-center gap-1 hover:text-accent">
-                                <i data-lucide="home" class="w-4 h-4"></i>
-                                Home
-                            </a>
-                        </li>
-                        <li class="breadcrumb-sep">/</li>
-                        <li class="text-foreground">Achievements</li>
-                    </ol>
-                </nav>
-
-                <!-- Achievement Insights -->
-                <div class="space-y-8">
-                    <div class="text-center mb-4">
-                        <h2 class="text-3xl font-bold text-foreground mb-2">🕸️ Achievement Network</h2>
-                        <p class="text-muted text-lg max-w-3xl mx-auto">
-                            Explore how players and achievements connect. See who unlocks the most, which badges are
-                            common or rare, and how achievements cluster across the top players.
-                        </p>
-                    </div>
-
-                    <!-- Dynamic Insights: top players, common/rare, summary -->
-                    <section id="insightsContainer" class="space-y-6">
-                        <!-- Populated by achievements.js -->
-                    </section>
-
-                    <!-- Relationship Matrix (Players × Achievements) -->
-                    <section id="relationshipMatrix" class="space-y-3">
-                        <!-- Populated by achievements.js -->
-                    </section>
-
-                    <!-- Collapsible Catalog (secondary) -->
-                    <details id="catalogWrap" class="ach-catalog" open>
-                        <summary class="ach-catalog__summary">
-                            <span class="flex-items-center gap-2"><i data-lucide="grid" class="w-4 h-4"></i> Explore
-                                Achievement Catalog</span>
-                        </summary>
-                        <div id="achievementsContainer" class="space-y-8 mt-3">
-                            <!-- Categories will be populated by JavaScript -->
-                        </div>
-                    </details>
-                </div>
-            </main>
-            <footer class="p-4 text-xs text-muted text-center border-t border-border bg-layer site-footer">
-                <div class="flex-items-center justify-center gap-4 flex-wrap">
-                    <span>⚔️ Mock OSRS Hiscores</span>
-                    <span>•</span>
-                    <span data-tooltip="Serverless platform">🌩️ Powered by Cloudflare Workers</span>
-                </div>
-                <div class="mt-2 opacity-60 text-xs">
-                    API: <span id="currentApiBase"></span>
-                    <button id="openApiSettings" class="ml-2 underline hover:text-accent">Change</button>
-                    <button id="clearApiBase" class="ml-2 underline hover:text-accent">Reset</button>
-                </div>
-            </footer>
-        </div>
-        <div id="apiBasePanel" class="modal-overlay hidden">
-            <div class="modal">
-                <h2 class="text-lg font-semibold mb-3">API Endpoint</h2>
-                <label for="apiBaseInput" class="block text-sm mb-2">Base URL</label>
-                <input id="apiBaseInput" class="btn-input w-full px-3 py-2" type="url"
-                    placeholder="https://your-worker.example.workers.dev" />
-                <div class="flex justify-end gap-2 mt-4">
-                    <button id="apiBaseCancel" class="btn-sm" type="button">Cancel</button>
-                    <button id="apiBaseSave" class="btn-sm" type="button">Apply</button>
-                </div>
-            </div>
-        </div>
-        <div id="toastContainer" class="fixed top-4 right-4 flex flex-col gap-2 z-50"></div>
-    </body>
-
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#141d27" />
+    <meta
+      name="description"
+      content="Explore a living, simulated Old School RuneScape hiscores world. Follow the rankings, inspect players, and discover achievement firsts."
+    />
+    <title>OSRS Hiscores · The adventurer's ledger</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <script src="theme.js"></script>
+    <script src="config.js"></script>
+    <link rel="stylesheet" href="styles.css" />
+    <script type="module" src="app.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#content">Skip to content</a>
+    <div id="app"></div>
+    <noscript
+      >This hiscores explorer requires JavaScript. Enable it and reload this
+      page.</noscript
+    >
+  </body>
 </html>

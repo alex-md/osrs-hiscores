@@ -1,15 +1,15 @@
 name = "osrs-hiscores-clone"
 main = "src/index.js"
-compatibility_date = "2025-09-14"
-[placement]
-mode = "smart"
+compatibility_date = "2026-10-10"
+
+[assets]
+directory = "../frontend"
+binding = "ASSETS"
+run_worker_first = ["/api", "/api/*"]
 
 [observability]
 enabled = true
-head_sampling_rate = 1
 
-
-# Cron Trigger: Every 4 hours
 [triggers]
 crons = ["0 */4 * * *"]
 
@@ -17,5 +17,4 @@ crons = ["0 */4 * * *"]
 binding = "HISCORES_KV"
 id = "884ba8e6b3484b0eb148b1e847c7a29a"
 
-[vars]
-ADMIN_TOKEN = "secretseed"
+# Set ADMIN_TOKEN using `npx wrangler secret put ADMIN_TOKEN`.

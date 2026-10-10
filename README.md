@@ -1,336 +1,139 @@
-<div align="center">
+# OSRS Hiscores
 
-# ⚔️ OSRS Hiscores Clone
+A simulated Old School RuneScape world with overall rankings, all 23 skill ladders, player profiles, achievement history, and recorded firsts. Players gain XP every four hours. This is an independent fan project; the accounts are simulated and it is not affiliated with Jagex.
 
-_A modern, serverless, zero-build mock Old School RuneScape hiscores – fully simulated, self‑maintaining, and extensible._
+## Run locally
 
-</div>
+Requires Node.js 22 or newer.
 
-> Disclaimer: This project is a fan-made mock / educational clone. It is **not** affiliated with Jagex or the official Old School RuneScape hiscores. All RuneScape related names & imagery belong to their respective owners.
-
-## 1. High‑Level Overview
-
-This repository delivers a complete hiscores experience without a traditional backend server or database cluster. It combines:
-
-* **Cloudflare Worker + KV** – single lightweight API surface and scheduled simulation that keeps the world “alive”.
-* **Cloudflare Pages Function wrapper** – reuses identical Worker logic when deployed under Pages for unified routing (`functions/api/[[path]].js`).
-* **Static Frontend (Vanilla JS + Tailwind CDN)** – no build tooling; instant deploy; hash-based client routing for player profiles.
-* **Deterministic, incremental simulation layer** – periodically mutates player records to emulate activity archetypes & XP distribution.
-* **Pure-module architecture** – core logic (skill constants, simulation utilities, router) is exportable and testable, enabling agentic / automated tooling to compose or extend behavior programmatically.
-
-The result: a self-refreshing dataset, fast responses (all JSON assembly happens in the edge worker), and a frontend that progressively enhances with achievements and client-side analytics without extra backend writes.
-
-## 2. Key Features
-
-### Gameplay / Data Simulation
-* Weighted skill XP gain influenced by configurable **activity archetypes** & skill popularity weights.
-* Weekend global XP bonus multiplier for variation.
-* Automatic scheduled updates every **4 hours** (see `wrangler.toml`) updating a random 10–35% sample and spawning 1–2 new accounts.
-* Safe maintenance flags (e.g. `needsHpMigration`) + migration endpoints simulate real-world data correction tasks.
-
-### Player & Ranking Experience
-* Overall leaderboard (ranked by Total Level then Total XP) with client‑side pagination UI & rank highlighting (🥇🥈🥉).
-* Per-skill hiscores view with filters (name, min/max level & XP) and page controls.
-* Instant player profile view (hash route `#user/<username>`) showing per‑skill breakdown, computed combat level, and summary badges.
-* Achievement showcase (rarity‑sorted) with rarity tiers computed client-side from global distributions.
-* Debounced, accessible player search (ARIA combobox + keyboard navigation) with suggestions.
-* Dark / light theme toggle persisted via `localStorage` and pre-applied to eliminate FOUC.
-* API base override via query (`?api=`) or in-app settings modal; persisted for local / staging testing.
-
-### Operations & Admin Tooling
-* `/api/seed` bulk creation (admin token) – allows deterministic population during demos.
-* Batch & pattern-based deletion endpoints with **dry-run semantics** enabling safe automated curation (`/api/admin/users/delete-batch`, `/api/admin/users/delete-bad`).
-* `/api/cron/trigger` manual invocation of scheduled logic (useful for preview environments or integration tests).
-* `/api/debug` environment & binding inspection (non-secret) to verify deployment wiring.
-
-### Frontend Implementation Details
-* Zero build: Tailwind CDN, vanilla modules, and dynamic DOM construction utilities (`el`, `text`, `$`).
-* Optimistic progressive rendering (placeholder rows + error hints if backend misconfigured).
-* Accessibility: standardized ARIA roles, keyboard navigation for search & pagination; semantic table markup.
-* Achievement system is persisted server-side and projected client-side from backend truth.
-
-## 3. Project Structure
-
-```
-osrs-hiscores/
-├── frontend/                # Static client (no bundler)
-│   ├── index.html           # Leaderboard + profile (SPA-like via hash)
-│   ├── skill-hiscores.html  # Per-skill rankings UI
-│   ├── common.js            # Shared helpers (API base, DOM, theme, skill meta)
-│   ├── app.js               # Leaderboard + player profile logic
-│   ├── skill-hiscores.js    # Skill table view logic
-│   └── styles.css           # Custom theme / OSRS-inspired aesthetic
-├── functions/
-│   └── api/[[path]].js      # Cloudflare Pages Function delegating to Worker
-└── workers/
-    ├── src/constants.js     # Skills + archetype probability tables
-    ├── src/utils.js         # Simulation + general utilities (pure functions)
-    ├── src/index.js         # Router + handlers + scheduled task
-    ├── wrangler.toml        # Deployment & cron config
-    └── package.json         # Wrangler dev dependency & scripts
+```sh
+npm ci --prefix workers
+cp workers/.dev.vars.example workers/.dev.vars
+npm run dev
 ```
 
-### Architectural Rationale
-| Choice | Rationale | Trade-offs |
-| ------ | --------- | ---------- |
-| Cloudflare Worker + KV | Ultra-low latency global edge execution, simple key-value persistence, scheduled tasks built-in | KV eventual consistency; not ideal for strongly consistent counters |
-| Single-file router (`index.js`) | Centralized endpoint logic, easy to export for reuse (agentic scripts/tests) | File growth; mitigated via separated `constants.js` / `utils.js` |
-| Tailwind CDN + vanilla JS | Instant iteration, no build pipeline complexity | Larger initial CSS payload; fewer advanced framework ergonomics |
-| Client-side achievements | Avoids extra writes & migrations; flexible experimentation | Not authoritative (race conditions / “first to 99” placeholders) |
-| Dry-run admin endpoints | Enables safe automated maintenance from scripts/agents | Slightly more code branches to test |
+Open **http://localhost:8787**. Wrangler serves the frontend and API together and uses local KV storage. No frontend build, CSS runtime, icon CDN, or JavaScript framework is required. Google Fonts are optional; system fonts provide fallbacks.
 
-## 4. Backend API
+A new local namespace starts empty. To create accounts, use the token you placed in `.dev.vars`:
 
-### Endpoints
-| Method | Path | Description | Caching |
-| ------ | ---- | ----------- | -------- |
-| GET | `/api/health` | Liveness / quick check | no-store |
-| GET | `/api/debug` | Deployment diagnostics (non-secret) | no-store |
-| GET | `/api/leaderboard?limit=N` | Overall ranking (rank, total level, XP) (cap 5000) | max-age=30 |
-| GET | `/api/skill-rankings` | Full per-skill ranking arrays (XP+level) | max-age=30 |
-| GET | `/api/users` | Flat list of usernames (snapshot-backed) | max-age=120 |
-| GET | `/api/users/batch?usernames=a,b,c` | Bulk user fetch for selected usernames (cap 200) | max-age=30 |
-| GET | `/api/users/:username` | Full user document | max-age=15 |
-| GET | `/api/users/:username/hitpoints-check` | Validates HP migration need | max-age=15 |
-| POST | `/api/cron/trigger` | Manually run scheduled simulation | - |
-| POST | `/api/migrate/hitpoints` | Process queued HP migrations | - |
-| POST | `/api/seed` | Bulk create users (admin token) | - |
-| POST | `/api/admin/users/delete-batch` | Random or explicit batch deletion (dryRun supported) | - |
-| POST | `/api/admin/users/delete-bad` | Regex-based username purge (dryRun) | - |
-
-### Request / Response Conventions
-* All responses JSON with permissive CORS (`access-control-allow-origin: *`).
-* Admin endpoints require `x-admin-token: <ADMIN_TOKEN>` header OR `?token=` query.
-* Dry runs return a preview payload without modifying KV.
-
-### Data Model (KV)
-Key pattern: `user:<lowercased_username>`
-```jsonc
-{
-  "username": "Alicorn",
-  "createdAt": 1734567890123,
-  "updatedAt": 1734569990456,
-  "skills": {
-    "attack": { "xp": 12345, "level": 45 },
-    // ... all skills ...
-    "hitpoints": { "xp": 1154, "level": 10 }
-  },
-  "totalLevel": 523,
-  "totalXP": 1456789,
-  "activity": "FOCUSED",
-  "archetype": "CASUAL",
-  "needsHpMigration": false,
-  "version": 2
-}
+```sh
+curl http://localhost:8787/api/seed \
+  -X POST \
+  -H 'Content-Type: application/json' \
+  -H 'X-Admin-Token: replace-with-a-local-development-token' \
+  --data '{"usernames":["Rune Mage","Oak Knight","Iron Fox"]}'
 ```
 
-### Simulation Algorithm (Simplified)
-1. Sample fraction f ∈ [0.10, 0.35] of users.
-2. For each sampled user:
-   * Determine activity by weighted random using their archetype probability table.
-   * Draw XP budget from activity’s `[min,max]` with weekend multiplier (1.15 Sat/Sun).
-   * Select 1–5 random skills; allocate XP proportionally to skill popularity weights plus a small random jitter.
-   * Recompute levels (`levelFromXp`) + totals; maybe flag `needsHpMigration` (1% chance).
-3. Create 1–2 new users (random generated names) each cycle.
+`POST /api/cron/trigger` runs a simulation cycle with the same authentication. The scheduled handler initializes five accounts if the world is empty. Public reads never run the simulation.
 
-### Maintenance & Migration
-* `needsHpMigration` simulates deferred consistency tasks; endpoint `/api/migrate/hitpoints` corrects stale HP levels.
-* Version field allows future schema evolution (e.g., versioned achievements) without breaking existing records.
+## Publish
 
-#### v4: Persistent XP Gain Tiers
-New users are permanently classified into an XP gain tier based on their initial total XP at creation:
+### Cloudflare Worker (recommended)
 
-- LOW (starter/early game)
-- MID (developing)
-- HIGH (late game)
-- ELITE (top-tier)
+The Worker serves both the website and API. The existing `HISCORES_KV` namespace ID is retained in `workers/wrangler.toml`; change it only if you intend to use a different world.
 
-This tier never changes and constrains activity intensity. Each user also receives per-skill multipliers derived from their archetype and tier. High‑XP starters (e.g., 40m+) will always sample from the most intense activity bands; very low‑XP starters will remain in lower bands, indefinitely.
-
-Backfill existing users:
-
-```powershell
-curl -X POST http://127.0.0.1:8787/api/admin/migrate/v4
-```
-Scheduler will also lazily backfill missing fields during regular ticks.
-
-## 5. Frontend Architecture
-
-| File | Responsibility |
-| ---- | -------------- |
-| `common.js` | API base discovery, helper DOM factories, theme persistence, global constants (skill names & icons) |
-| `app.js` | Leaderboard rendering, user profile view, achievements derivation, client caches, routing (`hashchange`) |
-| `skill-hiscores.js` | Per-skill ranking screen, filtering logic, pagination state |
-| `styles.css` | Layered theme tokens (CSS custom props), OSRS-style gradient & pixel font integration, achievement rarity styling |
-
-### Client Caching & Performance
-* Thin in-memory caches for leaderboard, users list, and skill rankings to reduce duplicate network requests within a short window.
-* Conditional refresh windows (e.g., user list re-fetched if older than 60s) – a pragmatic balance between freshness and churn.
-* Rarity percentages for achievements computed once per page load & memoized (`window.__achievementStats`).
-
-### Achievement System Design
-* Catalog constructed deterministically (skill thresholds, rank tiers, playstyle, activity). New achievement categories can be appended with no backend migration.
-* Unlock evaluation is pure & local (derives from fetched rankings + user doc).
-* Prevalence & rarity tiers (mythic, legendary, etc.) computed from current ranking distribution – encourages emergent variability.
-* Placeholders (`first-99-<skill>`, `first-maxed-account`) intentionally non-authoritative; could be upgraded by persisting event registers server-side.
-
-### Accessibility Considerations
-* Search suggestion list implements ARIA combobox pattern (role=listbox / option, `aria-expanded` toggling) for screen reader compatibility.
-* Table semantics retained (thead/tbody) to ensure assistive technology can navigate cells logically.
-* Focus outlines preserved & enhanced via box-shadow for visibility across dark/light themes.
-
-## 6. Environment & Configuration
-
-| Config | Location | Purpose |
-| ------ | -------- | ------- |
-| `HISCORES_KV` | `wrangler.toml` binding | KV namespace storing user JSON blobs |
-| `ADMIN_TOKEN` | `wrangler.toml` / secret | Auth gate for mutation endpoints (seed / delete) |
-| Cron `0 */4 * * *` | `wrangler.toml` | Triggers simulation every 4 hours |
-
-### Local Development
-```powershell
+```sh
 cd workers
-npm install
-wrangler kv:namespace create HISCORES_KV
-wrangler secret put ADMIN_TOKEN
-wrangler dev
-```
-
-Serve frontend (any static server):
-```powershell
-cd ../frontend
-python -m http.server 8000
-```
-Then open http://localhost:8000 (update `data-api-base` in `<html>` or use `?api=` query to point at your local Worker URL, e.g. `http://127.0.0.1:8787`).
-
-### Deployment (Workers)
-```powershell
-cd workers
+npx wrangler login
+npx wrangler secret put ADMIN_TOKEN
 npm run deploy
 ```
-Front-end can be published separately (Pages / Netlify / GitHub Pages). For same-origin simplicity configure Workers Routes (commented section in `wrangler.toml`) and set `data-api-base` to your main site origin.
 
-## 7. Agentic Coding Patterns & Extensibility
+Keep `ADMIN_TOKEN` in Cloudflare secrets. It is deliberately absent from committed configuration. Existing deployments should replace the previously committed token with a fresh secret. Cron remains `0 */4 * * *` (UTC). Static assets run through Cloudflare's asset handler; `/api` and `/api/*` always reach the API router.
 
-The codebase includes deliberate patterns to support automated refactoring, autonomous feature agents, or scripted maintenance:
+The **Publish Cloudflare Worker** workflow is manual and uses the `cloudflare` GitHub environment. Configure `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets, then run it from Actions. Give the token permission to deploy the Worker, its assets, and the existing KV binding.
 
-1. **Pure Functions Exported** – `utils.js` (e.g. `levelFromXp`, `assignRandomArchetype`, `fetchRandomWords`) are side‑effect free (aside from network in the deliberately isolated word fetch) which eases test harness generation or AI-driven mutation.
-2. **Single Router Surface** – `handleApiRequest` exported separately from the Worker default export, enabling reuse in Pages Functions and potential future test runners (e.g., Miniflare, Vitest) with no mock duplication.
-3. **Dry-Run Admin Endpoints** – Explicit safe mode encourages autonomous agents to propose deletions then switch to live mode after human approval.
-4. **Data Version Field (`version`)** – Provides a guardrail for agents introducing new schema fields (bump version; write dual-read logic) minimizing migration risk.
-5. **Deterministic Key Patterns** – Uniform `user:<username>` keys allow mechanical scanning / migration scripts without discovery complexity.
-6. **In-Memory Client Caches with TTL** – Straightforward objects allow agents to experiment with cache invalidation or layering (e.g., adding IndexedDB) without altering external API contracts.
-7. **Configuration Isolation** – All probabilities, archetype weights & popularity multipliers live in `constants.js` for automated tuning experiments (e.g., reinforcement learning adjusting distribution to target desired retention curves).
-8. **Ephemeral Analytics (Achievements)** – Derived-only model means agents can safely iterate ranking criteria or rarity thresholds without state rewrites.
+### GitHub Pages
 
-### Example Extension Ideas
-* Persist authoritative achievement unlock events (append-only logs) – agent can watch unlock velocity & auto-balance thresholds.
-* Add WebSocket / SSE layer for live rank deltas (edge compute friendly) – incremental adoption without breaking existing fetch clients.
-* Introduce per-skill training efficiency simulation (rested bonus, diminishing returns) adjustable via config for A/B testing.
-* Automated anomaly detector script hitting `/api/leaderboard` + `/api/skill-rankings` comparing XP gradients to expected distribution; triggers rollback or quarantine endpoints (to be added) on outliers.
+Pushes to `main` run tests, syntax checks, and a Worker bundle check before publishing a static artifact built **only from `frontend/`**. The website is at the project root; redirects preserve old `/frontend/` bookmarks. GitHub Pages uses the repository’s `WORKER_BASE_URL` secret, falling back to `https://osrs-hiscores-clone.vs.workers.dev` as its API because it cannot execute Pages Functions. The publish script sets the connection explicitly, so custom domains such as `winrar.ai` work too. Connection settings can select a different Worker.
 
-## 8. Testing Strategy (Proposed)
-While no tests are committed yet, the functional seams allow:
-* **Unit tests** – Pure XP / level math (`levelFromXp`), archetype selection probabilities (statistical convergence tests).
-* **Integration tests** (Miniflare) – Boot Worker, call seed, run scheduled, validate leaderboards monotonicity & rank ordering invariants.
-* **Property tests** – Ensure `totalLevel(skills)` equals sum of individual levels across randomized skill maps.
+The client can also read the prior API during a rolling deployment. It paginates the available rows locally, derives profile ranks from the old snapshots, and builds the catalog from shared metadata. If an old skill snapshot is truncated, the UI explicitly states its coverage. Full rankings require the updated Worker.
 
-## 9. Performance & Scalability Notes
-* Ranking endpoints compute aggregates on-demand; for tens of thousands of users this remains feasible (KV list pagination + in-memory sort). For larger scales, a precompute pipeline (scheduled to write summary keys) would reduce tail latency.
-* Client requests (leaderboard / skill rankings) are cacheable for short windows – a CDN in front (already implicit with Workers) further amortizes cost.
-* Simulation only touches a fraction of users per cycle to bound write volume & avoid KV hotspotting.
+### Cloudflare Pages
 
-## 10. Security Considerations
-* `ADMIN_TOKEN` must be rotated and stored as a secret (avoid hardcoding in committed `wrangler.toml` for production).
-* CORS is wide open intentionally for demo; restrict origins if deployed publicly.
-* No user-generated content besides usernames (sanitized & length capped) minimizing XSS vectors.
-* Regex deletion endpoint validates pattern safety; still advisable to impose stricter allowlists in multi-tenant scenarios.
+For an existing Pages project, use `frontend` as the output directory with no build command. Keep `functions/` at the repository root and bind `HISCORES_KV` to the same namespace. The sole `/api/[[path]]` Function delegates to the same API handler; there are no route-shadowing placeholder Functions. Pages Functions do not run cron: deploy the Worker against the shared namespace for scheduled updates.
 
-## 11. Future Improvements
-* Precomputed & paginated leaderboard slices stored under `cache:leaderboard:<limit>` keys.
-* ETag / Last-Modified support for conditional GETs.
-* Persistent achievement & event timeline (time-to-99 metrics).
-* Rate limiting on admin endpoints (token-scoped quotas).
-* Formal test suite + CI (GitHub Actions + Miniflare).
-* Optional Web UI for admin maintenance (seed/delete/dry-run diff viewer).
+## Application
 
-## 11.a Achievement "Firsts" Persistence (v2)
+One application serves every view. Routes work on static hosts, including under a GitHub Pages project prefix:
 
-The system now maintains an authoritative record of the first player to unlock each backend-evaluated achievement plus aggregate unlock counts.
+- `#overall` — rankings, name filtering, pagination, page-size selection, CSV export.
+- `#skills/attack` — skill ladder, level and XP ranges, filtering, pagination, CSV export.
+- `#user/Rune%20Mage` — player summary, combat level, skill ranks, XP progress, achievement history.
+- `#achievements` — searchable catalog, category and rarity filters, sort controls, recent unlocks, recorded firsts.
 
-### Data Keys
-| KV Key | Purpose |
-| ------ | ------- |
-| `ach:firsts` | Legacy flat mapping `{ key: { username, timestamp } }` kept for backward compatibility |
-| `ach:firsts:v2` | Rich structure including counts & provenance |
+The older `skill-hiscores.html?skill=attack` and `achievements.html` entry points still work. Theme and connection preferences are optional local storage settings. `?api=https://example.workers.dev` temporarily selects another API. Blank connection settings restore the default. A missing API or failed request produces a retry screen with connection controls. Player search supports keyboard submission and native username suggestions.
 
-### v2 Schema
-```jsonc
-{
-  "version": 2,
-  "updatedAt": 1736543210000,
-  "keys": {
-    "total-2000": { "username": "Alicorn", "timestamp": 1736000000000, "source": "live" },
-    "maxed-account": { "username": "Zenith", "timestamp": 1736100000000, "source": "reconciled-earlier" }
-  },
-  "counts": {
-    "total-2000": 42,
-    "maxed-account": 3,
-    "skill-master-magic": 87
-  }
-}
+## API
+
+All responses are JSON with CORS enabled. Reads cache for 30 seconds, except health and diagnostics. Invalid input returns `400`, missing players/routes return `404`, invalid credentials return `401`, and unavailable bindings return `503`.
+
+| Method | Endpoint                              | Response                                                                            |
+| ------ | ------------------------------------- | ----------------------------------------------------------------------------------- |
+| GET    | `/api/health`                         | Liveness and KV binding status                                                      |
+| GET    | `/api/debug`                          | Binding status and last successful simulation; no secret values                     |
+| GET    | `/api/leaderboard`                    | Paginated overall ranking                                                           |
+| GET    | `/api/skill-rankings?skill=attack`    | Paginated skill ranking                                                             |
+| GET    | `/api/skill-rankings`                 | All skill rankings, retained for compatibility                                      |
+| GET    | `/api/users`                          | Sorted username list                                                                |
+| GET    | `/api/users/batch?usernames=Ada,Zed`  | Up to 200 player documents                                                          |
+| GET    | `/api/users/:username`                | Player document, authoritative rank, tier, combat level, skill ranks                |
+| GET    | `/api/users/:username/achievements`   | Highest achievement families plus full historical unlocks                           |
+| GET    | `/api/achievements/catalog`           | Shared metadata, historical unlock counts, rarity, recorded firsts                  |
+| GET    | `/api/achievements/stats`             | Historical unlock counts and player count                                           |
+| GET    | `/api/achievements/firsts`            | Earliest recorded unlocks, including legacy/v2 compatibility shape                  |
+| GET    | `/api/banners/rare`                   | Up to 12 recent recorded unlocks in the last 48 hours                               |
+| GET    | `/api/generate/users/dry-run?count=5` | Unique generated names without writes or external scrapers                          |
+| POST   | `/api/seed`                           | Create 1–200 named players; existing names are skipped                              |
+| POST   | `/api/cron/trigger`                   | Run the scheduled simulation                                                        |
+| POST   | `/api/admin/rebuild`                  | Normalize stored documents at read time and rebuild ranking/achievement projections |
+| POST   | `/api/admin/users/delete-batch`       | Preview or delete selected names, or a random batch                                 |
+
+Ranking parameters are `page` (default 1), `limit` (default 50; maximum 5000), and `q`. Skill rankings additionally accept `minLevel`, `maxLevel`, `minXP`, and `maxXP`. Filtering keeps the player's original global rank. Responses contain `players`, `page`, `pages`, `limit`, `total` (filtered count), `totalPlayers`, and `generatedAt`. An out-of-range page resolves to the final page.
+
+**Every POST requires `X-Admin-Token`.** Query-string tokens are not accepted. Deletion defaults to `dryRun: true`; only the boolean `false` performs deletion:
+
+```json
+{ "usernames": ["Ada"], "dryRun": true }
 ```
 
-Field `source` can be:
-* `legacy` – imported from the original map when bootstrapping.
-* `live` – captured in real time during a scheduled simulation tick.
-* `reconciled-earlier` – reconciliation detected an earlier timestamp than previously stored and corrected it.
-* `reconciled-new` – achievement existed in user docs but absent from firsts set (backfill scenario).
-* `reconstructed` – built entirely from scanning users when no data existed.
+The obsolete public migration, regex purge, hitpoints rebalance, and fake-word scraping endpoints have been removed. Stored levels/totals are normalized from XP when read, so the old one-off level migrations are unnecessary. Normalization preserves timestamps, persistent XP tiers, multipliers, and historical achievement data. Simulation never lowers XP and caps each skill at 200 million.
 
-### How It Works
-1. During each simulation persistence cycle (`persistAchievementStats`), newly unlocked achievements are merged.
-2. For each new unlock, the first user claim is set if absent (legacy + v2).
-3. A per-achievement counter is incremented (`counts[key]++`). If counts were missing (cold start), they are later initialized using a prevalence snapshot.
-4. A reconciliation pass scans all users to detect earlier timestamps (handles race conditions or previous logic changes).
-5. Results written to both `ach:firsts` (compat) and `ach:firsts:v2` (current source of truth).
+## Data and consistency
 
-### Public Endpoint
-`GET /api/achievements/firsts` returns:
-```jsonc
-{
-  "updatedAt": 1736543330123,
-  "firsts": { "total-2000": { "username": "Alicorn", "timestamp": 1736000000000 }, ... },
-  "v2": { /* full schema above */ }
-}
+Permanent records remain under `user:<lowercase name>`. Existing player data and the `ach:firsts`, `ach:firsts:v2`, and `ach:events` stores are read and retained. No namespace reset or bulk migration is needed.
+
+A successful simulation publishes a generation-scoped snapshot. Overall and per-skill rankings are stored in 500-row shards to stay under KV value limits. The `snapshot:current` manifest is written after all shards, with one generation's timestamp, counts, and firsts. Readers never deliberately combine generations. Temporary KV replication gaps produce a retryable error rather than partial or invented results. Snapshot shards expire after 30 days; an expired manifest can be rebuilt from permanent player records.
+
+Achievement counts reflect retained historical unlocks rather than inferred lower milestones. Firsts are reconciled against earlier stored timestamps, including legacy mappings, and remain historical even if a player is removed. Missing records cannot reconstruct an exact historical unlock time; new discoveries use the time they were recorded.
+
+KV is eventually consistent. The in-process mutation guard prevents overlapping jobs within one isolate, but is **not a distributed lock**. Avoid overlapping manual and scheduled operations. Strict serialization across isolates or strongly consistent rankings would require a Durable Object or a transactional store. The UI shows snapshot timestamps so stale data is visible.
+
+## Structure and verification
+
+```text
+frontend/
+  app.js                   Routing and view rendering
+  styles.css               Shared responsive design system
+  lib/api.js               Connection handling and v1 transition reader
+  lib/domain.js            Shared skills, combat math, rarity
+  lib/achievement-keys.js   Backend/frontend achievement contract
+  lib/catalog.js           Shared achievement metadata
+functions/api/[[path]].js   Cloudflare Pages adapter
+workers/src/
+  index.js                 API routing and Worker entry point
+  http.js                  Validation, errors, auth, pagination
+  store.js                 KV access and player normalization
+  snapshots.js             Rankings, unlock persistence, firsts, snapshot publishing
+  simulation.js            Account generation and scheduled progress
+  achievements.js          Achievement evaluation
+  constants.js, utils.js   Simulation probabilities and XP math
 ```
 
-### Edge Cases Handled
-* Duplicate unlock processing: idempotent because only the first claim sets the record.
-* Earlier historical timestamps discovered later: reconciliation updates `source` and timestamp.
-* Missing v2 store but existing legacy mapping: automatic bootstrap.
-* Total-milestone pruning: only the highest total-* remains on user docs; reconciliation still picks earliest across surviving keys.
-* Eventual consistency of KV: reconciliation on each tick self-heals minor ordering anomalies.
+```sh
+npm test
+npm run check
+cd workers && npx wrangler deploy --dry-run
+```
 
-### Future Ideas
-* Append-only per-achievement event logs (time-series) for trend analytics.
-* Client rarity tier adjustments using `counts` without re-evaluating all players.
-* Leaderboard overlays (e.g., highlight players who hold any firsts).
-* Export endpoint for data science / external dashboards.
-
-## 12. Quick Start Cheat Sheet
-| Action | Command (PowerShell) |
-| ------ | -------------------- |
-| Install worker deps | `cd workers; npm install` |
-| Run dev worker | `wrangler dev` |
-| Serve frontend | `cd ../frontend; python -m http.server 8000` |
-| Seed users | `curl -X POST http://127.0.0.1:8787/api/seed?token=<TOKEN> -H "content-type: application/json" --data '{"usernames":["Alice"]}'` |
-| Trigger simulation | `curl -X POST http://127.0.0.1:8787/api/cron/trigger` |
-| Dry-run delete random 50 | `curl -X POST http://127.0.0.1:8787/api/admin/users/delete-batch?token=<TOKEN> -H "content-type: application/json" --data '{"limit":50,"dryRun":true}'` |
-
-## 13. License
-
-MIT
-
----
-If you build on this, feel free to open a PR with extensions (tests, precompute layer, real-time streaming) – the structure is intentionally simple so agents _and_ humans can reason about it quickly.
+Tests exercise API contracts, malformed input, authorization, KV pagination, rankings beyond 500 accounts, tie ordering, profile ranks, preserved history, firsts reconciliation, dry-run deletion, scheduled progress, environment isolation, and Worker/Pages parity. Browser verification should cover desktop/mobile layouts, light/dark themes, search, filters, pagination, profiles, achievements, retry states, and legacy API compatibility.

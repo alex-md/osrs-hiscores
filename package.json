@@ -1,0 +1,12 @@
+{
+  "name": "osrs-hiscores",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npm --prefix workers run dev",
+    "test": "npm --prefix workers test",
+    "deploy": "npm --prefix workers run deploy",
+    "check": "node scripts/check.mjs"
+  }
+}
