@@ -4,14 +4,27 @@ import worker, { handleApiRequest, runScheduled } from "./index.js";
 import { onRequest } from "../../functions/api/[[path]].js";
 import { SKILLS } from "./constants.js";
 import { xpForLevel, totalLevel, totalXP } from "./utils.js";
-import { putUser, allUsers } from "./store.js";
+import { putUser, allUsers, mapBatches } from "./store.js";
 import { publishSnapshot } from "./snapshots.js";
 import { computeAchievementContext } from "./achievements.js";
 import { combatLevel, rarity } from "../../frontend/lib/domain.js";
 
 class MemoryKV {
   data = new Map();
-  async get(key) {
+  async get(key, type) {
+    if (Array.isArray(key)) {
+      assert.ok(key.length <= 100);
+      return new Map(
+        key.map((k) => [
+          k,
+          this.data.has(k)
+            ? type === "json"
+              ? JSON.parse(this.data.get(k))
+              : this.data.get(k)
+            : null,
+        ]),
+      );
+    }
     return this.data.get(key) || null;
   }
   async put(key, value) {
@@ -270,4 +283,37 @@ test("combat and rarity definitions distinguish unclaimed milestones", () => {
   assert.equal(combatLevel(player("Max", 99).skills), 126);
   assert.equal(rarity(0, 100), "unclaimed");
   assert.equal(rarity(1, 10000), "mythic");
+});
+
+test("bulk player reads avoid one KV operation per player and respect the 100-key cap", async () => {
+  const e = env();
+  for (let i = 0; i < 1200; i++) await putUser(e, player(`User${i}`));
+  let calls = 0;
+  const get = e.HISCORES_KV.get.bind(e.HISCORES_KV);
+  e.HISCORES_KV.get = async (...args) => {
+    calls++;
+    assert.ok(Array.isArray(args[0]));
+    return get(...args);
+  };
+  assert.equal((await allUsers(e)).length, 1200);
+  assert.equal(calls, 12);
+});
+test("bounded KV writes finish in-flight work and propagate errors before publishing", async () => {
+  let active = 0,
+    peak = 0,
+    completed = 0;
+  await assert.rejects(
+    mapBatches([1, 2, 3, 4], 2, async (value) => {
+      active++;
+      peak = Math.max(peak, active);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      active--;
+      completed++;
+      if (value === 1) throw new Error("KV unavailable");
+    }),
+    /KV unavailable/,
+  );
+  assert.equal(peak, 2);
+  assert.equal(completed, 2);
+  assert.equal(active, 0);
 });

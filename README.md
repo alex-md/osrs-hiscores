@@ -103,6 +103,8 @@ The obsolete public migration, regex purge, hitpoints rebalance, and fake-word s
 
 Permanent records remain under `user:<lowercase name>`. Existing player data and the `ach:firsts`, `ach:firsts:v2`, and `ach:events` stores are read and retained. No namespace reset or bulk migration is needed.
 
+Player scans use Cloudflare KV bulk reads in groups of up to 100 keys. Independent writes run in bounded batches, with failures propagated before publishing a snapshot. This avoids one subrequest per player and long serial startup work.
+
 A successful simulation publishes a generation-scoped snapshot. Overall and per-skill rankings are stored in 500-row shards to stay under KV value limits. The `snapshot:current` manifest is written after all shards, with one generation's timestamp, counts, and firsts. Readers never deliberately combine generations. Temporary KV replication gaps produce a retryable error rather than partial or invented results. Snapshot shards expire after 30 days; an expired manifest can be rebuilt from permanent player records.
 
 Achievement counts reflect retained historical unlocks rather than inferred lower milestones. Firsts are reconciled against earlier stored timestamps, including legacy mappings, and remain historical even if a player is removed. Missing records cannot reconstruct an exact historical unlock time; new discoveries use the time they were recorded.

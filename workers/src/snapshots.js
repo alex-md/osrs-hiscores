@@ -6,7 +6,14 @@ import {
   mergeNewUnlocks,
   ACHIEVEMENT_KEYS,
 } from "./achievements.js";
-import { allUsers, readJSON, writeJSON, putUser } from "./store.js";
+import {
+  allUsers,
+  readJSON,
+  writeJSON,
+  putUser,
+  mapBatches,
+  readManyJSON,
+} from "./store.js";
 
 const CHUNK_SIZE = 500;
 const rebuilds = new WeakMap();
@@ -48,19 +55,22 @@ export async function publishSnapshot(env, users = null) {
   users ||= await allUsers(env);
   const now = Date.now(),
     context = computeAchievementContext(users);
-  const legacy = await readJSON(env, "ach:firsts", {});
-  const previous = await readJSON(env, "ach:firsts:v2", {});
+  const [legacy, previous, log] = await Promise.all([
+    readJSON(env, "ach:firsts", {}),
+    readJSON(env, "ach:firsts:v2", {}),
+    readJSON(env, "ach:events", { events: [] }),
+  ]);
   const firsts = { ...legacy };
   for (const [key, value] of Object.entries(previous.keys || {})) {
     if (!firsts[key] || value.timestamp < firsts[key].timestamp)
       firsts[key] = value;
   }
-  const log = await readJSON(env, "ach:events", { events: [] });
-  const events = [];
+  const events = [],
+    changedUsers = [];
   for (const user of users) {
     const unlocked = evaluateAchievements(user, context);
     const added = mergeNewUnlocks(user, unlocked, now);
-    if (added.length) await putUser(env, user);
+    if (added.length) changedUsers.push(user);
     for (const key of added)
       events.push({ key, username: user.username, timestamp: now });
     for (const [key, timestamp] of Object.entries(user.achievements)) {
@@ -75,6 +85,7 @@ export async function publishSnapshot(env, users = null) {
         };
     }
   }
+  await mapBatches(changedUsers, 16, (user) => putUser(env, user));
   for (const [key, prefix] of [
     ["first-99-any", "skill-master-"],
     ["first-top1-any", "crowned-any"],
@@ -100,19 +111,24 @@ export async function publishSnapshot(env, users = null) {
     counts[key] = firsts[key] ? 1 : 0;
   const rankings = buildRankings(users, context);
   const generation = `${now}-${crypto.randomUUID()}`;
-  const chunks = {};
+  const chunks = {},
+    writes = [];
   // Generation-scoped shards prevent readers combining two different simulation ticks.
   // Expired snapshots can always be rebuilt from permanent player documents.
   for (const [name, rows] of Object.entries(rankings)) {
     chunks[name] = Math.ceil(rows.length / CHUNK_SIZE);
     for (let i = 0; i < chunks[name]; i++) {
-      await env.HISCORES_KV.put(
-        `snapshot:${generation}:${name}:${i}`,
-        JSON.stringify(rows.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE)),
-        { expirationTtl: 2_592_000 },
-      );
+      writes.push({
+        key: `snapshot:${generation}:${name}:${i}`,
+        value: rows.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE),
+      });
     }
   }
+  await mapBatches(writes, 16, ({ key, value }) =>
+    env.HISCORES_KV.put(key, JSON.stringify(value), {
+      expirationTtl: 2_592_000,
+    }),
+  );
   const snapshot = {
     version: 1,
     generation,
@@ -150,11 +166,12 @@ export async function getSnapshot(env) {
   return snapshot;
 }
 export async function rankingRows(env, snapshot, name) {
-  const batches = await Promise.all(
-    Array.from({ length: snapshot.chunks[name] || 0 }, (_, i) =>
-      readJSON(env, `snapshot:${snapshot.generation}:${name}:${i}`),
-    ),
+  const keys = Array.from(
+    { length: snapshot.chunks[name] || 0 },
+    (_, i) => `snapshot:${snapshot.generation}:${name}:${i}`,
   );
+  const values = await readManyJSON(env, keys);
+  const batches = keys.map((key) => values.get(key));
   if (batches.some((b) => !Array.isArray(b)))
     throw new Error(
       "Ranking snapshot is temporarily unavailable. Retry shortly.",

@@ -36,6 +36,29 @@ export function normalizeUser(user) {
     achievements: user.achievements || {},
   };
 }
+// Keep independent KV operations bounded, and wait for the whole batch before
+// publishing a manifest or proceeding to dependent operations.
+export async function mapBatches(items, limit, mapper) {
+  const results = [];
+  for (let i = 0; i < items.length; i += limit) {
+    const batch = await Promise.allSettled(
+      items.slice(i, i + limit).map(mapper),
+    );
+    const failure = batch.find((result) => result.status === "rejected");
+    if (failure) throw failure.reason;
+    results.push(...batch.map((result) => result.value));
+  }
+  return results;
+}
+export async function readManyJSON(env, keys) {
+  const groups = [];
+  for (let i = 0; i < keys.length; i += 100)
+    groups.push(keys.slice(i, i + 100));
+  const maps = await mapBatches(groups, 4, (group) =>
+    env.HISCORES_KV.get(group, "json"),
+  );
+  return new Map(maps.flatMap((values) => [...values]));
+}
 export async function allUsers(env) {
   const users = [];
   let cursor;
@@ -45,13 +68,13 @@ export async function allUsers(env) {
       limit: 1000,
       ...(cursor ? { cursor } : {}),
     });
-    // Bound read concurrency without swallowing failures or publishing partial rankings.
-    for (let i = 0; i < page.keys.length; i += 16) {
-      const batch = await Promise.all(
-        page.keys.slice(i, i + 16).map((k) => readJSON(env, k.name)),
-      );
-      users.push(...batch.filter(Boolean).map(normalizeUser));
-    }
+    // Native bulk reads consume one subrequest per 100 keys, rather than one
+    // per player, and avoid dozens of serial cold-read round trips.
+    const values = await readManyJSON(
+      env,
+      page.keys.map((k) => k.name),
+    );
+    users.push(...[...values.values()].filter(Boolean).map(normalizeUser));
     cursor = page.list_complete ? null : page.cursor;
     if (!page.list_complete && !cursor)
       throw new Error("KV listing returned no continuation cursor");

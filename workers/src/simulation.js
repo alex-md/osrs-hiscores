@@ -17,7 +17,13 @@ import {
   totalLevel,
   totalXP,
 } from "./utils.js";
-import { allUsers, normalizeUser, putUser, writeJSON } from "./store.js";
+import {
+  allUsers,
+  normalizeUser,
+  putUser,
+  writeJSON,
+  mapBatches,
+} from "./store.js";
 import { publishSnapshot } from "./snapshots.js";
 
 export function generateUsername(existing = new Set()) {
@@ -117,11 +123,12 @@ export async function runScheduled(env) {
   const count = users.length
     ? Math.max(1, Math.floor(users.length * (0.1 + Math.random() * 0.25)))
     : 0;
-  const pool = [...users];
+  const pool = [...users],
+    changed = [];
   for (let i = 0; i < count; i++) {
     const user = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
     progressUser(user);
-    await putUser(env, user);
+    changed.push(user);
   }
   const newCount = users.length ? 1 + Math.floor(Math.random() * 2) : 5;
   for (let i = 0; i < newCount; i++) {
@@ -129,8 +136,9 @@ export async function runScheduled(env) {
     existing.add(username.toLowerCase());
     const user = newUser(username);
     users.push(user);
-    await putUser(env, user);
+    changed.push(user);
   }
+  await mapBatches(changed, 16, (user) => putUser(env, user));
   const snapshot = await publishSnapshot(env, users);
   const result = {
     processed: count,
