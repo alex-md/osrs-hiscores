@@ -1,6 +1,11 @@
 import { ACHIEVEMENT_KEYS } from "./achievement-keys.js";
 import { title, rarity } from "./domain.js";
 const descriptions = {
+  "first-session": "Complete your first recorded training session.",
+  "hundred-sessions": "Complete 100 recorded training sessions.",
+  "million-xp-day": "Earn 1 million simulated XP in a UTC day.",
+  "base-70": "Reach level 70 in every skill.",
+  "patient-master": "Reach level 99 in both Agility and Runecraft.",
   "triple-crown": "Hold rank 1 in at least three skills.",
   "crowned-any": "Hold rank 1 in a skill.",
   "top-10-any": "Reach the top 10 in a skill.",
@@ -62,6 +67,16 @@ export function catalog(counts = {}, totalPlayers = 0, firsts = {}) {
       description = `Reach level 85 in ${title(key.split("-")[0])}.`;
       category = "Mastery";
     }
+    if (
+      [
+        "first-session",
+        "hundred-sessions",
+        "million-xp-day",
+        "base-70",
+      ].includes(key)
+    )
+      category = "Progression";
+    if (key === "patient-master") category = "Mastery";
     if (/^total-/.test(key)) {
       name = `${key.slice(6)} total level`;
       description = `Reach a total level of ${key.slice(6)}.`;

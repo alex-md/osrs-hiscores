@@ -14,7 +14,14 @@ const ACHIEVEMENT_FAMILY_CHAINS = [
   ["triple-crown", "crowned-any"],
   ["top-10-any", "top-100-any"],
   ["maxed-account", "seven-99s", "five-99s"],
-  ["total-2277", "total-2200", "total-2000", "total-1500"],
+  [
+    "total-2277",
+    "total-2200",
+    "total-2000",
+    "total-1500",
+    "total-1000",
+    "total-500",
+  ],
   ["elite", "versatile", "consistent"],
   ["level-90-average", "level-75-average", "level-50-average"],
   // XP thresholds: keep highest
@@ -99,6 +106,14 @@ export function evaluateAchievements(user, ctx) {
   );
   const totalLvl = Number(user.totalLevel || 0);
   const totalXp = Number(user.totalXP || 0);
+
+  if (user.progress?.sessions >= 1) out.add("first-session");
+  if (user.progress?.sessions >= 100) out.add("hundred-sessions");
+  if (user.progress?.dayXP >= 1_000_000) out.add("million-xp-day");
+  if (SKILLS.every((s) => levels[s] >= 70)) out.add("base-70");
+  if (levels.agility >= 99 && levels.runecraft >= 99) out.add("patient-master");
+  if (totalLvl >= 500) out.add("total-500");
+  if (totalLvl >= 1000) out.add("total-1000");
 
   // Prestige tier achievements
   if (ctx) {

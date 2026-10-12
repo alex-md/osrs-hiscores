@@ -317,3 +317,120 @@ test("bounded KV writes finish in-flight work and propagate errors before publis
   assert.equal(completed, 2);
   assert.equal(active, 0);
 });
+
+test("packed snapshots cut writes and profiles read one generation with two cold KV reads", async () => {
+  const e = env();
+  const users = Array.from({ length: 501 }, (_, i) => player(`User${i}`));
+  let writes = 0;
+  const put = e.HISCORES_KV.put.bind(e.HISCORES_KV);
+  e.HISCORES_KV.put = async (key, value) => {
+    if (key.includes(":rankings:")) writes++;
+    return put(key, value);
+  };
+  const snapshot = await publishSnapshot(e, users);
+  assert.equal(writes, 2); // Previously 48 ranking shard writes.
+  let reads = 0;
+  const get = e.HISCORES_KV.get.bind(e.HISCORES_KV);
+  e.HISCORES_KV.get = async (...args) => {
+    reads++;
+    return get(...args);
+  };
+  const response = await (await call(e, "/api/users/User500")).json();
+  assert.equal(reads, 2);
+  assert.equal(response.generation, snapshot.generation);
+  assert.equal(response.ranks.attack, 448);
+  assert.equal(response.training.scale, 3.5);
+  // Direct documents can be ahead of the published generation; profiles stay consistent.
+  await putUser(e, player("User500", 99));
+  const stillPublished = await (await call(e, "/api/users/User500")).json();
+  assert.equal(stillPublished.skills.attack.level, 50);
+  assert.ok(stillPublished.goal.remainingXP > 0);
+});
+test("scheduled updates process every existing player and persist each at most once", async () => {
+  const e = env();
+  for (let i = 0; i < 20; i++) await putUser(e, player(`User${i}`));
+  const calls = new Map();
+  const put = e.HISCORES_KV.put.bind(e.HISCORES_KV);
+  e.HISCORES_KV.put = async (key, value) => {
+    calls.set(key, (calls.get(key) || 0) + 1);
+    return put(key, value);
+  };
+  const result = await runScheduled(e);
+  assert.equal(result.processed, 20);
+  assert.ok(
+    [...calls]
+      .filter(([key]) => key.startsWith("user:"))
+      .every(([, n]) => n === 1),
+  );
+  const world = await (await call(e, "/api/world")).json();
+  assert.equal(world.training.scale, 3.5);
+  assert.equal(world.generatedAt, result.generatedAt);
+});
+
+test("snapshot profile indexes support names matching object properties", async () => {
+  const e = env();
+  await publishSnapshot(e, [player("__proto__"), player("constructor")]);
+  assert.equal(
+    (await (await call(e, "/api/users/__proto__")).json()).username,
+    "__proto__",
+  );
+  assert.equal(
+    (await (await call(e, "/api/users/constructor")).json()).username,
+    "constructor",
+  );
+  const batch = await (
+    await call(e, "/api/users/batch?usernames=__proto__,constructor,missing")
+  ).json();
+  assert.equal(batch.returned, 2);
+});
+test("edge cache serves repeated reads without KV operations and diagnostics stay uncached", async (t) => {
+  const e = env();
+  await publishSnapshot(e, [player("Ada")]);
+  const cached = new Map(),
+    pending = [];
+  const original = Object.getOwnPropertyDescriptor(globalThis, "caches");
+  Object.defineProperty(globalThis, "caches", {
+    configurable: true,
+    value: {
+      default: {
+        match: async (request) => cached.get(request.url)?.clone(),
+        put: async (request, response) => cached.set(request.url, response),
+      },
+    },
+  });
+  t.after(() => {
+    if (original) Object.defineProperty(globalThis, "caches", original);
+    else delete globalThis.caches;
+  });
+  const ctx = { waitUntil: (promise) => pending.push(promise) };
+  let reads = 0;
+  const get = e.HISCORES_KV.get.bind(e.HISCORES_KV);
+  e.HISCORES_KV.get = async (...args) => {
+    reads++;
+    return get(...args);
+  };
+  const request = new Request("https://hiscores.test/api/users/Ada");
+  assert.equal((await worker.fetch(request, e, ctx)).status, 200);
+  await Promise.all(pending);
+  const firstReads = reads;
+  assert.ok(firstReads > 0);
+  assert.equal((await worker.fetch(request, e, ctx)).status, 200);
+  assert.equal(reads, firstReads);
+  await worker.fetch(new Request("https://hiscores.test/api/debug"), e, ctx);
+  await Promise.all(pending);
+  assert.equal(cached.size, 1);
+});
+
+test("full skill rankings load each packed shard once", async () => {
+  const e = env();
+  await publishSnapshot(e, [player("Ada")]);
+  let reads = 0;
+  const get = e.HISCORES_KV.get.bind(e.HISCORES_KV);
+  e.HISCORES_KV.get = async (...args) => {
+    reads++;
+    return get(...args);
+  };
+  const response = await (await call(e, "/api/skill-rankings")).json();
+  assert.equal(reads, 2);
+  assert.equal(Object.keys(response.rankings).length, 23);
+});

@@ -1,18 +1,6 @@
 export { SKILLS } from "../../frontend/lib/domain.js";
 import { SKILLS } from "../../frontend/lib/domain.js";
 
-// Units: total XP earned during the sampling window (your existing window length).
-// Ranges are inclusive of the lower bound and exclusive of the upper bound.
-export const PLAYER_ACTIVITY_TYPES = {
-  INACTIVE: { xpRange: [0, 100] },
-  BANK_STANDING: { xpRange: [100, 500] },
-  CASUAL: { xpRange: [500, 3000] },
-  FOCUSED: { xpRange: [3000, 12000] },
-  HARDCORE: { xpRange: [12000, 50000] },
-  GRINDING: { xpRange: [50000, 150000] },
-  UNHEALTHY: { xpRange: [150000, 400000] },
-};
-
 // ———————————————————————————————————————————————————————————————
 // Archetype sampling weights (rarer top tiers; slightly higher mid-tier for competition)
 // Interpretation: non-normalized relative weights for RNG sampling.

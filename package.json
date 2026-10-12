@@ -7,6 +7,7 @@
     "dev": "npm --prefix workers run dev",
     "test": "npm --prefix workers test",
     "deploy": "npm --prefix workers run deploy",
-    "check": "node scripts/check.mjs"
+    "check": "node scripts/check.mjs",
+    "calibrate": "node scripts/calibrate-rates.mjs"
   }
 }

@@ -1,4 +1,11 @@
 export const ACHIEVEMENT_KEYS = [
+  "first-session",
+  "hundred-sessions",
+  "million-xp-day",
+  "base-70",
+  "patient-master",
+  "total-500",
+  "total-1000",
   // Prestige tiers (computed from overall rank percentile or dominance)
   "tier-grandmaster",
   "tier-master",

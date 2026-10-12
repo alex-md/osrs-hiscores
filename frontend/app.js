@@ -1,5 +1,5 @@
 import { SKILLS, SKILL_SYMBOLS, title } from "./lib/domain.js";
-import { request, apiBase, saveBase } from "./lib/api.js";
+import { request, apiBase, saveBase, latestGeneration } from "./lib/api.js";
 
 const $ = (selector) => document.querySelector(selector);
 const number = (value) =>
@@ -163,7 +163,7 @@ function stats(items) {
   return `<div class="stat-strip">${items.map(([label, value, suffix = ""]) => `<div class="stat"><span>${label}</span><strong>${value}${suffix ? `<small>${suffix}</small>` : ""}</strong></div>`).join("")}</div>`;
 }
 function markUpdated(data) {
-  return `<span class="updated"><span class="status-dot"></span> Updated ${date(data.generatedAt)}</span>`;
+  return `<span class="updated"><span class="status-dot"></span> Updated ${date(data.generatedAt)}${data.training ? ` · ${data.training.scale}× XP world` : ""}</span>`;
 }
 function tierBadge(tier) {
   return `<span class="tier-badge ${["Grandmaster", "Master", "Diamond"].includes(tier) ? "prestige" : ""}">${escape(tier || "Novice")}</span>`;
@@ -226,7 +226,7 @@ async function rankingView(current, signal, revision) {
       <label>Rows<select name="limit">${[25, 50, 100].map((n) => `<option value="${n}" ${data.limit === n ? "selected" : ""}>${n}</option>`).join("")}</select></label><button class="button primary">Apply</button><button class="button subtle" type="button" id="clear-filters">Reset</button></form>
       ${rankTable(data.players, skill)}${pager(data)}
     </section><div class="below-table"><p>${skill ? "Ranks are ordered by XP. Ties are settled by player name." : "Ranks are ordered by total level, then total XP, then player name."}</p><button id="export" class="text-button">↓ Export this page</button></div>
-    <section class="ledger-note"><span aria-hidden="true">✦</span><div><h3>The next chapter is always being written.</h3><p>Every four hours, a group of adventurers gains XP and new accounts join the world. Open any player to explore their skills and recorded achievements.</p></div><a href="#achievements">Explore achievements ↗</a></section>`;
+    <section class="ledger-note"><span aria-hidden="true">✦</span><div><h3>The next chapter is always being written.</h3><p>Every four hours, adventurers choose whether to train at skill-specific rates with 3.5× XP, and new accounts join the world. Open any player to explore their skills and recorded achievements.</p></div><a href="#achievements">Explore achievements ↗</a></section>`;
   $("#filters").addEventListener("submit", (event) => {
     event.preventDefault();
     updateQuery({
@@ -292,6 +292,8 @@ async function playerView(current, signal, revision) {
       ["Total experience", number(user.totalXP)],
       ["Combat level", number(user.combatLevel), "/ 126"],
     ])}
+    ${user.progress?.lastSession ? `<p class="profile-updated">Latest session: ${escape(title(user.progress.lastSession.skill))} · +${number(user.progress.lastSession.gainedXP)} XP · ${number(user.progress.sessions)} sessions recorded · Best session: ${number(user.progress.bestSessionXP)} XP</p>` : ""}
+    ${user.goal ? `<p class="profile-updated">Next skill cape: ${escape(title(user.goal.skill))} · ${number(user.goal.remainingXP)} XP remaining · about ${number(Math.ceil(user.goal.trainingHours))} active training hours at the current rate (${user.training?.scale || 3.5}× world). Rates increase as levels unlock methods.</p>` : ""}
     <section class="panel"><div class="panel-heading"><div><div class="eyebrow">The skill book</div><h2>Skills & experience</h2></div><span class="updated">${mastered} of ${SKILLS.length} skills mastered</span></div>
     <div class="skill-book">${SKILLS.map((s) => {
       const stat = user.skills[s];
@@ -438,6 +440,7 @@ async function renderRoute() {
     else if (current.type === "player")
       await playerView(current, state.request.signal, revision);
     else await achievementsView(current, state.request.signal, revision);
+    if (revision === state.revision) displayedGeneration = latestGeneration;
   } catch (error) {
     if (revision !== state.revision || state.request.signal.aborted) return;
     errorView(
@@ -447,6 +450,32 @@ async function renderRoute() {
     );
   }
 }
+let displayedGeneration = null;
+let checkingWorld = false;
+async function checkWorld() {
+  if (document.hidden || checkingWorld) return;
+  checkingWorld = true;
+  try {
+    const world = await request("/api/world");
+    if (
+      displayedGeneration &&
+      world.generation !== displayedGeneration &&
+      !document.activeElement?.matches("input, select, textarea")
+    ) {
+      state.catalog = [];
+      state.users = null;
+      await renderRoute();
+    }
+  } catch {
+    /* Keep the last successful view during temporary network failures. */
+  } finally {
+    checkingWorld = false;
+  }
+}
+setInterval(checkWorld, 60000);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) checkWorld();
+});
 layout();
 window.addEventListener("hashchange", renderRoute);
 renderRoute();

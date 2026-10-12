@@ -1,8 +1,11 @@
 import {
-  SKILLS,
-  PLAYER_ACTIVITY_TYPES,
-  SKILL_POPULARITY,
-} from "./constants.js";
+  XP_SCALE,
+  TICK_HOURS,
+  SESSION_FRACTIONS,
+  expectedRate,
+  chooseTrainingSkill,
+} from "./training.js";
+import { SKILLS } from "./constants.js";
 import {
   sampleInitialTotalXP,
   assignArchetypeForTotalXP,
@@ -17,13 +20,7 @@ import {
   totalLevel,
   totalXP,
 } from "./utils.js";
-import {
-  allUsers,
-  normalizeUser,
-  putUser,
-  writeJSON,
-  mapBatches,
-} from "./store.js";
+import { allUsers, normalizeUser, writeJSON, readJSON } from "./store.js";
 import { publishSnapshot } from "./snapshots.js";
 
 export function generateUsername(existing = new Set()) {
@@ -82,54 +79,90 @@ export function newUser(username) {
     updatedAt: now,
     activity: "INACTIVE",
     achievements: {},
-    version: 4,
+    version: 5,
   });
 }
-export function progressUser(user, date = new Date()) {
-  user.xpGainTier ||= determineXpGainTierFromTotal(user.totalXP);
+export function progressUser(
+  user,
+  date = new Date(),
+  { hours = TICK_HOURS, rng = Math.random } = {},
+) {
+  user.xpGainTier = determineXpGainTierFromTotal(user.totalXP);
   user.archetype ||= "CASUAL";
   user.multipliers ||= buildSkillMultipliers(user.archetype, user.xpGainTier);
   user.activity = chooseActivityForUser(user.archetype, user.xpGainTier);
-  const [min, max] = PLAYER_ACTIVITY_TYPES[user.activity].xpRange;
-  const budget =
-    (min + Math.random() * (max - min)) *
-    weekendBonusMultiplier(date) *
-    (user.multipliers.global || 1) *
-    1.2;
-  const pool = [...SKILLS];
-  const chosen = [];
-  const count = 1 + Math.floor(Math.random() * 5);
-  while (chosen.length < count)
-    chosen.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
-  const weight = chosen.reduce((n, s) => n + SKILL_POPULARITY[s], 0);
-  for (const skill of chosen) {
-    const mult = user.multipliers.perSkill?.[skill] || 1;
-    user.skills[skill].xp = Math.min(
-      200_000_000,
-      user.skills[skill].xp +
-        Math.floor(((budget * SKILL_POPULARITY[skill]) / weight) * mult),
-    );
+  const [min, max] = SESSION_FRACTIONS[user.activity];
+  const duration =
+    Math.max(0, Math.min(TICK_HOURS, hours)) * (min + rng() * (max - min));
+  const gains = {};
+  const add = (skill, xp) => {
+    const before = user.skills[skill].xp;
+    user.skills[skill].xp = Math.min(200_000_000, before + Math.floor(xp));
     user.skills[skill].level = levelFromXp(user.skills[skill].xp);
+    gains[skill] = (gains[skill] || 0) + user.skills[skill].xp - before;
+  };
+  const skill = chooseTrainingSkill(user, rng);
+  if (duration > 0 && skill) {
+    const stat = user.skills[skill];
+    const gain =
+      expectedRate(skill, stat.xp, stat.level) *
+      duration *
+      XP_SCALE *
+      weekendBonusMultiplier(date);
+    add(skill, gain);
+    if (["attack", "strength", "defence", "ranged"].includes(skill))
+      add("hitpoints", gain / 3);
+    if (skill === "slayer") {
+      const combat = ["attack", "strength", "defence", "ranged"][
+        Math.floor(rng() * 4)
+      ];
+      add(combat, gain * 2);
+      add("hitpoints", (gain * 2) / 3);
+    }
+  }
+  const gainedXP = Object.values(gains).reduce((a, b) => a + b, 0);
+  if (gainedXP > 0) {
+    const previous = user.progress || {};
+    const day = date.toISOString().slice(0, 10);
+    user.progress = {
+      sessions: (previous.sessions || 0) + 1,
+      earnedXP: (previous.earnedXP || 0) + gainedXP,
+      day,
+      dayXP: (previous.day === day ? previous.dayXP || 0 : 0) + gainedXP,
+      bestSessionXP: Math.max(previous.bestSessionXP || 0, gainedXP),
+      lastSession: {
+        skill,
+        hours: duration,
+        gainedXP,
+        gains,
+        timestamp: date.getTime(),
+      },
+    };
+    user.updatedAt = date.getTime();
   }
   user.totalLevel = totalLevel(user.skills);
   user.totalXP = totalXP(user.skills);
-  user.updatedAt = date.getTime();
-  user.version = 4;
+  user.version = 5;
   return user;
 }
 export async function runScheduled(env) {
   const users = await allUsers(env);
   const existing = new Set(users.map((u) => u.username.toLowerCase()));
-  const count = users.length
-    ? Math.max(1, Math.floor(users.length * (0.1 + Math.random() * 0.25)))
-    : 0;
-  const pool = [...users],
-    changed = [];
-  for (let i = 0; i < count; i++) {
-    const user = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
-    progressUser(user);
-    changed.push(user);
+  const changed = [];
+  const previous = await readJSON(env, "system:last-run");
+  const date = new Date();
+  const hours = previous?.generatedAt
+    ? Math.max(
+        0,
+        Math.min(TICK_HOURS, (date.getTime() - previous.generatedAt) / 3600000),
+      )
+    : TICK_HOURS;
+  for (const user of users) {
+    const before = JSON.stringify(user);
+    progressUser(user, date, { hours });
+    if (JSON.stringify(user) !== before) changed.push(user);
   }
+  const count = users.length;
   const newCount = users.length ? 1 + Math.floor(Math.random() * 2) : 5;
   for (let i = 0; i < newCount; i++) {
     const username = generateUsername(existing);
@@ -138,13 +171,14 @@ export async function runScheduled(env) {
     users.push(user);
     changed.push(user);
   }
-  await mapBatches(changed, 16, (user) => putUser(env, user));
-  const snapshot = await publishSnapshot(env, users);
+  const snapshot = await publishSnapshot(env, users, changed);
   const result = {
     processed: count,
     newUsers: newCount,
     totalPlayers: users.length,
     generatedAt: snapshot.generatedAt,
+    simulatedHours: hours,
+    changedPlayers: changed.length,
   };
   await writeJSON(env, "system:last-run", result);
   return result;

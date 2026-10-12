@@ -1,0 +1,1241 @@
+{
+  "fetchedAt": "2026-10-12T18:13:43.664Z",
+  "sources": {
+    "rates": "https://api.wiseoldman.net/v2/efficiency/rates?type=main&metric=ehp",
+    "sample": "https://api.wiseoldman.net/v2/deltas/leaderboard?metric=overall&period=week&limit=12",
+    "gains": "https://api.wiseoldman.net/v2/players/:username/gained?period=week"
+  },
+  "caveat": "Top weekly gainers are a biased competitive sample, not average players. XP gains do not reveal playtime. EHP methods are efficiency ceilings, not observed average XP/hour. Participation is only a small preference adjustment; realistic rates, level limits and session durations are design estimates.",
+  "methods": {
+    "attack": [
+      {
+        "startExp": 0,
+        "rate": 15000
+      },
+      {
+        "startExp": 37224,
+        "rate": 38000
+      },
+      {
+        "startExp": 100000,
+        "rate": 55000
+      },
+      {
+        "startExp": 1000000,
+        "rate": 65000
+      },
+      {
+        "startExp": 1210421,
+        "rate": 315000
+      },
+      {
+        "startExp": 13034431,
+        "rate": 505000
+      }
+    ],
+    "defence": [
+      {
+        "startExp": 0,
+        "rate": 420000
+      }
+    ],
+    "strength": [
+      {
+        "startExp": 0,
+        "rate": 15000
+      },
+      {
+        "startExp": 37224,
+        "rate": 38000
+      },
+      {
+        "startExp": 61512,
+        "rate": 145000
+      },
+      {
+        "startExp": 449428,
+        "rate": 245000
+      },
+      {
+        "startExp": 1986068,
+        "rate": 300000
+      },
+      {
+        "startExp": 6517253,
+        "rate": 335000
+      },
+      {
+        "startExp": 13034431,
+        "rate": 415000
+      }
+    ],
+    "hitpoints": [],
+    "ranged": [
+      {
+        "startExp": 0,
+        "rate": 250000
+      },
+      {
+        "startExp": 6517253,
+        "rate": 330000
+      },
+      {
+        "startExp": 13034431,
+        "rate": 1190000
+      }
+    ],
+    "prayer": [
+      {
+        "startExp": 0,
+        "rate": 1670000
+      },
+      {
+        "startExp": 737627,
+        "rate": 2000000
+      }
+    ],
+    "magic": [],
+    "cooking": [
+      {
+        "startExp": 0,
+        "rate": 172800
+      },
+      {
+        "startExp": 13363,
+        "rate": 519100
+      },
+      {
+        "startExp": 37224,
+        "rate": 591600
+      },
+      {
+        "startExp": 101333,
+        "rate": 663600
+      },
+      {
+        "startExp": 273742,
+        "rate": 735700
+      },
+      {
+        "startExp": 737627,
+        "rate": 808000
+      },
+      {
+        "startExp": 1986068,
+        "rate": 880400
+      },
+      {
+        "startExp": 5346332,
+        "rate": 948100
+      },
+      {
+        "startExp": 13034431,
+        "rate": 980000
+      }
+    ],
+    "woodcutting": [
+      {
+        "startExp": 0,
+        "rate": 29000
+      },
+      {
+        "startExp": 2411,
+        "rate": 56000
+      },
+      {
+        "startExp": 22406,
+        "rate": 93174
+      },
+      {
+        "startExp": 41171,
+        "rate": 114728
+      },
+      {
+        "startExp": 111945,
+        "rate": 127339
+      },
+      {
+        "startExp": 302288,
+        "rate": 172507
+      },
+      {
+        "startExp": 814445,
+        "rate": 194022
+      },
+      {
+        "startExp": 1986068,
+        "rate": 207636
+      },
+      {
+        "startExp": 5346332,
+        "rate": 221977
+      },
+      {
+        "startExp": 13034431,
+        "rate": 235000
+      }
+    ],
+    "fletching": [],
+    "fishing": [
+      {
+        "startExp": 0,
+        "rate": 29200
+      },
+      {
+        "startExp": 14612,
+        "rate": 46592
+      },
+      {
+        "startExp": 75127,
+        "rate": 84686
+      },
+      {
+        "startExp": 106046,
+        "rate": 97867
+      },
+      {
+        "startExp": 229685,
+        "rate": 112877
+      },
+      {
+        "startExp": 302288,
+        "rate": 128082
+      },
+      {
+        "startExp": 593234,
+        "rate": 139313
+      },
+      {
+        "startExp": 737627,
+        "rate": 132800
+      }
+    ],
+    "firemaking": [
+      {
+        "startExp": 0,
+        "rate": 73700
+      },
+      {
+        "startExp": 22406,
+        "rate": 138900
+      },
+      {
+        "startExp": 45529,
+        "rate": 184250
+      },
+      {
+        "startExp": 61512,
+        "rate": 198990
+      },
+      {
+        "startExp": 101333,
+        "rate": 403745
+      },
+      {
+        "startExp": 273742,
+        "rate": 551169
+      },
+      {
+        "startExp": 1210421,
+        "rate": 775388
+      },
+      {
+        "startExp": 5346332,
+        "rate": 872198
+      },
+      {
+        "startExp": 13034431,
+        "rate": 302000
+      }
+    ],
+    "crafting": [
+      {
+        "startExp": 0,
+        "rate": 37000
+      },
+      {
+        "startExp": 4470,
+        "rate": 139000
+      },
+      {
+        "startExp": 9730,
+        "rate": 187650
+      },
+      {
+        "startExp": 20224,
+        "rate": 236300
+      },
+      {
+        "startExp": 50339,
+        "rate": 298850
+      },
+      {
+        "startExp": 368599,
+        "rate": 335230
+      },
+      {
+        "startExp": 814445,
+        "rate": 378490
+      },
+      {
+        "startExp": 1475581,
+        "rate": 421740
+      },
+      {
+        "startExp": 2951373,
+        "rate": 465000
+      }
+    ],
+    "smithing": [
+      {
+        "startExp": 0,
+        "rate": 46500
+      },
+      {
+        "startExp": 37224,
+        "rate": 475000
+      },
+      {
+        "startExp": 13034431,
+        "rate": 505000
+      }
+    ],
+    "mining": [
+      {
+        "startExp": 0,
+        "rate": 20000
+      },
+      {
+        "startExp": 35025,
+        "rate": 50600
+      },
+      {
+        "startExp": 393485,
+        "rate": 106540
+      },
+      {
+        "startExp": 1210421,
+        "rate": 112166
+      },
+      {
+        "startExp": 3258594,
+        "rate": 116760
+      },
+      {
+        "startExp": 8771558,
+        "rate": 119438
+      },
+      {
+        "startExp": 13034431,
+        "rate": 126000
+      }
+    ],
+    "herblore": [
+      {
+        "startExp": 0,
+        "rate": 11100
+      },
+      {
+        "startExp": 8025,
+        "rate": 218750
+      },
+      {
+        "startExp": 123660,
+        "rate": 293750
+      },
+      {
+        "startExp": 166636,
+        "rate": 312500
+      },
+      {
+        "startExp": 368599,
+        "rate": 356250
+      },
+      {
+        "startExp": 496254,
+        "rate": 375000
+      },
+      {
+        "startExp": 668051,
+        "rate": 393750
+      },
+      {
+        "startExp": 899257,
+        "rate": 406250
+      },
+      {
+        "startExp": 1336443,
+        "rate": 431250
+      },
+      {
+        "startExp": 1475581,
+        "rate": 535500
+      },
+      {
+        "startExp": 2951373,
+        "rate": 577500
+      },
+      {
+        "startExp": 3972294,
+        "rate": 630000
+      },
+      {
+        "startExp": 11805606,
+        "rate": 840000
+      }
+    ],
+    "agility": [
+      {
+        "startExp": 0,
+        "rate": 15100
+      },
+      {
+        "startExp": 75127,
+        "rate": 35000
+      },
+      {
+        "startExp": 123660,
+        "rate": 45000
+      },
+      {
+        "startExp": 333804,
+        "rate": 56300
+      },
+      {
+        "startExp": 899257,
+        "rate": 68900
+      },
+      {
+        "startExp": 2421087,
+        "rate": 79700
+      },
+      {
+        "startExp": 6517253,
+        "rate": 102000
+      }
+    ],
+    "thieving": [
+      {
+        "startExp": 0,
+        "rate": 15000
+      },
+      {
+        "startExp": 61512,
+        "rate": 80000
+      },
+      {
+        "startExp": 91721,
+        "rate": 241906
+      },
+      {
+        "startExp": 295315,
+        "rate": 279597
+      },
+      {
+        "startExp": 1319012,
+        "rate": 333283
+      },
+      {
+        "startExp": 4799743,
+        "rate": 370532
+      },
+      {
+        "startExp": 10966391,
+        "rate": 363882
+      },
+      {
+        "startExp": 13034431,
+        "rate": 370169
+      }
+    ],
+    "slayer": [
+      {
+        "startExp": 0,
+        "rate": 5000
+      },
+      {
+        "startExp": 37224,
+        "rate": 12000
+      },
+      {
+        "startExp": 101333,
+        "rate": 40000
+      },
+      {
+        "startExp": 449428,
+        "rate": 74250
+      },
+      {
+        "startExp": 1986068,
+        "rate": 79000
+      },
+      {
+        "startExp": 3258594,
+        "rate": 86500
+      },
+      {
+        "startExp": 5346332,
+        "rate": 87000
+      },
+      {
+        "startExp": 7195629,
+        "rate": 93000
+      },
+      {
+        "startExp": 13034431,
+        "rate": 105800
+      }
+    ],
+    "farming": [
+      {
+        "startExp": 0,
+        "rate": 16000
+      },
+      {
+        "startExp": 32500,
+        "rate": 304000
+      },
+      {
+        "startExp": 61512,
+        "rate": 506000
+      },
+      {
+        "startExp": 166636,
+        "rate": 719000
+      },
+      {
+        "startExp": 273742,
+        "rate": 1083000
+      },
+      {
+        "startExp": 605032,
+        "rate": 1362000
+      },
+      {
+        "startExp": 1210421,
+        "rate": 1896000
+      },
+      {
+        "startExp": 2192818,
+        "rate": 2314000
+      },
+      {
+        "startExp": 3258594,
+        "rate": 2475000
+      },
+      {
+        "startExp": 5346332,
+        "rate": 2500000
+      }
+    ],
+    "runecraft": [
+      {
+        "startExp": 0,
+        "rate": 13600
+      },
+      {
+        "startExp": 33210,
+        "rate": 45000
+      },
+      {
+        "startExp": 1210421,
+        "rate": 75400
+      },
+      {
+        "startExp": 3258594,
+        "rate": 106100
+      },
+      {
+        "startExp": 13034431,
+        "rate": 162000
+      }
+    ],
+    "hunter": [
+      {
+        "startExp": 0,
+        "rate": 30000
+      },
+      {
+        "startExp": 2107,
+        "rate": 83000
+      },
+      {
+        "startExp": 7028,
+        "rate": 110000
+      },
+      {
+        "startExp": 20224,
+        "rate": 138000
+      },
+      {
+        "startExp": 24886,
+        "rate": 293310
+      },
+      {
+        "startExp": 55649,
+        "rate": 215112
+      },
+      {
+        "startExp": 91721,
+        "rate": 268770
+      },
+      {
+        "startExp": 343551,
+        "rate": 322424
+      },
+      {
+        "startExp": 737627,
+        "rate": 350697
+      },
+      {
+        "startExp": 933979,
+        "rate": 123000
+      }
+    ],
+    "construction": [
+      {
+        "startExp": 0,
+        "rate": 54700
+      },
+      {
+        "startExp": 18247,
+        "rate": 450000
+      },
+      {
+        "startExp": 123660,
+        "rate": 950000
+      },
+      {
+        "startExp": 1475581,
+        "rate": 1070000
+      }
+    ]
+  },
+  "participation": {
+    "attack": 0.45,
+    "defence": 0.45,
+    "strength": 0.6,
+    "hitpoints": 0.65,
+    "ranged": 0.6,
+    "prayer": 0.6,
+    "magic": 0.75,
+    "cooking": 0.3,
+    "woodcutting": 0.5,
+    "fletching": 0.5,
+    "fishing": 0.35,
+    "firemaking": 0.55,
+    "crafting": 0.5,
+    "smithing": 0.3,
+    "mining": 0.4,
+    "herblore": 0.6,
+    "agility": 0.65,
+    "thieving": 0.2,
+    "slayer": 0.45,
+    "farming": 0.5,
+    "runecraft": 0.25,
+    "hunter": 0.35,
+    "construction": 0.6
+  },
+  "samples": [
+    {
+      "username": "sedz",
+      "startsAt": "2026-10-05T18:25:48.857Z",
+      "endsAt": "2026-10-12T14:22:02.060Z",
+      "gains": {
+        "attack": 1487344,
+        "defence": 0,
+        "strength": 0,
+        "hitpoints": 495260,
+        "ranged": 0,
+        "prayer": 70528200,
+        "magic": 799200,
+        "cooking": 0,
+        "woodcutting": 0,
+        "fletching": 0,
+        "fishing": 0,
+        "firemaking": 0,
+        "crafting": 10187034,
+        "smithing": 0,
+        "mining": 0,
+        "herblore": 0,
+        "agility": 3960,
+        "thieving": 315703,
+        "slayer": 0,
+        "farming": 0,
+        "runecraft": 0,
+        "hunter": 0,
+        "construction": 0
+      }
+    },
+    {
+      "username": "unreale",
+      "startsAt": "2026-10-05T18:15:22.784Z",
+      "endsAt": "2026-10-11T23:23:51.624Z",
+      "gains": {
+        "attack": 5606963,
+        "defence": 695014,
+        "strength": 14486444,
+        "hitpoints": 6923608,
+        "ranged": 1692856,
+        "prayer": 577530,
+        "magic": 76099,
+        "cooking": 0,
+        "woodcutting": 43589,
+        "fletching": 0,
+        "fishing": 14974,
+        "firemaking": 2450,
+        "crafting": 0,
+        "smithing": 0,
+        "mining": 0,
+        "herblore": 1669520,
+        "agility": 58073,
+        "thieving": 0,
+        "slayer": 6415650,
+        "farming": 1536706,
+        "runecraft": 0,
+        "hunter": 0,
+        "construction": 0
+      }
+    },
+    {
+      "username": "15407st",
+      "startsAt": "2026-10-06T14:44:53.818Z",
+      "endsAt": "2026-10-12T08:06:27.787Z",
+      "gains": {
+        "attack": 0,
+        "defence": 0,
+        "strength": 4,
+        "hitpoints": 1158,
+        "ranged": 0,
+        "prayer": 0,
+        "magic": 2429720,
+        "cooking": 0,
+        "woodcutting": 985668,
+        "fletching": 1778302,
+        "fishing": 0,
+        "firemaking": 23949268,
+        "crafting": 11737,
+        "smithing": 0,
+        "mining": 34670,
+        "herblore": 519,
+        "agility": 25,
+        "thieving": 0,
+        "slayer": 0,
+        "farming": 0,
+        "runecraft": 145032,
+        "hunter": 0,
+        "construction": 185512
+      }
+    },
+    {
+      "username": "karl wright",
+      "startsAt": "2026-10-05T21:42:11.533Z",
+      "endsAt": "2026-10-11T18:44:07.731Z",
+      "gains": {
+        "attack": 0,
+        "defence": 0,
+        "strength": 0,
+        "hitpoints": 0,
+        "ranged": 0,
+        "prayer": 0,
+        "magic": 0,
+        "cooking": 0,
+        "woodcutting": 1116393,
+        "fletching": 1890264,
+        "fishing": 0,
+        "firemaking": 28145121,
+        "crafting": 0,
+        "smithing": 0,
+        "mining": 0,
+        "herblore": 0,
+        "agility": 0,
+        "thieving": 0,
+        "slayer": 0,
+        "farming": 0,
+        "runecraft": 0,
+        "hunter": 0,
+        "construction": 112144
+      }
+    },
+    {
+      "username": "khint",
+      "startsAt": "2026-10-09T23:22:07.658Z",
+      "endsAt": "2026-10-12T06:38:23.920Z",
+      "gains": {
+        "attack": 0,
+        "defence": 0,
+        "strength": 0,
+        "hitpoints": 0,
+        "ranged": 26415999,
+        "prayer": 0,
+        "magic": 585,
+        "cooking": 0,
+        "woodcutting": 0,
+        "fletching": 0,
+        "fishing": 0,
+        "firemaking": 0,
+        "crafting": 0,
+        "smithing": 0,
+        "mining": 0,
+        "herblore": 0,
+        "agility": 250,
+        "thieving": 0,
+        "slayer": 0,
+        "farming": 0,
+        "runecraft": 0,
+        "hunter": 0,
+        "construction": 7940142
+      }
+    },
+    {
+      "username": "e mb",
+      "startsAt": "2026-10-05T19:14:47.035Z",
+      "endsAt": "2026-10-12T16:59:35.849Z",
+      "gains": {
+        "attack": 6366113,
+        "defence": 2675876,
+        "strength": 3332622,
+        "hitpoints": 6928292,
+        "ranged": 1541713,
+        "prayer": 1206232,
+        "magic": 4824215,
+        "cooking": 1710,
+        "woodcutting": 2296909,
+        "fletching": 0,
+        "fishing": 0,
+        "firemaking": 0,
+        "crafting": 0,
+        "smithing": 0,
+        "mining": 0,
+        "herblore": 0,
+        "agility": 0,
+        "thieving": 0,
+        "slayer": 5520366,
+        "farming": 0,
+        "runecraft": 0,
+        "hunter": 0,
+        "construction": 0
+      }
+    },
+    {
+      "username": "rileyizm",
+      "startsAt": "2026-10-05T21:09:33.590Z",
+      "endsAt": "2026-10-12T11:35:31.712Z",
+      "gains": {
+        "attack": 108781,
+        "defence": 3906704,
+        "strength": 355513,
+        "hitpoints": 6562895,
+        "ranged": 5975246,
+        "prayer": 1016010,
+        "magic": 6859616,
+        "cooking": 0,
+        "woodcutting": 1562527,
+        "fletching": 0,
+        "fishing": 0,
+        "firemaking": 0,
+        "crafting": 0,
+        "smithing": 15000,
+        "mining": 0,
+        "herblore": 1627,
+        "agility": 15267,
+        "thieving": 0,
+        "slayer": 6182778,
+        "farming": 1538698,
+        "runecraft": 0,
+        "hunter": 22,
+        "construction": 0
+      }
+    },
+    {
+      "username": "lanke",
+      "startsAt": "2026-10-05T18:59:21.127Z",
+      "endsAt": "2026-10-12T16:51:08.962Z",
+      "gains": {
+        "attack": 106019,
+        "defence": 88012,
+        "strength": 284024,
+        "hitpoints": 233190,
+        "ranged": 266062,
+        "prayer": 34210,
+        "magic": 53000,
+        "cooking": 0,
+        "woodcutting": 0,
+        "fletching": 6373575,
+        "fishing": 0,
+        "firemaking": 18884351,
+        "crafting": 0,
+        "smithing": 0,
+        "mining": 73241,
+        "herblore": 379368,
+        "agility": 29,
+        "thieving": 403360,
+        "slayer": 222764,
+        "farming": 1021655,
+        "runecraft": 850,
+        "hunter": 1838592,
+        "construction": 150
+      }
+    },
+    {
+      "username": "lnception",
+      "startsAt": "2026-10-05T19:37:03.804Z",
+      "endsAt": "2026-10-12T15:11:21.707Z",
+      "gains": {
+        "attack": 0,
+        "defence": 0,
+        "strength": 0,
+        "hitpoints": 0,
+        "ranged": 0,
+        "prayer": 0,
+        "magic": 0,
+        "cooking": 25989280,
+        "woodcutting": 0,
+        "fletching": 139,
+        "fishing": 13149,
+        "firemaking": 394,
+        "crafting": 1325745,
+        "smithing": 624375,
+        "mining": 0,
+        "herblore": 0,
+        "agility": 49,
+        "thieving": 0,
+        "slayer": 0,
+        "farming": 1379391,
+        "runecraft": 0,
+        "hunter": 240,
+        "construction": 0
+      }
+    },
+    {
+      "username": "19",
+      "startsAt": "2026-10-06T11:55:19.137Z",
+      "endsAt": "2026-10-12T11:10:56.107Z",
+      "gains": {
+        "attack": 0,
+        "defence": 0,
+        "strength": 0,
+        "hitpoints": 0,
+        "ranged": 0,
+        "prayer": 0,
+        "magic": 4445880,
+        "cooking": 19265480,
+        "woodcutting": 0,
+        "fletching": 0,
+        "fishing": 0,
+        "firemaking": 0,
+        "crafting": 0,
+        "smithing": 0,
+        "mining": 0,
+        "herblore": 0,
+        "agility": 0,
+        "thieving": 0,
+        "slayer": 0,
+        "farming": 0,
+        "runecraft": 990,
+        "hunter": 0,
+        "construction": 4393683
+      }
+    },
+    {
+      "username": "engen",
+      "startsAt": "2026-10-05T18:47:35.977Z",
+      "endsAt": "2026-10-12T18:11:18.775Z",
+      "gains": {
+        "attack": 0,
+        "defence": 0,
+        "strength": 0,
+        "hitpoints": 0,
+        "ranged": 0,
+        "prayer": 0,
+        "magic": 0,
+        "cooking": 0,
+        "woodcutting": 1216571,
+        "fletching": 1657227,
+        "fishing": 0,
+        "firemaking": 25748137,
+        "crafting": 0,
+        "smithing": 0,
+        "mining": 0,
+        "herblore": 188,
+        "agility": 0,
+        "thieving": 0,
+        "slayer": 0,
+        "farming": 0,
+        "runecraft": 0,
+        "hunter": 0,
+        "construction": 234036
+      }
+    },
+    {
+      "username": "alwaysswet",
+      "startsAt": "2026-10-07T13:54:55.622Z",
+      "endsAt": "2026-10-10T07:24:29.739Z",
+      "gains": {
+        "attack": 522929,
+        "defence": 0,
+        "strength": 2112232,
+        "hitpoints": 1256429,
+        "ranged": 770141,
+        "prayer": 71315,
+        "magic": 1779745,
+        "cooking": 6030972,
+        "woodcutting": 3175852,
+        "fletching": 3405410,
+        "fishing": 6697207,
+        "firemaking": 5395,
+        "crafting": 470433,
+        "smithing": 169896,
+        "mining": 69045,
+        "herblore": 66376,
+        "agility": 334009,
+        "thieving": 108729,
+        "slayer": 1032318,
+        "farming": 198380,
+        "runecraft": 0,
+        "hunter": 273218,
+        "construction": 119290
+      }
+    },
+    {
+      "username": "the maskara",
+      "startsAt": "2026-10-05T21:13:36.952Z",
+      "endsAt": "2026-10-12T08:33:50.272Z",
+      "gains": {
+        "attack": 0,
+        "defence": 761060,
+        "strength": 0,
+        "hitpoints": 0,
+        "ranged": 0,
+        "prayer": 6615,
+        "magic": 0,
+        "cooking": 0,
+        "woodcutting": 0,
+        "fletching": 0,
+        "fishing": 0,
+        "firemaking": 1093317,
+        "crafting": 5606843,
+        "smithing": 0,
+        "mining": 1670,
+        "herblore": 1687334,
+        "agility": 15941,
+        "thieving": 0,
+        "slayer": 186247,
+        "farming": 0,
+        "runecraft": 0,
+        "hunter": 0,
+        "construction": 18209102
+      }
+    },
+    {
+      "username": "hcimbighunt",
+      "startsAt": "2026-10-09T22:48:07.473Z",
+      "endsAt": "2026-10-11T11:56:51.601Z",
+      "gains": {
+        "attack": 4134075,
+        "defence": 2477209,
+        "strength": 3696654,
+        "hitpoints": 4373479,
+        "ranged": 1343845,
+        "prayer": 1202792,
+        "magic": 2686720,
+        "cooking": 335370,
+        "woodcutting": 578204,
+        "fletching": 533208,
+        "fishing": 229436,
+        "firemaking": 217032,
+        "crafting": 237291,
+        "smithing": 648744,
+        "mining": 111176,
+        "herblore": 294560,
+        "agility": 1210750,
+        "thieving": 407083,
+        "slayer": 505027,
+        "farming": 662130,
+        "runecraft": 244442,
+        "hunter": 599344,
+        "construction": 375968
+      }
+    },
+    {
+      "username": "moist tic",
+      "startsAt": "2026-10-06T00:36:54.354Z",
+      "endsAt": "2026-10-12T14:06:16.439Z",
+      "gains": {
+        "attack": 0,
+        "defence": 19741,
+        "strength": 911707,
+        "hitpoints": 395288,
+        "ranged": 22146,
+        "prayer": 30,
+        "magic": 288533,
+        "cooking": 1365650,
+        "woodcutting": 1487287,
+        "fletching": 381990,
+        "fishing": 79979,
+        "firemaking": 21126252,
+        "crafting": 4558,
+        "smithing": 4075,
+        "mining": 3323,
+        "herblore": 43771,
+        "agility": 0,
+        "thieving": 0,
+        "slayer": 0,
+        "farming": 22749,
+        "runecraft": 18074,
+        "hunter": 33600,
+        "construction": 102665
+      }
+    },
+    {
+      "username": "z0rv",
+      "startsAt": "2026-10-05T19:14:31.829Z",
+      "endsAt": "2026-10-11T11:07:32.412Z",
+      "gains": {
+        "attack": 0,
+        "defence": 0,
+        "strength": 1632051,
+        "hitpoints": 1933155,
+        "ranged": 1665056,
+        "prayer": 20085,
+        "magic": 2841677,
+        "cooking": 0,
+        "woodcutting": 439033,
+        "fletching": 562147,
+        "fishing": 1884740,
+        "firemaking": 12936702,
+        "crafting": 0,
+        "smithing": 0,
+        "mining": 0,
+        "herblore": 1605,
+        "agility": 179494,
+        "thieving": 0,
+        "slayer": 2178092,
+        "farming": 2947,
+        "runecraft": 0,
+        "hunter": 0,
+        "construction": 66888
+      }
+    },
+    {
+      "username": "tila",
+      "startsAt": "2026-10-06T03:36:00.597Z",
+      "endsAt": "2026-10-12T15:32:02.553Z",
+      "gains": {
+        "attack": 1738463,
+        "defence": 410256,
+        "strength": 4234351,
+        "hitpoints": 0,
+        "ranged": 1788655,
+        "prayer": 1445188,
+        "magic": 0,
+        "cooking": 0,
+        "woodcutting": 0,
+        "fletching": 0,
+        "fishing": 50499,
+        "firemaking": 0,
+        "crafting": 140000,
+        "smithing": 0,
+        "mining": 534086,
+        "herblore": 1004849,
+        "agility": 19,
+        "thieving": 0,
+        "slayer": 1334654,
+        "farming": 1302682,
+        "runecraft": 0,
+        "hunter": 11035623,
+        "construction": 0
+      }
+    },
+    {
+      "username": "froggiefish",
+      "startsAt": "2026-10-05T19:06:29.932Z",
+      "endsAt": "2026-10-12T10:50:29.342Z",
+      "gains": {
+        "attack": 17262,
+        "defence": 19636,
+        "strength": 21515,
+        "hitpoints": 46267,
+        "ranged": 56041,
+        "prayer": 0,
+        "magic": 11700,
+        "cooking": 0,
+        "woodcutting": 0,
+        "fletching": 653040,
+        "fishing": 0,
+        "firemaking": 0,
+        "crafting": 258255,
+        "smithing": 0,
+        "mining": 16,
+        "herblore": 22481832,
+        "agility": 0,
+        "thieving": 0,
+        "slayer": 0,
+        "farming": 1737314,
+        "runecraft": 0,
+        "hunter": 0,
+        "construction": 3600
+      }
+    },
+    {
+      "username": "tomtheetank",
+      "startsAt": "2026-10-05T22:41:26.026Z",
+      "endsAt": "2026-10-12T02:23:12.337Z",
+      "gains": {
+        "attack": 0,
+        "defence": 0,
+        "strength": 642434,
+        "hitpoints": 6095761,
+        "ranged": 17566039,
+        "prayer": 0,
+        "magic": 1350654,
+        "cooking": 0,
+        "woodcutting": 0,
+        "fletching": 0,
+        "fishing": 0,
+        "firemaking": 0,
+        "crafting": 500,
+        "smithing": 100,
+        "mining": 0,
+        "herblore": 0,
+        "agility": 0,
+        "thieving": 0,
+        "slayer": 0,
+        "farming": 0,
+        "runecraft": 0,
+        "hunter": 0,
+        "construction": 0
+      }
+    },
+    {
+      "username": "sy",
+      "startsAt": "2026-10-05T19:46:25.142Z",
+      "endsAt": "2026-10-12T13:20:37.002Z",
+      "gains": {
+        "attack": 0,
+        "defence": 0,
+        "strength": 0,
+        "hitpoints": 8360085,
+        "ranged": 0,
+        "prayer": 1531408,
+        "magic": 14611226,
+        "cooking": 0,
+        "woodcutting": 0,
+        "fletching": 0,
+        "fishing": 0,
+        "firemaking": 0,
+        "crafting": 0,
+        "smithing": 0,
+        "mining": 0,
+        "herblore": 0,
+        "agility": 180,
+        "thieving": 0,
+        "slayer": 0,
+        "farming": 0,
+        "runecraft": 0,
+        "hunter": 0,
+        "construction": 0
+      }
+    }
+  ]
+}

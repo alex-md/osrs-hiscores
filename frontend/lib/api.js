@@ -1,6 +1,7 @@
 import { catalog } from "./catalog.js";
 import { combatLevel } from "./domain.js";
 
+export let latestGeneration = null;
 const KEY = "osrs-api-base";
 export const LEGACY_WORKER = "https://osrs-hiscores-clone.vs.workers.dev";
 let override = "";
@@ -86,6 +87,7 @@ export async function request(path, options = {}) {
       totalPlayers: stats.totalPlayers,
     };
   }
+  if (data.generation) latestGeneration = data.generation;
   const params = url.searchParams;
   if (
     (url.pathname === "/api/leaderboard" ||

@@ -1,7 +1,14 @@
 import { SKILLS } from "./constants.js";
 import { combatLevel } from "../../frontend/lib/domain.js";
 import { allUsers, getUser, putUser, readJSON } from "./store.js";
-import { getSnapshot, publishSnapshot, rankingRows } from "./snapshots.js";
+import {
+  getSnapshot,
+  publishSnapshot,
+  rankingRows,
+  snapshotUser,
+  snapshotUsers,
+  allSkillRankings,
+} from "./snapshots.js";
 import { newUser, generateUsername, runScheduled } from "./simulation.js";
 import { projectHighestAchievementFamilies } from "./achievements.js";
 import { catalog } from "../../frontend/lib/catalog.js";
@@ -33,6 +40,8 @@ const cached = (data) =>
 const snapshotInfo = (s) => ({
   generatedAt: s.generatedAt,
   totalPlayers: s.totalPlayers,
+  generation: s.generation,
+  training: s.training,
 });
 function playerName(value) {
   let name;
@@ -188,15 +197,27 @@ async function route(request, env) {
         names.map((n) => playerName(encodeURIComponent(n)).toLowerCase()),
       ),
     ];
-    const users = (
-      await Promise.all(unique.map((n) => getUser(env, n)))
-    ).filter(Boolean);
-    return cached({ requested: unique.length, returned: users.length, users });
+    const snapshot = await getSnapshot(env);
+    const users =
+      snapshot.version >= 2
+        ? await snapshotUsers(env, snapshot, unique)
+        : (await Promise.all(unique.map((n) => getUser(env, n)))).filter(
+            Boolean,
+          );
+    return cached({
+      ...snapshotInfo(snapshot),
+      requested: unique.length,
+      returned: users.length,
+      users,
+    });
   }
   const userMatch = path.match(/^\/api\/users\/([^/]+)(\/achievements)?$/);
   if (userMatch) {
     const snapshot = await getSnapshot(env);
-    const user = await getUser(env, playerName(userMatch[1]));
+    const user =
+      snapshot.version >= 2
+        ? await snapshotUser(env, snapshot, playerName(userMatch[1]))
+        : await getUser(env, playerName(userMatch[1]));
     if (!user)
       throw new HttpError(
         404,
@@ -208,6 +229,8 @@ async function route(request, env) {
         achievements: projectHighestAchievementFamilies(user.achievements),
         history: user.achievements,
       });
+    if (snapshot.version >= 2)
+      return cached({ ...user, ...snapshotInfo(snapshot) });
     const overall = await rankingRows(env, snapshot, "overall");
     const ranks = {};
     for (const skill of SKILLS) {
@@ -237,18 +260,20 @@ async function route(request, env) {
     "/api/achievements/firsts",
     "/api/achievements/catalog",
     "/api/banners/rare",
+    "/api/world",
   ];
   if (!known.includes(path)) throw new HttpError(404, "Unknown API route.");
   const snapshot = await getSnapshot(env);
+  if (path === "/api/world")
+    return cached({
+      ...snapshotInfo(snapshot),
+      nextUpdateAt: snapshot.generatedAt + 4 * 3600000,
+    });
   if (path === "/api/leaderboard" || path === "/api/skill-rankings") {
     const skill =
       path === "/api/skill-rankings" ? url.searchParams.get("skill") : null;
     if (path === "/api/skill-rankings" && !skill) {
-      const rankings = Object.fromEntries(
-        await Promise.all(
-          SKILLS.map(async (s) => [s, await rankingRows(env, snapshot, s)]),
-        ),
-      );
+      const rankings = await allSkillRankings(env, snapshot);
       return cached({
         ...snapshotInfo(snapshot),
         topN: snapshot.totalPlayers,
@@ -332,7 +357,9 @@ async function route(request, env) {
         snapshot.firsts,
       ),
     });
-  const log = await readJSON(env, "ach:events", { events: [] });
+  const log = snapshot.events
+    ? { events: snapshot.events }
+    : await readJSON(env, "ach:events", { events: [] });
   const byKey = new Map(
     catalog(snapshot.counts, snapshot.totalPlayers, snapshot.firsts).map(
       (a) => [a.key, a],
@@ -353,9 +380,22 @@ async function route(request, env) {
       .slice(0, 12),
   );
 }
-export async function handleApiRequest(request, env) {
+export async function handleApiRequest(request, env, ctx) {
   try {
-    return await route(request, env);
+    const edge = ctx?.waitUntil && globalThis.caches?.default;
+    const cacheable =
+      request.method === "GET" &&
+      /^\/api\/(world|leaderboard|skill-rankings|users(?:\/.*)?|achievements\/.*|banners\/rare)$/.test(
+        new URL(request.url).pathname,
+      );
+    if (edge && cacheable) {
+      const hit = await edge.match(request);
+      if (hit) return hit;
+    }
+    const response = await route(request, env);
+    if (edge && cacheable && response.status === 200)
+      ctx.waitUntil(edge.put(request, response.clone()));
+    return response;
   } catch (error) {
     if (!(error instanceof HttpError)) console.error("API failure:", error);
     return json(
@@ -371,10 +411,10 @@ export async function handleApiRequest(request, env) {
 }
 export { runScheduled };
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const path = new URL(request.url).pathname;
     if (path === "/api" || path.startsWith("/api/"))
-      return handleApiRequest(request, env);
+      return handleApiRequest(request, env, ctx);
     return env.ASSETS
       ? env.ASSETS.fetch(request)
       : json({ error: "Static assets are not configured." }, 404);
