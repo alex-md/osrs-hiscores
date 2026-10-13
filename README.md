@@ -143,7 +143,7 @@ Tests exercise API contracts, malformed input, authorization, KV pagination, ran
 
 ## Training calibration
 
-`workers/data/calibration.json` contains live Wise Old Man main-account EHP methods and a captured sample of 20 top weekly gainers, fetched October 12, 2026. Source URLs, weekly per-skill gains and retrieval timestamps are retained. Run `npm run calibrate` to refresh this bundled dataset before a deployment; it never polls WOM from the Worker or writes calibration to KV.
+`workers/data/calibration.json` contains live Wise Old Man main-account EHP methods and a captured sample of 20 top weekly gainers, fetched October 12, 2026. Source URLs, weekly per-skill gains and retrieval timestamps are retained. The generated `workers/data/calibration.js` contains the runtime rates and metadata using a plain JavaScript export, compatible with both Pages’ Wrangler 3 bundler and the Worker’s Wrangler 4 bundler. Run `npm run calibrate` to refresh both files before a deployment; it never polls WOM from the Worker or writes calibration to KV.
 
 EHP rates represent optimized training, **not average observed XP/hour**. Weekly XP gains do not reveal playtime. This competitive sample is biased and cannot measure population-wide popularity. The simulator uses explicit ordinary-training ceilings and level scaling, caps efficiency rates at 70%, and adjusts authored popularity preferences only slightly using sample participation. Agility and Runecraft remain slower and less frequently selected for general players; archetype preferences allow specialists to focus on them. The 3.5× scale applies once, with the existing weekend bonus. Old global tier XP multipliers no longer stack on the scale; skill multipliers influence selection instead.
 

@@ -92,3 +92,19 @@ test("session records reset UTC daily XP and unlock catalog-backed milestones", 
     );
   }
 });
+
+test("Pages-compatible calibration module stays aligned with the source observations", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const { default: runtime } = await import("../data/calibration.js");
+  const data = JSON.parse(
+    await readFile(
+      new URL("../data/calibration.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  assert.deepEqual(runtime.methods, data.methods);
+  assert.deepEqual(runtime.participation, data.participation);
+  assert.equal(runtime.sampleSize, data.samples.length);
+  assert.equal(runtime.fetchedAt, data.fetchedAt);
+  assert.equal(runtime.caveat, data.caveat);
+});

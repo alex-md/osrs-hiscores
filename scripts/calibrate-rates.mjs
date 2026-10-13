@@ -1,5 +1,6 @@
 // Offline calibration: no third-party requests or calibration KV writes at runtime.
 import { writeFile } from "node:fs/promises";
+import { calibrationModule } from "./calibration-module.mjs";
 import { SKILLS } from "../frontend/lib/domain.js";
 const base = "https://api.wiseoldman.net/v2";
 async function get(path) {
@@ -76,6 +77,10 @@ const data = {
 await writeFile(
   new URL("../workers/data/calibration.json", import.meta.url),
   JSON.stringify(data, null, 2) + "\n",
+);
+await writeFile(
+  new URL("../workers/data/calibration.js", import.meta.url),
+  calibrationModule(data),
 );
 console.log(
   `Saved WOM rates and ${samples.length} weekly player gain samples.`,

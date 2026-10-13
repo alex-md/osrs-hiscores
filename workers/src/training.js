@@ -1,4 +1,4 @@
-import calibration from "../data/calibration.json" with { type: "json" };
+import calibration from "../data/calibration.js";
 import {
   SKILL_POPULARITY,
   INITIAL_DISTRIBUTION_ARCHETYPE_FOCUS,
@@ -78,7 +78,7 @@ export const trainingInfo = () => ({
   scale: XP_SCALE,
   tickHours: TICK_HOURS,
   calibratedAt: calibration.fetchedAt,
-  sampleSize: calibration.samples.length,
+  sampleSize: calibration.sampleSize,
   source: "Wise Old Man",
   caveat: calibration.caveat,
 });

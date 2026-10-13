@@ -24,6 +24,8 @@ jobs:
       - run: npm ci --prefix workers
       - run: npm test
       - run: npm run check
+      - name: Verify Pages Functions with the hosted build version
+        run: npx --yes wrangler@3.114.17 pages functions build functions --outfile /tmp/pages-worker.mjs
       - run: npm exec -- wrangler deploy --dry-run
         working-directory: workers
   deploy:
