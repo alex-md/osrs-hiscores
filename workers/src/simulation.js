@@ -25,38 +25,8 @@ import {
 import { allUsers, normalizeUser, writeJSON, readJSON } from "./store.js";
 import { publishSnapshot } from "./snapshots.js";
 
-export function generateUsername(existing = new Set()) {
-  const prefixes = [
-    "Rune",
-    "Ash",
-    "Moss",
-    "Iron",
-    "Oak",
-    "Mist",
-    "Dusk",
-    "Star",
-    "Void",
-    "Fern",
-  ];
-  const suffixes = [
-    "Fox",
-    "Mage",
-    "Wolf",
-    "Wisp",
-    "Knight",
-    "Raven",
-    "Drake",
-    "Bard",
-    "Blade",
-    "Owl",
-  ];
-  for (let attempt = 0; attempt < 100; attempt++) {
-    const pick = (list) => list[Math.floor(Math.random() * list.length)];
-    const name = `${pick(prefixes)}${pick(suffixes)}${Math.floor(Math.random() * 1000)}`;
-    if (!existing.has(name.toLowerCase())) return name;
-  }
-  throw new Error("Could not generate a unique player name");
-}
+export { generateUsername } from "./usernames.js";
+import { generateUsernames } from "./usernames.js";
 export function newUser(username) {
   const initialXP = sampleInitialTotalXP();
   const archetype = assignArchetypeForTotalXP(initialXP);
@@ -167,9 +137,7 @@ export async function runScheduled(env) {
   }
   const count = users.length;
   const newCount = Math.min(Math.max(0, MAX_PLAYERS - users.length), users.length ? 1 + Math.floor(Math.random() * 2) : 5);
-  for (let i = 0; i < newCount; i++) {
-    const username = generateUsername(existing);
-    existing.add(username.toLowerCase());
+  for (const username of await generateUsernames(newCount, existing, env)) {
     const user = newUser(username);
     users.push(user);
     changed.push(user);

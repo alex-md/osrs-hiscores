@@ -1,3 +1,5 @@
+import { generateUsernames } from "./usernames.js";
+import { renameExistingUsers } from "./rename-users.js";
 import { UPDATE_INTERVAL_MS } from "../../frontend/lib/simulation-config.js";
 import { forwardApiRequest, worldStub } from "./gateway.js";
 import { SKILLS } from "./constants.js";
@@ -11,7 +13,7 @@ import {
   snapshotUsers,
   allSkillRankings,
 } from "./snapshots.js";
-import { newUser, generateUsername, runScheduled } from "./simulation.js";
+import { newUser, runScheduled } from "./simulation.js";
 import { projectHighestAchievementFamilies } from "./achievements.js";
 import { catalog } from "../../frontend/lib/catalog.js";
 import {
@@ -87,6 +89,12 @@ async function route(request, env) {
   if (method === "POST") {
     requireAdmin(request, env);
     return mutate(env, async () => {
+      if (path === "/api/admin/users/rename-all") {
+        const body = await bodyJSON(request);
+        if (body.dryRun !== undefined && typeof body.dryRun !== "boolean")
+          throw new HttpError(400, "dryRun must be a boolean.");
+        return json(await renameExistingUsers(env, { dryRun: body.dryRun !== false }));
+      }
       if (path === "/api/cron/trigger")
         return json({ triggered: true, ...(await runScheduled(env)) });
       if (path === "/api/admin/rebuild") {
@@ -182,14 +190,9 @@ async function route(request, env) {
     const count = integer(url.searchParams.get("count"), 5, 1, 50, "count");
     const snapshot = await getSnapshot(env);
     const existing = new Set(
-        (await rankingRows(env, snapshot, "overall")).map((u) => u.username.toLowerCase()),
-      ),
-      usernames = [];
-    for (let i = 0; i < count; i++) {
-      const name = generateUsername(existing);
-      existing.add(name.toLowerCase());
-      usernames.push(name);
-    }
+      (await rankingRows(env, snapshot, "overall")).map((u) => u.username.toLowerCase()),
+    );
+    const usernames = await generateUsernames(count, existing, env);
     return json({ dryRun: true, generated: usernames.length, usernames });
   }
   if (path === "/api/users/batch") {

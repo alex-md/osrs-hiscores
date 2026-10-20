@@ -24,7 +24,7 @@ curl http://localhost:8787/api/seed \
   --data '{"usernames":["Rune Mage","Oak Knight","Iron Fox"]}'
 ```
 
-`POST /api/cron/trigger` runs a simulation cycle with the same authentication. The scheduled handler initializes five accounts if the world is empty. Public reads never run the simulation. Repeated simulation triggers within the same 15-minute UTC slot return `429`.
+`POST /api/cron/trigger` runs a simulation cycle with the same authentication. The scheduled handler initializes five accounts if the world is empty. New usernames use invented words from thisworddoesnotexist.com with optional capitals, spaces, and numbers, always within 12 characters. Word fetches time out after 1.5 seconds; a local pronounceable-word generator handles outages and larger previews. Set `ALLOW_TWODNE_SCRAPE=false` to use only local words. Public reads never run the simulation. Repeated simulation triggers within the same 15-minute UTC slot return `429`.
 
 ## Publish
 
@@ -84,10 +84,11 @@ All responses are JSON with CORS enabled. Reads cache for 30 seconds in browsers
 | GET    | `/api/achievements/stats`             | Historical unlock counts and player count                                           |
 | GET    | `/api/achievements/firsts`            | Earliest recorded unlocks, including legacy/v2 compatibility shape                  |
 | GET    | `/api/banners/rare`                   | Up to 12 recent recorded unlocks in the last 48 hours                               |
-| GET    | `/api/generate/users/dry-run?count=5` | Unique generated names without writes or external scrapers                          |
+| GET    | `/api/generate/users/dry-run?count=5` | Unique generated names without database writes                          |
 | POST   | `/api/seed`                           | Create 1–200 named players; existing names are skipped                              |
 | POST   | `/api/cron/trigger`                   | Run the scheduled simulation                                                        |
 | POST   | `/api/admin/rebuild`                  | Normalize stored documents at read time and rebuild ranking/achievement projections |
+| POST   | `/api/admin/users/rename-all`         | One-time rename of all existing players; defaults to preview, preserves progress and history |
 | POST   | `/api/admin/users/delete-batch`       | Preview or delete selected names, or a random batch                                 |
 
 Ranking parameters are `page` (default 1), `limit` (default 50; maximum 5000), and `q`. Skill rankings additionally accept `minLevel`, `maxLevel`, `minXP`, and `maxXP`. Filtering keeps the player's original global rank. Responses contain `players`, `page`, `pages`, `limit`, `total` (filtered count), `totalPlayers`, and `generatedAt`. An out-of-range page resolves to the final page.
@@ -174,3 +175,5 @@ Each 15-minute opportunity samples activity duration (including genuinely inacti
 Profiles show their latest and best session, session count and nearest skill cape with a current-rate active-hours estimate. Added milestones include 500/1000 total level, base 70, dual Agility/Runecraft mastery, first/100th training session and 1M XP in a UTC day. Session achievements begin with this version rather than inventing historical training logs.
 
 See [the model notes](docs/training-model.md) for base/scaled rates and sampling limitations.
+
+The username migration runs once with `POST /api/admin/users/rename-all` and `{"dryRun":false}`. It atomically saves original player records and history under `backup:username-v1:*`, rebuilds profiles and rankings with the new names, and records the old-to-new mapping in `system:username-migration:v1`. Repeating it returns the saved mapping without changing names again.

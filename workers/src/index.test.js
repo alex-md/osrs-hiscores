@@ -46,7 +46,7 @@ class MemoryKV {
     };
   }
 }
-const env = () => ({ WORLD_STORE: new MemoryKV(), ADMIN_TOKEN: "test-only" });
+const env = () => ({ ALLOW_TWODNE_SCRAPE: "false", WORLD_STORE: new MemoryKV(), ADMIN_TOKEN: "test-only" });
 const putUser = async (e, user) => {
   const users = (await allUsers(e)).filter((u) => u.username.toLowerCase() !== user.username.toLowerCase());
   await publishSnapshot(e, [...users, user]);

@@ -18,7 +18,7 @@ function setup(legacy) {
       catch (error) { db.exec("ROLLBACK"); throw error; }
     },
   };
-  const object = new HiscoresWorld({ storage }, { ADMIN_TOKEN: "secret", HISCORES_KV: legacy });
+  const object = new HiscoresWorld({ storage }, { ALLOW_TWODNE_SCRAPE: "false", ADMIN_TOKEN: "secret", HISCORES_KV: legacy });
   const request = (path, body, token = "secret") => object.fetch(new Request(`https://world${path}`, {
     method: body === undefined ? "GET" : "POST",
     headers: { "x-admin-token": token, "content-type": "application/json" },
@@ -118,4 +118,63 @@ test("96 daily simulation windows advance only elapsed time and report the align
     assert.equal(world.training.updateMinutes, 15);
     now += 15 * 60_000;
   }
+});
+
+test("rename-all preserves progress, historical references and backups, and runs once", async () => {
+  const { request, db, object } = setup();
+  await request("/api/seed", { usernames: ["RuneFox123", "IronMage456"] });
+  const before = await (await request("/api/users/batch?usernames=RuneFox123,IronMage456")).json();
+  const snapshotBefore = JSON.parse(await object.store.get("snapshot:current"));
+  assert.equal((await request("/api/admin/users/rename-all", { dryRun: false }, "wrong")).status, 401);
+  assert.equal((await request("/api/admin/users/rename-all", { dryRun: "false" })).status, 400);
+  const preview = await (await request("/api/admin/users/rename-all", {})).json();
+  assert.equal(preview.count, 2);
+  assert.equal(preview.dryRun, true);
+  assert.equal(await object.store.get("system:username-migration:v1"), null);
+  assert.equal((await request("/api/users/RuneFox123")).status, 200);
+  const response = await request("/api/admin/users/rename-all", { dryRun: false });
+  assert.equal(response.status, 200);
+  const result = await response.json();
+  assert.equal(result.count, 2);
+  const mapping = new Map(result.renames.map(({ from, to }) => [from, to]));
+  const snapshot = JSON.parse(await object.store.get("snapshot:current"));
+  for (const [key, value] of Object.entries(snapshotBefore.firsts))
+    assert.deepEqual(snapshot.firsts[key], { ...value, username: mapping.get(value.username) || value.username });
+  for (const event of snapshotBefore.events)
+    assert.ok(snapshot.events.some((item) => item.key === event.key && item.timestamp === event.timestamp && item.username === mapping.get(event.username)));
+  for (const { from, to } of result.renames) {
+    assert.equal((await request(`/api/users/${encodeURIComponent(from)}`)).status, 404);
+    const user = await (await request(`/api/users/${encodeURIComponent(to)}`)).json();
+    // Batch endpoint returns full player documents, including simulation state.
+    const old = before.users.find((item) => item.username === from);
+    assert.deepEqual(user.skills, old.skills);
+    assert.equal(user.createdAt, old.createdAt);
+    assert.equal(user.updatedAt, old.updatedAt);
+    for (const [key, value] of Object.entries(old.achievements)) assert.equal(user.achievements[key], value);
+  }
+  assert.equal(JSON.parse(await object.store.get("backup:username-v1:players:0")).length, 2);
+  const repeated = await (await request("/api/admin/users/rename-all", { dryRun: false })).json();
+  assert.equal(repeated.alreadyApplied, true);
+  assert.deepEqual(repeated.renames, result.renames);
+  await request("/api/admin/rebuild", {});
+  const rebuilt = JSON.parse(await object.store.get("snapshot:current"));
+  for (const value of Object.values(rebuilt.firsts)) assert.ok(!mapping.has(value.username));
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM documents WHERE key LIKE 'system:username-migration:%'").get().n, 1);
+});
+
+test("rename-all rolls back backup, history and names if the SQLite commit fails", async (t) => {
+  t.mock.method(console, "error", () => {});
+  const { request, object, storage } = setup();
+  await request("/api/seed", { usernames: ["RuneFox123"] });
+  const snapshot = await object.store.get("snapshot:current");
+  const original = storage.sql.exec;
+  storage.sql.exec = (sql, ...args) => {
+    if (sql.startsWith("INSERT") && args[0] === "system:username-migration:v1") throw new Error("Injected failure");
+    return original(sql, ...args);
+  };
+  const response = await request("/api/admin/users/rename-all", { dryRun: false });
+  assert.equal(response.status, 503);
+  assert.equal(await object.store.get("snapshot:current"), snapshot);
+  assert.equal(await object.store.get("system:username-migration:v1"), null);
+  assert.equal(await object.store.get("backup:username-v1:players:0"), null);
 });
