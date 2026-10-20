@@ -1,3 +1,3 @@
-import { handleApiRequest } from "../../workers/src/index.js";
+import { forwardApiRequest } from "../../workers/src/gateway.js";
 export const onRequest = (context) =>
-  handleApiRequest(context.request, context.env, context);
+  forwardApiRequest(context.request, context.env, context);

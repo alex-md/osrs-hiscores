@@ -61,7 +61,7 @@ test("inactive sessions gain nothing; active sessions obey window, cap and prese
     hours: 200,
     rng: () => 0.5,
   });
-  assert.ok(u.progress.lastSession.hours <= 4);
+  assert.ok(u.progress.lastSession.hours <= 0.25);
   assert.ok(u.totalXP > before);
   assert.equal(u.progress.earnedXP, u.totalXP - before);
   assert.equal(u.achievements.old, 123);
@@ -107,4 +107,14 @@ test("Pages-compatible calibration module stays aligned with the source observat
   assert.equal(runtime.sampleSize, data.samples.length);
   assert.equal(runtime.fetchedAt, data.fetchedAt);
   assert.equal(runtime.caveat, data.caveat);
+});
+
+test("shorter simulation windows scale gains by elapsed time", (t) => {
+  t.mock.method(Math, "random", () => 0.999);
+  const full = player(), short = player();
+  const date = new Date("2026-10-20T12:00:00Z");
+  progressUser(full, date, { hours: 0.25, rng: () => 0.5 });
+  progressUser(short, date, { hours: 0.125, rng: () => 0.5 });
+  assert.ok(Math.abs(full.progress.lastSession.gainedXP - 2 * short.progress.lastSession.gainedXP) <= 2);
+  assert.ok(full.progress.lastSession.hours <= 0.25);
 });

@@ -17,6 +17,7 @@ jobs:
       - run: npm ci --prefix workers
       - run: npm test
       - run: npm run check
+      - run: npm run capacity
       - name: Deploy API and frontend assets
         run: npm --prefix workers run deploy
         env:

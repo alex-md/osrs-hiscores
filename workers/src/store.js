@@ -1,18 +1,18 @@
 import { SKILLS } from "./constants.js";
 import { clamp, levelFromXp, totalLevel, totalXP } from "./utils.js";
 
-// No global dataset cache: each KV binding is an independent environment.
+// Database access stays scoped to the Durable Object store.
 export async function readJSON(env, key, fallback = null) {
-  const raw = await env.HISCORES_KV.get(key);
+  const raw = await env.WORLD_STORE.get(key);
   if (!raw) return fallback;
   try {
     return JSON.parse(raw);
   } catch {
-    throw new Error(`Invalid JSON in KV key ${key}`);
+    throw new Error(`Invalid JSON in database document ${key}`);
   }
 }
 export const writeJSON = (env, key, value) =>
-  env.HISCORES_KV.put(key, JSON.stringify(value));
+  env.WORLD_STORE.put(key, JSON.stringify(value));
 export function normalizeUser(user) {
   if (!user || typeof user.username !== "string" || !user.skills)
     throw new Error("Invalid player record");
@@ -36,7 +36,7 @@ export function normalizeUser(user) {
     achievements: user.achievements || {},
   };
 }
-// Keep independent KV operations bounded, and wait for the whole batch before
+// Keep independent storage operations bounded, and wait for the whole batch before
 // publishing a manifest or proceeding to dependent operations.
 export async function mapBatches(items, limit, mapper) {
   const results = [];
@@ -55,35 +55,28 @@ export async function readManyJSON(env, keys) {
   for (let i = 0; i < keys.length; i += 100)
     groups.push(keys.slice(i, i + 100));
   const maps = await mapBatches(groups, 4, (group) =>
-    env.HISCORES_KV.get(group, "json"),
+    env.WORLD_STORE.get(group, "json"),
   );
   return new Map(maps.flatMap((values) => [...values]));
 }
+// Published profile shards are the canonical player records in the Durable Object.
 export async function allUsers(env) {
-  const users = [];
-  let cursor;
-  do {
-    const page = await env.HISCORES_KV.list({
-      prefix: "user:",
-      limit: 1000,
-      ...(cursor ? { cursor } : {}),
-    });
-    // Native bulk reads consume one subrequest per 100 keys, rather than one
-    // per player, and avoid dozens of serial cold-read round trips.
-    const values = await readManyJSON(
-      env,
-      page.keys.map((k) => k.name),
-    );
-    users.push(...[...values.values()].filter(Boolean).map(normalizeUser));
-    cursor = page.list_complete ? null : page.cursor;
-    if (!page.list_complete && !cursor)
-      throw new Error("KV listing returned no continuation cursor");
-  } while (cursor);
-  return users;
+  const snapshot = await readJSON(env, "snapshot:current");
+  if (!snapshot) return [];
+  const keys = [...new Set(Object.values(snapshot.profileIndex || {}))].map(
+    (i) => `snapshot:${snapshot.generation}:profiles:${i}`,
+  );
+  const values = await readManyJSON(env, keys);
+  if (keys.some((key) => !values.get(key))) throw new Error("Missing player shard");
+  return [...values.values()].flatMap((group) => Object.values(group).map(normalizeUser));
 }
 export async function getUser(env, name) {
-  const user = await readJSON(env, `user:${name.toLowerCase()}`);
-  return user ? normalizeUser(user) : null;
+  const snapshot = await readJSON(env, "snapshot:current");
+  if (snapshot?.version >= 2) {
+    const lower = name.toLowerCase();
+    if (!Object.hasOwn(snapshot.profileIndex, lower)) return null;
+    const group = await readJSON(env, `snapshot:${snapshot.generation}:profiles:${snapshot.profileIndex[lower]}`);
+    return group?.[lower] ? normalizeUser(group[lower]) : null;
+  }
+  return null;
 }
-export const putUser = (env, user) =>
-  writeJSON(env, `user:${user.username.toLowerCase()}`, normalizeUser(user));

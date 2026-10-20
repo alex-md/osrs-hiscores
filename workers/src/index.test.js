@@ -4,7 +4,7 @@ import worker, { handleApiRequest, runScheduled } from "./index.js";
 import { onRequest } from "../../functions/api/[[path]].js";
 import { SKILLS } from "./constants.js";
 import { xpForLevel, totalLevel, totalXP } from "./utils.js";
-import { putUser, allUsers, mapBatches } from "./store.js";
+import { allUsers, mapBatches } from "./store.js";
 import { publishSnapshot } from "./snapshots.js";
 import { computeAchievementContext } from "./achievements.js";
 import { combatLevel, rarity } from "../../frontend/lib/domain.js";
@@ -46,7 +46,11 @@ class MemoryKV {
     };
   }
 }
-const env = () => ({ HISCORES_KV: new MemoryKV(), ADMIN_TOKEN: "test-only" });
+const env = () => ({ WORLD_STORE: new MemoryKV(), ADMIN_TOKEN: "test-only" });
+const putUser = async (e, user) => {
+  const users = (await allUsers(e)).filter((u) => u.username.toLowerCase() !== user.username.toLowerCase());
+  await publishSnapshot(e, [...users, user]);
+};
 function player(username, level = 50) {
   const skills = Object.fromEntries(
     SKILLS.map((s) => [s, { xp: xpForLevel(level), level }]),
@@ -73,12 +77,12 @@ const post = (body = {}, token = "test-only") => ({
   body: JSON.stringify(body),
 });
 
-test("health and preflight remain reachable when KV is missing", async () => {
+test("health and preflight remain reachable when storage is missing", async () => {
   assert.equal((await call({}, "/api/health")).status, 503);
   assert.equal((await call({}, "/api/users")).status, 503);
   const response = await onRequest({
     request: new Request("https://test/api/seed", { method: "OPTIONS" }),
-    env: {},
+    env: { HISCORES_WORLD: { idFromName: (name) => name, get: () => ({ fetch: (request) => handleApiRequest(request, {}) }) } },
   });
   assert.equal(response.status, 204);
   assert.equal(response.headers.get("access-control-allow-origin"), "*");
@@ -99,10 +103,10 @@ test("all mutations require configured header authentication", async () => {
     401,
   );
   assert.equal(
-    (await call({ HISCORES_KV: e.HISCORES_KV }, "/api/seed", post())).status,
+    (await call({ WORLD_STORE: e.WORLD_STORE }, "/api/seed", post())).status,
     503,
   );
-  assert.equal(e.HISCORES_KV.data.size, 0);
+  assert.equal(e.WORLD_STORE.data.size, 0);
 });
 test("seed validates the whole batch, preserves existing players and deduplicates names", async () => {
   const e = env();
@@ -111,7 +115,7 @@ test("seed validates the whole batch, preserves existing players and deduplicate
       .status,
     400,
   );
-  assert.equal(e.HISCORES_KV.data.size, 0);
+  assert.equal(e.WORLD_STORE.data.size, 0);
   const first = await (
     await call(
       e,
@@ -120,19 +124,19 @@ test("seed validates the whole batch, preserves existing players and deduplicate
     )
   ).json();
   assert.equal(first.created.length, 2);
-  const old = await e.HISCORES_KV.get("user:oak");
+  const old = (await allUsers(e)).find((u) => u.username === "Oak");
   const second = await (
     await call(e, "/api/seed", post({ usernames: ["Oak"] }))
   ).json();
   assert.deepEqual(second.skipped, ["Oak"]);
-  assert.equal(await e.HISCORES_KV.get("user:oak"), old);
+  assert.deepEqual((await allUsers(e)).find((u) => u.username === "Oak"), old);
 });
 test("rankings include players beyond the former 500 cap, paginate and filter without changing ranks", async () => {
   const e = env();
   const users = Array.from({ length: 520 }, (_, i) =>
     player(`Player${String(i).padStart(3, "0")}`, 50),
   );
-  for (const u of users) await putUser(e, u);
+  await publishSnapshot(e, users);
   assert.equal((await allUsers(e)).length, 520);
   await publishSnapshot(e, users);
   const data = await (
@@ -189,7 +193,7 @@ test("firsts reconcile earlier historical timestamps and repeated rebuilds are i
   const u = player("Ada", 99);
   u.achievements["skill-master-attack"] = 100;
   await putUser(e, u);
-  await e.HISCORES_KV.put(
+  await e.WORLD_STORE.put(
     "ach:firsts",
     JSON.stringify({
       "skill-master-attack": { username: "Historic", timestamp: 50 },
@@ -202,10 +206,10 @@ test("firsts reconcile earlier historical timestamps and repeated rebuilds are i
   );
   assert.equal(mastery.first.username, "Historic");
   assert.equal(mastery.count, 1);
-  const log = await e.HISCORES_KV.get("ach:events");
+  const log = await e.WORLD_STORE.get("snapshot:current");
   await publishSnapshot(e);
   assert.deepEqual(
-    JSON.parse(await e.HISCORES_KV.get("ach:events")).events,
+    JSON.parse(await e.WORLD_STORE.get("snapshot:current")).events,
     JSON.parse(log).events,
   );
 });
@@ -218,7 +222,7 @@ test("deletion defaults to dry-run and live deletion rebuilds all projections", 
     await call(e, "/api/admin/users/delete-batch", post({ usernames: ["Ada"] }))
   ).json();
   assert.equal(response.dryRun, true);
-  assert.ok(await e.HISCORES_KV.get("user:ada"));
+  assert.ok((await allUsers(e)).some((u) => u.username === "Ada"));
   assert.equal(
     (await call(e, "/api/admin/users/delete-batch", post({ dryRun: "false" })))
       .status,
@@ -233,11 +237,14 @@ test("deletion defaults to dry-run and live deletion rebuilds all projections", 
   assert.equal(response.total, 1);
   assert.equal(response.players[0].username, "Zed");
 });
-test("scheduled simulation seeds an empty world and never lowers XP or loses history", async () => {
+test("scheduled simulation seeds an empty world and never lowers XP or loses history", async (t) => {
+  let now = Date.now();
+  t.mock.method(Date, "now", () => now);
   const e = env();
   const first = await runScheduled(e);
   assert.equal(first.newUsers, 5);
   const before = await allUsers(e);
+  now += 15 * 60_000;
   const second = await runScheduled(e);
   assert.ok(second.totalPlayers > 5);
   const after = await allUsers(e);
@@ -250,7 +257,7 @@ test("scheduled simulation seeds an empty world and never lowers XP or loses his
     assert.ok(SKILLS.every((s) => user.skills[s].xp <= 200_000_000));
   }
 });
-test("independent KV environments cannot leak cached users", async () => {
+test("independent database environments cannot leak cached users", async () => {
   const one = env(),
     two = env();
   await putUser(one, player("Ada"));
@@ -271,11 +278,11 @@ test("Worker serves assets separately and Pages delegates to the same API", asyn
   );
   assert.equal(
     (await worker.fetch(new Request("https://test/api/unknown"), e)).status,
-    404,
+    503,
   );
   const pages = await onRequest({
     request: new Request("https://test/api/health"),
-    env: e,
+    env: { HISCORES_WORLD: { idFromName: (name) => name, get: () => ({ fetch: (request) => handleApiRequest(request, e) }) } },
   });
   assert.equal((await pages.json()).status, "ok");
 });
@@ -285,20 +292,17 @@ test("combat and rarity definitions distinguish unclaimed milestones", () => {
   assert.equal(rarity(1, 10000), "mythic");
 });
 
-test("bulk player reads avoid one KV operation per player and respect the 100-key cap", async () => {
+test("packed player reads use the manifest and only canonical profile shards", async () => {
   const e = env();
-  for (let i = 0; i < 1200; i++) await putUser(e, player(`User${i}`));
+  await publishSnapshot(e, Array.from({ length: 1200 }, (_, i) => player(`User${i}`)));
   let calls = 0;
-  const get = e.HISCORES_KV.get.bind(e.HISCORES_KV);
-  e.HISCORES_KV.get = async (...args) => {
-    calls++;
-    assert.ok(Array.isArray(args[0]));
-    return get(...args);
-  };
+  const get = e.WORLD_STORE.get.bind(e.WORLD_STORE);
+  e.WORLD_STORE.get = async (...args) => { calls++; return get(...args); };
+  e.WORLD_STORE.list = () => { throw new Error("Enumeration must never run"); };
   assert.equal((await allUsers(e)).length, 1200);
-  assert.equal(calls, 12);
+  assert.equal(calls, 2); // Manifest and twelve packed shards in one bulk call.
 });
-test("bounded KV writes finish in-flight work and propagate errors before publishing", async () => {
+test("bounded storage writes finish in-flight work and propagate errors before publishing", async () => {
   let active = 0,
     peak = 0,
     completed = 0;
@@ -318,20 +322,20 @@ test("bounded KV writes finish in-flight work and propagate errors before publis
   assert.equal(active, 0);
 });
 
-test("packed snapshots cut writes and profiles read one generation with two cold KV reads", async () => {
+test("packed snapshots cut writes and profiles read one generation with two cold database reads", async () => {
   const e = env();
   const users = Array.from({ length: 501 }, (_, i) => player(`User${i}`));
   let writes = 0;
-  const put = e.HISCORES_KV.put.bind(e.HISCORES_KV);
-  e.HISCORES_KV.put = async (key, value) => {
+  const put = e.WORLD_STORE.put.bind(e.WORLD_STORE);
+  e.WORLD_STORE.put = async (key, value) => {
     if (key.includes(":rankings:")) writes++;
     return put(key, value);
   };
   const snapshot = await publishSnapshot(e, users);
   assert.equal(writes, 2); // Previously 48 ranking shard writes.
   let reads = 0;
-  const get = e.HISCORES_KV.get.bind(e.HISCORES_KV);
-  e.HISCORES_KV.get = async (...args) => {
+  const get = e.WORLD_STORE.get.bind(e.WORLD_STORE);
+  e.WORLD_STORE.get = async (...args) => {
     reads++;
     return get(...args);
   };
@@ -340,18 +344,18 @@ test("packed snapshots cut writes and profiles read one generation with two cold
   assert.equal(response.generation, snapshot.generation);
   assert.equal(response.ranks.attack, 448);
   assert.equal(response.training.scale, 3.5);
-  // Direct documents can be ahead of the published generation; profiles stay consistent.
-  await putUser(e, player("User500", 99));
+  // Obsolete direct documents cannot change the authoritative published world.
+  await e.WORLD_STORE.put("user:user500", JSON.stringify(player("User500", 99)));
   const stillPublished = await (await call(e, "/api/users/User500")).json();
   assert.equal(stillPublished.skills.attack.level, 50);
   assert.ok(stillPublished.goal.remainingXP > 0);
 });
 test("scheduled updates process every existing player and persist each at most once", async () => {
   const e = env();
-  for (let i = 0; i < 20; i++) await putUser(e, player(`User${i}`));
+  await publishSnapshot(e, Array.from({ length: 20 }, (_, i) => player(`User${i}`)));
   const calls = new Map();
-  const put = e.HISCORES_KV.put.bind(e.HISCORES_KV);
-  e.HISCORES_KV.put = async (key, value) => {
+  const put = e.WORLD_STORE.put.bind(e.WORLD_STORE);
+  e.WORLD_STORE.put = async (key, value) => {
     calls.set(key, (calls.get(key) || 0) + 1);
     return put(key, value);
   };
@@ -383,7 +387,7 @@ test("snapshot profile indexes support names matching object properties", async 
   ).json();
   assert.equal(batch.returned, 2);
 });
-test("edge cache serves repeated reads without KV operations and diagnostics stay uncached", async (t) => {
+test("edge cache serves repeated reads without database operations and diagnostics stay uncached", async (t) => {
   const e = env();
   await publishSnapshot(e, [player("Ada")]);
   const cached = new Map(),
@@ -404,19 +408,19 @@ test("edge cache serves repeated reads without KV operations and diagnostics sta
   });
   const ctx = { waitUntil: (promise) => pending.push(promise) };
   let reads = 0;
-  const get = e.HISCORES_KV.get.bind(e.HISCORES_KV);
-  e.HISCORES_KV.get = async (...args) => {
+  const get = e.WORLD_STORE.get.bind(e.WORLD_STORE);
+  e.WORLD_STORE.get = async (...args) => {
     reads++;
     return get(...args);
   };
   const request = new Request("https://hiscores.test/api/users/Ada");
-  assert.equal((await worker.fetch(request, e, ctx)).status, 200);
+  assert.equal((await handleApiRequest(request, e, ctx)).status, 200);
   await Promise.all(pending);
   const firstReads = reads;
   assert.ok(firstReads > 0);
-  assert.equal((await worker.fetch(request, e, ctx)).status, 200);
+  assert.equal((await handleApiRequest(request, e, ctx)).status, 200);
   assert.equal(reads, firstReads);
-  await worker.fetch(new Request("https://hiscores.test/api/debug"), e, ctx);
+  await handleApiRequest(new Request("https://hiscores.test/api/debug"), e, ctx);
   await Promise.all(pending);
   assert.equal(cached.size, 1);
 });
@@ -425,12 +429,21 @@ test("full skill rankings load each packed shard once", async () => {
   const e = env();
   await publishSnapshot(e, [player("Ada")]);
   let reads = 0;
-  const get = e.HISCORES_KV.get.bind(e.HISCORES_KV);
-  e.HISCORES_KV.get = async (...args) => {
+  const get = e.WORLD_STORE.get.bind(e.WORLD_STORE);
+  e.WORLD_STORE.get = async (...args) => {
     reads++;
     return get(...args);
   };
   const response = await (await call(e, "/api/skill-rankings")).json();
   assert.equal(reads, 2);
   assert.equal(Object.keys(response.rankings).length, 23);
+});
+
+test("administrative seed cannot exceed the 5000-player world budget", async () => {
+  const e = env();
+  await publishSnapshot(e, Array.from({ length: 5000 }, (_, i) => player(`Cap${i}`)));
+  const generation = JSON.parse(await e.WORLD_STORE.get("snapshot:current")).generation;
+  assert.equal((await call(e, "/api/seed", post({ usernames: ["Overflow"] }))).status, 409);
+  assert.equal(JSON.parse(await e.WORLD_STORE.get("snapshot:current")).generation, generation);
+  assert.equal((await allUsers(e)).length, 5000);
 });

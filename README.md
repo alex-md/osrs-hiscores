@@ -1,10 +1,10 @@
 # OSRS Hiscores
 
-A simulated Old School RuneScape world with overall rankings, all 23 skill ladders, player profiles, achievement history, and recorded firsts. Every four hours, all players receive a training opportunity with skill-specific rates and a 3.5× XP scale. This is an independent fan project; the accounts are simulated and it is not affiliated with Jagex.
+A simulated Old School RuneScape world with overall rankings, all 23 skill ladders, player profiles, achievement history, and recorded firsts. Every 15 minutes, all players receive a training opportunity with skill-specific rates and a 3.5× XP scale. This is an independent fan project; the accounts are simulated and it is not affiliated with Jagex.
 
 ## Run locally
 
-Requires Node.js 22 or newer.
+Requires Node.js 22.16 or newer.
 
 ```sh
 npm ci --prefix workers
@@ -12,9 +12,9 @@ cp workers/.dev.vars.example workers/.dev.vars
 npm run dev
 ```
 
-Open **http://localhost:8787**. Wrangler serves the frontend and API together and uses local KV storage. No frontend build, CSS runtime, icon CDN, or JavaScript framework is required. Google Fonts are optional; system fonts provide fallbacks.
+Open **http://localhost:8787**. Wrangler serves the frontend and API together and uses a local SQLite-backed Durable Object. No frontend build, CSS runtime, icon CDN, or JavaScript framework is required. Google Fonts are optional; system fonts provide fallbacks.
 
-A new local namespace starts empty. To create accounts, use the token you placed in `.dev.vars`:
+A new local Durable Object starts empty. To create accounts, use the token you placed in `.dev.vars`:
 
 ```sh
 curl http://localhost:8787/api/seed \
@@ -24,13 +24,13 @@ curl http://localhost:8787/api/seed \
   --data '{"usernames":["Rune Mage","Oak Knight","Iron Fox"]}'
 ```
 
-`POST /api/cron/trigger` runs a simulation cycle with the same authentication. The scheduled handler initializes five accounts if the world is empty. Public reads never run the simulation.
+`POST /api/cron/trigger` runs a simulation cycle with the same authentication. The scheduled handler initializes five accounts if the world is empty. Public reads never run the simulation. Repeated simulation triggers within the same 15-minute UTC slot return `429`.
 
 ## Publish
 
 ### Cloudflare Worker (recommended)
 
-The Worker serves both the website and API. The existing `HISCORES_KV` namespace ID is retained in `workers/wrangler.toml`; change it only if you intend to use a different world.
+The Worker serves both the website and API. `HISCORES_WORLD` points to a single SQLite-backed Durable Object named `main-world`. The `v1-world-sqlite` Wrangler migration creates its database. This cutover intentionally starts a fresh simulated world; the old KV namespace is no longer bound or used, and is not deleted.
 
 ```sh
 cd workers
@@ -39,9 +39,9 @@ npx wrangler secret put ADMIN_TOKEN
 npm run deploy
 ```
 
-Keep `ADMIN_TOKEN` in Cloudflare secrets. It is deliberately absent from committed configuration. Existing deployments should replace the previously committed token with a fresh secret. Cron remains `0 */4 * * *` (UTC). Static assets run through Cloudflare's asset handler; `/api` and `/api/*` always reach the API router.
+Keep `ADMIN_TOKEN` in Cloudflare secrets. It is deliberately absent from committed configuration. Existing deployments should replace the previously committed token with a fresh secret. Cron is `*/15 * * * *` (UTC). Static assets run through Cloudflare's asset handler; `/api` and `/api/*` always reach the API router.
 
-The **Publish Cloudflare Worker** workflow is manual and uses the `cloudflare` GitHub environment. Configure `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets, then run it from Actions. Give the token permission to deploy the Worker, its assets, and the existing KV binding.
+The **Publish Cloudflare Worker** workflow is manual and uses the `cloudflare` GitHub environment. Configure `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets, then run it from Actions. Give the token permission to deploy the Worker, its assets, and Durable Objects. SQLite-backed Durable Objects are available on the Workers Free plan; their request, duration and SQL/storage limits still apply.
 
 ### GitHub Pages
 
@@ -51,7 +51,7 @@ The client can also read the prior API during a rolling deployment. It paginates
 
 ### Cloudflare Pages
 
-For an existing Pages project, use `frontend` as the output directory with no build command. Keep `functions/` at the repository root and bind `HISCORES_KV` to the same namespace. The sole `/api/[[path]]` Function delegates to the same API handler; there are no route-shadowing placeholder Functions. Pages Functions do not run cron: deploy the Worker against the shared namespace for scheduled updates.
+For an existing Pages project, use `frontend` as the output directory with no build command. Keep `functions/` at the repository root. In the Pages project, bind `HISCORES_WORLD` to class `HiscoresWorld` in Worker `osrs-hiscores-clone` after deploying that Worker. The sole `/api/[[path]]` Function forwards to the same `main-world` object. Do not bind the old KV namespace. Pages Functions do not run cron; the Worker owns scheduled updates.
 
 ## Application
 
@@ -71,7 +71,7 @@ All responses are JSON with CORS enabled. Reads cache for 30 seconds in browsers
 | Method | Endpoint                              | Response                                                                            |
 | ------ | ------------------------------------- | ----------------------------------------------------------------------------------- |
 | GET    | `/api/world`                          | Snapshot generation, training calibration and estimated next update                  |
-| GET    | `/api/health`                         | Liveness and KV binding status                                                      |
+| GET    | `/api/health`                         | Liveness and Durable Object storage status                                                      |
 | GET    | `/api/debug`                          | Binding status and last successful simulation; no secret values                     |
 | GET    | `/api/leaderboard`                    | Paginated overall ranking                                                           |
 | GET    | `/api/skill-rankings?skill=attack`    | Paginated skill ranking                                                             |
@@ -102,15 +102,34 @@ The obsolete public migration, regex purge, hitpoints rebalance, and fake-word s
 
 ## Data and consistency
 
-Permanent records remain under `user:<lowercase name>`. Existing player data and the `ach:firsts`, `ach:firsts:v2`, and `ach:events` stores are read and retained. No namespace reset or bulk migration is needed.
+The singleton `HiscoresWorld` Durable Object owns a SQLite database. Public reads, administrative updates, and 15-minute cron runs all go through the same request queue. There are no Workers KV bindings or KV operations in the active architecture. Public requests never create or rebuild snapshots; an uninitialized world returns `503` until it is seeded or the first cron runs.
 
-Player scans use Cloudflare KV bulk reads in groups of up to 100 keys. Independent writes run in bounded batches, with failures propagated before publishing a snapshot. This avoids one subrequest per player and long serial startup work. KV still bills bulk reads per key; bulk access improves subrequest usage, while the shard and edge caches reduce billed reads.
+A successful update writes packed 500-player ranking shards, 100-player profile shards, the manifest, and simulation metadata into one SQLite transaction. Profile shards are the canonical player records, including XP and achievement history. A failed computation or SQL commit leaves the previous generation intact. Obsolete generations are deleted in that same transaction, so snapshot storage does not grow on every update. The current generation has no expiry. Individual JSON rows are checked against a 1.9 MB safety threshold below SQLite's 2 MB row limit.
 
-A successful simulation publishes a generation-scoped snapshot. All 24 ladders are packed together in 500-row shards, reducing ranking snapshot writes from 24 per shard to one. Profiles are stored in 100-player shards with their XP, ranks, goals and achievement history from the same generation. Profile reads need the manifest and one profile shard, instead of a permanent document and all skill ladders. Immutable shards are cached within each Worker isolate; the manifest stays authoritative. The `snapshot:current` manifest is written after all shards, with one generation's timestamp, counts, firsts, recent events and calibration metadata. Dirty simulation records and new unlocks are deduplicated into one permanent write per changed player. Unchanged firsts and event logs are not rewritten. Readers never deliberately combine generations. Temporary KV replication gaps produce a retryable error rather than partial or invented results. Snapshot shards expire after 30 days; an expired manifest can be rebuilt from permanent player records.
+The object serializes reads and writes, and stores a simulation slot identifier atomically with the simulation. Repeated or concurrent cron/manual triggers in the same 15-minute UTC window return `429` without progressing players again. Seed, rebuild, and deletion remain available independently of that simulation guard. Failed simulations can be retried because their slot reservation rolls back too.
 
-Achievement counts reflect retained historical unlocks rather than inferred lower milestones. Firsts are reconciled against earlier stored timestamps, including legacy mappings, and remain historical even if a player is removed. Missing records cannot reconstruct an exact historical unlock time; new discoveries use the time they were recorded.
+Achievement counts reflect retained historical unlocks. Firsts remain historical even if a player is removed. Missing historical timestamps cannot be reconstructed; newly discovered unlocks use the publication time.
 
-KV is eventually consistent. The in-process mutation guard prevents overlapping jobs within one isolate, but is **not a distributed lock**. Avoid overlapping manual and scheduled operations. Strict serialization across isolates or strongly consistent rankings would require a Durable Object or a transactional store. The UI shows snapshot timestamps so stale data is visible. Visible pages check `/api/world` every minute and reload the current view when the generation changes; hidden tabs stop polling, and active form edits defer refresh.
+Reads cache for 30 seconds at the edge and in browsers. Visible pages check `/api/world` every minute and reload when the generation changes; hidden tabs stop polling, and active form edits defer refresh. Immutable shards are cached in the object with bounded memory. Edge caching limits Durable Object requests, but arbitrary unique URLs can still consume its separate Free plan quotas.
+
+### Capacity and cadence
+
+The world updates every 15 minutes: 96 updates/day rather than six. XP remains calibrated to the elapsed training window at the existing 3.5× scale; a more frequent cron does not multiply XP/hour. Browser freshness checks run once a minute while visible. `simulation-config.js` shares cadence and the 5,000-player population cap across the server and training metadata. Admin seed requests also respect the cap.
+
+Cloudflare's SQLite Durable Object Free allowance is 100,000 rows written/day and 5 million rows read/day, with separate request/duration/storage limits. The disposable local workerd benchmark at the full 5,000-player cap measured 185 SQL rows written and 176 read for one update, including index writes and deleting the previous shards: **17,760 scheduled rows written/day** at 96 updates. This projection leaves room for admin changes and ordinary traffic; it is not production usage telemetry. GET routes do not write to SQLite. One run took about 310 ms locally, which is not a production latency guarantee.
+
+Run `npm run capacity` after `npm ci --prefix workers` to repeat the real-runtime benchmark without contacting production. It fails if projected scheduled writes reach 30,000/day or population growth exceeds the cap. Account-wide usage and traffic still need observing after deployment. See [Cloudflare's pricing](https://developers.cloudflare.com/durable-objects/platform/pricing/).
+
+### Fresh-world cutover
+
+1. Deploy the Worker with `workers/wrangler.toml`, including its Durable Object binding and `new_sqlite_classes` migration. Keep the migration tag unchanged on later deploys.
+2. Update any Cloudflare Pages deployment to forward to the same object, or use the Worker-served frontend. Retire old Workers/Pages Functions that still write to KV; their usage does not disappear just because this Worker stopped using it.
+3. Trigger `POST /api/cron/trigger` with `X-Admin-Token`, or wait for the next 15-minute cron. This creates five players. Later runs add one or two players (up to 5,000 total) and progress the existing population.
+4. Check `/api/health` for `storage: "durable-object-sqlite"`, then check `/api/world`, profiles and rankings. Check Cloudflare usage after cutover; other scripts using the old namespace can still consume account-wide KV quotas.
+
+No destructive namespace wipe or player import is required. The previous KV dataset remains available for manual backup or later removal. Local tests and a bundle dry run do not deploy the migration or change production data.
+
+See [the KV audit](docs/kv-audit.md) for the original call paths and quota diagnosis.
 
 ## Structure and verification
 
@@ -126,7 +145,10 @@ functions/api/[[path]].js   Cloudflare Pages adapter
 workers/src/
   index.js                 API routing and Worker entry point
   http.js                  Validation, errors, auth, pagination
-  store.js                 KV access and player normalization
+  store.js                 Database access and player normalization
+  durable-store.js         SQLite documents and atomic commits
+  world.js                 Serialized Durable Object request handling
+  gateway.js               Worker/Pages forwarding and edge caching
   snapshots.js             Rankings, unlock persistence, firsts, snapshot publishing
   simulation.js            Account generation and scheduled progress
   achievements.js          Achievement evaluation
@@ -139,7 +161,7 @@ npm run check
 cd workers && npx wrangler deploy --dry-run
 ```
 
-Tests exercise API contracts, malformed input, authorization, KV pagination, rankings beyond 500 accounts, tie ordering, profile ranks, preserved history, firsts reconciliation, dry-run deletion, scheduled progress, environment isolation, and Worker/Pages parity. Browser verification should cover desktop/mobile layouts, light/dark themes, search, filters, pagination, profiles, achievements, retry states, and legacy API compatibility.
+Tests exercise API contracts, malformed input, authorization, packed player reads, rankings beyond 500 accounts, tie ordering, profile ranks, preserved history, firsts reconciliation, dry-run deletion, scheduled progress, environment isolation, SQL rollback, concurrent trigger deduplication, and Worker/Pages parity. Browser verification should cover desktop/mobile layouts, light/dark themes, search, filters, pagination, profiles, achievements, retry states, and legacy API compatibility.
 
 ## Training calibration
 
@@ -147,7 +169,7 @@ Tests exercise API contracts, malformed input, authorization, KV pagination, ran
 
 EHP rates represent optimized training, **not average observed XP/hour**. Weekly XP gains do not reveal playtime. This competitive sample is biased and cannot measure population-wide popularity. The simulator uses explicit ordinary-training ceilings and level scaling, caps efficiency rates at 70%, and adjusts authored popularity preferences only slightly using sample participation. Agility and Runecraft remain slower and less frequently selected for general players; archetype preferences allow specialists to focus on them. The 3.5× scale applies once, with the existing weekend bonus. Old global tier XP multipliers no longer stack on the scale; skill multipliers influence selection instead.
 
-Each four-hour opportunity samples activity duration (including genuinely inactive sessions), then selects a trainable skill with weighted preferences. Combat and Slayer award related combat/Hitpoints XP. Elapsed time since the last successful run caps the window at four hours, preventing rapid manual triggers from granting four hours repeatedly. Missed cron windows do not produce unlimited catch-up. No player XP is reset, and every skill remains capped at 200M.
+Each 15-minute opportunity samples activity duration (including genuinely inactive sessions), then selects a trainable skill with weighted preferences. Combat and Slayer award related combat/Hitpoints XP. Elapsed time since the last successful run caps the window at 15 minutes, preventing rapid manual triggers from granting a full training window repeatedly. Missed cron windows do not produce unlimited catch-up. No player XP is reset, and every skill remains capped at 200M.
 
 Profiles show their latest and best session, session count and nearest skill cape with a current-rate active-hours estimate. Added milestones include 500/1000 total level, base 70, dual Agility/Runecraft mastery, first/100th training session and 1M XP in a UTC day. Session achievements begin with this version rather than inventing historical training logs.
 

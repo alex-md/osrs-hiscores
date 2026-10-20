@@ -8,6 +8,7 @@
     "test": "npm --prefix workers test",
     "deploy": "npm --prefix workers run deploy",
     "check": "node scripts/check.mjs",
-    "calibrate": "node scripts/calibrate-rates.mjs"
+    "calibrate": "node scripts/calibrate-rates.mjs",
+    "capacity": "node scripts/benchmark-capacity.mjs"
   }
 }

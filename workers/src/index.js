@@ -1,6 +1,8 @@
+import { UPDATE_INTERVAL_MS } from "../../frontend/lib/simulation-config.js";
+import { forwardApiRequest, worldStub } from "./gateway.js";
 import { SKILLS } from "./constants.js";
 import { combatLevel } from "../../frontend/lib/domain.js";
-import { allUsers, getUser, putUser, readJSON } from "./store.js";
+import { allUsers, getUser, readJSON } from "./store.js";
 import {
   getSnapshot,
   publishSnapshot,
@@ -21,18 +23,17 @@ import {
   paginate,
 } from "./http.js";
 
-// An isolate-local queue prevents overlapping jobs in this runtime. KV is eventually
-// consistent and is not a distributed mutex; strict concurrent writes need a Durable Object.
+// Internal mutation guard. The Durable Object serializes all requests globally.
 const jobs = new WeakMap();
 async function mutate(env, operation) {
-  if (jobs.has(env.HISCORES_KV))
+  if (jobs.has(env.WORLD_STORE))
     throw new HttpError(409, "Another update is in progress. Retry shortly.");
   const job = Promise.resolve().then(operation);
-  jobs.set(env.HISCORES_KV, job);
+  jobs.set(env.WORLD_STORE, job);
   try {
     return await job;
   } finally {
-    jobs.delete(env.HISCORES_KV);
+    jobs.delete(env.WORLD_STORE);
   }
 }
 const cached = (data) =>
@@ -74,21 +75,23 @@ async function route(request, env) {
   if (path === "/api/health" && method === "GET")
     return json(
       {
-        status: env.HISCORES_KV ? "ok" : "unconfigured",
-        hasKV: Boolean(env.HISCORES_KV),
+        status: env.WORLD_STORE ? "ok" : "unconfigured",
+        hasDurableObject: Boolean(env.WORLD_STORE),
+        storage: env.WORLD_STORE ? "durable-object-sqlite" : "unconfigured",
         time: Date.now(),
       },
-      env.HISCORES_KV ? 200 : 503,
+      env.WORLD_STORE ? 200 : 503,
     );
-  if (!env.HISCORES_KV)
-    throw new HttpError(503, "HISCORES_KV is not bound to this deployment.");
+  if (!env.WORLD_STORE)
+    throw new HttpError(503, "WORLD_STORE is not bound to this deployment.");
   if (method === "POST") {
     requireAdmin(request, env);
     return mutate(env, async () => {
       if (path === "/api/cron/trigger")
         return json({ triggered: true, ...(await runScheduled(env)) });
-      if (path === "/api/admin/rebuild")
+      if (path === "/api/admin/rebuild") {
         return json(snapshotInfo(await publishSnapshot(env)));
+      }
       if (path === "/api/seed") {
         const body = await bodyJSON(request);
         if (
@@ -107,16 +110,18 @@ async function route(request, env) {
             }),
           ).values(),
         ];
-        const created = [],
-          skipped = [];
+        const users = await allUsers(env);
+        const existing = new Set(users.map((u) => u.username.toLowerCase()));
+        const created = [], skipped = [];
         for (const name of names) {
-          if (await getUser(env, name)) skipped.push(name);
+          if (existing.has(name.toLowerCase())) skipped.push(name);
           else {
-            await putUser(env, newUser(name));
+            users.push(newUser(name));
+            existing.add(name.toLowerCase());
             created.push(name);
           }
         }
-        await publishSnapshot(env);
+        await publishSnapshot(env, users);
         return json({ created, skipped });
       }
       if (path === "/api/admin/users/delete-batch") {
@@ -145,8 +150,6 @@ async function route(request, env) {
         }
         const dryRun = body.dryRun !== false;
         if (!dryRun) {
-          for (const user of selected)
-            await env.HISCORES_KV.delete(`user:${user.username.toLowerCase()}`);
           const removed = new Set(selected.map((u) => u.username));
           await publishSnapshot(
             env,
@@ -169,15 +172,17 @@ async function route(request, env) {
     );
   if (path === "/api/debug")
     return json({
-      hasKV: true,
+      hasDurableObject: Boolean(env.WORLD_STORE),
+      storage: "durable-object-sqlite",
       adminConfigured: Boolean(env.ADMIN_TOKEN),
       assetsConfigured: Boolean(env.ASSETS),
       lastRun: await readJSON(env, "system:last-run"),
     });
   if (path === "/api/generate/users/dry-run") {
     const count = integer(url.searchParams.get("count"), 5, 1, 50, "count");
+    const snapshot = await getSnapshot(env);
     const existing = new Set(
-        (await allUsers(env)).map((u) => u.username.toLowerCase()),
+        (await rankingRows(env, snapshot, "overall")).map((u) => u.username.toLowerCase()),
       ),
       usernames = [];
     for (let i = 0; i < count; i++) {
@@ -267,7 +272,7 @@ async function route(request, env) {
   if (path === "/api/world")
     return cached({
       ...snapshotInfo(snapshot),
-      nextUpdateAt: snapshot.generatedAt + 4 * 3600000,
+      nextUpdateAt: (Math.floor(Date.now() / UPDATE_INTERVAL_MS) + 1) * UPDATE_INTERVAL_MS,
     });
   if (path === "/api/leaderboard" || path === "/api/skill-rankings") {
     const skill =
@@ -414,12 +419,19 @@ export default {
   async fetch(request, env, ctx) {
     const path = new URL(request.url).pathname;
     if (path === "/api" || path.startsWith("/api/"))
-      return handleApiRequest(request, env, ctx);
+      return forwardApiRequest(request, env, ctx);
     return env.ASSETS
       ? env.ASSETS.fetch(request)
       : json({ error: "Static assets are not configured." }, 404);
   },
   scheduled(_event, env, ctx) {
-    ctx.waitUntil(mutate(env, () => runScheduled(env)));
+    ctx.waitUntil((async () => {
+      const stub = worldStub(env);
+      if (!stub) throw new Error("HISCORES_WORLD binding is missing");
+      const response = await stub.fetch(new Request("https://world/internal/scheduled", { method: "POST" }));
+      if (!response.ok && response.status !== 429) throw new Error(await response.text());
+    })());
   },
 };
+
+export { HiscoresWorld } from "./world.js";

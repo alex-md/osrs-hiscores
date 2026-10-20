@@ -1,3 +1,5 @@
+import { TICK_HOURS, UPDATE_MINUTES, MAX_PLAYERS } from "../../frontend/lib/simulation-config.js";
+export { TICK_HOURS };
 import calibration from "../data/calibration.js";
 import {
   SKILL_POPULARITY,
@@ -5,7 +7,6 @@ import {
 } from "./constants.js";
 
 export const XP_SCALE = 3.5;
-export const TICK_HOURS = 4;
 export const SESSION_FRACTIONS = {
   INACTIVE: [0, 0],
   BANK_STANDING: [0, 0.01],
@@ -77,6 +78,8 @@ export function chooseTrainingSkill(user, rng = Math.random) {
 export const trainingInfo = () => ({
   scale: XP_SCALE,
   tickHours: TICK_HOURS,
+  updateMinutes: UPDATE_MINUTES,
+  maxPlayers: MAX_PLAYERS,
   calibratedAt: calibration.fetchedAt,
   sampleSize: calibration.sampleSize,
   source: "Wise Old Man",

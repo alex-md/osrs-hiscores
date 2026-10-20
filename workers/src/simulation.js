@@ -1,3 +1,5 @@
+import { MAX_PLAYERS } from "../../frontend/lib/simulation-config.js";
+import { reserveUpdate } from "./budget.js";
 import {
   XP_SCALE,
   TICK_HOURS,
@@ -146,11 +148,12 @@ export function progressUser(
   return user;
 }
 export async function runScheduled(env) {
+  await reserveUpdate(env);
   const users = await allUsers(env);
   const existing = new Set(users.map((u) => u.username.toLowerCase()));
   const changed = [];
   const previous = await readJSON(env, "system:last-run");
-  const date = new Date();
+  const date = new Date(Date.now());
   const hours = previous?.generatedAt
     ? Math.max(
         0,
@@ -163,7 +166,7 @@ export async function runScheduled(env) {
     if (JSON.stringify(user) !== before) changed.push(user);
   }
   const count = users.length;
-  const newCount = users.length ? 1 + Math.floor(Math.random() * 2) : 5;
+  const newCount = Math.min(Math.max(0, MAX_PLAYERS - users.length), users.length ? 1 + Math.floor(Math.random() * 2) : 5);
   for (let i = 0; i < newCount; i++) {
     const username = generateUsername(existing);
     existing.add(username.toLowerCase());
@@ -171,7 +174,7 @@ export async function runScheduled(env) {
     users.push(user);
     changed.push(user);
   }
-  const snapshot = await publishSnapshot(env, users, changed);
+  const snapshot = await publishSnapshot(env, users);
   const result = {
     processed: count,
     newUsers: newCount,

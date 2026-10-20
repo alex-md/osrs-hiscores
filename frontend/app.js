@@ -77,7 +77,7 @@ function layout() {
     <main class="workspace" id="content" tabindex="-1">
       <aside class="sidebar"><div class="sidebar-label">Hiscores</div><a class="sidebar-link" data-skill="overall" href="#overall"><span aria-hidden="true">♜</span> Overall <span class="link-arrow">↗</span></a>
         <div class="sidebar-label skill-heading">Skills <span>${SKILLS.length}</span></div><nav class="skill-nav" aria-label="Skill rankings">${SKILLS.map((s) => `<a class="sidebar-link" data-skill="${s}" href="#skills/${s}">${skillIcon(s)}${title(s)}</a>`).join("")}</nav>
-        <div class="simulation-note"><span class="status-dot"></span><strong>A living simulation</strong><p>Accounts progress every four hours. All players and scores are simulated.</p></div>
+        <div class="simulation-note"><span class="status-dot"></span><strong>A living simulation</strong><p>Accounts progress every 15 minutes. All players and scores are simulated.</p></div>
       </aside>
       <div class="main-content"><div id="view" aria-live="polite"></div></div>
     </main>
@@ -226,7 +226,7 @@ async function rankingView(current, signal, revision) {
       <label>Rows<select name="limit">${[25, 50, 100].map((n) => `<option value="${n}" ${data.limit === n ? "selected" : ""}>${n}</option>`).join("")}</select></label><button class="button primary">Apply</button><button class="button subtle" type="button" id="clear-filters">Reset</button></form>
       ${rankTable(data.players, skill)}${pager(data)}
     </section><div class="below-table"><p>${skill ? "Ranks are ordered by XP. Ties are settled by player name." : "Ranks are ordered by total level, then total XP, then player name."}</p><button id="export" class="text-button">↓ Export this page</button></div>
-    <section class="ledger-note"><span aria-hidden="true">✦</span><div><h3>The next chapter is always being written.</h3><p>Every four hours, adventurers choose whether to train at skill-specific rates with 3.5× XP, and new accounts join the world. Open any player to explore their skills and recorded achievements.</p></div><a href="#achievements">Explore achievements ↗</a></section>`;
+    <section class="ledger-note"><span aria-hidden="true">✦</span><div><h3>The next chapter is always being written.</h3><p>Every 15 minutes, adventurers choose whether to train at skill-specific rates with 3.5× XP, and new accounts join the world. Open any player to explore their skills and recorded achievements.</p></div><a href="#achievements">Explore achievements ↗</a></section>`;
   $("#filters").addEventListener("submit", (event) => {
     event.preventDefault();
     updateQuery({

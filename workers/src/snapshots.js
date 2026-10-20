@@ -1,3 +1,5 @@
+import { MAX_PLAYERS } from "../../frontend/lib/simulation-config.js";
+import { HttpError } from "./http.js";
 import { combatLevel } from "../../frontend/lib/domain.js";
 import { trainingInfo, expectedRate, XP_SCALE } from "./training.js";
 import { SKILLS } from "./constants.js";
@@ -11,14 +13,11 @@ import {
 import {
   allUsers,
   readJSON,
-  writeJSON,
-  putUser,
-  mapBatches,
   readManyJSON,
 } from "./store.js";
 
 const CHUNK_SIZE = 500;
-const rebuilds = new WeakMap();
+
 export function buildRankings(
   users,
   context = computeAchievementContext(users),
@@ -53,26 +52,28 @@ export function buildRankings(
   }
   return rankings;
 }
-export async function publishSnapshot(env, users = null, dirtyUsers = []) {
+export async function publishSnapshot(env, users = null) {
   users ||= await allUsers(env);
+  if (users.length > MAX_PLAYERS)
+    throw new HttpError(409, `The simulated world is limited to ${MAX_PLAYERS} players to preserve free-tier headroom.`);
   const now = Date.now(),
     context = computeAchievementContext(users);
-  const [legacy, previous, log] = await Promise.all([
+  const [legacy, previous, oldLog, previousSnapshot] = await Promise.all([
     readJSON(env, "ach:firsts", {}),
     readJSON(env, "ach:firsts:v2", {}),
     readJSON(env, "ach:events", { events: [] }),
+    readJSON(env, "snapshot:current"),
   ]);
-  const firsts = { ...legacy };
-  for (const [key, value] of Object.entries(previous.keys || {})) {
-    if (!firsts[key] || value.timestamp < firsts[key].timestamp)
-      firsts[key] = value;
-  }
-  const events = [],
-    changedUsers = [...dirtyUsers];
+  const log = previousSnapshot ? { events: previousSnapshot.events || [] } : oldLog;
+  const firsts = {};
+  for (const source of [legacy, previous.keys || {}, previousSnapshot?.firsts || {}])
+    for (const [key, value] of Object.entries(source))
+      if (!firsts[key] || value.timestamp < firsts[key].timestamp)
+        firsts[key] = value;
+  const events = [];
   for (const user of users) {
     const unlocked = evaluateAchievements(user, context);
     const added = mergeNewUnlocks(user, unlocked, now);
-    if (added.length) changedUsers.push(user);
     for (const key of added)
       events.push({ key, username: user.username, timestamp: now });
     for (const [key, timestamp] of Object.entries(user.achievements)) {
@@ -87,15 +88,6 @@ export async function publishSnapshot(env, users = null, dirtyUsers = []) {
         };
     }
   }
-  await mapBatches(
-    [
-      ...new Map(
-        changedUsers.map((u) => [u.username.toLowerCase(), u]),
-      ).values(),
-    ],
-    16,
-    (user) => putUser(env, user),
-  );
   for (const [key, prefix] of [
     ["first-99-any", "skill-master-"],
     ["first-top1-any", "crowned-any"],
@@ -124,7 +116,7 @@ export async function publishSnapshot(env, users = null, dirtyUsers = []) {
   const chunks = {},
     writes = [];
   // Generation-scoped shards prevent readers combining two different simulation ticks.
-  // Expired snapshots can always be rebuilt from permanent player documents.
+  // SQLite retains the current generation until a later successful commit.
   const profileIndex = Object.create(null);
   const overallByName = new Map(
     rankings.overall.map((u) => [u.username.toLowerCase(), u]),
@@ -184,11 +176,6 @@ export async function publishSnapshot(env, users = null, dirtyUsers = []) {
       ),
     });
   }
-  await mapBatches(writes, 16, ({ key, value }) =>
-    env.HISCORES_KV.put(key, JSON.stringify(value), {
-      expirationTtl: 2_592_000,
-    }),
-  );
   const snapshot = {
     version: 2,
     generation,
@@ -201,37 +188,21 @@ export async function publishSnapshot(env, users = null, dirtyUsers = []) {
     training: trainingInfo(),
     events: [...events, ...(log.events || [])].slice(0, 100),
   };
-  if (JSON.stringify(legacy) !== JSON.stringify(firsts))
-    await writeJSON(env, "ach:firsts", firsts);
-  if (
-    JSON.stringify(previous.keys) !== JSON.stringify(firsts) ||
-    JSON.stringify(previous.counts) !== JSON.stringify(counts)
-  )
-    await writeJSON(env, "ach:firsts:v2", {
-      version: 2,
-      updatedAt: now,
-      keys: firsts,
-      counts,
-    });
-  if (events.length)
-    await writeJSON(env, "ach:events", {
-      updatedAt: now,
-      events: [...events, ...(log.events || [])].slice(0, 100),
-    });
-  await writeJSON(env, "snapshot:current", snapshot);
+  // The adapter stages these documents and atomically commits the entire job in
+  // SQLite. Profile shards are both canonical state and the published projection.
+  const documents = [...writes, { key: "snapshot:current", value: snapshot }]
+    .map((doc) => ({ ...doc, encoded: JSON.stringify(doc.value) }));
+  // SQLite limits individual rows to 2 MB. Fail without changing the live world.
+  if (documents.some((doc) => new TextEncoder().encode(doc.encoded).length > 1_900_000))
+    throw new Error("Snapshot row exceeds the SQLite safety limit; reduce shard size.");
+  for (const doc of documents)
+    await env.WORLD_STORE.put(doc.key, doc.encoded);
   return snapshot;
 }
 export async function getSnapshot(env) {
   const snapshot = await readJSON(env, "snapshot:current");
-  if (!snapshot || Date.now() - snapshot.generatedAt > 2_500_000_000) {
-    if (!rebuilds.has(env.HISCORES_KV)) {
-      const rebuilding = publishSnapshot(env).finally(() =>
-        rebuilds.delete(env.HISCORES_KV),
-      );
-      rebuilds.set(env.HISCORES_KV, rebuilding);
-    }
-    return rebuilds.get(env.HISCORES_KV);
-  }
+  if (!snapshot)
+    throw new HttpError(503, "No published snapshot. Run an authenticated rebuild or wait for the scheduled update.");
   return snapshot;
 }
 export async function rankingRows(env, snapshot, name) {
@@ -254,10 +225,10 @@ export async function rankingRows(env, snapshot, name) {
 // Cache only immutable generation shards; keep binding isolation and bounded memory.
 const shardCaches = new WeakMap();
 async function immutableJSON(env, keys) {
-  let cache = shardCaches.get(env.HISCORES_KV);
+  let cache = shardCaches.get(env.WORLD_STORE);
   if (!cache)
     shardCaches.set(
-      env.HISCORES_KV,
+      env.WORLD_STORE,
       (cache = { entries: new Map(), bytes: 0 }),
     );
   const entries = cache.entries;

@@ -11,10 +11,14 @@ run_worker_first = ["/api", "/api/*"]
 enabled = true
 
 [triggers]
-crons = ["0 */4 * * *"]
-
-[[kv_namespaces]]
-binding = "HISCORES_KV"
-id = "884ba8e6b3484b0eb148b1e847c7a29a"
+crons = ["*/15 * * * *"]
 
 # Set ADMIN_TOKEN using `npx wrangler secret put ADMIN_TOKEN`.
+
+[[durable_objects.bindings]]
+name = "HISCORES_WORLD"
+class_name = "HiscoresWorld"
+
+[[migrations]]
+tag = "v1-world-sqlite"
+new_sqlite_classes = ["HiscoresWorld"]
