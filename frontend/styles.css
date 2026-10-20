@@ -12,6 +12,9 @@
   --green: #76b69b;
   --header: #17212c;
   --shadow: #0003;
+  --skill-level: #fff;
+  --skill-xp: #94a3b8;
+  --skill-rank: #fbbf24;
   --display: "Barlow Condensed", "Arial Narrow", sans-serif;
   --body: "IBM Plex Sans", system-ui, sans-serif;
   --mono: "IBM Plex Mono", monospace;
@@ -29,6 +32,9 @@
   --green: #34765a;
   --header: #fff;
   --shadow: #1933470b;
+  --skill-level: #172b40;
+  --skill-xp: #536579;
+  --skill-rank: #925c08;
 }
 * {
   box-sizing: border-box;
@@ -145,10 +151,10 @@ strong {
   border-bottom: 1px solid var(--line);
 }
 .header-inner {
-  max-width: 1500px;
+  max-width: 1360px;
   margin: auto;
-  min-height: 94px;
-  padding: 18px 36px;
+  min-height: 78px;
+  padding: 14px 24px;
   display: flex;
   gap: 48px;
   align-items: center;
@@ -248,12 +254,12 @@ strong {
   background: var(--raised);
 }
 .workspace {
-  max-width: 1500px;
+  max-width: 1360px;
   margin: auto;
-  padding: 32px 36px 50px;
+  padding: 24px 24px 40px;
   display: grid;
-  grid-template-columns: 190px minmax(0, 1fr);
-  gap: 38px;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 24px;
   outline: 0;
   min-height: calc(100vh - 166px);
 }
@@ -709,7 +715,7 @@ tr:hover .row-arrow {
   color: var(--gold);
 }
 .site-footer {
-  max-width: 1500px;
+  max-width: 1360px;
   padding: 22px 36px;
   border-top: 1px solid var(--line);
   margin: auto;
@@ -814,66 +820,189 @@ tr:hover .row-arrow {
 .profile-emblem svg {
   width: 60px;
 }
-.skill-book {
-  display: flex;
-  gap: 1px;
-  background: var(--line);
-  border-top: 1px solid var(--line);
-  grid-auto-flow: row;
-  flex-direction: column;
-  align-content: space-around;
-  flex-wrap: nowrap;
+.rankings-page .page-heading {
+  min-height: 0;
+  margin-bottom: 16px;
 }
-.skill-card {
-  background: var(--panel);
-  padding: 20px 24px;
-  display: block;
+.rankings-page .page-heading h1 {
+  font-size: clamp(34px, 3.6vw, 46px);
 }
-.skill-card:hover {
-  background: var(--raised);
-}
-.skill-card > div:first-child {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.skill-card strong {
+.rankings-page .page-heading p {
+  margin-top: 8px;
   font-size: 12px;
 }
-.skill-level {
-  margin-left: auto;
-  font: 500 22px var(--display);
+.rankings-page .eyebrow {
+  margin-bottom: 6px;
 }
-.skill-level small {
-  font: 400 10px var(--mono);
-  color: var(--muted);
-  margin-left: 2px;
+.rankings-page .edition-stamp svg {
+  width: 36px;
 }
-.skill-card.mastered .skill-level {
-  color: var(--gold);
+.rankings-page .ranking-summary {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
-.skill-progress {
-  height: 3px;
-  background: var(--line);
-  border-radius: 2px;
+.ranking-panel .panel-heading {
+  padding: 12px 16px;
+  flex-wrap: wrap;
+}
+.ranking-panel .panel-heading h2 {
+  font-size: 24px;
+}
+.ranking-panel .filter-bar {
+  padding: 10px 16px;
+  gap: 8px;
+}
+.ranking-panel th {
+  padding: 10px 14px;
+  font-size: 10px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.ranking-panel td {
+  padding: 2px 14px;
+  font-variant-numeric: tabular-nums;
+}
+.ranking-panel .rank {
+  width: 66px;
+}
+.ranking-panel .player-link {
+  min-height: 24px;
+  gap: 8px;
+}
+.ranking-panel .player-avatar {
+  width: 22px;
+  height: 22px;
+  font-size: 12px;
+}
+.ranking-panel .tier-badge {
+  padding: 1px 5px;
+}
+.ranking-panel .pagination {
+  padding: 10px 16px;
+}
+.adventurer-profile .back-link {
+  margin-bottom: 10px;
+}
+.adventurer-profile .page-heading {
+  min-height: 0;
+  margin-bottom: 16px;
+}
+.adventurer-profile .page-heading h1 {
+  font-size: clamp(34px, 4vw, 50px);
+  overflow-wrap: anywhere;
+}
+.adventurer-profile .page-heading p {
+  margin-top: 8px;
+}
+.adventurer-profile .eyebrow {
+  margin-bottom: 6px;
+}
+.profile-summary,
+.ranking-summary {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  padding: 0;
+  margin-bottom: 14px;
   overflow: hidden;
-  margin: 14px 0 9px;
+  background: var(--line);
 }
-.skill-progress span {
-  height: 100%;
-  display: block;
-  background: var(--green);
-  min-width: 1px;
+.profile-summary .stat,
+.ranking-summary .stat {
+  min-width: 0;
+  padding: 12px 16px;
+  border: 0;
+  background: var(--panel);
 }
-.skill-card.mastered .skill-progress span {
-  background: var(--gold);
+.profile-summary .stat > span,
+.ranking-summary .stat > span {
+  margin-bottom: 3px;
 }
-.skill-data {
-  display: flex;
-  justify-content: space-between;
-  gap: 5px;
-  font: 400 9px var(--mono);
-  color: var(--muted);
+.profile-summary .stat > strong,
+.ranking-summary .stat > strong {
+  font-size: clamp(22px, 2.2vw, 28px);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+.profile-summary .stat:first-child > strong {
+  color: var(--skill-rank);
+}
+.profile-summary .stat strong small,
+.ranking-summary .stat strong small {
+  display: inline-block;
+  margin-left: 5px;
+}
+.profile-notes {
+  margin-bottom: 16px;
+}
+.profile-notes .profile-updated {
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.skills-panel .panel-heading {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.skill-book {
+  overflow-x: auto;
+}
+.profile-skills-table {
+  font-variant-numeric: tabular-nums;
+}
+.profile-skills-table thead th {
+  padding: 9px 16px;
+  font-size: 10px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.profile-skills-table tbody th,
+.profile-skills-table td {
+  padding: 4px 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.profile-skills-table tbody tr:last-child th {
+  border-bottom: 0;
+}
+.skill-name-column {
+  width: 220px;
+}
+.skill-level-column {
+  width: 70px;
+}
+.skill-rank-column {
+  width: 100px;
+}
+.skill-row-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  color: var(--text);
+}
+.skill-row-link strong {
+  font: 600 12px var(--body);
+}
+.skill-row-link .skill-symbol {
+  width: 18px;
+  font-size: 14px;
+  text-align: center;
+}
+.profile-skills-table .skill-level {
+  color: var(--skill-level);
+  font-weight: 600;
+}
+.skill-xp {
+  color: var(--skill-xp);
+}
+.skill-rank {
+  color: var(--skill-rank);
+}
+.skill-rank.unlisted {
+  color: var(--skill-xp);
+}
+.profile-skills-table .mastered .skill-row-link strong {
+  color: var(--skill-rank);
 }
 .section-heading {
   display: flex;
@@ -1081,7 +1210,7 @@ dialog .form-error {
   .header-inner,
   .workspace,
   .site-footer {
-    max-width: 1500px;
+    max-width: 1360px;
   }
   .workspace {
     gap: 50px;
@@ -1138,12 +1267,6 @@ dialog .form-error {
   }
   .stat > strong {
     font-size: 26px;
-  }
-  .skill-book {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .skill-card {
-    padding: 18px;
   }
   .header-actions {
     gap: 8px;
@@ -1319,7 +1442,7 @@ dialog .form-error {
     font-size: 10px;
   }
   .ranking-panel table {
-    min-width: 580px;
+    min-width: 470px;
   }
   .ranking-panel:has(.xp-filters) table {
     min-width: 430px;
@@ -1371,33 +1494,42 @@ dialog .form-error {
     margin-top: 10px;
     font-size: 10px;
   }
-  .skill-book {
+  .profile-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .skill-card {
-    padding: 15px 12px;
+  .profile-summary .stat {
+    padding: 10px 12px;
   }
-  .skill-card strong {
-    font-size: 10px;
+  .profile-skills-table thead th,
+  .profile-skills-table tbody th,
+  .profile-skills-table td {
+    padding-left: 6px;
+    padding-right: 6px;
   }
-  .skill-card > div:first-child {
-    gap: 6px;
+  .skill-name-column {
+    width: auto;
   }
-  .skill-card .skill-symbol {
-    font-size: 13px;
-    width: 16px;
+  .skill-level-column {
+    width: 42px;
   }
-  .skill-level {
-    font-size: 20px;
+  .skill-rank-column {
+    width: 54px;
   }
-  .skill-data {
-    font-size: 8px;
+  .skill-row-link {
+    gap: 5px;
   }
-  .skill-level small {
-    font-size: 8px;
+  .skill-row-link strong {
+    font-size: 11px;
   }
-  .skill-progress {
-    margin-top: 12px;
+  .skill-row-link .skill-symbol {
+    width: 14px;
+    font-size: 12px;
+  }
+  .skills-panel .panel-heading {
+    flex-wrap: wrap;
+  }
+  .skills-panel .updated {
+    text-align: left;
   }
   .section-heading h2 {
     font-size: 24px;
@@ -1456,9 +1588,6 @@ dialog .form-error {
   }
   .stat > strong {
     font-size: 23px;
-  }
-  .skill-book {
-    grid-template-columns: 1fr;
   }
   .page-heading h1 {
     font-size: 40px;

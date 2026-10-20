@@ -1,3 +1,4 @@
+import { UPDATE_MINUTES } from "./lib/simulation-config.js";
 import { SKILLS, SKILL_SYMBOLS, title } from "./lib/domain.js";
 import { request, apiBase, saveBase, latestGeneration } from "./lib/api.js";
 
@@ -159,8 +160,8 @@ function errorView(error) {
     $("#connection").click(),
   );
 }
-function stats(items) {
-  return `<div class="stat-strip">${items.map(([label, value, suffix = ""]) => `<div class="stat"><span>${label}</span><strong>${value}${suffix ? `<small>${suffix}</small>` : ""}</strong></div>`).join("")}</div>`;
+function stats(items, className = "") {
+  return `<div class="stat-strip ${className}">${items.map(([label, value, suffix = ""]) => `<div class="stat"><span>${label}</span><strong>${value}${suffix ? `<small>${suffix}</small>` : ""}</strong></div>`).join("")}</div>`;
 }
 function markUpdated(data) {
   return `<span class="updated"><span class="status-dot"></span> Updated ${date(data.generatedAt)}${data.training ? ` · ${data.training.scale}× XP world` : ""}</span>`;
@@ -208,17 +209,17 @@ async function rankingView(current, signal, revision) {
   if (revision !== state.revision) return;
   const leader = data.players[0];
   const search = current.params.get("q") || "";
-  $("#view").innerHTML = `
-    ${pageHeading(skill ? `Skill hiscores / ${title(skill)}` : "The world rankings", skill ? `${skillIcon(skill)}${title(skill)} hiscores` : "Every adventurer.<br>One ledger.", skill ? `Follow the ${title(skill).toLowerCase()} ladder, from the first level to 200 million XP.` : "A living world of skillers, grinders, and the occasional bank stander.", `<div class="edition-stamp">${crest}<span>Old School<br><strong>RuneScape</strong></span></div>`)}
+  $("#view").innerHTML = `<section class="rankings-page">
+    ${pageHeading(skill ? `Skill hiscores / ${title(skill)}` : "The world rankings", skill ? `${skillIcon(skill)}${title(skill)} hiscores` : "Overall hiscores", skill ? `Follow the ${title(skill).toLowerCase()} ladder, from the first level to 200 million XP.` : "A living world of skillers, grinders, and the occasional bank stander.", `<div class="edition-stamp">${crest}<span>Old School<br><strong>RuneScape</strong></span></div>`)}
     ${stats([
       ["Adventurers", number(data.totalPlayers)],
       [
-        skill ? "Highest visible level" : "Highest visible total",
+        skill ? "Top skill level" : "Top total level",
         leader ? number(skill ? leader.level : leader.totalLevel) : "—",
         skill ? "/ 99" : "/ 2,277",
       ],
-      ["Simulation cycle", "4", "hours"],
-    ])}
+      ["Simulation cycle", number(data.training?.updateMinutes || UPDATE_MINUTES), "min"],
+    ], "ranking-summary")}
     ${data.legacy && data.coverage < data.totalPlayers ? `<p class="coverage-note">This connection provides the top ${number(data.coverage)} ${skill ? title(skill).toLowerCase() : "overall"} players. Update the Worker for complete rankings.</p>` : ""}
     <section class="panel ranking-panel"><div class="panel-heading"><div><div class="eyebrow">${skill ? "The skill ladder" : "The overall ladder"}</div><h2>${skill ? title(skill) : "Overall"} rankings</h2></div>${markUpdated(data)}</div>
       <form class="filter-bar" id="filters"><label class="search-filter"><span class="sr-only">Filter players</span><span aria-hidden="true">⌕</span><input name="q" placeholder="Filter by player name" value="${escape(search)}" maxlength="12"></label>
@@ -226,7 +227,7 @@ async function rankingView(current, signal, revision) {
       <label>Rows<select name="limit">${[25, 50, 100].map((n) => `<option value="${n}" ${data.limit === n ? "selected" : ""}>${n}</option>`).join("")}</select></label><button class="button primary">Apply</button><button class="button subtle" type="button" id="clear-filters">Reset</button></form>
       ${rankTable(data.players, skill)}${pager(data)}
     </section><div class="below-table"><p>${skill ? "Ranks are ordered by XP. Ties are settled by player name." : "Ranks are ordered by total level, then total XP, then player name."}</p><button id="export" class="text-button">↓ Export this page</button></div>
-    <section class="ledger-note"><span aria-hidden="true">✦</span><div><h3>The next chapter is always being written.</h3><p>Every 15 minutes, adventurers choose whether to train at skill-specific rates with 3.5× XP, and new accounts join the world. Open any player to explore their skills and recorded achievements.</p></div><a href="#achievements">Explore achievements ↗</a></section>`;
+    <section class="ledger-note"><span aria-hidden="true">✦</span><div><h3>The next chapter is always being written.</h3><p>Every 15 minutes, adventurers choose whether to train at skill-specific rates with 3.5× XP, and new accounts join the world. Open any player to explore their skills and recorded achievements.</p></div><a href="#achievements">Explore achievements ↗</a></section></section>`;
   $("#filters").addEventListener("submit", (event) => {
     event.preventDefault();
     updateQuery({
@@ -284,22 +285,21 @@ async function playerView(current, signal, revision) {
   );
   const mastered = SKILLS.filter((s) => user.skills[s].level === 99).length;
   $("#view").innerHTML =
-    `<a class="back-link" href="#overall">← Back to rankings</a>
+    `<article class="adventurer-profile"><a class="back-link" href="#overall">← Back to rankings</a>
     ${pageHeading("Adventurer profile", escape(user.username), `${escape(title(user.archetype || "Casual"))} · Joined ${user.createdAt ? new Date(user.createdAt).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }) : "date unknown"}`, `<div class="profile-emblem">${crest}${tierBadge(user.tier)}</div>`)}
     ${stats([
       ["Overall rank", user.rank ? `#${number(user.rank)}` : "Unranked"],
       ["Total level", number(user.totalLevel), "/ 2,277"],
       ["Total experience", number(user.totalXP)],
       ["Combat level", number(user.combatLevel), "/ 126"],
-    ])}
-    ${user.progress?.lastSession ? `<p class="profile-updated">Latest session: ${escape(title(user.progress.lastSession.skill))} · +${number(user.progress.lastSession.gainedXP)} XP · ${number(user.progress.sessions)} sessions recorded · Best session: ${number(user.progress.bestSessionXP)} XP</p>` : ""}
+    ], "profile-summary")}
+    <div class="profile-notes">${user.progress?.lastSession ? `<p class="profile-updated">Latest session: ${escape(title(user.progress.lastSession.skill))} · +${number(user.progress.lastSession.gainedXP)} XP · ${number(user.progress.sessions)} sessions recorded · Best session: ${number(user.progress.bestSessionXP)} XP</p>` : ""}
     ${user.goal ? `<p class="profile-updated">Next skill cape: ${escape(title(user.goal.skill))} · ${number(user.goal.remainingXP)} XP remaining · about ${number(Math.ceil(user.goal.trainingHours))} active training hours at the current rate (${user.training?.scale || 3.5}× world). Rates increase as levels unlock methods.</p>` : ""}
-    <section class="panel"><div class="panel-heading"><div><div class="eyebrow">The skill book</div><h2>Skills & experience</h2></div><span class="updated">${mastered} of ${SKILLS.length} skills mastered</span></div>
-    <div class="skill-book">${SKILLS.map((s) => {
+    </div><section class="panel skills-panel"><div class="panel-heading"><h2>Skills & experience</h2><span class="updated">${mastered} of ${SKILLS.length} skills mastered</span></div>
+    <div class="skill-book"><table class="profile-skills-table"><colgroup><col class="skill-name-column"><col class="skill-level-column"><col><col class="skill-rank-column"></colgroup><thead><tr><th scope="col">Skill</th><th scope="col" class="numeric">Level</th><th scope="col" class="numeric">XP</th><th scope="col" class="numeric">Rank</th></tr></thead><tbody>${SKILLS.map((s) => {
       const stat = user.skills[s];
-      const progress = Math.min(100, (stat.xp / 13_034_431) * 100);
-      return `<a class="skill-card ${stat.level === 99 ? "mastered" : ""}" href="#skills/${s}"><div>${skillIcon(s)}<strong>${title(s)}</strong><span class="skill-level">${stat.level}<small>/99</small></span></div><div class="skill-progress" role="img" aria-label="${progress.toFixed(1)} percent of XP needed for level 99"><span style="width:${progress}%"></span></div><div class="skill-data"><span>${number(stat.xp)} XP</span><span>${user.ranks[s] ? `#${number(user.ranks[s])}` : "Not listed"}</span></div></a>`;
-    }).join("")}</div></section>
+      return `<tr class="${stat.level === 99 ? "mastered" : ""}"><th scope="row"><a class="skill-row-link" href="#skills/${s}">${skillIcon(s)}<strong>${title(s)}</strong></a></th><td class="numeric skill-level">${stat.level}</td><td class="numeric skill-xp">${number(stat.xp)}</td><td class="numeric skill-rank ${user.ranks[s] ? "" : "unlisted"}">${user.ranks[s] ? `#${number(user.ranks[s])}` : "Not listed"}</td></tr>`;
+    }).join("")}</tbody></table></div></section>
     <section class="profile-achievements"><div class="section-heading"><div><div class="eyebrow">Recorded milestones</div><h2>Achievement collection <span class="count-label">${unlocked.length}</span></h2></div><a href="#achievements">View the catalog ↗</a></div>
       <div id="profile-unlocks" class="achievement-grid">${
         unlocked.length
@@ -320,7 +320,7 @@ async function playerView(current, signal, revision) {
               .join("")
           : '<div class="empty-state"><h3>A fresh page</h3><p>This player has no recorded achievements yet. Check back after the next simulation cycle.</p></div>'
       }</div>${unlocked.length > 12 ? `<div class="collection-controls"><span id="collection-count">Showing 12 of ${unlocked.length}</span><button id="expand-collection" class="button subtle" aria-expanded="false">Show all achievements</button></div>` : ""}</section>
-    <p class="profile-updated">Player last active ${date(user.updatedAt)} · Rankings updated ${date(user.generatedAt)}</p>`;
+    <p class="profile-updated">Player last active ${date(user.updatedAt)} · Rankings updated ${date(user.generatedAt)}</p></article>`;
   $("#expand-collection")?.addEventListener("click", (event) => {
     const expanded =
       event.currentTarget.getAttribute("aria-expanded") !== "true";
