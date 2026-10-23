@@ -6,7 +6,7 @@ import {
   INITIAL_DISTRIBUTION_ARCHETYPE_FOCUS,
 } from "./constants.js";
 
-export const XP_SCALE = 3.5;
+export const XP_SCALE = 18.5;
 export const SESSION_FRACTIONS = {
   INACTIVE: [0, 0],
   BANK_STANDING: [0, 0.01],
