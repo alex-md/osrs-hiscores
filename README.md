@@ -12,7 +12,7 @@ cp workers/.dev.vars.example workers/.dev.vars
 npm run dev
 ```
 
-Open **http://localhost:8787**. Wrangler serves the frontend and API together and uses a local SQLite-backed Durable Object. No frontend build, CSS runtime, icon CDN, or JavaScript framework is required. Google Fonts are optional; system fonts provide fallbacks.
+Open **http://localhost:8787**. Wrangler serves the frontend and API together and uses a local SQLite-backed Durable Object. No frontend build, CSS runtime, icon CDN, or JavaScript framework is required. The interface uses local system fonts, bundled stone and ivy SVG textures, and CSS parchment; no external font or texture requests are needed.
 
 A new local Durable Object starts empty. To create accounts, use the token you placed in `.dev.vars`:
 

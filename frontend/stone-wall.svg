@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <filter id="grain"><feTurbulence baseFrequency=".16" numOctaves="3" seed="8"/><feColorMatrix type="saturate" values="0"/><feBlend in="SourceGraphic" mode="soft-light"/></filter>
+    <radialGradient id="rock"><stop stop-color="#303026"/><stop offset="1" stop-color="#20221a"/></radialGradient>
+  </defs>
+  <path fill="#11120e" d="M0 0h256v256H0z"/>
+  <g fill="url(#rock)" stroke="#0d0f0b" stroke-width="4" stroke-linejoin="round">
+    <path d="M-12 5 45-8 90 17 83 72 21 86-8 58Z"/><path d="m92-8 64 1 34 39-26 44-76-6 7-53Z"/>
+    <path d="m190-12 78 12 8 63-55 27-54-16 27-42Z"/><path d="m20 89 60-13 32 38-28 55-70 2-22-50Z"/>
+    <path d="m85 76 78 3 20 39-36 52-58-3 28-56Z"/><path d="m167 80 55 12 44-26 11 73-54 26-38-45Z"/>
+    <path d="m-13 177 27-1 68-1 17 38-37 54-70-7Z"/><path d="m88 175 60 1 29 42-20 43-90 6 37-55Z"/>
+    <path d="m153 172 30-47 38 44 44-23 10 102-37 19-77-9 21-42Z"/>
+  </g>
+  <path fill="#fff" opacity=".07" filter="url(#grain)" d="M0 0h256v256H0z"/>
+  <g fill="none" stroke="#5b5941" opacity=".22"><path d="m5 12 39-9 35 17M102 8h49l26 24M25 96l48-10M24 183l50-1M101 184l40-1M191 179l23 2"/></g>
+</svg>
