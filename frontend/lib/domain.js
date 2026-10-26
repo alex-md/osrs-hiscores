@@ -22,6 +22,7 @@ export const SKILLS = [
   "runecraft",
   "hunter",
   "construction",
+  "sailing",
 ];
 export const SKILL_SYMBOLS = [
   "⚔",
@@ -47,6 +48,7 @@ export const SKILL_SYMBOLS = [
   "◈",
   "🐾",
   "⌂",
+  "⚓",
 ];
 export const title = (value) =>
   String(value)

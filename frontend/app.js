@@ -1,5 +1,6 @@
+import { BOSSES, BOSS_BY_KEY } from "./lib/activities.js";
 import { UPDATE_MINUTES } from "./lib/simulation-config.js";
-import { SKILLS, SKILL_SYMBOLS, title } from "./lib/domain.js";
+import { SKILLS, title } from "./lib/domain.js";
 import { request, apiBase, saveBase, latestGeneration } from "./lib/api.js";
 
 const $ = (selector) => document.querySelector(selector);
@@ -13,6 +14,7 @@ const escape = (value) =>
         c
       ],
   );
+const xpScale = (value) => Number(value).toLocaleString("en-US", { maximumFractionDigits: 1 });
 const playerLink = (name) => `#user/${encodeURIComponent(name)}`;
 const date = (value) =>
   value
@@ -24,7 +26,7 @@ const date = (value) =>
       })
     : "Not recorded";
 const skillIcon = (skill) =>
-  `<span class="skill-symbol" aria-hidden="true">${SKILL_SYMBOLS[SKILLS.indexOf(skill)] || "◈"}</span>`;
+  `<svg class="skill-symbol" aria-hidden="true" viewBox="0 0 16 16"><use href="skill-icons.svg#${skill}"></use></svg>`;
 const crest = `<svg viewBox="0 0 48 56" aria-hidden="true"><path d="M24 2 44 11v18C44 42 24 53 24 53S4 42 4 29V11Z"/><path d="m17 18 14 20m-14 0 14-20M12 34l9 7m6 0 9-7"/></svg>`;
 const state = {
   catalog: [],
@@ -65,6 +67,8 @@ function route() {
       params,
     };
   }
+  if (path === "bosses" || path === "wealth")
+    return { type: "activity", path, params };
   if (path && path !== "overall") return { type: "invalid" };
   return { type: "overall", params };
 }
@@ -73,11 +77,11 @@ function layout() {
     <header class="site-header"><div class="header-inner">
       <a class="brand" href="#overall">${crest}<span><strong>OSRS <span>Hiscores</span></strong><small>The adventurer’s ledger</small></span></a>
       <nav aria-label="Main navigation"><a data-nav="overall" href="#overall">Rankings</a><a data-nav="achievements" href="#achievements">Achievements</a></nav>
-      <div class="header-actions"><form id="player-search" role="search"><label class="sr-only" for="search">Find a player</label><span aria-hidden="true">⌕</span><input id="search" placeholder="Find a player…" maxlength="12" autocomplete="off" list="player-names"><datalist id="player-names"></datalist><button class="sr-only" type="submit">Find player</button></form><button class="icon-button" id="theme" aria-label="Switch color theme" title="Switch color theme">◐</button></div>
+      <div class="header-actions"><form id="player-search" role="search"><label class="sr-only" for="search">Find a player</label><span aria-hidden="true">⌕</span><input id="search" placeholder="Find a player…" maxlength="12" autocomplete="off" list="player-names"><datalist id="player-names"></datalist><button class="button" type="submit">Find</button></form><button class="icon-button" id="theme" aria-label="Switch color theme" title="Switch color theme">◐</button></div>
     </div></header>
     <main class="workspace" id="content" tabindex="-1">
       <aside class="sidebar"><div class="sidebar-label">Hiscores</div><a class="sidebar-link" data-skill="overall" href="#overall"><span aria-hidden="true">♜</span> Overall <span class="link-arrow">↗</span></a>
-        <div class="sidebar-label skill-heading">Skills <span>${SKILLS.length}</span></div><nav class="skill-nav" aria-label="Skill rankings">${SKILLS.map((s) => `<a class="sidebar-link" data-skill="${s}" href="#skills/${s}">${skillIcon(s)}${title(s)}</a>`).join("")}</nav>
+        <a class="sidebar-link" data-activity="bosses" href="#bosses"><span aria-hidden="true">♟</span> Boss kill counts</a><a class="sidebar-link" data-activity="wealth" href="#wealth"><span aria-hidden="true">¤</span> Bank value</a><div class="sidebar-label skill-heading">Skills <span>${SKILLS.length}</span></div><nav class="skill-nav" aria-label="Skill rankings">${SKILLS.map((s) => `<a class="sidebar-link" data-skill="${s}" href="#skills/${s}">${skillIcon(s)}${title(s)}</a>`).join("")}</nav>
         <div class="simulation-note"><span class="status-dot"></span><strong>A living simulation</strong><p>Accounts progress every 15 minutes. All players and scores are simulated.</p></div>
       </aside>
       <div class="main-content"><div id="view" aria-live="polite"></div></div>
@@ -164,7 +168,7 @@ function stats(items, className = "") {
   return `<div class="stat-strip ${className}">${items.map(([label, value, suffix = ""]) => `<div class="stat"><span>${label}</span><strong>${value}${suffix ? `<small>${suffix}</small>` : ""}</strong></div>`).join("")}</div>`;
 }
 function markUpdated(data) {
-  return `<span class="updated"><span class="status-dot"></span> Updated ${date(data.generatedAt)}${data.training ? ` · ${data.training.scale}× XP world` : ""}</span>`;
+  return `<span class="updated"><span class="status-dot"></span> Updated ${date(data.generatedAt)}${data.training ? ` · ${xpScale(data.training.scale)}× XP world` : ""}</span>`;
 }
 function tierBadge(tier) {
   return `<span class="tier-badge ${["Grandmaster", "Master", "Diamond"].includes(tier) ? "prestige" : ""}">${escape(tier || "Novice")}</span>`;
@@ -179,7 +183,7 @@ function updateQuery(values) {
     if (value === "" || value === null) params.delete(key);
     else params.set(key, value);
   }
-  const path = current.type === "skill" ? `skills/${current.skill}` : "overall";
+  const path = current.type === "skill" ? `skills/${current.skill}` : current.type === "activity" ? current.path : "overall";
   location.hash = `${path}${params.size ? `?${params}` : ""}`;
 }
 function bindPagination(data) {
@@ -216,18 +220,18 @@ async function rankingView(current, signal, revision) {
       [
         skill ? "Top skill level" : "Top total level",
         leader ? number(skill ? leader.level : leader.totalLevel) : "—",
-        skill ? "/ 99" : "/ 2,277",
+        skill ? "/ 99" : `/ ${number(SKILLS.length * 99)}`,
       ],
       ["Simulation cycle", number(data.training?.updateMinutes || UPDATE_MINUTES), "min"],
     ], "ranking-summary")}
     ${data.legacy && data.coverage < data.totalPlayers ? `<p class="coverage-note">This connection provides the top ${number(data.coverage)} ${skill ? title(skill).toLowerCase() : "overall"} players. Update the Worker for complete rankings.</p>` : ""}
     <section class="panel ranking-panel"><div class="panel-heading"><div><div class="eyebrow">${skill ? "The skill ladder" : "The overall ladder"}</div><h2>${skill ? title(skill) : "Overall"} rankings</h2></div>${markUpdated(data)}</div>
-      <form class="filter-bar" id="filters"><label class="search-filter"><span class="sr-only">Filter players</span><span aria-hidden="true">⌕</span><input name="q" placeholder="Filter by player name" value="${escape(search)}" maxlength="12"></label>
+      ${rankTable(data.players, skill)}${pager(data)}
+      <form class="filter-bar" id="filters"><label class="search-filter"><span>Filter players</span><span aria-hidden="true">⌕</span><input name="q" placeholder="Filter by player name" value="${escape(search)}" maxlength="12"></label>
       ${skill ? `<label>Min level<input name="minLevel" type="number" min="1" max="99" placeholder="1" value="${escape(params.get("minLevel") || "")}"></label><label>Max level<input name="maxLevel" type="number" min="1" max="99" placeholder="99" value="${escape(params.get("maxLevel") || "")}"></label><details class="xp-filters"><summary>XP range</summary><div><label>Min XP<input name="minXP" type="number" min="0" max="200000000" value="${escape(params.get("minXP") || "")}"></label><label>Max XP<input name="maxXP" type="number" min="0" max="200000000" value="${escape(params.get("maxXP") || "")}"></label></div></details>` : ""}
       <label>Rows<select name="limit">${[25, 50, 100].map((n) => `<option value="${n}" ${data.limit === n ? "selected" : ""}>${n}</option>`).join("")}</select></label><button class="button primary">Apply</button><button class="button subtle" type="button" id="clear-filters">Reset</button></form>
-      ${rankTable(data.players, skill)}${pager(data)}
     </section><div class="below-table"><p>${skill ? "Ranks are ordered by XP. Ties are settled by player name." : "Ranks are ordered by total level, then total XP, then player name."}</p><button id="export" class="text-button">↓ Export this page</button></div>
-    <section class="ledger-note"><span aria-hidden="true">✦</span><div><h3>The next chapter is always being written.</h3><p>Every 15 minutes, adventurers choose whether to train at skill-specific rates with 3.5× XP, and new accounts join the world. Open any player to explore their skills and recorded achievements.</p></div><a href="#achievements">Explore achievements ↗</a></section></section>`;
+    <section class="ledger-note"><span aria-hidden="true">✦</span><div><h3>The next chapter is always being written.</h3><p>Every 15 minutes, adventurers choose whether to train at skill-specific rates${data.training ? ` with ${xpScale(data.training.scale)}× XP at this update` : ""}, and new accounts join the world. XP rates follow a randomized daily UTC activity pattern, with quieter hours and busy periods up to 31×.${data.training?.schedule ? ` Daily UTC range: ${xpScale(data.training.schedule.minScale)}–${xpScale(data.training.schedule.maxScale)}×.` : ""} Open any player to explore their skills and recorded achievements.</p></div><a href="#achievements">Explore achievements ↗</a></section></section>`;
   $("#filters").addEventListener("submit", (event) => {
     event.preventDefault();
     updateQuery({
@@ -262,6 +266,44 @@ function exportCSV(rows, skill) {
   link.click();
   URL.revokeObjectURL(url);
 }
+async function activityView(current, signal, revision) {
+  const wealth = current.path === "wealth";
+  const boss = current.params.get("boss") || "";
+  if (boss && !Object.hasOwn(BOSS_BY_KEY, boss)) throw new Error("Unknown boss. Choose a boss from the rankings.");
+  const category = wealth ? "bank" : boss || "bosses";
+  const params = new URLSearchParams(current.params);
+  params.delete("boss");
+  params.set("category", category);
+  params.set("limit", params.get("limit") || "25");
+  const data = await request(`/api/activity-rankings?${params}`, { signal });
+  if (revision !== state.revision) return;
+  const name = wealth ? "Bank value hiscores" : boss ? `${BOSS_BY_KEY[boss].name} hiscores` : "Boss kill counts";
+  $("#view").innerHTML = `<section class="rankings-page">
+    ${pageHeading(wealth ? "The wealth rankings" : "Boss hiscores", escape(name), wealth ? "Estimated bank and equipment value, in GP. All wealth belongs to simulated accounts." : "Recorded kills and raid completions. Combat levels, equipment, experience and luck shape each account’s progress.")}
+    ${stats([["Ranked players", number(data.total)], [wealth ? "Largest bank" : "Leading count", number(data.players[0]?.score || 0), wealth ? "GP" : "kills"], ["World rate", xpScale(data.training?.scale || 1), "×"]], "ranking-summary")}
+    <section class="panel ranking-panel"><div class="panel-heading"><h2>${wealth ? "Bank value" : boss ? escape(BOSS_BY_KEY[boss].name) : "All bosses"}</h2>${markUpdated(data)}</div>
+    <div class="table-scroll"><table><thead><tr><th scope="col">Rank</th><th scope="col">Player</th><th scope="col" class="numeric">${wealth ? "Bank value (GP)" : "Kill count"}</th></tr></thead><tbody>${data.players.length ? data.players.map(row => `<tr>${rankCell(row.rank)}<td><a class="player-link" href="${playerLink(row.username)}">${escape(row.username)}</a></td><td class="numeric">${number(row.score)}</td></tr>`).join("") : `<tr><td colspan="3" class="table-empty"><h3>No recorded ${wealth ? "bank values" : "kills"}</h3><p>${current.params.get("q") ? "Try another player name or reset the filters." : "These rankings fill as eligible adventurers play. Existing accounts start with zero recorded kills."}</p></td></tr>`}</tbody></table></div>
+    ${pager(data)}<form class="filter-bar" id="activity-filters">${wealth ? "" : `<label>Boss<select name="boss"><option value="">All bosses</option>${BOSSES.map(item => `<option value="${item.key}" ${boss === item.key ? "selected" : ""}>${escape(item.name)}</option>`).join("")}</select></label>`}<label class="search-filter"><span>Filter players</span><input name="q" maxlength="12" placeholder="Player name" value="${escape(current.params.get("q") || "")}"></label><label>Rows<select name="limit">${[25,50,100].map(limit => `<option ${data.limit === limit ? "selected" : ""}>${limit}</option>`).join("")}</select></label><button class="button primary">Apply</button><button class="button" type="button" id="reset-activities">Reset</button></form></section>
+    <p class="coverage-note activity-explanation">${wealth ? "Bank value includes a modeled opening balance, skill income and boss loot, less supplies and training costs. Item values and drop rates are authored estimates, not live Grand Exchange prices." : "Kills start being recorded when this model is introduced; older kills are not invented. Boss attempts use a share of each training session. The same changing world multiplier accelerates XP, kills, income and costs once."}</p></section>`;
+  bindPagination(data);
+  $("#activity-filters").addEventListener("submit", event => {
+    event.preventDefault();
+    updateQuery({ ...Object.fromEntries(new FormData(event.currentTarget)), page: "" });
+  });
+  $("#reset-activities").addEventListener("click", () => { location.hash = current.path; });
+}
+function careerSection(user) {
+  if (!user.economy) return `<p class="coverage-note">Boss counts and bank estimates become available after the next world update.</p>`;
+  const economy = user.economy;
+  const kills = BOSSES.reduce((sum, boss) => sum + (user.bosses?.[boss.key] || 0), 0);
+  const session = economy.lastSession;
+  return `<section class="profile-career"><div class="section-heading"><h2>Bank & boss record</h2><a href="#wealth">Wealth hiscores ↗</a></div>
+    ${stats([["Estimated bank value", number(economy.bankValue), "GP"], ["Bank rank", user.activityRanks?.bank ? `#${number(user.activityRanks.bank)}` : "Unranked"], ["Recorded boss kills", number(kills)], ["Rare drops", number(economy.rareDrops)]], "profile-summary")}
+    <p class="profile-updated">Opening bank estimate: ${number(economy.openingEstimate)} GP. Recorded income: ${number(economy.earned)} GP; supplies and training: ${number(economy.spent)} GP. Includes banked items and equipment at modeled values.</p>
+    ${session ? `<p class="profile-updated">Latest activity: ${session.boss ? escape(BOSS_BY_KEY[session.boss]?.name || title(session.boss)) : escape(title(session.skill || "Training"))}${session.boss ? ` · ${number(session.kills)} kills · ${number(session.rareDrops)} rare drops · ${number(session.deaths)} deaths` : ""} · ${session.net >= 0 ? "+" : "−"}${number(Math.abs(session.net))} GP net.</p>` : `<p class="profile-updated">Boss and income history begins with this model; the opening balance is estimated.</p>`}
+    <section class="panel boss-record"><div class="panel-heading"><h2>Boss kill counts</h2><a href="#bosses">All boss hiscores ↗</a></div><div class="table-scroll"><table><thead><tr><th scope="col">Boss</th><th scope="col" class="numeric">Kills</th><th scope="col" class="numeric">Rank</th></tr></thead><tbody>${BOSSES.map(boss => `<tr><th scope="row"><a href="#bosses?boss=${boss.key}">${escape(boss.name)}</a></th><td class="numeric">${number(user.bosses?.[boss.key])}</td><td class="numeric">${user.activityRanks?.[boss.key] ? `#${number(user.activityRanks[boss.key])}` : "—"}</td></tr>`).join("")}</tbody></table></div></section></section>`;
+}
+
 async function loadCatalog(signal) {
   if (state.catalog.length && Date.now() - state.catalogFetchedAt < 30000)
     return state.catalog;
@@ -283,23 +325,24 @@ async function playerView(current, signal, revision) {
   const unlocked = Object.entries(user.achievements || {}).sort(
     (a, b) => b[1] - a[1],
   );
-  const mastered = SKILLS.filter((s) => user.skills[s].level === 99).length;
+  const mastered = SKILLS.filter((s) => user.skills[s]?.level === 99).length;
   $("#view").innerHTML =
     `<article class="adventurer-profile"><a class="back-link" href="#overall">← Back to rankings</a>
     ${pageHeading("Adventurer profile", escape(user.username), `${escape(title(user.archetype || "Casual"))} · Joined ${user.createdAt ? new Date(user.createdAt).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }) : "date unknown"}`, `<div class="profile-emblem">${crest}${tierBadge(user.tier)}</div>`)}
     ${stats([
       ["Overall rank", user.rank ? `#${number(user.rank)}` : "Unranked"],
-      ["Total level", number(user.totalLevel), "/ 2,277"],
+      ["Total level", number(user.totalLevel), `/ ${number(SKILLS.length * 99)}`],
       ["Total experience", number(user.totalXP)],
       ["Combat level", number(user.combatLevel), "/ 126"],
     ], "profile-summary")}
-    <div class="profile-notes">${user.progress?.lastSession ? `<p class="profile-updated">Latest session: ${escape(title(user.progress.lastSession.skill))} · +${number(user.progress.lastSession.gainedXP)} XP · ${number(user.progress.sessions)} sessions recorded · Best session: ${number(user.progress.bestSessionXP)} XP</p>` : ""}
-    ${user.goal ? `<p class="profile-updated">Next skill cape: ${escape(title(user.goal.skill))} · ${number(user.goal.remainingXP)} XP remaining · about ${number(Math.ceil(user.goal.trainingHours))} active training hours at the current rate (${user.training?.scale || 3.5}× world). Rates increase as levels unlock methods.</p>` : ""}
+    <div class="profile-notes">${user.progress?.lastSession ? `<p class="profile-updated">Latest session: ${escape(title(user.progress.lastSession.skill))} · +${number(user.progress.lastSession.gainedXP)} XP${user.progress.lastSession.xpScale ? ` at ${xpScale(user.progress.lastSession.xpScale)}×` : ""} · ${number(user.progress.sessions)} sessions recorded · Best session: ${number(user.progress.bestSessionXP)} XP</p>` : ""}
+    ${user.goal ? `<p class="profile-updated">Next skill cape: ${escape(title(user.goal.skill))} · ${number(user.goal.remainingXP)} XP remaining · about ${number(Math.ceil(user.goal.trainingHours))} active training hours at the current rate (${user.training ? `${xpScale(user.training.scale)}× world` : "variable world rate"}). Rates change throughout the day and increase as levels unlock methods; this estimate assumes supplies are affordable and holds the displayed rate constant.</p>` : ""}
     </div><section class="panel skills-panel"><div class="panel-heading"><h2>Skills & experience</h2><span class="updated">${mastered} of ${SKILLS.length} skills mastered</span></div>
     <div class="skill-book"><table class="profile-skills-table"><colgroup><col class="skill-name-column"><col class="skill-level-column"><col><col class="skill-rank-column"></colgroup><thead><tr><th scope="col">Skill</th><th scope="col" class="numeric">Level</th><th scope="col" class="numeric">XP</th><th scope="col" class="numeric">Rank</th></tr></thead><tbody>${SKILLS.map((s) => {
-      const stat = user.skills[s];
+      const stat = user.skills[s] || { level: 1, xp: 0 };
       return `<tr class="${stat.level === 99 ? "mastered" : ""}"><th scope="row"><a class="skill-row-link" href="#skills/${s}">${skillIcon(s)}<strong>${title(s)}</strong></a></th><td class="numeric skill-level">${stat.level}</td><td class="numeric skill-xp">${number(stat.xp)}</td><td class="numeric skill-rank ${user.ranks[s] ? "" : "unlisted"}">${user.ranks[s] ? `#${number(user.ranks[s])}` : "Not listed"}</td></tr>`;
     }).join("")}</tbody></table></div></section>
+    ${careerSection(user)}
     <section class="profile-achievements"><div class="section-heading"><div><div class="eyebrow">Recorded milestones</div><h2>Achievement collection <span class="count-label">${unlocked.length}</span></h2></div><a href="#achievements">View the catalog ↗</a></div>
       <div id="profile-unlocks" class="achievement-grid">${
         unlocked.length
@@ -356,7 +399,7 @@ async function achievementsView(current, signal, revision) {
   if (revision !== state.revision) return;
   const claimed = items.filter((a) => a.count > 0).length;
   $("#view").innerHTML =
-    `${pageHeading("Milestones & mastery", "Great feats.<br>Lasting records.", "Discover the milestones that define an account, and the adventurers who reached them first.", `<div class="edition-stamp">${crest}<span>The hall of<br><strong>Achievements</strong></span></div>`)}
+    `${pageHeading("Milestones & mastery", "Achievements", "Discover the milestones that define an account, and the adventurers who reached them first.", `<div class="edition-stamp">${crest}<span>The hall of<br><strong>Achievements</strong></span></div>`)}
     ${stats([
       ["Achievements", number(items.length)],
       ["Claimed milestones", number(claimed)],
@@ -410,7 +453,7 @@ async function renderRoute() {
   const revision = ++state.revision;
   const current = route();
   state.route = current;
-  document.title = `${current.type === "player" ? current.username : current.type === "skill" ? `${title(current.skill)} hiscores` : current.type === "achievements" ? "Achievements" : "Rankings"} · OSRS Hiscores`;
+  document.title = `${current.type === "player" ? current.username : current.type === "skill" ? `${title(current.skill)} hiscores` : current.type === "achievements" ? "Achievements" : current.type === "activity" ? current.path === "wealth" ? "Bank value hiscores" : "Boss hiscores" : "Rankings"} · OSRS Hiscores`;
   document.querySelectorAll("[data-nav]").forEach((a) => {
     const active =
       a.dataset.nav ===
@@ -429,6 +472,10 @@ async function renderRoute() {
     if (active) a.setAttribute("aria-current", "page");
     else a.removeAttribute("aria-current");
   });
+  document.querySelectorAll("[data-activity]").forEach(link => {
+    if (current.type === "activity" && link.dataset.activity === current.path) link.setAttribute("aria-current", "page");
+    else link.removeAttribute("aria-current");
+  });
   $("#view").innerHTML = loading();
   try {
     if (current.type === "invalid")
@@ -437,6 +484,8 @@ async function renderRoute() {
       );
     if (current.type === "overall" || current.type === "skill")
       await rankingView(current, state.request.signal, revision);
+    else if (current.type === "activity")
+      await activityView(current, state.request.signal, revision);
     else if (current.type === "player")
       await playerView(current, state.request.signal, revision);
     else await achievementsView(current, state.request.signal, revision);

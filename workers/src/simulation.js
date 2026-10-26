@@ -1,7 +1,8 @@
+import { progressBossing, progressSkillingEconomy, skillingFunding } from "./economy.js";
+import { windowXpScale } from "./xp-schedule.js";
 import { MAX_PLAYERS } from "../../frontend/lib/simulation-config.js";
 import { reserveUpdate } from "./budget.js";
 import {
-  XP_SCALE,
   TICK_HOURS,
   SESSION_FRACTIONS,
   expectedRate,
@@ -17,7 +18,6 @@ import {
   determineXpGainTierFromTotal,
   buildSkillMultipliers,
   chooseActivityForUser,
-  weekendBonusMultiplier,
   levelFromXp,
   totalLevel,
   totalXP,
@@ -66,6 +66,8 @@ export function progressUser(
   const [min, max] = SESSION_FRACTIONS[user.activity];
   const duration =
     Math.max(0, Math.min(TICK_HOURS, hours)) * (min + rng() * (max - min));
+  const scale = windowXpScale(date, hours);
+  const bossing = progressBossing(user, date, { hours: duration, scale, rng });
   const gains = {};
   const add = (skill, xp) => {
     const before = user.skills[skill].xp;
@@ -73,14 +75,16 @@ export function progressUser(
     user.skills[skill].level = levelFromXp(user.skills[skill].xp);
     gains[skill] = (gains[skill] || 0) + user.skills[skill].xp - before;
   };
+  for (const [skill, xp] of Object.entries(bossing.gains)) add(skill, xp);
   const skill = chooseTrainingSkill(user, rng);
-  if (duration > 0 && skill) {
+  if (bossing.trainingHours > 0 && skill) {
     const stat = user.skills[skill];
     const gain =
       expectedRate(skill, stat.xp, stat.level) *
-      duration *
-      XP_SCALE *
-      weekendBonusMultiplier(date);
+      bossing.trainingHours *
+      scale *
+      skillingFunding(user, skill, bossing.trainingHours, scale);
+    progressSkillingEconomy(user, date, { skill, hours: bossing.trainingHours, scale, rng, append: bossing.active });
     add(skill, gain);
     if (["attack", "strength", "defence", "ranged"].includes(skill))
       add("hitpoints", gain / 3);
@@ -103,8 +107,11 @@ export function progressUser(
       dayXP: (previous.day === day ? previous.dayXP || 0 : 0) + gainedXP,
       bestSessionXP: Math.max(previous.bestSessionXP || 0, gainedXP),
       lastSession: {
-        skill,
+        skill: bossing.active ? "bossing" : skill,
+        trainingSkill: skill,
         hours: duration,
+        trainingHours: bossing.trainingHours,
+        xpScale: scale,
         gainedXP,
         gains,
         timestamp: date.getTime(),
@@ -112,6 +119,8 @@ export function progressUser(
     };
     user.updatedAt = date.getTime();
   }
+  if (duration > 0 && user.economy.lastSession?.timestamp === date.getTime())
+    user.updatedAt = date.getTime();
   user.totalLevel = totalLevel(user.skills);
   user.totalXP = totalXP(user.skills);
   user.version = 5;

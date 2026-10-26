@@ -1,3 +1,4 @@
+import { expectedRate } from "./training.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import worker, { handleApiRequest, runScheduled } from "./index.js";
@@ -171,7 +172,7 @@ test("rankings include players beyond the former 500 cap, paginate and filter wi
 test("skill ties use the same username ordering for rankings and achievement crowns", () => {
   const users = [player("Zed"), player("Ada")];
   const context = computeAchievementContext(users);
-  assert.equal(context.top1SkillsByUserCount.get("ada"), 23);
+  assert.equal(context.top1SkillsByUserCount.get("ada"), SKILLS.length);
   assert.equal(context.top1SkillsByUserCount.get("zed"), undefined);
 });
 test("player profiles expose authoritative ranks, combat level and persisted achievement timestamps", async () => {
@@ -343,7 +344,10 @@ test("packed snapshots cut writes and profiles read one generation with two cold
   assert.equal(reads, 2);
   assert.equal(response.generation, snapshot.generation);
   assert.equal(response.ranks.attack, 448);
-  assert.equal(response.training.scale, 3.5);
+  assert.equal(response.training.baseScale, 18.5);
+  assert.ok(response.training.scale >= 6 && response.training.scale <= 31);
+  assert.equal(response.training.schedule.day, new Date(snapshot.generatedAt).toISOString().slice(0, 10));
+  assert.ok(Math.abs(response.goal.trainingHours - response.goal.remainingXP / (expectedRate(response.goal.skill, response.skills[response.goal.skill].xp, response.skills[response.goal.skill].level) * response.training.scale)) < 1e-9);
   // Obsolete direct documents cannot change the authoritative published world.
   await e.WORLD_STORE.put("user:user500", JSON.stringify(player("User500", 99)));
   const stillPublished = await (await call(e, "/api/users/User500")).json();
@@ -367,7 +371,8 @@ test("scheduled updates process every existing player and persist each at most o
       .every(([, n]) => n === 1),
   );
   const world = await (await call(e, "/api/world")).json();
-  assert.equal(world.training.scale, 3.5);
+  assert.equal(world.training.baseScale, 18.5);
+  assert.ok(world.training.scale >= 6 && world.training.scale <= 31);
   assert.equal(world.generatedAt, result.generatedAt);
 });
 
@@ -436,7 +441,7 @@ test("full skill rankings load each packed shard once", async () => {
   };
   const response = await (await call(e, "/api/skill-rankings")).json();
   assert.equal(reads, 2);
-  assert.equal(Object.keys(response.rankings).length, 23);
+  assert.equal(Object.keys(response.rankings).length, SKILLS.length);
 });
 
 test("administrative seed cannot exceed the 5000-player world budget", async () => {
@@ -446,4 +451,38 @@ test("administrative seed cannot exceed the 5000-player world budget", async () 
   assert.equal((await call(e, "/api/seed", post({ usernames: ["Overflow"] }))).status, 409);
   assert.equal(JSON.parse(await e.WORLD_STORE.get("snapshot:current")).generation, generation);
   assert.equal((await allUsers(e)).length, 5000);
+});
+
+test("Sailing and activity rankings share packed generations, global ranks, pagination and stable bank state", async () => {
+  const e = env();
+  const users = [player("Ada", 99), player("Zed", 80), player("Bob", 70)];
+  users[0].bosses = { vorkath: 100, zulrah: 5 };
+  users[1].bosses = { vorkath: 50 };
+  users[0].economy = { bankValue: 10000000 };
+  users[1].economy = { bankValue: 10000000 };
+  users[2].economy = { bankValue: 500000 };
+  const snapshot = await publishSnapshot(e, users);
+  const all = await (await call(e, "/api/activity-rankings?category=bank&limit=1&page=2")).json();
+  assert.equal(all.players[0].username, "Zed");
+  assert.equal(all.players[0].rank, 2);
+  assert.equal(all.generation, snapshot.generation);
+  const filtered = await (await call(e, "/api/activity-rankings?category=vorkath&q=Zed")).json();
+  assert.equal(filtered.players[0].rank, 2);
+  assert.equal(filtered.total, 1);
+  const combined = await (await call(e, "/api/activity-rankings?category=bosses")).json();
+  assert.equal(combined.players[0].score, 105);
+  assert.equal(combined.total, 2); // Zero-KC players are unranked.
+  const profile = await (await call(e, "/api/users/Ada")).json();
+  assert.equal(profile.activityRanks.vorkath, 1);
+  assert.equal(profile.activityRanks.bank, 1);
+  assert.equal(profile.skills.sailing.level, 99);
+  const sailing = await (await call(e, "/api/skill-rankings?skill=sailing")).json();
+  assert.equal(sailing.players[0].username, "Ada");
+  assert.equal((await call(e, "/api/activity-rankings?category=constructor")).status, 400);
+  assert.equal((await call(e, "/api/activity-rankings?category=vorkath&page=-1")).status, 400);
+  const bankBefore = profile.economy;
+  await publishSnapshot(e);
+  const again = await (await call(e, "/api/users/Ada")).json();
+  assert.deepEqual(again.economy, bankBefore);
+  assert.deepEqual(again.bosses, profile.bosses);
 });

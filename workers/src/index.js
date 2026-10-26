@@ -1,3 +1,4 @@
+import { BOSS_BY_KEY } from "../../frontend/lib/activities.js";
 import { generateUsernames } from "./usernames.js";
 import { renameExistingUsers } from "./rename-users.js";
 import { UPDATE_INTERVAL_MS } from "../../frontend/lib/simulation-config.js";
@@ -263,6 +264,7 @@ async function route(request, env) {
   const known = [
     "/api/leaderboard",
     "/api/skill-rankings",
+    "/api/activity-rankings",
     "/api/users",
     "/api/achievements/stats",
     "/api/achievements/firsts",
@@ -277,6 +279,17 @@ async function route(request, env) {
       ...snapshotInfo(snapshot),
       nextUpdateAt: (Math.floor(Date.now() / UPDATE_INTERVAL_MS) + 1) * UPDATE_INTERVAL_MS,
     });
+  if (path === "/api/activity-rankings") {
+    const category = url.searchParams.get("category") || "bosses";
+    if (!["bank", "bosses"].includes(category) && !Object.hasOwn(BOSS_BY_KEY, category))
+      throw new HttpError(400, "Unknown activity category.");
+    if (!snapshot.activitiesVersion)
+      throw new HttpError(503, "Boss and bank rankings become available after the next simulation update.");
+    let rows = await rankingRows(env, snapshot, `activity:${category}`);
+    const q = (url.searchParams.get("q") || "").trim().toLowerCase();
+    if (q) rows = rows.filter(row => row.username.toLowerCase().includes(q));
+    return cached({ ...snapshotInfo(snapshot), category, ...paginate(rows, url.searchParams) });
+  }
   if (path === "/api/leaderboard" || path === "/api/skill-rankings") {
     const skill =
       path === "/api/skill-rankings" ? url.searchParams.get("skill") : null;

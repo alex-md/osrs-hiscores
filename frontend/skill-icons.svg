@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+<symbol id="attack" viewBox="0 0 16 16"><path fill="#bac4c8" d="M11 1h4v4h-2v2h-2v2H9v2H7v2H5v2H2v-3h2v-2h2V8h2V6h2V4h1z"/><path fill="#a78948" d="M4 8h2v2h2v2h-2v2H4v-2H2v-2h2z"/></symbol>
+<symbol id="defence" viewBox="0 0 16 16"><path fill="#899ead" d="M2 2h12v7h-2v3h-2v2H6v-2H4V9H2z"/><path fill="#d5dadd" d="M4 4h3v7H5V8H4z"/></symbol>
+<symbol id="strength" viewBox="0 0 16 16"><path fill="#bc8762" d="M3 5h2V2h2v3h1V1h2v4h1V3h2v5h1v4h-2v3H5v-2H3z"/><path fill="#e3b58d" d="M4 7h7v3H4z"/></symbol>
+<symbol id="hitpoints" viewBox="0 0 16 16"><path fill="#b94036" d="M1 3h5v2h4V3h5v6h-2v2h-2v2H9v2H7v-2H5v-2H3V9H1z"/><path fill="#ec8d73" d="M3 4h2v4H3z"/></symbol>
+<symbol id="ranged" viewBox="0 0 16 16"><path fill="#b79a5f" d="M4 1h3v2h3v3h2v4h-2v3H7v2H4v-2h2v-2h2V5H6V3H4z"/><path fill="#c8c8ad" d="M1 7h12V5h2v5h-2V9H1z"/></symbol>
+<symbol id="prayer" viewBox="0 0 16 16"><path fill="#d8dfd9" d="M7 1h2v5h3V4h3v5h-4v2H9v4H7v-4H5V9H1V4h3v2h3z"/><path fill="#a7bdc0" d="M7 7h2v3H7z"/></symbol>
+<symbol id="magic" viewBox="0 0 16 16"><path fill="#81b9d2" d="M7 1h2v4h2v2h4v2h-4v2H9v4H7v-4H5V9H1V7h4V5h2z"/><path fill="#e4eff3" d="M6 6h4v4H6z"/></symbol>
+<symbol id="cooking" viewBox="0 0 16 16"><path fill="#837c70" d="M1 6h12v6h-2v2H3v-2H1zM12 7h4v2h-4z"/><path fill="#c7b28a" d="M3 3h2v2H3zM7 1h2v4H7zM11 3h2v2h-2z"/></symbol>
+<symbol id="woodcutting" viewBox="0 0 16 16"><path fill="#947044" d="M3 14 11 2l2 2-8 12z"/><path fill="#a7b0b1" d="M6 2h6v2h3v5H9V6H6z"/></symbol>
+<symbol id="fletching" viewBox="0 0 16 16"><path fill="#b49a64" d="M1 13 12 2h3v3L4 16z"/><path fill="#c7d2ce" d="M2 9h4v4H2zM10 1h5v5h-2V3h-3z"/></symbol>
+<symbol id="fishing" viewBox="0 0 16 16"><path fill="#729ba8" d="M1 7h3V5h7V3h2v3h2v5h-2v2h-2v-2H4V9H1z"/><path fill="#c5d1c2" d="M5 6h5v2H5zM12 7h1v1h-1z"/></symbol>
+<symbol id="firemaking" viewBox="0 0 16 16"><path fill="#d27432" d="M7 1h2v4h3v3h2v5h-2v2H4v-2H2V8h2V5h3z"/><path fill="#eac45f" d="M7 7h2v3h2v3H5v-3h2z"/></symbol>
+<symbol id="crafting" viewBox="0 0 16 16"><path fill="#a59aca" d="M4 2h8l3 4-7 9L1 6z"/><path fill="#dad3e7" d="M4 3h4L6 6H2zM8 7h4l-4 6z"/></symbol>
+<symbol id="smithing" viewBox="0 0 16 16"><path fill="#8e9497" d="M1 4h14v3h-3v3h-2v3h3v2H3v-2h3v-3H4V7H1z"/><path fill="#c3c7c1" d="M2 4h12v2H2z"/></symbol>
+<symbol id="mining" viewBox="0 0 16 16"><path fill="#927249" d="M3 14 10 3l2 2-7 11z"/><path fill="#b2b9b9" d="M3 3V1h8v2h3v3h1v3h-2V6h-3V4H6v1H3z"/></symbol>
+<symbol id="herblore" viewBox="0 0 16 16"><path fill="#688b49" d="M7 1h2v14H7zM2 3h3v2h2v3H4V6H2zM10 7h4v3h-2v2H9V9h1z"/><path fill="#a9b873" d="M8 2h2v4H8z"/></symbol>
+<symbol id="agility" viewBox="0 0 16 16"><path fill="#ac9e88" d="M2 8h4V3h5v7h3v2h2v3H2z"/><path fill="#e1d8bf" d="M3 12h12v2H3zM7 4h3v2H7z"/></symbol>
+<symbol id="thieving" viewBox="0 0 16 16"><path fill="#ba9c51" d="M2 1h7v7H7v3h2v2H7v2H4V8H2z"/><path fill="#e2d093" d="M4 3h3v3H4z"/></symbol>
+<symbol id="slayer" viewBox="0 0 16 16"><path fill="#c4bda8" d="M3 2h10v2h2v6h-3v4H4v-4H1V4h2z"/><path fill="#4b443a" d="M3 5h3v3H3zM10 5h3v3h-3zM7 9h2v2H7zM5 12h1v2H5zM10 12h1v2h-1z"/></symbol>
+<symbol id="farming" viewBox="0 0 16 16"><path fill="#73934c" d="M7 7h2v8H7zM1 2h5v2h2v5H5V7H3V5H1zM10 4h5v4h-2v2H9V6h1z"/><path fill="#acba72" d="M2 3h3v2H2zM11 5h3v2h-3z"/></symbol>
+<symbol id="runecraft" viewBox="0 0 16 16"><path fill="#a9a493" d="M4 1h8v2h2v10h-2v2H4v-2H2V3h2z"/><path fill="#686d9d" d="M7 3h2v3h3v2H9v5H7V8H4V6h3z"/></symbol>
+<symbol id="hunter" viewBox="0 0 16 16"><path fill="#b09a78" d="M1 2h3v4H1zM6 1h3v4H6zM12 3h3v4h-3zM5 8h5v2h3v4h-3v1H4v-1H2v-3h3z"/><path fill="#dfcaaa" d="M6 10h3v3H6z"/></symbol>
+<symbol id="construction" viewBox="0 0 16 16"><path fill="#b18c59" d="M2 7h12v8H2z"/><path fill="#b7b6a8" d="M1 6h2V4h2V2h6v2h2v2h2v2H1zM6 10h4v5H6z"/></symbol>
+<symbol id="sailing" viewBox="0 0 16 16"><path fill="#bc9f64" d="M7 1h2v10H7zM1 11h14v2h-2v2H4v-2H1z"/><path fill="#ded9c6" d="M6 2v7H1zM10 3l5 6h-5z"/><path fill="#7aabb5" d="M1 15h14v1H1z"/></symbol>
+</svg>

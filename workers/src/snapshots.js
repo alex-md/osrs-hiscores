@@ -1,7 +1,8 @@
+import { BOSSES } from "../../frontend/lib/activities.js";
 import { MAX_PLAYERS } from "../../frontend/lib/simulation-config.js";
 import { HttpError } from "./http.js";
 import { combatLevel } from "../../frontend/lib/domain.js";
-import { trainingInfo, expectedRate, XP_SCALE } from "./training.js";
+import { trainingInfo, expectedRate } from "./training.js";
 import { SKILLS } from "./constants.js";
 import { inferMetaTierWithContext } from "./utils.js";
 import {
@@ -12,11 +13,13 @@ import {
 } from "./achievements.js";
 import {
   allUsers,
+  normalizeUser,
   readJSON,
   readManyJSON,
 } from "./store.js";
 
 const CHUNK_SIZE = 500;
+const PROFILE_CHUNK_SIZE = 125; // At 5,000 players, a cold batch reads at most 41 SQL rows.
 
 export function buildRankings(
   users,
@@ -50,14 +53,26 @@ export function buildRankings(
       .sort((a, b) => b.xp - a.xp || a.username.localeCompare(b.username))
       .map((u, i) => ({ ...u, rank: i + 1 }));
   }
+  const activityScores = [
+    ["bank", user => user.economy?.bankValue || 0],
+    ["bosses", user => BOSSES.reduce((sum, boss) => sum + (user.bosses?.[boss.key] || 0), 0)],
+    ...BOSSES.map(boss => [boss.key, user => user.bosses?.[boss.key] || 0]),
+  ];
+  for (const [category, score] of activityScores)
+    rankings[`activity:${category}`] = users.map(user => ({ username: user.username, score: score(user) }))
+      .filter(row => row.score > 0)
+      .sort((a, b) => b.score - a.score || a.username.localeCompare(b.username))
+      .map((row, index) => ({ ...row, rank: index + 1 }));
   return rankings;
 }
 export async function publishSnapshot(env, users = null) {
   users ||= await allUsers(env);
+  users = users.map(normalizeUser);
   if (users.length > MAX_PLAYERS)
     throw new HttpError(409, `The simulated world is limited to ${MAX_PLAYERS} players to preserve free-tier headroom.`);
   const now = Date.now(),
     context = computeAchievementContext(users);
+  const training = trainingInfo(new Date(now));
   const [legacy, previous, oldLog, previousSnapshot] = await Promise.all([
     readJSON(env, "ach:firsts", {}),
     readJSON(env, "ach:firsts:v2", {}),
@@ -125,6 +140,10 @@ export async function publishSnapshot(env, users = null) {
   for (const skill of SKILLS)
     for (const row of rankings[skill])
       ranksByName.get(row.username.toLowerCase())[skill] = row.rank;
+  const activityRanksByName = new Map(users.map(user => [user.username.toLowerCase(), {}]));
+  for (const [name, rows] of Object.entries(rankings))
+    if (name.startsWith("activity:"))
+      for (const row of rows) activityRanksByName.get(row.username.toLowerCase())[name.slice(9)] = row.rank;
   const profiles = users.map((user) => {
     const name = user.username.toLowerCase();
     const next = SKILLS.filter((s) => user.skills[s].level < 99).sort(
@@ -138,7 +157,7 @@ export async function publishSnapshot(env, users = null) {
           trainingHours:
             (13034431 - user.skills[next].xp) /
             (expectedRate(next, user.skills[next].xp, user.skills[next].level) *
-              XP_SCALE),
+              training.scale),
         }
       : null;
     return {
@@ -146,11 +165,12 @@ export async function publishSnapshot(env, users = null) {
       rank: overallByName.get(name)?.rank || null,
       tier: overallByName.get(name)?.tier || "Novice",
       ranks: ranksByName.get(name),
+      activityRanks: activityRanksByName.get(name),
       combatLevel: combatLevel(user.skills),
       goal,
     };
   });
-  // Pack all 24 ladders together: one write per 500 players instead of 24.
+  // Pack skill and activity ladders together: one write per 500 players.
   const shardCount = Math.ceil(users.length / CHUNK_SIZE);
   for (const name of Object.keys(rankings)) chunks[name] = shardCount;
   for (let i = 0; i < shardCount; i++) {
@@ -165,12 +185,12 @@ export async function publishSnapshot(env, users = null) {
     });
   }
   // Profiles carry XP, ranks and unlocks from the same generation.
-  for (let i = 0; i < profiles.length; i += 100) {
-    const group = profiles.slice(i, i + 100);
+  for (let i = 0; i < profiles.length; i += PROFILE_CHUNK_SIZE) {
+    const group = profiles.slice(i, i + PROFILE_CHUNK_SIZE);
     for (const user of group)
-      profileIndex[user.username.toLowerCase()] = i / 100;
+      profileIndex[user.username.toLowerCase()] = i / PROFILE_CHUNK_SIZE;
     writes.push({
-      key: `snapshot:${generation}:profiles:${i / 100}`,
+      key: `snapshot:${generation}:profiles:${i / PROFILE_CHUNK_SIZE}`,
       value: Object.fromEntries(
         group.map((u) => [u.username.toLowerCase(), u]),
       ),
@@ -178,6 +198,8 @@ export async function publishSnapshot(env, users = null) {
   }
   const snapshot = {
     version: 2,
+    activitiesVersion: 1,
+    profileChunkSize: PROFILE_CHUNK_SIZE,
     generation,
     generatedAt: now,
     totalPlayers: users.length,
@@ -185,7 +207,7 @@ export async function publishSnapshot(env, users = null) {
     counts,
     firsts,
     profileIndex,
-    training: trainingInfo(),
+    training,
     events: [...events, ...(log.events || [])].slice(0, 100),
   };
   // The adapter stages these documents and atomically commits the entire job in

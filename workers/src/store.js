@@ -1,3 +1,4 @@
+import { normalizeCareer } from "./economy.js";
 import { SKILLS } from "./constants.js";
 import { clamp, levelFromXp, totalLevel, totalXP } from "./utils.js";
 
@@ -28,13 +29,13 @@ export function normalizeUser(user) {
       return [skill, { xp, level: levelFromXp(xp) }];
     }),
   );
-  return {
+  return normalizeCareer({
     ...user,
     skills,
     totalLevel: totalLevel(skills),
     totalXP: totalXP(skills),
     achievements: user.achievements || {},
-  };
+  });
 }
 // Keep independent storage operations bounded, and wait for the whole batch before
 // publishing a manifest or proceeding to dependent operations.

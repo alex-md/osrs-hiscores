@@ -16,6 +16,7 @@ export const ACHIEVEMENT_KEYS = [
   "top-10-any",
   "top-100-any",
   // Account progression
+  "total-2376",
   "total-2277",
   "total-2200",
   "total-2000",
@@ -49,6 +50,7 @@ export const ACHIEVEMENT_KEYS = [
     "runecraft",
     "hunter",
     "construction",
+    "sailing",
   ].map((s) => `skill-master-${s}`),
   // Gathering
   "gathering-elite",
@@ -121,6 +123,7 @@ export const ACHIEVEMENT_KEYS = [
   "skill-200m-runecraft",
   "skill-200m-hunter",
   "skill-200m-construction",
+  "skill-200m-sailing",
   // Meta-firsts
   "overall-rank-1",
   "first-99-any",

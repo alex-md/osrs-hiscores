@@ -6,7 +6,8 @@ import {
   INITIAL_DISTRIBUTION_ARCHETYPE_FOCUS,
 } from "./constants.js";
 
-export const XP_SCALE = 18.5;
+import { xpModifier, dailyXpSchedule } from "./xp-schedule.js";
+export { XP_SCALE } from "./xp-schedule.js";
 export const SESSION_FRACTIONS = {
   INACTIVE: [0, 0],
   BANK_STANDING: [0, 0.01],
@@ -17,7 +18,7 @@ export const SESSION_FRACTIONS = {
   UNHEALTHY: [0.9, 1],
 };
 // Design estimates cap composite/zero-time EHP methods and expensive endgame methods.
-// These are ordinary high-level training ceilings BEFORE the 3.5x world scale.
+// These are ordinary high-level training ceilings BEFORE the time-of-day world scale.
 export const ORDINARY_CEILINGS = {
   attack: 85000,
   strength: 95000,
@@ -42,6 +43,8 @@ export const ORDINARY_CEILINGS = {
   runecraft: 55000,
   hunter: 130000,
   construction: 350000,
+  // Provisional ordinary Sailing ceiling; older calibration predates this skill.
+  sailing: 95000,
 };
 export function expectedRate(skill, xp, level) {
   const ceiling = ORDINARY_CEILINGS[skill];
@@ -75,13 +78,15 @@ export function chooseTrainingSkill(user, rng = Math.random) {
   }
   return entries.at(-1)?.[0];
 }
-export const trainingInfo = () => ({
-  scale: XP_SCALE,
+export const trainingInfo = (date = new Date()) => ({
+  ...xpModifier(date),
+  schedule: dailyXpSchedule(date),
   tickHours: TICK_HOURS,
   updateMinutes: UPDATE_MINUTES,
   maxPlayers: MAX_PLAYERS,
   calibratedAt: calibration.fetchedAt,
   sampleSize: calibration.sampleSize,
   source: "Wise Old Man",
+  estimatedSkills: ["sailing"],
   caveat: calibration.caveat,
 });

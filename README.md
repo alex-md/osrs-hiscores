@@ -1,6 +1,6 @@
 # OSRS Hiscores
 
-A simulated Old School RuneScape world with overall rankings, all 23 skill ladders, player profiles, achievement history, and recorded firsts. Every 15 minutes, all players receive a training opportunity with skill-specific rates and a 3.5× XP scale. This is an independent fan project; the accounts are simulated and it is not affiliated with Jagex.
+A simulated Old School RuneScape world with overall rankings, all 24 skill ladders including Sailing, boss kill counts, modeled bank-value rankings, player profiles, achievement history, and recorded firsts. Every 15 minutes, all players receive a training opportunity with skill-specific rates and a randomized time-of-day XP scale capped at 31×. This is an independent fan project; the accounts are simulated and it is not affiliated with Jagex.
 
 ## Run locally
 
@@ -60,6 +60,8 @@ One application serves every view. Routes work on static hosts, including under 
 - `#overall` — rankings, name filtering, pagination, page-size selection, CSV export.
 - `#skills/attack` — skill ladder, level and XP ranges, filtering, pagination, CSV export.
 - `#user/Rune%20Mage` — player summary, combat level, skill ranks, XP progress, achievement history.
+- `#wealth` — modeled bank-value rankings, name filtering and pagination.
+- `#bosses` — total recorded boss KC; `#bosses?boss=vorkath` selects an encounter.
 - `#achievements` — searchable catalog, category and rarity filters, sort controls, recent unlocks, recorded firsts.
 
 The older `skill-hiscores.html?skill=attack` and `achievements.html` entry points still work. Theme and connection preferences are optional local storage settings. `?api=https://example.workers.dev` temporarily selects another API. Blank connection settings restore the default. A missing API or failed request produces a retry screen with connection controls. Player search supports keyboard submission and native username suggestions.
@@ -76,6 +78,7 @@ All responses are JSON with CORS enabled. Reads cache for 30 seconds in browsers
 | GET    | `/api/leaderboard`                    | Paginated overall ranking                                                           |
 | GET    | `/api/skill-rankings?skill=attack`    | Paginated skill ranking                                                             |
 | GET    | `/api/skill-rankings`                 | All skill rankings, retained for compatibility                                      |
+| GET    | `/api/activity-rankings?category=bank` | Paginated wealth ranking; `bosses` selects total KC and a boss key selects an encounter |
 | GET    | `/api/users`                          | Sorted username list                                                                |
 | GET    | `/api/users/batch?usernames=Ada,Zed`  | Up to 200 player documents                                                          |
 | GET    | `/api/users/:username`                | Player document, authoritative rank, tier, combat level, skill ranks                |
@@ -91,6 +94,8 @@ All responses are JSON with CORS enabled. Reads cache for 30 seconds in browsers
 | POST   | `/api/admin/users/rename-all`         | One-time rename of all existing players; defaults to preview, preserves progress and history |
 | POST   | `/api/admin/users/delete-batch`       | Preview or delete selected names, or a random batch                                 |
 
+Activity rankings use `category=bank`, `category=bosses`, or a boss key from `frontend/lib/activities.js`, plus `page`, `limit`, and `q`. Zero-KC players are unranked.
+
 Ranking parameters are `page` (default 1), `limit` (default 50; maximum 5000), and `q`. Skill rankings additionally accept `minLevel`, `maxLevel`, `minXP`, and `maxXP`. Filtering keeps the player's original global rank. Responses contain `players`, `page`, `pages`, `limit`, `total` (filtered count), `totalPlayers`, and `generatedAt`. An out-of-range page resolves to the final page.
 
 **Every POST requires `X-Admin-Token`.** Query-string tokens are not accepted. Deletion defaults to `dryRun: true`; only the boolean `false` performs deletion:
@@ -105,7 +110,7 @@ The obsolete public migration, regex purge, hitpoints rebalance, and fake-word s
 
 The singleton `HiscoresWorld` Durable Object owns a SQLite database. Public reads, administrative updates, and 15-minute cron runs all go through the same request queue. There are no Workers KV bindings or KV operations in the active architecture. Public requests never create or rebuild snapshots; an uninitialized world returns `503` until it is seeded or the first cron runs.
 
-A successful update writes packed 500-player ranking shards, 100-player profile shards, the manifest, and simulation metadata into one SQLite transaction. Profile shards are the canonical player records, including XP and achievement history. A failed computation or SQL commit leaves the previous generation intact. Obsolete generations are deleted in that same transaction, so snapshot storage does not grow on every update. The current generation has no expiry. Individual JSON rows are checked against a 1.9 MB safety threshold below SQLite's 2 MB row limit.
+A successful update writes packed 500-player ranking shards, 125-player profile shards, the manifest, and simulation metadata into one SQLite transaction. Profile shards are the canonical player records, including XP and achievement history. A failed computation or SQL commit leaves the previous generation intact. Obsolete generations are deleted in that same transaction, so snapshot storage does not grow on every update. The current generation has no expiry. Individual JSON rows are checked against a 1.9 MB safety threshold below SQLite's 2 MB row limit.
 
 The object serializes reads and writes, and stores a simulation slot identifier atomically with the simulation. Repeated or concurrent cron/manual triggers in the same 15-minute UTC window return `429` without progressing players again. Seed, rebuild, and deletion remain available independently of that simulation guard. Failed simulations can be retried because their slot reservation rolls back too.
 
@@ -115,11 +120,11 @@ Reads cache for 30 seconds at the edge and in browsers. Visible pages check `/ap
 
 ### Capacity and cadence
 
-The world updates every 15 minutes: 96 updates/day rather than six. XP remains calibrated to the elapsed training window at the existing 3.5× scale; a more frequent cron does not multiply XP/hour. Browser freshness checks run once a minute while visible. `simulation-config.js` shares cadence and the 5,000-player population cap across the server and training metadata. Admin seed requests also respect the cap.
+The world updates every 15 minutes: 96 updates/day rather than six. XP remains calibrated to the elapsed training window with the period-weighted daily XP schedule; a more frequent cron does not multiply XP/hour. Browser freshness checks run once a minute while visible. `simulation-config.js` shares cadence and the 5,000-player population cap across the server and training metadata. Admin seed requests also respect the cap.
 
-Cloudflare's SQLite Durable Object Free allowance is 100,000 rows written/day and 5 million rows read/day, with separate request/duration/storage limits. The disposable local workerd benchmark at the full 5,000-player cap measured 185 SQL rows written and 176 read for one update, including index writes and deleting the previous shards: **17,760 scheduled rows written/day** at 96 updates. This projection leaves room for admin changes and ordinary traffic; it is not production usage telemetry. GET routes do not write to SQLite. One run took about 310 ms locally, which is not a production latency guarantee.
+Cloudflare's SQLite Durable Object Free allowance is 100,000 rows written/day and 5 million rows read/day, with separate request/duration/storage limits. The disposable local workerd benchmark at the full 5,000-player cap measured 155 SQL rows written and 146 read for one update, including index writes and deleting the previous shards: **14,880 scheduled rows written/day** at 96 updates. The conservative cold-read projection at the 100,000 DO request limit was 4,110,080 SQL reads/day; this includes scheduled reads and assumes every remaining request touches all 40 profile packs. The test dataset occupied about 42.5 MB and its largest document was about 1.31 MB. This projection leaves room for admin changes and ordinary traffic; it is not production usage telemetry. GET routes do not write to SQLite. One full endgame-population run took about 600 ms locally, which is not a production latency guarantee.
 
-Run `npm run capacity` after `npm ci --prefix workers` to repeat the real-runtime benchmark without contacting production. It fails if projected scheduled writes reach 30,000/day or population growth exceeds the cap. Account-wide usage and traffic still need observing after deployment. See [Cloudflare's pricing](https://developers.cloudflare.com/durable-objects/platform/pricing/).
+Run `npm run capacity` after `npm ci --prefix workers` to repeat the real-runtime benchmark without contacting production. It fails if projected scheduled writes reach 30,000/day, reads at the request limit reach 4.5M/day, public reads write anything, stored documents/data exceed safety bounds, or population growth exceeds the cap. Account-wide usage and traffic still need observing after deployment. See [Cloudflare's pricing](https://developers.cloudflare.com/durable-objects/platform/pricing/).
 
 ### Fresh-world cutover
 
@@ -168,7 +173,7 @@ Tests exercise API contracts, malformed input, authorization, packed player read
 
 `workers/data/calibration.json` contains live Wise Old Man main-account EHP methods and a captured sample of 20 top weekly gainers, fetched October 12, 2026. Source URLs, weekly per-skill gains and retrieval timestamps are retained. The generated `workers/data/calibration.js` contains the runtime rates and metadata using a plain JavaScript export, compatible with both Pages’ Wrangler 3 bundler and the Worker’s Wrangler 4 bundler. Run `npm run calibrate` to refresh both files before a deployment; it never polls WOM from the Worker or writes calibration to KV.
 
-EHP rates represent optimized training, **not average observed XP/hour**. Weekly XP gains do not reveal playtime. This competitive sample is biased and cannot measure population-wide popularity. The simulator uses explicit ordinary-training ceilings and level scaling, caps efficiency rates at 70%, and adjusts authored popularity preferences only slightly using sample participation. Agility and Runecraft remain slower and less frequently selected for general players; archetype preferences allow specialists to focus on them. The 3.5× scale applies once, with the existing weekend bonus. Old global tier XP multipliers no longer stack on the scale; skill multipliers influence selection instead.
+EHP rates represent optimized training, **not average observed XP/hour**. Weekly XP gains do not reveal playtime. This competitive sample is biased and cannot measure population-wide popularity. The simulator uses explicit ordinary-training ceilings and level scaling, caps efficiency rates at 70%, and adjusts authored popularity preferences only slightly using sample participation. Agility and Runecraft remain slower and less frequently selected for general players; archetype preferences allow specialists to focus on them. The 18.5× baseline is shaped by weekly and daily intensity, randomized morning/lunch/evening peaks, and smaller correlated fluctuations. UTC schedules have 96 periods, a minimum of 6×, and a maximum of 31× including the existing 15% weekend uplift. Weekends shift activity later. Daily averages vary around the baseline (about ±9%, before weekend uplift). The date-seeded pattern is shared by all players and reproducible across retries. Elapsed windows crossing period or midnight boundaries weight each rate by time; the resulting multiplier applies once. Session history records the awarded scale; published metadata includes the current scale, its factors, and the day’s complete distribution. Cape estimates use the published rate and explicitly assume it stays constant. Old global tier XP multipliers no longer stack on the scale; skill multipliers influence selection instead.
 
 Each 15-minute opportunity samples activity duration (including genuinely inactive sessions), then selects a trainable skill with weighted preferences. Combat and Slayer award related combat/Hitpoints XP. Elapsed time since the last successful run caps the window at 15 minutes, preventing rapid manual triggers from granting a full training window repeatedly. Missed cron windows do not produce unlimited catch-up. No player XP is reset, and every skill remains capped at 200M.
 
@@ -177,3 +182,7 @@ Profiles show their latest and best session, session count and nearest skill cap
 See [the model notes](docs/training-model.md) for base/scaled rates and sampling limitations.
 
 The username migration runs once with `POST /api/admin/users/rename-all` and `{"dryRun":false}`. It atomically saves original player records and history under `backup:username-v1:*`, rebuilds profiles and rankings with the new names, and records the old-to-new mapping in `system:username-migration:v1`. Repeating it returns the saved mapping without changing names again.
+
+## Boss and wealth simulation
+
+Sailing, 16 encounter categories, and bank value share the existing world and time-of-day scaling. Persistent preferences, combat/skill gates, gear quality, growing boss familiarity, rare-drop luck, supply costs and buyable-skill spending connect progression and wealth. Existing accounts gain level-1 Sailing and an explicitly estimated opening bank, while boss records begin at zero. No previous XP or unlocks are reset. Exact quests, loadouts, live prices and named drop tables are not simulated. See [the economy model](docs/simulation-economy.md) for equations, migration behavior, limits and storage checks.

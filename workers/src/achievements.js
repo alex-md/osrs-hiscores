@@ -15,6 +15,7 @@ const ACHIEVEMENT_FAMILY_CHAINS = [
   ["top-10-any", "top-100-any"],
   ["maxed-account", "seven-99s", "five-99s"],
   [
+    "total-2376",
     "total-2277",
     "total-2200",
     "total-2000",
@@ -149,7 +150,9 @@ export function evaluateAchievements(user, ctx) {
 
   // Account progression (total level milestones) — keep only the highest milestone
   // If additional milestones are added (e.g., total-1000), this logic will still only select the highest one.
-  if (totalLvl >= 2277) {
+  if (totalLvl >= 2376) {
+    out.add("total-2376");
+  } else if (totalLvl >= 2277) {
     out.add("total-2277");
   } else if (totalLvl >= 2200) {
     out.add("total-2200");

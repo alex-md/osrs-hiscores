@@ -163,6 +163,7 @@ export const SKILL_POPULARITY = {
   runecraft: 0.7,
   hunter: 0.84,
   construction: 0.66,
+  sailing: 0.94,
 };
 
 // ———————————————————————————————————————————————————————————————
