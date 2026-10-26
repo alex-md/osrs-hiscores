@@ -18,7 +18,7 @@ function setup(legacy) {
       catch (error) { db.exec("ROLLBACK"); throw error; }
     },
   };
-  const object = new HiscoresWorld({ storage }, { ALLOW_TWODNE_SCRAPE: "false", ADMIN_TOKEN: "secret", HISCORES_KV: legacy });
+  const object = new HiscoresWorld({ storage }, { GE_FETCH: async () => { throw new Error("Offline test"); }, ALLOW_TWODNE_SCRAPE: "false", ADMIN_TOKEN: "secret", HISCORES_KV: legacy });
   const request = (path, body, token = "secret") => object.fetch(new Request(`https://world${path}`, {
     method: body === undefined ? "GET" : "POST",
     headers: { "x-admin-token": token, "content-type": "application/json" },

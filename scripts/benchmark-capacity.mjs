@@ -11,13 +11,18 @@ import { BOSSES } from './frontend/lib/activities.js';
 import { normalizeUser } from './workers/src/store.js';
 import { publishSnapshot } from './workers/src/snapshots.js';
 import { MAX_PLAYERS, UPDATE_INTERVAL_MS } from './frontend/lib/simulation-config.js';
+import baseline from './workers/data/ge-baseline.js';
 export class BenchWorld extends HiscoresWorld {
  async fetch(request) {
+  this.env.GE_FETCH = async () => { throw new Error("Offline benchmark"); };
   const users = Array.from({length:MAX_PLAYERS}, (_,i)=>{
    const user = newUser('Bench'+i);
    for (const skill of Object.values(user.skills)) {skill.xp=200000000;skill.level=99;}
    for (const boss of BOSSES) user.bosses[boss.key]=1000000+i;
    user.economy.bankValue=1000000000000-i;
+   user.economy.cash=0;
+   user.economy.holdings=Object.fromEntries(Object.entries(baseline).map(([id,item])=>[id,user.economy.bankValue/Object.keys(baseline).length/item.price]));
+   user.economy.revaluation=0;
    return normalizeUser(user);
   });
   await publishSnapshot(this.env, users); this.store.commit();

@@ -47,7 +47,7 @@ class MemoryKV {
     };
   }
 }
-const env = () => ({ ALLOW_TWODNE_SCRAPE: "false", WORLD_STORE: new MemoryKV(), ADMIN_TOKEN: "test-only" });
+const env = () => ({ GE_FETCH: async () => { throw new Error("Offline test"); }, ALLOW_TWODNE_SCRAPE: "false", WORLD_STORE: new MemoryKV(), ADMIN_TOKEN: "test-only" });
 const putUser = async (e, user) => {
   const users = (await allUsers(e)).filter((u) => u.username.toLowerCase() !== user.username.toLowerCase());
   await publishSnapshot(e, [...users, user]);

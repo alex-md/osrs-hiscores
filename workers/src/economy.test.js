@@ -84,8 +84,8 @@ test("a population has diverse persistent personalities and heavy-tailed startin
   assert.ok(new Set(banks).size > 900);
 });
 
-test("matched populations produce more kills at higher scale and preserve KC over many sessions", () => {
-  let lowKills = 0, highKills = 0, rareDrops = 0;
+test("matched populations have identical KC, drops and wealth regardless of XP scale", () => {
+  let lowKills = 0, highKills = 0;
   for (let index = 0; index < 300; index++) {
     const low = player(`Player${index}`), high = structuredClone(low);
     for (let session = 0; session < 8; session++) {
@@ -94,10 +94,11 @@ test("matched populations produce more kills at higher scale and preserve KC ove
     }
     lowKills += Object.values(low.bosses).reduce((sum, kills) => sum + kills, 0);
     highKills += Object.values(high.bosses).reduce((sum, kills) => sum + kills, 0);
-    rareDrops += high.economy.rareDrops;
+    assert.deepEqual(high.bosses, low.bosses);
+    assert.deepEqual(high.economy, low.economy);
     assert.ok(high.economy.bankValue >= 0 && high.economy.bankValue <= MAX_BANK_VALUE);
     assert.ok(high.economy.earned >= (high.economy.lastSession?.earned || 0));
   }
-  assert.ok(highKills > lowKills * 3.5 && highKills < lowKills * 7);
-  assert.ok(rareDrops > 0);
+  assert.ok(lowKills > 0);
+  assert.equal(highKills, lowKills);
 });

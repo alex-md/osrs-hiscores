@@ -1,4 +1,5 @@
-import { progressBossing, progressSkillingEconomy, skillingFunding } from "./economy.js";
+import { progressBossing, progressSkillingEconomy, skillingFunding, valueBank } from "./economy.js";
+import { dailyMarket } from "./market.js";
 import { windowXpScale } from "./xp-schedule.js";
 import { MAX_PLAYERS } from "../../frontend/lib/simulation-config.js";
 import { reserveUpdate } from "./budget.js";
@@ -57,7 +58,7 @@ export function newUser(username) {
 export function progressUser(
   user,
   date = new Date(),
-  { hours = TICK_HOURS, rng = Math.random } = {},
+  { hours = TICK_HOURS, rng = Math.random, market } = {},
 ) {
   user.xpGainTier = determineXpGainTierFromTotal(user.totalXP);
   user.archetype ||= "CASUAL";
@@ -67,7 +68,7 @@ export function progressUser(
   const duration =
     Math.max(0, Math.min(TICK_HOURS, hours)) * (min + rng() * (max - min));
   const scale = windowXpScale(date, hours);
-  const bossing = progressBossing(user, date, { hours: duration, scale, rng });
+  const bossing = progressBossing(user, date, { hours: duration, rng, market });
   const gains = {};
   const add = (skill, xp) => {
     const before = user.skills[skill].xp;
@@ -75,7 +76,7 @@ export function progressUser(
     user.skills[skill].level = levelFromXp(user.skills[skill].xp);
     gains[skill] = (gains[skill] || 0) + user.skills[skill].xp - before;
   };
-  for (const [skill, xp] of Object.entries(bossing.gains)) add(skill, xp);
+  for (const [skill, xp] of Object.entries(bossing.gains)) add(skill, xp * scale);
   const skill = chooseTrainingSkill(user, rng);
   if (bossing.trainingHours > 0 && skill) {
     const stat = user.skills[skill];
@@ -83,8 +84,8 @@ export function progressUser(
       expectedRate(skill, stat.xp, stat.level) *
       bossing.trainingHours *
       scale *
-      skillingFunding(user, skill, bossing.trainingHours, scale);
-    progressSkillingEconomy(user, date, { skill, hours: bossing.trainingHours, scale, rng, append: bossing.active });
+      skillingFunding(user, skill, bossing.trainingHours, market);
+    progressSkillingEconomy(user, date, { skill, hours: bossing.trainingHours, market, rng, append: bossing.active });
     add(skill, gain);
     if (["attack", "strength", "defence", "ranged"].includes(skill))
       add("hitpoints", gain / 3);
@@ -133,6 +134,7 @@ export async function runScheduled(env) {
   const changed = [];
   const previous = await readJSON(env, "system:last-run");
   const date = new Date(Date.now());
+  const market = await dailyMarket(env, date);
   const hours = previous?.generatedAt
     ? Math.max(
         0,
@@ -141,7 +143,8 @@ export async function runScheduled(env) {
     : TICK_HOURS;
   for (const user of users) {
     const before = JSON.stringify(user);
-    progressUser(user, date, { hours });
+    valueBank(user, market);
+    progressUser(user, date, { hours, market });
     if (JSON.stringify(user) !== before) changed.push(user);
   }
   const count = users.length;
@@ -159,6 +162,7 @@ export async function runScheduled(env) {
     generatedAt: snapshot.generatedAt,
     simulatedHours: hours,
     changedPlayers: changed.length,
+    pricing: { status: market.status, capturedAt: market.capturedAt || null },
   };
   await writeJSON(env, "system:last-run", result);
   return result;
