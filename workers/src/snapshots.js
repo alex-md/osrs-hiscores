@@ -1,3 +1,4 @@
+import { stageHistory } from "./history.js";
 import { BOSSES } from "../../frontend/lib/activities.js";
 import { MAX_PLAYERS } from "../../frontend/lib/simulation-config.js";
 import { HttpError } from "./http.js";
@@ -156,6 +157,7 @@ export async function publishSnapshot(env, users = null) {
       combatLevel: combatLevel(user.skills),
     };
   });
+  await stageHistory(env, profiles, generation, now);
   // Pack skill and activity ladders together: one write per 500 players.
   const shardCount = Math.ceil(users.length / CHUNK_SIZE);
   for (const name of Object.keys(rankings)) chunks[name] = shardCount;

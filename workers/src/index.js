@@ -1,3 +1,4 @@
+import { historyResponse } from "./history.js";
 import { BOSS_BY_KEY } from "../../frontend/lib/activities.js";
 import { generateUsernames } from "./usernames.js";
 import { renameExistingUsers } from "./rename-users.js";
@@ -86,6 +87,7 @@ async function route(request, env) {
       },
       env.WORLD_STORE ? 200 : 503,
     );
+  if (path === "/api/progress" && method === "GET") return historyResponse(request, env);
   if (!env.WORLD_STORE)
     throw new HttpError(503, "WORLD_STORE is not bound to this deployment.");
   if (method === "POST") {

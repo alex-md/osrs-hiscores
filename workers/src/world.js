@@ -1,3 +1,4 @@
+import { flushHistory } from "./history.js";
 import { DurableStore } from "./durable-store.js";
 import { handleApiRequest, runScheduled } from "./index.js";
 import { json, HttpError } from "./http.js";
@@ -28,6 +29,13 @@ export class HiscoresWorld {
       }
       if (response.ok) this.store.commit();
       else this.store.rollback();
+      if (request.method === "POST") {
+        try { await flushHistory(this.env); }
+        catch (error) {
+          this.store.rollback();
+          console.error("History publication deferred; world commit preserved:", error);
+        }
+      }
       return response;
     } catch (error) {
       this.store.rollback();

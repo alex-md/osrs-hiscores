@@ -22,3 +22,10 @@ class_name = "HiscoresWorld"
 [[migrations]]
 tag = "v1-world-sqlite"
 new_sqlite_classes = ["HiscoresWorld"]
+
+# The release pipeline verifies this named database and applies migrations before deploying.
+[[d1_databases]]
+binding = "HISTORY_DB"
+database_name = "osrs-hiscores-history"
+database_id = "3c1244c3-667f-41ae-8530-4f6732601eef"
+migrations_dir = "migrations"

@@ -21,11 +21,15 @@ export class DurableStore {
   async put(key, value) {
     this.pending.set(key, value);
   }
+  async delete(key) {
+    this.pending.set(key, null);
+  }
   commit() {
     if (!this.pending.size) return;
     this.storage.transactionSync(() => {
       for (const [key, value] of this.pending)
-        this.sql.exec("INSERT INTO documents (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", key, value);
+        if (value === null) this.sql.exec("DELETE FROM documents WHERE key = ?", key);
+        else this.sql.exec("INSERT INTO documents (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", key, value);
       const manifest = this.pending.get("snapshot:current");
       if (manifest) {
         const { generation } = JSON.parse(manifest);

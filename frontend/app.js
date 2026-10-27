@@ -66,6 +66,7 @@ function route() {
       params,
     };
   }
+  if (path === "progress") return { type: "progress", params };
   if (path === "exchange") return { type: "exchange", params };
   if (path === "bosses" || path === "wealth")
     return { type: "activity", path, params };
@@ -78,7 +79,7 @@ function layout() {
       <div class="header-ornament" aria-hidden="true">${skillIcon("mining")}${skillIcon("woodcutting")}${skillIcon("fishing")}</div>
       <a class="brand" href="#overall">${crest}<span><small>Simulated RuneScape accounts</small><strong>Old School <span>Hiscores</span></strong><span class="brand-home">Home</span></span></a>
       <div class="header-ornament" aria-hidden="true">${skillIcon("attack")}${skillIcon("magic")}${skillIcon("prayer")}</div>
-    </div><div class="navigation-bar"><nav aria-label="Main navigation"><a data-nav="overall" href="#overall">Hiscores</a><a data-nav="bosses" href="#bosses">Boss kill counts</a><a data-nav="wealth" href="#wealth">Bank value</a><a data-nav="exchange" href="#exchange">Grand Exchange</a><a data-nav="achievements" href="#achievements">Achievements</a></nav><button class="icon-button" id="theme" aria-label="Switch color theme" title="Switch color theme">◐</button></div></header>
+    </div><div class="navigation-bar"><nav aria-label="Main navigation"><a data-nav="overall" href="#overall">Hiscores</a><a data-nav="bosses" href="#bosses">Boss kill counts</a><a data-nav="wealth" href="#wealth">Bank value</a><a data-nav="exchange" href="#exchange">Grand Exchange</a><a data-nav="progress" href="#progress">Gains & records</a><a data-nav="achievements" href="#achievements">Achievements</a></nav><button class="icon-button" id="theme" aria-label="Switch color theme" title="Switch color theme">◐</button></div></header>
     <main class="workspace" id="content" tabindex="-1">
       <aside class="sidebar" aria-label="Hiscores categories"><div class="sidebar-label category-banner">Category</div><a class="sidebar-link" data-skill="overall" href="#overall"><span aria-hidden="true">♜</span> Overall <span class="link-arrow">↗</span></a>
         <a class="sidebar-link" data-activity="bosses" href="#bosses"><span aria-hidden="true">♟</span> Boss kill counts</a><a class="sidebar-link" data-activity="wealth" href="#wealth"><span aria-hidden="true">¤</span> Bank value</a><div class="sidebar-label skill-heading">Skills <span>${SKILLS.length}</span></div><nav class="skill-nav" aria-label="Skill rankings">${SKILLS.map((s) => `<a class="sidebar-link" data-skill="${s}" href="#skills/${s}">${skillIcon(s)}${title(s)}</a>`).join("")}</nav>
@@ -86,7 +87,7 @@ function layout() {
       </aside>
       <aside class="tool-rail" aria-label="Player search and hiscores tools">
         <section class="stone-tool"><h2>Search by name</h2><form id="player-search" role="search"><label class="sr-only" for="search">Find a player</label><input id="search" placeholder="Player name" maxlength="12" autocomplete="off" list="player-names"><datalist id="player-names"></datalist><button class="button" type="submit">Search</button></form></section>
-        <section class="stone-tool"><h2>Explore hiscores</h2><nav aria-label="More hiscores"><a href="#overall">Overall rankings</a><a href="#bosses">Boss kill counts</a><a href="#wealth">Bank value</a><a href="#exchange">Grand Exchange</a><a href="#achievements">Achievement firsts</a></nav></section>
+        <section class="stone-tool"><h2>Explore hiscores</h2><nav aria-label="More hiscores"><a href="#overall">Overall rankings</a><a href="#bosses">Boss kill counts</a><a href="#wealth">Bank value</a><a href="#exchange">Grand Exchange</a><a href="#progress">Gains & records</a><a href="#achievements">Achievement firsts</a></nav></section>
         <section class="stone-tool world-notice"><h2>World updates</h2><p>Scores update every 15 minutes.</p><span class="notice-rule" aria-hidden="true">◆</span><p class="simulation-disclosure">All accounts and scores are simulated.</p></section>
       </aside>
       <div class="main-content"><div id="view" aria-live="polite"></div></div>
@@ -352,7 +353,7 @@ async function playerView(current, signal, revision) {
       ["Total experience", number(user.totalXP)],
       ["Combat level", number(user.combatLevel), "/ 126"],
     ], "profile-summary")}
-    <div class="profile-notes">${user.progress?.lastSession ? `<p class="profile-updated">Latest session: ${escape(title(user.progress.lastSession.skill))} · +${number(user.progress.lastSession.gainedXP)} XP${user.progress.lastSession.xpScale ? ` at ${xpScale(user.progress.lastSession.xpScale)}× world` : ""} · ${number(user.progress.sessions)} sessions recorded · Best session: ${number(user.progress.bestSessionXP)} XP</p>` : ""}
+    <div class="profile-notes"><p><a href="#progress?username=${encodeURIComponent(user.username)}">View XP, bossing & rank history ↗</a></p>${user.progress?.lastSession ? `<p class="profile-updated">Latest session: ${escape(title(user.progress.lastSession.skill))} · +${number(user.progress.lastSession.gainedXP)} XP${user.progress.lastSession.xpScale ? ` at ${xpScale(user.progress.lastSession.xpScale)}× world` : ""} · ${number(user.progress.sessions)} sessions recorded · Best session: ${number(user.progress.bestSessionXP)} XP</p>` : ""}
     </div><section class="panel skills-panel"><div class="panel-heading"><h2>Skills & experience</h2><span class="updated">${mastered} of ${SKILLS.length} skills mastered</span></div>
     <div class="skill-book" role="region" aria-label="Skills and experience table" tabindex="0"><table class="profile-skills-table"><colgroup><col class="skill-name-column"><col class="skill-level-column"><col><col class="skill-rank-column"></colgroup><thead><tr><th scope="col">Skill</th><th scope="col" class="numeric">Level</th><th scope="col" class="numeric">XP</th><th scope="col" class="numeric">Rank</th></tr></thead><tbody>${SKILLS.map((s) => {
       const stat = user.skills[s] || { level: 1, xp: 0 };
@@ -469,11 +470,11 @@ async function renderRoute() {
   const revision = ++state.revision;
   const current = route();
   state.route = current;
-  document.title = `${current.type === "player" ? current.username : current.type === "skill" ? `${title(current.skill)} hiscores` : current.type === "exchange" ? "Grand Exchange" : current.type === "achievements" ? "Achievements" : current.type === "activity" ? current.path === "wealth" ? "Bank value hiscores" : "Boss hiscores" : "Rankings"} · OSRS Hiscores`;
+  document.title = `${current.type === "player" ? current.username : current.type === "skill" ? `${title(current.skill)} hiscores` : current.type === "progress" ? "Gains & records" : current.type === "exchange" ? "Grand Exchange" : current.type === "achievements" ? "Achievements" : current.type === "activity" ? current.path === "wealth" ? "Bank value hiscores" : "Boss hiscores" : "Rankings"} · OSRS Hiscores`;
   document.querySelectorAll("[data-nav]").forEach((a) => {
     const active =
       a.dataset.nav ===
-      (current.type === "exchange" ? "exchange" : current.type === "achievements" ? "achievements" : current.type === "activity" ? current.path : "overall");
+      (current.type === "progress" ? "progress" : current.type === "exchange" ? "exchange" : current.type === "achievements" ? "achievements" : current.type === "activity" ? current.path : "overall");
     if (active) a.setAttribute("aria-current", "page");
     else a.removeAttribute("aria-current");
   });
@@ -500,6 +501,10 @@ async function renderRoute() {
       );
     if (current.type === "overall" || current.type === "skill")
       await rankingView(current, state.request.signal, revision);
+    else if (current.type === "progress") {
+      const { progressView } = await import("./lib/progress-view.js");
+      await progressView({current, signal:state.request.signal, isCurrent:()=>revision === state.revision, view:$("#view"), escape, number, date, playerLink, pageHeading, stats});
+    }
     else if (current.type === "exchange")
       await exchangeView(state.request.signal, revision);
     else if (current.type === "activity")

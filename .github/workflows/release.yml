@@ -53,6 +53,11 @@ jobs:
           cache: npm
           cache-dependency-path: workers/package-lock.json
       - run: npm ci --prefix workers
+      - name: Resolve the history database
+        run: node scripts/prepare-history-db.mjs
+      - name: Apply history schema migrations
+        run: npm exec -- wrangler d1 migrations apply osrs-hiscores-history --remote
+        working-directory: workers
       - name: Deploy Worker, assets, Durable Object binding and cron
         run: npm --prefix workers run deploy -- --var "RELEASE_SHA:$RELEASE_SHA"
       - name: Verify deployed commit and Durable Object health

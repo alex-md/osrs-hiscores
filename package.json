@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "npm --prefix workers run dev",
     "test": "npm --prefix workers test && node --test scripts/*.test.mjs",
-    "deploy": "npm --prefix workers run deploy",
+    "deploy": "node scripts/prepare-history-db.mjs && npm --prefix workers exec -- wrangler d1 migrations apply osrs-hiscores-history --remote --config workers/wrangler.toml && npm --prefix workers run deploy",
     "check": "node scripts/check.mjs",
     "calibrate": "node scripts/calibrate-rates.mjs",
     "capacity": "node scripts/benchmark-capacity.mjs"

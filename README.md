@@ -203,3 +203,9 @@ The username migration runs once with `POST /api/admin/users/rename-all` and `{"
 ## Boss and wealth simulation
 
 Sailing, 16 encounter categories, and bank value share the existing world and time-of-day scaling. Persistent preferences, combat/skill gates, gear quality, growing boss familiarity, rare-drop luck, supply costs and buyable-skill spending connect progression and wealth. Existing accounts gain level-1 Sailing and an explicitly estimated opening bank, while boss records begin at zero. No previous XP or unlocks are reset. Bossing and skilling economics use the square root of the XP multiplier (about 2.4–5.6×). The simulated Grand Exchange matches player offers, with free-floating prices driven by player offers. The bundled price catalog initializes a market once; there are no live GE checks or price resets. Exact quests and loadouts are not simulated. See [the economy model](docs/simulation-economy.md) for equations, migration behavior, limits and storage checks.
+
+## Gains and records
+
+The public **Gains & records** page (`#progress`) tracks XP, skill and boss gains, rank rises/falls, player timelines, daily records, training streaks and rank-one reigns. Filter by today, 7 days or 30 days and any skill or boss. History starts at the first capture and retains 35 UTC dates; lifetime records remain. The live simulation stays in its Durable Object, with retryable publication to D1.
+
+The release pipeline creates/resolves the named history database and applies migrations before Worker deployment. Add **Account / D1 / Edit** to the Cloudflare release token. Local preview needs `cd workers && npx wrangler d1 migrations apply osrs-hiscores-history --local` before `npx wrangler dev`. See [progress history](docs/progress-history.md) for data definitions, storage, quotas and manual deployment.
