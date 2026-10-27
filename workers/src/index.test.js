@@ -87,6 +87,15 @@ test("health and preflight remain reachable when storage is missing", async () =
   assert.equal(response.status, 204);
   assert.equal(response.headers.get("access-control-allow-origin"), "*");
 });
+test("health reports the running release without writing world state", async () => {
+  const e = { ...env(), RELEASE_SHA: "1234567890abcdef1234567890abcdef12345678" };
+  const response = await call(e, "/api/health");
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(body.revision, e.RELEASE_SHA);
+  assert.equal(body.storage, "durable-object-sqlite");
+  assert.equal(e.WORLD_STORE.data.size, 0);
+});
 test("all mutations require configured header authentication", async () => {
   const e = env();
   for (const path of [

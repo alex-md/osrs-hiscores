@@ -28,9 +28,31 @@ curl http://localhost:8787/api/seed \
 
 ## Publish
 
-### Cloudflare Worker (recommended)
+### Automatic releases
 
-The Worker serves both the website and API. `HISCORES_WORLD` points to a single SQLite-backed Durable Object named `main-world`. The `v1-world-sqlite` Wrangler migration creates its database. This cutover intentionally starts a fresh simulated world; the old KV namespace is no longer bound or used, and is not deleted.
+This repository is one application: `frontend/` holds the website, `workers/` holds the API and SQLite Durable Object, and `functions/` is the optional Cloudflare Pages adapter. GitHub stores the source and serves the GitHub Pages website; Cloudflare runs the Worker, Durable Object database and 15-minute cron.
+
+Every push to `main` starts **Verify and deploy application** (`.github/workflows/release.yml`):
+
+1. Run the application and release tests, JavaScript checks, the 5,000-player capacity check, Pages Functions build and Worker bundle check.
+2. Deploy the Worker, its matching frontend assets, the existing Durable Object binding/migrations and cron. Tag the deployment with the commit SHA.
+3. Check the live `/api/health` response for the exact commit and a healthy SQLite Durable Object binding.
+4. Publish GitHub Pages from `frontend/`, with the same API connection, asset URLs stamped with the commit SHA, and a `release.json` manifest. Check the live manifest for the expected commit and Worker URL.
+
+A failed backend deployment or health check stops the Pages deployment. Production releases run serially, without cancelling a release halfway through. Pull requests only verify; they cannot deploy. The workflow can also be run manually on `main` to retry a release. The former separate frontend and manual Worker workflows are replaced by this one pipeline.
+
+One-time GitHub Actions configuration:
+
+- `CLOUDFLARE_API_TOKEN`: a Cloudflare deployment API token scoped to the account, using the **Edit Cloudflare Workers** template. Store it in repository Actions secrets or the `cloudflare` environment.
+- `CLOUDFLARE_ACCOUNT_ID`: the target account ID in the same secret settings.
+- `WORKER_BASE_URL`: the existing repository secret, shared by Worker verification and Pages packaging. Defaults to `https://osrs-hiscores-clone.vs.workers.dev`; keep it pointed at the deployed Worker origin.
+- GitHub Pages must use **GitHub Actions** as its source. The workflow uses the existing `github-pages` environment and the `cloudflare` environment for Worker deployment.
+
+GitHub cannot reuse a local Wrangler browser login; CI needs the API token above. Credentials are checked before deployment, and a missing secret produces an explicit Actions error. `ADMIN_TOKEN` remains a Cloudflare runtime secret and is never copied into frontend assets or required by release health checks.
+
+The Worker serves both the website and API. `HISCORES_WORLD` continues to point to class `HiscoresWorld` and the same `main-world` SQLite object. Keep the `v1-world-sqlite` migration tag unchanged for ordinary releases. Deploying code does not reset the world. Future database migrations belong in the same reviewed Wrangler configuration; the workflow deploys them with the backend. This is a staged rollout, not a cross-platform transaction: a Pages failure can leave the healthy new backend running with the previous Pages frontend. Automatic database rollback is deliberately not attempted.
+
+For an exceptional local deployment:
 
 ```sh
 cd workers
@@ -39,15 +61,7 @@ npx wrangler secret put ADMIN_TOKEN
 npm run deploy
 ```
 
-Keep `ADMIN_TOKEN` in Cloudflare secrets. It is deliberately absent from committed configuration. Existing deployments should replace the previously committed token with a fresh secret. Cron is `*/15 * * * *` (UTC). Static assets run through Cloudflare's asset handler; `/api` and `/api/*` always reach the API router.
-
-The **Publish Cloudflare Worker** workflow is manual and uses the `cloudflare` GitHub environment. Configure `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets, then run it from Actions. Give the token permission to deploy the Worker, its assets, and Durable Objects. SQLite-backed Durable Objects are available on the Workers Free plan; their request, duration and SQL/storage limits still apply.
-
-### GitHub Pages
-
-Pushes to `main` run tests, syntax checks, and a Worker bundle check before publishing a static artifact built **only from `frontend/`**. The website is at the project root; redirects preserve old `/frontend/` bookmarks. GitHub Pages uses the repository’s `WORKER_BASE_URL` secret, falling back to `https://osrs-hiscores-clone.vs.workers.dev` as its API because it cannot execute Pages Functions. The publish script sets the connection explicitly, so custom domains such as `winrar.ai` work too. Connection settings can select a different Worker.
-
-The client can also read the prior API during a rolling deployment. It paginates the available rows locally, derives profile ranks from the old snapshots, and builds the catalog from shared metadata. If an old skill snapshot is truncated, the UI explicitly states its coverage. Full rankings require the updated Worker.
+The GitHub Pages artifact is built only from `frontend/`. The site remains at the project root, and redirects preserve `/frontend/` bookmarks. `scripts/prepare-pages.mjs` supplies the API origin explicitly, including on a custom domain. Optional connection settings can select a different Worker. Cloudflare's Worker-hosted copy uses the same-origin API. Cron remains `*/15 * * * *` (UTC), and `/api` routes reach the same Durable Object.
 
 ### Cloudflare Pages
 

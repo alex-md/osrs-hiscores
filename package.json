@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "npm --prefix workers run dev",
-    "test": "npm --prefix workers test",
+    "test": "npm --prefix workers test && node --test scripts/*.test.mjs",
     "deploy": "npm --prefix workers run deploy",
     "check": "node scripts/check.mjs",
     "calibrate": "node scripts/calibrate-rates.mjs",

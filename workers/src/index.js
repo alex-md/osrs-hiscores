@@ -81,6 +81,7 @@ async function route(request, env) {
         status: env.WORLD_STORE ? "ok" : "unconfigured",
         hasDurableObject: Boolean(env.WORLD_STORE),
         storage: env.WORLD_STORE ? "durable-object-sqlite" : "unconfigured",
+        revision: env.RELEASE_SHA || "local",
         time: Date.now(),
       },
       env.WORLD_STORE ? 200 : 503,
