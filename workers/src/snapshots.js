@@ -2,7 +2,7 @@ import { BOSSES } from "../../frontend/lib/activities.js";
 import { MAX_PLAYERS } from "../../frontend/lib/simulation-config.js";
 import { HttpError } from "./http.js";
 import { combatLevel } from "../../frontend/lib/domain.js";
-import { trainingInfo, expectedRate } from "./training.js";
+import { trainingInfo } from "./training.js";
 import { SKILLS } from "./constants.js";
 import { inferMetaTierWithContext } from "./utils.js";
 import {
@@ -34,6 +34,7 @@ export function buildRankings(
   const rankings = {
     overall: overall.map((u, i) => ({
       username: u.username,
+      combatLevel: combatLevel(u.skills),
       totalLevel: u.totalLevel,
       totalXP: u.totalXP,
       rank: i + 1,
@@ -72,7 +73,7 @@ export async function publishSnapshot(env, users = null) {
     throw new HttpError(409, `The simulated world is limited to ${MAX_PLAYERS} players to preserve free-tier headroom.`);
   const now = Date.now(),
     context = computeAchievementContext(users);
-  const training = trainingInfo(new Date(now));
+  const training = trainingInfo(new Date(now), await readJSON(env, "system:training-climate"));
   const [legacy, previous, oldLog, previousSnapshot] = await Promise.all([
     readJSON(env, "ach:firsts", {}),
     readJSON(env, "ach:firsts:v2", {}),
@@ -146,20 +147,6 @@ export async function publishSnapshot(env, users = null) {
       for (const row of rows) activityRanksByName.get(row.username.toLowerCase())[name.slice(9)] = row.rank;
   const profiles = users.map((user) => {
     const name = user.username.toLowerCase();
-    const next = SKILLS.filter((s) => user.skills[s].level < 99).sort(
-      (a, b) => user.skills[b].xp - user.skills[a].xp,
-    )[0];
-    const goal = next
-      ? {
-          skill: next,
-          target: 99,
-          remainingXP: Math.max(0, 13034431 - user.skills[next].xp),
-          trainingHours:
-            (13034431 - user.skills[next].xp) /
-            (expectedRate(next, user.skills[next].xp, user.skills[next].level) *
-              training.scale),
-        }
-      : null;
     return {
       ...user,
       rank: overallByName.get(name)?.rank || null,
@@ -167,7 +154,6 @@ export async function publishSnapshot(env, users = null) {
       ranks: ranksByName.get(name),
       activityRanks: activityRanksByName.get(name),
       combatLevel: combatLevel(user.skills),
-      goal,
     };
   });
   // Pack skill and activity ladders together: one write per 500 players.

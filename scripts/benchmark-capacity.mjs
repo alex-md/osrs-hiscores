@@ -14,7 +14,6 @@ import { MAX_PLAYERS, UPDATE_INTERVAL_MS } from './frontend/lib/simulation-confi
 import baseline from './workers/data/ge-baseline.js';
 export class BenchWorld extends HiscoresWorld {
  async fetch(request) {
-  this.env.GE_FETCH = async () => { throw new Error("Offline benchmark"); };
   const users = Array.from({length:MAX_PLAYERS}, (_,i)=>{
    const user = newUser('Bench'+i);
    for (const skill of Object.values(user.skills)) {skill.xp=200000000;skill.level=99;}
@@ -33,7 +32,7 @@ export class BenchWorld extends HiscoresWorld {
   const run=await result.json();
   const scheduledRead=read, scheduledWritten=written, elapsedMs=Date.now()-start;
   const reads=[];
-  for(const path of ['/api/users/batch?usernames='+Array.from({length:50},(_,i)=>'Bench'+(i*100)).join(','),'/api/activity-rankings?category=bank','/api/activity-rankings?category=vorkath','/api/users/Bench0']){
+  for(const path of ['/api/users/batch?usernames='+Array.from({length:50},(_,i)=>'Bench'+(i*100)).join(','),'/api/activity-rankings?category=bank','/api/activity-rankings?category=vorkath','/api/users/Bench0','/api/exchange']){
    const beforeRead=read, beforeWritten=written;
    const response=await this.respond(new Request('https://world'+path));
    if(!response.ok) throw new Error('Read failed: '+path);

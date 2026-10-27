@@ -18,7 +18,7 @@ function setup(legacy) {
       catch (error) { db.exec("ROLLBACK"); throw error; }
     },
   };
-  const object = new HiscoresWorld({ storage }, { GE_FETCH: async () => { throw new Error("Offline test"); }, ALLOW_TWODNE_SCRAPE: "false", ADMIN_TOKEN: "secret", HISCORES_KV: legacy });
+  const object = new HiscoresWorld({ storage }, { ALLOW_TWODNE_SCRAPE: "false", ADMIN_TOKEN: "secret", HISCORES_KV: legacy });
   const request = (path, body, token = "secret") => object.fetch(new Request(`https://world${path}`, {
     method: body === undefined ? "GET" : "POST",
     headers: { "x-admin-token": token, "content-type": "application/json" },
@@ -34,7 +34,7 @@ test("a clean Durable Object world ignores the old KV namespace entirely", async
   assert.equal((await request("/internal/scheduled", {})).status, 200);
   const world = await (await request("/api/world")).json();
   assert.equal(world.totalPlayers, 5);
-  for (const path of ["/api/world", "/api/leaderboard", "/api/generate/users/dry-run", "/api/skill-rankings", "/api/achievements/catalog"])
+  for (const path of ["/api/world", "/api/leaderboard", "/api/generate/users/dry-run", "/api/skill-rankings", "/api/achievements/catalog", "/api/exchange"])
     assert.equal((await request(path)).status, 200, path);
   assert.equal((await request("/api/admin/rebuild", {})).status, 200);
   assert.equal((await request("/api/seed", { usernames: ["Ada", "__proto__"] })).status, 200);
@@ -47,7 +47,7 @@ test("a clean Durable Object world ignores the old KV namespace entirely", async
 test("all public reads stay read-only when the world is absent", async () => {
   const { request, db } = setup();
   for (let i = 0; i < 20; i++)
-    for (const path of ["/api/world", "/api/users", "/api/leaderboard", "/api/generate/users/dry-run", "/api/debug"])
+    for (const path of ["/api/world", "/api/users", "/api/leaderboard", "/api/generate/users/dry-run", "/api/debug", "/api/exchange"])
       await request(path);
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM documents").get().n, 0);
 });
@@ -67,6 +67,8 @@ test("failed SQL commit rolls back player state, manifest, and simulation slot",
   storage.sql.exec = original;
   assert.equal((await (await request("/api/world")).json()).generation, before.generation);
   assert.equal(await object.store.get("system:update-slot"), null);
+  assert.equal(await object.store.get("system:exchange"), null);
+  assert.equal(await object.store.get("system:training-climate"), null);
   assert.equal((await request("/internal/scheduled", {})).status, 200);
 });
 
@@ -177,4 +179,33 @@ test("rename-all rolls back backup, history and names if the SQLite commit fails
   assert.equal(await object.store.get("snapshot:current"), snapshot);
   assert.equal(await object.store.get("system:username-migration:v1"), null);
   assert.equal(await object.store.get("backup:username-v1:players:0"), null);
+});
+
+test("exchange reads publish bounded market data with the world generation and never write", async () => {
+  const { request, db } = setup();
+  await request("/internal/scheduled", {});
+  const before = db.prepare("SELECT key, value FROM documents ORDER BY key").all();
+  const world = await (await request("/api/world")).json();
+  const response = await request("/api/exchange");
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.equal(data.generation, world.generation);
+  assert.ok(data.items.length > 20);
+  assert.ok(data.tape.length <= 20);
+  assert.equal(data.prices, undefined);
+  assert.deepEqual(db.prepare("SELECT key, value FROM documents ORDER BY key").all(), before);
+});
+
+
+test("scheduled worlds cross UTC days without external price requests", async (t) => {
+  let now = Date.parse("2026-10-26T23:45:00Z");
+  t.mock.method(Date, "now", () => now);
+  let requests = 0;
+  t.mock.method(globalThis, "fetch", async () => { requests++; throw new Error("Network disabled"); });
+  const { request } = setup();
+  for (let tick = 0; tick < 3; tick++) {
+    assert.equal((await request("/internal/scheduled", {})).status, 200);
+    now += 900000;
+  }
+  assert.equal(requests, 0);
 });

@@ -1,5 +1,6 @@
-import { progressBossing, progressSkillingEconomy, skillingFunding, valueBank } from "./economy.js";
-import { dailyMarket } from "./market.js";
+import { activityScale, progressBossing, progressSkillingEconomy, skillingFunding, valueBank } from "./economy.js";
+import { clearExchange, exchangeMarket } from "./exchange.js";
+import { advanceTrainingClimate, personalTraining } from "./training-dynamics.js";
 import { windowXpScale } from "./xp-schedule.js";
 import { MAX_PLAYERS } from "../../frontend/lib/simulation-config.js";
 import { reserveUpdate } from "./budget.js";
@@ -7,7 +8,6 @@ import {
   TICK_HOURS,
   SESSION_FRACTIONS,
   expectedRate,
-  chooseTrainingSkill,
 } from "./training.js";
 import { SKILLS } from "./constants.js";
 import {
@@ -58,7 +58,7 @@ export function newUser(username) {
 export function progressUser(
   user,
   date = new Date(),
-  { hours = TICK_HOURS, rng = Math.random, market } = {},
+  { hours = TICK_HOURS, rng = Math.random, market, climate } = {},
 ) {
   user.xpGainTier = determineXpGainTierFromTotal(user.totalXP);
   user.archetype ||= "CASUAL";
@@ -67,8 +67,9 @@ export function progressUser(
   const [min, max] = SESSION_FRACTIONS[user.activity];
   const duration =
     Math.max(0, Math.min(TICK_HOURS, hours)) * (min + rng() * (max - min));
-  const scale = windowXpScale(date, hours);
-  const bossing = progressBossing(user, date, { hours: duration, rng, market });
+  const scale = Math.max(6, Math.min(31, windowXpScale(date, hours) * (climate?.factor || 1)));
+  const personal = personalTraining(user, { hours: Math.max(0, Math.min(TICK_HOURS, hours)), activeHours: duration, rng, climate, market });
+  const bossing = progressBossing(user, date, { hours: duration, rng, market, scale });
   const gains = {};
   const add = (skill, xp) => {
     const before = user.skills[skill].xp;
@@ -76,16 +77,18 @@ export function progressUser(
     user.skills[skill].level = levelFromXp(user.skills[skill].xp);
     gains[skill] = (gains[skill] || 0) + user.skills[skill].xp - before;
   };
-  for (const [skill, xp] of Object.entries(bossing.gains)) add(skill, xp * scale);
-  const skill = chooseTrainingSkill(user, rng);
+  for (const [skill, xp] of Object.entries(bossing.gains)) add(skill, xp * scale * personal.multiplier);
+  const skill = personal.skill;
+  const skillScale = climate && skill && climate.focusSkill === skill ? climate.skillFactor : 1;
   if (bossing.trainingHours > 0 && skill) {
     const stat = user.skills[skill];
     const gain =
       expectedRate(skill, stat.xp, stat.level) *
       bossing.trainingHours *
       scale *
-      skillingFunding(user, skill, bossing.trainingHours, market);
-    progressSkillingEconomy(user, date, { skill, hours: bossing.trainingHours, market, rng, append: bossing.active });
+      personal.multiplier * skillScale *
+      skillingFunding(user, skill, bossing.trainingHours * activityScale(scale), market);
+    progressSkillingEconomy(user, date, { skill, hours: bossing.trainingHours * activityScale(scale), market, rng, append: bossing.active });
     add(skill, gain);
     if (["attack", "strength", "defence", "ranged"].includes(skill))
       add("hitpoints", gain / 3);
@@ -113,6 +116,9 @@ export function progressUser(
         hours: duration,
         trainingHours: bossing.trainingHours,
         xpScale: scale,
+        personalScale: personal.multiplier,
+        skillScale,
+        trainingPhase: personal.phase,
         gainedXP,
         gains,
         timestamp: date.getTime(),
@@ -134,7 +140,10 @@ export async function runScheduled(env) {
   const changed = [];
   const previous = await readJSON(env, "system:last-run");
   const date = new Date(Date.now());
-  const market = await dailyMarket(env, date);
+  const previousExchange = await readJSON(env, "system:exchange", {});
+  const market = exchangeMarket(previousExchange);
+  const climate = advanceTrainingClimate(await readJSON(env, "system:training-climate"), date);
+  await writeJSON(env, "system:training-climate", climate);
   const hours = previous?.generatedAt
     ? Math.max(
         0,
@@ -144,7 +153,7 @@ export async function runScheduled(env) {
   for (const user of users) {
     const before = JSON.stringify(user);
     valueBank(user, market);
-    progressUser(user, date, { hours, market });
+    progressUser(user, date, { hours, market, climate });
     if (JSON.stringify(user) !== before) changed.push(user);
   }
   const count = users.length;
@@ -154,6 +163,8 @@ export async function runScheduled(env) {
     users.push(user);
     changed.push(user);
   }
+  const exchange = clearExchange(users, date, previousExchange, { hours });
+  await writeJSON(env, "system:exchange", exchange);
   const snapshot = await publishSnapshot(env, users);
   const result = {
     processed: count,

@@ -1,4 +1,3 @@
-import { expectedRate } from "./training.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import worker, { handleApiRequest, runScheduled } from "./index.js";
@@ -47,7 +46,7 @@ class MemoryKV {
     };
   }
 }
-const env = () => ({ GE_FETCH: async () => { throw new Error("Offline test"); }, ALLOW_TWODNE_SCRAPE: "false", WORLD_STORE: new MemoryKV(), ADMIN_TOKEN: "test-only" });
+const env = () => ({ ALLOW_TWODNE_SCRAPE: "false", WORLD_STORE: new MemoryKV(), ADMIN_TOKEN: "test-only" });
 const putUser = async (e, user) => {
   const users = (await allUsers(e)).filter((u) => u.username.toLowerCase() !== user.username.toLowerCase());
   await publishSnapshot(e, [...users, user]);
@@ -347,12 +346,10 @@ test("packed snapshots cut writes and profiles read one generation with two cold
   assert.equal(response.training.baseScale, 18.5);
   assert.ok(response.training.scale >= 6 && response.training.scale <= 31);
   assert.equal(response.training.schedule.day, new Date(snapshot.generatedAt).toISOString().slice(0, 10));
-  assert.ok(Math.abs(response.goal.trainingHours - response.goal.remainingXP / (expectedRate(response.goal.skill, response.skills[response.goal.skill].xp, response.skills[response.goal.skill].level) * response.training.scale)) < 1e-9);
   // Obsolete direct documents cannot change the authoritative published world.
   await e.WORLD_STORE.put("user:user500", JSON.stringify(player("User500", 99)));
   const stillPublished = await (await call(e, "/api/users/User500")).json();
   assert.equal(stillPublished.skills.attack.level, 50);
-  assert.ok(stillPublished.goal.remainingXP > 0);
 });
 test("scheduled updates process every existing player and persist each at most once", async () => {
   const e = env();

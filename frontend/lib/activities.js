@@ -1,5 +1,5 @@
 // Authored ordinary-play rates and readiness gates, not exact drop tables.
-// The Worker prices representative rewards using daily GE data. Only XP is accelerated.
+// The Worker prices representative rewards using daily GE data. Activity uses a reduced world multiplier; bank value follows items and costs.
 export const BOSSES = [
   { key: "scurrius", name: "Scurrius", combat: 45, killsPerHour: 35, hp: 500, loot: 16000, cost: 8000, rareChance: 1/100 },
   { key: "giant-mole", name: "Giant Mole", combat: 65, killsPerHour: 40, hp: 200, loot: 26000, cost: 7000, rareChance: 1/500 },

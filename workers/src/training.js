@@ -1,5 +1,6 @@
 import { TICK_HOURS, UPDATE_MINUTES, MAX_PLAYERS } from "../../frontend/lib/simulation-config.js";
 export { TICK_HOURS };
+import { SKILL_ITEMS, priceOf } from "./market.js";
 import calibration from "../data/calibration.js";
 import {
   SKILL_POPULARITY,
@@ -66,11 +67,17 @@ export function preferenceWeight(skill, user) {
     (user.multipliers?.perSkill?.[skill] || 1)
   );
 }
-export function chooseTrainingSkill(user, rng = Math.random) {
+export function chooseTrainingSkill(user, rng = Math.random, { climate, market } = {}) {
   const entries = Object.entries(user.skills).filter(
     ([s, v]) => s !== "hitpoints" && v.xp < 200000000,
   );
-  const weights = entries.map(([s]) => preferenceWeight(s, user));
+  const weights = entries.map(([s]) => {
+    const item = SKILL_ITEMS[s];
+    const recent = item && market?.history?.[item];
+    const average = recent?.length ? recent.reduce((sum, price) => sum + price, 0) / recent.length : null;
+    const opportunity = average ? Math.max(0.5, Math.min(2, priceOf(market, item) / average)) : 1;
+    return preferenceWeight(s, user) * opportunity * (climate?.focusSkill === s ? 4 : 1);
+  });
   let pick = rng() * weights.reduce((a, b) => a + b, 0);
   for (let i = 0; i < entries.length; i++) {
     pick -= weights[i];
@@ -78,8 +85,10 @@ export function chooseTrainingSkill(user, rng = Math.random) {
   }
   return entries.at(-1)?.[0];
 }
-export const trainingInfo = (date = new Date()) => ({
+export const trainingInfo = (date = new Date(), climate = null) => ({
   ...xpModifier(date),
+  scale: Math.max(6, Math.min(31, xpModifier(date).scale * (climate?.factor || 1))),
+  climate,
   schedule: dailyXpSchedule(date),
   tickHours: TICK_HOURS,
   updateMinutes: UPDATE_MINUTES,

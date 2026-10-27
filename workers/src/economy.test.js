@@ -55,7 +55,7 @@ test("bossing consumes a shared time budget and produces integer kills, bounded 
   progressUser(user, date, { rng: () => 0.01 });
   const session = user.economy.lastSession;
   assert.equal(session.activity, "bossing");
-  assert.ok(session.hours + (session.trainingHours || 0) <= user.progress.lastSession.hours + 1e-12);
+  assert.ok(session.hours + (session.trainingHours || 0) / session.activityScale <= user.progress.lastSession.hours + 1e-12);
   assert.ok(user.progress.lastSession.trainingHours < user.progress.lastSession.hours);
   assert.ok(user.skills.attack.xp <= 200000000);
   assert.equal(user.economy.bankValue, before.economy.bankValue + session.earned - session.spent);
@@ -84,7 +84,7 @@ test("a population has diverse persistent personalities and heavy-tailed startin
   assert.ok(new Set(banks).size > 900);
 });
 
-test("matched populations have identical KC, drops and wealth regardless of XP scale", () => {
+test("world scaling increases KC at a gentler pace while wealth stays bounded and costs grow", () => {
   let lowKills = 0, highKills = 0;
   for (let index = 0; index < 300; index++) {
     const low = player(`Player${index}`), high = structuredClone(low);
@@ -94,11 +94,12 @@ test("matched populations have identical KC, drops and wealth regardless of XP s
     }
     lowKills += Object.values(low.bosses).reduce((sum, kills) => sum + kills, 0);
     highKills += Object.values(high.bosses).reduce((sum, kills) => sum + kills, 0);
-    assert.deepEqual(high.bosses, low.bosses);
-    assert.deepEqual(high.economy, low.economy);
+
     assert.ok(high.economy.bankValue >= 0 && high.economy.bankValue <= MAX_BANK_VALUE);
     assert.ok(high.economy.earned >= (high.economy.lastSession?.earned || 0));
   }
   assert.ok(lowKills > 0);
-  assert.equal(highKills, lowKills);
+  assert.ok(highKills > lowKills * 1.7);
+  assert.ok(highKills < lowKills * 2.9);
+  console.log(`Matched boss populations: ${lowKills} kills at 6x XP; ${highKills} at 31x XP`);
 });

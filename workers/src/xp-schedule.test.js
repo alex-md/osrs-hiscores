@@ -66,7 +66,7 @@ test("actual XP uses the period-weighted scale once and records it without chang
   const session = user.progress.lastSession;
   assert.equal(session.xpScale, windowXpScale(date, 0.25));
   const stat = before.skills[session.skill];
-  assert.equal(session.gains[session.skill], Math.floor(expectedRate(session.skill, stat.xp, stat.level) * session.hours * session.xpScale));
+  assert.equal(session.gains[session.skill], Math.floor(expectedRate(session.skill, stat.xp, stat.level) * session.hours * session.xpScale * session.personalScale * session.skillScale));
   assert.equal(user.totalXP - before.totalXP, session.gainedXP);
   assert.equal(user.achievements.old, 123);
   const previous = user.totalXP;

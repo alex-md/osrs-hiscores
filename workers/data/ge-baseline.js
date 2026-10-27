@@ -1,4 +1,4 @@
-// OSRS Wiki midpoint capture, 2026-10-26 UTC. Fallbacks and basket quantity calibration.
+// Offline opening-price catalog captured 2026-10-26 UTC. Seeds a new market once and defines basket units.
 export default {
   "560": {
     "name": "Death rune",

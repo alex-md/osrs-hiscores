@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import baseline from "../data/ge-baseline.js";
-import { dailyMarket, priceOf, BOSS_ITEMS, RARE_ITEMS, SKILL_ITEMS } from "./market.js";
+import { priceOf, BOSS_ITEMS, RARE_ITEMS, SKILL_ITEMS } from "./market.js";
 import { normalizeUser } from "./store.js";
 import { valueBank, progressSkillingEconomy } from "./economy.js";
 import { progressUser } from "./simulation.js";
@@ -9,15 +9,6 @@ import { SKILLS } from "./constants.js";
 import { xpForLevel } from "./utils.js";
 
 const date = new Date("2026-10-26T19:00:00Z");
-function environment() {
-  const data = new Map();
-  return { WORLD_STORE: { get: async key => data.get(key), put: async (key, value) => data.set(key, value) } };
-}
-function quotes(at = date) {
-  return { data: Object.fromEntries(Object.entries(baseline).map(([id, { price }]) => [id, {
-    high: price + 2, low: price, highTime: at.getTime() / 1000, lowTime: at.getTime() / 1000,
-  }])) };
-}
 function player() {
   return normalizeUser({ username: "MarketTest", archetype: "PVMER", skills: Object.fromEntries(SKILLS.map(skill => [skill, { xp: xpForLevel(85) }])) });
 }
@@ -25,42 +16,6 @@ function player() {
 test("all modeled rewards and materials have verified baseline item prices", () => {
   for (const id of [...Object.values(BOSS_ITEMS).flat(), ...Object.values(RARE_ITEMS).flatMap(items => items.map(([id]) => id)), ...Object.values(SKILL_ITEMS)])
     if (id) assert.ok(baseline[id]?.price > 0);
-});
-
-test("daily capture is shared, persists prices, and refreshes on the next UTC day", async () => {
-  const env = environment();
-  let calls = 0;
-  const fetcher = async (url, options) => {
-    calls++;
-    assert.ok(options.headers["User-Agent"].includes("osrs-hiscores"));
-    return Response.json(quotes());
-  };
-  const first = await dailyMarket(env, date, fetcher);
-  assert.equal(first.status, "current");
-  assert.equal(priceOf(first, 560), baseline[560].price + 1);
-  assert.deepEqual(await dailyMarket(env, date, fetcher), first);
-  assert.equal(calls, 1);
-  const next = await dailyMarket(env, new Date(date.getTime() + 86400000), fetcher);
-  assert.equal(next.status, "current");
-  assert.equal(calls, 2);
-});
-
-test("outages, incomplete, invalid and old quotes retain the last good snapshot without retry storms", async () => {
-  for (const failure of [async () => { throw new Error("Network down"); }, async () => new Response("", { status: 503 }),
-    async () => Response.json({ data: {} }), async () => Response.json(quotes(new Date("2020-01-01"))),
-    async () => { const body = quotes(); body.data[560].high = -1; body.data[560].low = "100"; return Response.json(body); }]) {
-    const env = environment();
-    const good = await dailyMarket(env, date, async () => Response.json(quotes()));
-    const tomorrow = new Date(date.getTime() + 86400000);
-    const stale = await dailyMarket(env, tomorrow, failure);
-    assert.equal(stale.status, "stale");
-    assert.deepEqual(stale.prices, good.prices);
-    assert.equal(stale.capturedAt, good.capturedAt);
-    await dailyMarket(env, tomorrow, () => { throw new Error("Must not retry"); });
-  }
-  const fallback = await dailyMarket(environment(), date, async () => { throw new Error("Offline"); });
-  assert.equal(fallback.status, "fallback");
-  assert.equal(priceOf(fallback, 4151), baseline[4151].price);
 });
 
 test("legacy conversion preserves wealth/history and retained equipment follows GE prices exactly once", () => {
@@ -110,7 +65,7 @@ test("market gains respect the wealth cap without leaving hidden spendable holdi
   assert.deepEqual(user.economy, saved);
 });
 
-test("integrated boss sessions get scaled XP while KC, loot, deaths and spending stay unchanged", (t) => {
+test("integrated sessions accelerate bossing without multiplying combat XP by both world and boss scales", (t) => {
   t.mock.method(Math, "random", () => 0.999);
   const low = player(), high = structuredClone(low);
   const early = new Date("2026-10-26T09:00:00Z"), late = new Date("2026-10-26T19:00:00Z");
@@ -120,7 +75,10 @@ test("integrated boss sessions get scaled XP while KC, loot, deaths and spending
   assert.ok(low.economy.lastSession.kills > 0);
   assert.notEqual(low.progress.lastSession.xpScale, high.progress.lastSession.xpScale);
   assert.notEqual(low.progress.lastSession.gainedXP, high.progress.lastSession.gainedXP);
-  assert.deepEqual(low.bosses, high.bosses);
-  for (const key of ["bankValue", "earned", "spent", "rareDrops", "deaths", "holdings", "cash"])
-    assert.deepEqual(low.economy[key], high.economy[key]);
+  for (const user of [low, high]) {
+    const session = user.economy.lastSession;
+    assert.ok(session.activityScale >= Math.sqrt(6) && session.activityScale <= Math.sqrt(31));
+    assert.equal(user.economy.bankValue, user.economy.openingEstimate + session.earned - session.spent);
+    assert.ok(Number.isSafeInteger(session.kills));
+  }
 });

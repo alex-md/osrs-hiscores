@@ -86,7 +86,7 @@ export function valueBank(user, market) {
     for (const id of Object.keys(economy.holdings)) economy.holdings[id] *= retained;
   }
   economy.revaluation += economy.bankValue - before;
-  economy.pricing = { source: market?.source || "OSRS Wiki baseline", capturedAt: market?.capturedAt || null, status: market?.status || "fallback" };
+  economy.pricing = { source: market?.source || "Opening price catalog", capturedAt: market?.capturedAt || null, status: market?.status || "simulated" };
 }
 function settle(user, income, cost, details, date, market, rewards = {}) {
   const economy = user.economy;
@@ -111,7 +111,9 @@ function settle(user, income, cost, details, date, market, rewards = {}) {
   economy.recordedFrom ??= date.getTime();
   economy.lastSession = { ...details, earned, spent, net: earned - spent, timestamp: date.getTime() };
 }
-export function progressBossing(user, date, { hours, rng, market }) {
+export const activityScale = scale => Math.sqrt(clamp(Number(scale) || 1, 1, 31));
+
+export function progressBossing(user, date, { hours, rng, market, scale = 1 }) {
   normalizeCareer(user);
   const gains = {};
   if (!(hours > 0)) return { trainingHours: 0, gains, active: false };
@@ -131,12 +133,14 @@ export function progressBossing(user, date, { hours, rng, market }) {
   }, rng);
   // Bossing consumes this session's time; it does not run alongside a full XP session.
   const bossHours = hours * (0.6 + rng() * 0.4);
+  const pace = activityScale(scale);
+  const effectiveHours = bossHours * pace;
   const gear = 0.4 + 0.6 * Math.min(1, Math.log1p(user.economy.bankValue / 100000) / Math.log(1001));
   const experience = 0.65 + 0.35 * (1 - Math.exp(-user.bosses[boss.key] / 300));
   const level = 0.65 + 0.35 * clamp((combatLevel(user.skills) - boss.combat) / 25, 0, 1);
   const efficiency = user.career.aptitude * gear * experience * level * clamp(lognormal(rng, 0.18), 0.5, 1.5);
-  const kills = Math.min(1000, poisson(boss.killsPerHour * bossHours * efficiency, rng));
-  const deaths = Math.min(10, poisson(bossHours * (0.08 + user.career.risk * 0.18) * (1.2 - experience), rng));
+  const kills = Math.min(1000, poisson(boss.killsPerHour * effectiveHours * efficiency, rng));
+  const deaths = Math.min(10, poisson(effectiveHours * (0.08 + user.career.risk * 0.18) * (1.2 - experience), rng));
   const [common, rare] = BOSS_ITEMS[boss.key];
   const rareTable = RARE_ITEMS[boss.key] || (rare ? [[rare, 1]] : []);
   const drops = rareTable.length ? rareDrops(kills, boss.rareChance, rng) : 0;
@@ -150,10 +154,10 @@ export function progressBossing(user, date, { hours, rng, market }) {
   user.economy.rareDrops = integer(user.economy.rareDrops + drops);
   user.economy.deaths = integer(user.economy.deaths + deaths);
   const combatSkill = ["attack", "strength", "defence", "ranged", "magic"][Math.min(4, Math.floor(rng() * 5))];
-  gains[combatSkill] = kills * boss.hp * 4;
-  gains.hitpoints = kills * boss.hp * 4 / 3;
-  if (boss.slayer) gains.slayer = kills * boss.hp;
-  settle(user, 0, cost, { activity: "bossing", boss: boss.key, kills, rareDrops: drops, deaths, hours: bossHours }, date, market, rewards);
+  gains[combatSkill] = kills * boss.hp * 4 / pace;
+  gains.hitpoints = kills * boss.hp * 4 / (3 * pace);
+  if (boss.slayer) gains.slayer = kills * boss.hp / pace;
+  settle(user, 0, cost, { activity: "bossing", boss: boss.key, kills, rareDrops: drops, deaths, hours: bossHours, activityScale: pace }, date, market, rewards);
   return { trainingHours: hours - bossHours, gains, active: true };
 }
 const SKILL_INCOME = { fishing: 150000, mining: 180000, woodcutting: 90000, thieving: 300000, hunter: 220000, runecraft: 280000, farming: 180000, slayer: 160000, sailing: 160000, agility: 30000 };
