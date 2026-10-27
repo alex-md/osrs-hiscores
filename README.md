@@ -46,6 +46,7 @@ One-time GitHub Actions configuration:
 - `CLOUDFLARE_API_TOKEN`: a Cloudflare deployment API token scoped to the account, using the **Edit Cloudflare Workers** template. Store it in repository Actions secrets or the `cloudflare` environment.
 - `CLOUDFLARE_ACCOUNT_ID`: the target account ID in the same secret settings.
 - `WORKER_BASE_URL`: the existing repository secret, shared by Worker verification and Pages packaging. Defaults to `https://osrs-hiscores-clone.vs.workers.dev`; keep it pointed at the deployed Worker origin.
+- Disable the separate Cloudflare Worker Builds trigger and the legacy Cloudflare Pages project's automatic production/preview deployments. Those direct Git integrations bypass the release checks and can race with GitHub Actions. Keep the services and Durable Object intact; only their duplicate automatic build triggers are disabled.
 - GitHub Pages must use **GitHub Actions** as its source. The workflow uses the existing `github-pages` environment and the `cloudflare` environment for Worker deployment.
 
 GitHub cannot reuse a local Wrangler browser login; CI needs the API token above. Credentials are checked before deployment, and a missing secret produces an explicit Actions error. `ADMIN_TOKEN` remains a Cloudflare runtime secret and is never copied into frontend assets or required by release health checks.
