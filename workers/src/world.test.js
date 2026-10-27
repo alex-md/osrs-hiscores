@@ -209,3 +209,22 @@ test("scheduled worlds cross UTC days without external price requests", async (t
   }
   assert.equal(requests, 0);
 });
+
+test("gateway health reports the serving release even when a world retains its earlier revision", async () => {
+  const older = "a".repeat(40), current = "b".repeat(40);
+  let calls = 0;
+  const env = { RELEASE_SHA: current, HISCORES_WORLD: {
+    idFromName: name => name,
+    get: () => ({fetch: async () => {
+      calls++;
+      return Response.json({status:"ok",hasDurableObject:true,storage:"durable-object-sqlite",revision:older});
+    }}),
+  }};
+  const response = await forwardApiRequest(new Request('https://site/api/health'),env);
+  assert.equal(response.status,200);
+  assert.deepEqual(await response.json(),{status:"ok",hasDurableObject:true,storage:"durable-object-sqlite",revision:current,worldRevision:older});
+  assert.equal(calls,1);
+  assert.equal(response.headers.get('cache-control'),'no-store');
+  env.HISCORES_WORLD.get = () => ({fetch:async()=>Response.json({error:'World unavailable'}, {status:503})});
+  assert.equal((await forwardApiRequest(new Request('https://site/api/health'),env)).status,503);
+});

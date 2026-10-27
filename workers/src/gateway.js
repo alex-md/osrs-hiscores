@@ -31,6 +31,13 @@ export async function forwardApiRequest(request, env, ctx) {
     ? new Request(request, { body: await request.arrayBuffer() })
     : request;
   const response = await stub.fetch(forwarded);
+  if (new URL(request.url).pathname === "/api/health" && request.method === "GET" && response.ok) {
+    const world = await response.json();
+    // The DO may retain its constructor environment across asset-only releases.
+    // Report the serving gateway's release while preserving the world's own
+    // revision and all of its health/storage checks separately.
+    return json({ ...world, worldRevision: world.revision, revision: env.RELEASE_SHA || "local" });
+  }
   if (edge && cacheable && response.ok) ctx.waitUntil(edge.put(request, response.clone()));
   return response;
 }

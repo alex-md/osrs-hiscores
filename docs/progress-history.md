@@ -41,3 +41,5 @@ Wrangler references the provisioned `osrs-hiscores-history` database. Local Wran
 `npm run deploy` follows the same database-setup/migration sequence and requires `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`. The lower-level `workers` deploy script expects the database ID and schema to have been prepared already. A missing binding shows a public setup state; a missing schema or D1 outage shows a retryable error while the live hiscores keep working.
 
 API and batch behavior follow the [Cloudflare D1 binding documentation](https://developers.cloudflare.com/d1/worker-api/).
+
+The public health response reports the serving Worker's `revision` separately from `worldRevision`, which identifies the Durable Object's captured environment. Asset-only releases may retain the world instance; release checks still require its successful response and healthy SQLite storage/binding.
