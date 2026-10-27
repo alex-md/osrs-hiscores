@@ -512,7 +512,10 @@ async function renderRoute() {
     else if (current.type === "player")
       await playerView(current, state.request.signal, revision);
     else await achievementsView(current, state.request.signal, revision);
-    if (revision === state.revision) displayedGeneration = latestGeneration;
+    // A newly deployed history database has no generation yet. Keep world
+    // polling active so its first capture appears without a manual refresh.
+    if (revision === state.revision)
+      displayedGeneration = latestGeneration || (current.type === "progress" ? "awaiting-history" : null);
   } catch (error) {
     if (revision !== state.revision || state.request.signal.aborted) return;
     errorView(
