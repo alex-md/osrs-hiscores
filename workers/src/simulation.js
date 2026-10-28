@@ -1,4 +1,5 @@
-import { activityScale, progressBossing, progressSkillingEconomy, skillingFunding, valueBank } from "./economy.js";
+import { arrivals, cleanupPopulation, populationPolicy } from "./population.js";
+import { activityScale, normalizeCareer, progressBossing, progressSkillingEconomy, valueBank } from "./economy.js";
 import { clearExchange, exchangeMarket } from "./exchange.js";
 import { advanceTrainingClimate, personalTraining } from "./training-dynamics.js";
 import { windowXpScale } from "./xp-schedule.js";
@@ -60,6 +61,9 @@ export function progressUser(
   date = new Date(),
   { hours = TICK_HOURS, rng = Math.random, market, climate } = {},
 ) {
+  normalizeCareer(user);
+  user.economy.needs = {};
+  user.economy.inputReserve = {};
   user.xpGainTier = determineXpGainTierFromTotal(user.totalXP);
   user.archetype ||= "CASUAL";
   user.multipliers ||= buildSkillMultipliers(user.archetype, user.xpGainTier);
@@ -82,13 +86,10 @@ export function progressUser(
   const skillScale = climate && skill && climate.focusSkill === skill ? climate.skillFactor : 1;
   if (bossing.trainingHours > 0 && skill) {
     const stat = user.skills[skill];
-    const gain =
-      expectedRate(skill, stat.xp, stat.level) *
-      bossing.trainingHours *
-      scale *
-      personal.multiplier * skillScale *
-      skillingFunding(user, skill, bossing.trainingHours * activityScale(scale), market);
-    progressSkillingEconomy(user, date, { skill, hours: bossing.trainingHours * activityScale(scale), market, rng, append: bossing.active });
+    const work = progressSkillingEconomy(user, date, { skill, hours: bossing.trainingHours * activityScale(scale), market, rng, append: bossing.active });
+    const gain = work.modeled
+      ? work.xp * scale / activityScale(scale) * personal.multiplier * skillScale
+      : expectedRate(skill, stat.xp, stat.level) * bossing.trainingHours * scale * personal.multiplier * skillScale;
     add(skill, gain);
     if (["attack", "strength", "defence", "ranged"].includes(skill))
       add("hitpoints", gain / 3);
@@ -126,7 +127,7 @@ export function progressUser(
     };
     user.updatedAt = date.getTime();
   }
-  if (duration > 0 && user.economy.lastSession?.timestamp === date.getTime())
+  if (duration > 0 && user.economy.lastActivityAt === date.getTime())
     user.updatedAt = date.getTime();
   user.totalLevel = totalLevel(user.skills);
   user.totalXP = totalXP(user.skills);
@@ -135,7 +136,7 @@ export function progressUser(
 }
 export async function runScheduled(env) {
   await reserveUpdate(env);
-  const users = await allUsers(env);
+  let users = await allUsers(env);
   const existing = new Set(users.map((u) => u.username.toLowerCase()));
   const changed = [];
   const previous = await readJSON(env, "system:last-run");
@@ -144,6 +145,18 @@ export async function runScheduled(env) {
   const market = exchangeMarket(previousExchange);
   const climate = advanceTrainingClimate(await readJSON(env, "system:training-climate"), date);
   await writeJSON(env, "system:training-climate", climate);
+  const policy = populationPolicy(env);
+  const previousCleanup = await readJSON(env, "system:population", {});
+  let cleanup = { removed: [], retired: { players: 0 } };
+  if (!previousCleanup.generatedAt || date.getTime() - previousCleanup.generatedAt >= policy.cleanupIntervalHours * 3600000) {
+    for (const user of users) valueBank(user, market);
+    cleanup = cleanupPopulation(users, date, policy);
+    users = cleanup.users;
+    const totals = previousCleanup.retired || { players: 0, cash: 0, bankValue: 0, items: {} };
+    for (const key of ["players", "cash", "bankValue"]) totals[key] += cleanup.retired[key];
+    for (const [id, n] of Object.entries(cleanup.retired.items)) totals.items[id] = (totals.items[id] || 0) + n;
+    await writeJSON(env, "system:population", { generatedAt: date.getTime(), retired: totals, lastRemoved: cleanup.removed.slice(0, 100), policy });
+  }
   const hours = previous?.generatedAt
     ? Math.max(
         0,
@@ -157,7 +170,7 @@ export async function runScheduled(env) {
     if (JSON.stringify(user) !== before) changed.push(user);
   }
   const count = users.length;
-  const newCount = Math.min(Math.max(0, MAX_PLAYERS - users.length), users.length ? 1 + Math.floor(Math.random() * 2) : 5);
+  const newCount = arrivals(users.length, MAX_PLAYERS);
   for (const username of await generateUsernames(newCount, existing, env)) {
     const user = newUser(username);
     users.push(user);
@@ -169,6 +182,7 @@ export async function runScheduled(env) {
   const result = {
     processed: count,
     newUsers: newCount,
+    removedPlayers: cleanup.removed.length,
     totalPlayers: users.length,
     generatedAt: snapshot.generatedAt,
     simulatedHours: hours,

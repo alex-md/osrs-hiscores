@@ -1,6 +1,9 @@
+import { equipped } from "../data/equipment.js";
 import { BOSSES, MAX_BANK_VALUE } from "../../frontend/lib/activities.js";
 import { combatLevel } from "../../frontend/lib/domain.js";
-import { priceOf, basePrice, supplyIndex, SKILL_ITEMS, BOSS_ITEMS, RARE_ITEMS } from "./market.js";
+import { priceOf, BOSS_ITEMS, RARE_ITEMS } from "./market.js";
+import baseline from "../data/ge-baseline.js";
+import { METHODS } from "../data/methods.js";
 
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 const integer = value => Math.floor(clamp(Number(value) || 0, 0, MAX_BANK_VALUE));
@@ -68,48 +71,129 @@ export function eligibleBosses(user) {
   return BOSSES.filter(boss => combat >= boss.combat && (!boss.slayer || user.skills.slayer?.level >= boss.slayer)
     && Object.entries(boss.requirements || {}).every(([skill, level]) => (user.skills[skill]?.level || 1) >= level));
 }
-// Compact representative item baskets, rather than an exact game inventory.
-// Convert legacy wealth at current prices without changing its opening value.
+// Upgrade fractional legacy baskets once. Whole items are retained and the
+// fractional remainder becomes cash at the migration quote; total wealth survives.
 export function valueBank(user, market) {
-  const economy = user.economy;
-  if (!economy.holdings) {
-    economy.cash = economy.bankValue * 0.3;
-    economy.holdings = Object.fromEntries([4151, 6585].map(id => [id, economy.bankValue * 0.35 / priceOf(market, id)]));
-    economy.revaluation = 0;
+  const e = user.economy;
+  const before = e.bankValue;
+  if (!e.holdings) {
+    e.cash = before;
+    e.holdings = {};
+    const assets = Object.keys(baseline);
+    const random = seeded(user.username);
+    for (let i = 0; i < 8; i++) {
+      const id = assets[Math.floor(random() * assets.length)];
+      const quantity = Math.floor(before * 0.0875 / priceOf(market, id));
+      e.holdings[id] = (e.holdings[id] || 0) + quantity;
+      e.cash -= quantity * priceOf(market, id);
+    }
+    e.revaluation = 0;
   }
-  const before = economy.bankValue;
-  const modeled = economy.cash + Object.entries(economy.holdings).reduce((sum, [id, count]) => sum + count * priceOf(market, id), 0);
-  economy.bankValue = integer(Math.round(modeled));
+  if (e.inventoryVersion !== 2) {
+    let remainder = 0;
+    for (const [id, count] of Object.entries(e.holdings)) {
+      const whole = Math.max(0, Math.floor(Number(count) || 0));
+      remainder += Math.max(0, (Number(count) || 0) - whole) * priceOf(market, id);
+      e.holdings[id] = whole;
+    }
+    e.cash = Math.max(0, Math.round((e.cash || 0) + remainder));
+    e.inventoryVersion = 2;
+    e.migration = { fractionalValueConverted: Math.round(remainder) };
+  }
+  e.flows ||= { created: {}, consumed: {}, coinFaucets: 0, coinSinks: 0, capSink: 0 };
+  let modeled = e.cash + Object.entries(e.holdings).reduce((sum, [id, count]) => sum + count * priceOf(market, id), 0);
+  // Explicit integer asset sink at the safety ceiling, never proportional fractions.
   if (modeled > MAX_BANK_VALUE) {
-    const retained = MAX_BANK_VALUE / modeled;
-    economy.cash *= retained;
-    for (const id of Object.keys(economy.holdings)) economy.holdings[id] *= retained;
+    const cashSink = Math.min(e.cash, modeled - MAX_BANK_VALUE);
+    e.cash -= cashSink; modeled -= cashSink; e.flows.capSink += cashSink;
+    for (const [id, count] of Object.entries(e.holdings)) {
+      if (modeled <= MAX_BANK_VALUE) break;
+      const removed = Math.min(count, Math.ceil((modeled - MAX_BANK_VALUE) / priceOf(market, id)));
+      e.holdings[id] -= removed; modeled -= removed * priceOf(market, id);
+      e.flows.consumed[id] = (e.flows.consumed[id] || 0) + removed;
+      e.flows.capSink += removed * priceOf(market, id);
+    }
   }
-  economy.revaluation += economy.bankValue - before;
-  economy.pricing = { source: market?.source || "Opening price catalog", capturedAt: market?.capturedAt || null, status: market?.status || "simulated" };
+  e.bankValue = modeled;
+  e.revaluation = (e.revaluation || 0) + modeled - before;
+  e.pricing = { source: market?.source || "Opening price catalog", capturedAt: market?.capturedAt || null, status: market?.status || "simulated" };
 }
-function settle(user, income, cost, details, date, market, rewards = {}) {
-  const economy = user.economy;
-  const earned = integer(income + Object.entries(rewards).reduce((sum, [id, count]) => sum + count * priceOf(market, id), 0));
-  const spent = Math.min(integer(cost), economy.bankValue + earned);
-  economy.cash += income;
-  for (const [id, count] of Object.entries(rewards)) economy.holdings[id] = (economy.holdings[id] || 0) + count;
-  // Spend cash first, then liquidate the same proportion of each retained item.
-  const cashSpent = Math.min(spent, economy.cash);
-  economy.cash -= cashSpent;
-  const itemValue = Object.entries(economy.holdings).reduce((sum, [id, count]) => sum + count * priceOf(market, id), 0);
-  const retained = itemValue > 0 ? Math.max(0, 1 - (spent - cashSpent) / itemValue) : 0;
-  for (const id of Object.keys(economy.holdings)) economy.holdings[id] *= retained;
-  economy.bankValue = integer(economy.bankValue + earned - spent);
-  // Keep sub-GP rounding and the wealth safety cap from creating hidden value.
-  const modeled = economy.cash + Object.entries(economy.holdings).reduce((sum, [id, count]) => sum + count * priceOf(market, id), 0);
-  const adjustment = modeled > 0 ? economy.bankValue / modeled : 0;
-  economy.cash *= adjustment;
-  for (const id of Object.keys(economy.holdings)) economy.holdings[id] *= adjustment;
-  economy.earned = integer(economy.earned + earned);
-  economy.spent = integer(economy.spent + spent);
-  economy.recordedFrom ??= date.getTime();
-  economy.lastSession = { ...details, earned, spent, net: earned - spent, timestamp: date.getTime() };
+function settle(user, income, cost, details, date, market, rewards = {}, consumed = {}) {
+  const e = user.economy;
+  income = integer(income);
+  cost = Math.min(e.cash, integer(cost));
+  const earned = income + Object.entries(rewards).reduce((sum, [id, count]) => sum + count * priceOf(market, id), 0);
+  const spent = cost + Object.entries(consumed).reduce((sum, [id, count]) => sum + count * priceOf(market, id), 0);
+  e.cash += income - cost;
+  for (const [id, count] of Object.entries(consumed)) {
+    if (!Number.isSafeInteger(count) || count < 0 || count > (e.holdings[id] || 0)) throw new Error("Unbacked consumption");
+    e.holdings[id] = (e.holdings[id] || 0) - count;
+    e.flows.consumed[id] = (e.flows.consumed[id] || 0) + count;
+  }
+  for (const [id, count] of Object.entries(rewards)) {
+    if (!Number.isSafeInteger(count) || count < 0) throw new Error("Invalid production");
+    e.holdings[id] = (e.holdings[id] || 0) + count;
+    e.flows.created[id] = (e.flows.created[id] || 0) + count;
+  }
+  e.flows.coinFaucets += income; e.flows.coinSinks += cost;
+  e.bankValue += earned - spent;
+  e.earned = integer(e.earned + earned); e.spent = integer(e.spent + spent);
+  valueBank(user, market);
+  e.recordedFrom ??= date.getTime();
+  if (details.kills > 0 || details.actions > 0) e.lastActivityAt = date.getTime();
+  e.lastSession = { ...details, earned, spent, net: earned - spent, timestamp: date.getTime() };
+}
+const METHOD_INDEX = new Map([...new Set(METHODS.map(m => m.skill))].map(skill => [skill, METHODS.filter(m => m.skill === skill)]));
+const basketValue = (basket, market) => Object.entries(basket).reduce((sum, [id, n]) => sum + n * priceOf(market, id), 0);
+export function selectMethod(user, skill, market) {
+  const methods = METHOD_INDEX.get(skill) || [];
+  let best, score = -Infinity;
+  for (const m of methods) {
+    if (m.preparation || (user.skills[skill]?.level || 1) < m.level) continue;
+    const current = methodScore(m);
+    if (current > score) { best = m; score = current; }
+  }
+  if (best) {
+    const preparation = methods.find(m => m.preparation && Object.keys(m.outputs).some(id => best.inputs[id] && !(user.economy?.holdings?.[id] > 0))
+      && Object.entries(m.inputs).every(([id,n]) => user.economy?.holdings?.[id] >= n));
+    if (preparation) return preparation;
+  }
+  return best;
+  function methodScore(m) {
+    const profit = (basketValue(m.outputs, market) + m.coins - basketValue(m.inputs, market)) * m.rate;
+    const affordable = basketValue(m.inputs, market) <= (user.economy?.cash || 0) + basketValue(user.economy?.holdings || {}, market);
+    return m.rate * m.xp / 1000 + (affordable ? 1 : 0.1) * profit / 5000;
+  }
+}
+export function methodOpportunity(user, skill, market) {
+  const m = selectMethod(user, skill, market);
+  if (!m) return 1;
+  const net = basketValue(m.outputs, market) + m.coins - basketValue(m.inputs, market);
+  const original = basketValue(m.outputs) + m.coins - basketValue(m.inputs);
+  return clamp(1 + (net - original) * m.rate / Math.max(30000, Math.abs(original) * m.rate), 0.2, 4);
+}
+function requestInputs(user, inputs, actions) {
+  user.economy.inputReserve = { ...user.economy.inputReserve, ...Object.fromEntries(Object.entries(inputs).map(([id, count]) => [id, Math.ceil(actions * count)])) };
+  user.economy.needs = Object.fromEntries(Object.entries(inputs).map(([id, count]) => [id, Math.max(0, Math.ceil(actions * count) - (user.economy.holdings[id] || 0))]));
+}
+export function bossDropTable(boss) {
+  if (boss.drops) return boss.drops;
+  const [common, rare] = BOSS_ITEMS[boss.key] || [];
+  const rareTable = RARE_ITEMS[boss.key] || (rare ? [[rare, 1]] : []);
+  return [
+    { id: common, quantity: Math.max(1, Math.floor(boss.loot / priceOf(null, common))), chance: 1 },
+    ...rareTable.map(([id, weight]) => ({ id, quantity: 1, chance: boss.rareChance * weight / rareTable.reduce((sum, row) => sum + row[1], 0), rare: true }))];
+}
+export function rollBossDrops(boss, kills, rng) {
+  const table = bossDropTable(boss), rewards = {};
+  const grant = (entry, n) => { if (n) rewards[entry.id] = (rewards[entry.id] || 0) + n * entry.quantity; };
+  for (const entry of table.filter(d => !d.rare)) grant(entry, entry.chance === 1 ? kills : rareDrops(kills, entry.chance, rng));
+  // One rare-table roll per kill prevents multiple raid purples or crystals from
+  // a single kill. Geometric waiting gaps avoid a loop for every kill.
+  const rares = table.filter(d => d.rare), chance = rares.reduce((sum, d) => sum + d.chance, 0);
+  const drops = chance ? rareDrops(kills, chance, rng) : 0;
+  for (let i = 0; i < drops; i++) grant(weighted(rares, entry => entry.chance, rng), 1);
+  return { rewards, drops };
 }
 export const activityScale = scale => Math.sqrt(clamp(Number(scale) || 1, 1, 31));
 
@@ -129,27 +213,29 @@ export function progressBossing(user, date, { hours, rng, market, scale = 1 }) {
     const familiarity = Math.log1p(user.bosses[boss.key]) / 10;
     const preference = boss.key === user.career.favoriteBoss ? 3 + 4 * user.career.dedication : 1;
     const challenge = 1 + user.career.risk * (boss.combat - 45) / 45;
-    return preference * challenge * (1 + familiarity);
+    const table = bossDropTable(boss);
+    const revenue = table.reduce((sum, drop) => sum + priceOf(market, drop.id) * drop.quantity * drop.chance, 0);
+    const supplies = basketValue(boss.supplies || {385: 2, 2434: 1}, market);
+    return preference * challenge * (1 + familiarity) * clamp(1 + (revenue - supplies) * boss.killsPerHour / 500000, 0.1, 5);
   }, rng);
   // Bossing consumes this session's time; it does not run alongside a full XP session.
   const bossHours = hours * (0.6 + rng() * 0.4);
   const pace = activityScale(scale);
   const effectiveHours = bossHours * pace;
-  const gear = 0.4 + 0.6 * Math.min(1, Math.log1p(user.economy.bankValue / 100000) / Math.log(1001));
+  const gear = 0.4 + 0.6 * Math.min(1, equipped(user).reduce((sum, item) => sum + item.power, 0) / 130);
   const experience = 0.65 + 0.35 * (1 - Math.exp(-user.bosses[boss.key] / 300));
   const level = 0.65 + 0.35 * clamp((combatLevel(user.skills) - boss.combat) / 25, 0, 1);
   const efficiency = user.career.aptitude * gear * experience * level * clamp(lognormal(rng, 0.18), 0.5, 1.5);
-  const kills = Math.min(1000, poisson(boss.killsPerHour * effectiveHours * efficiency, rng));
+  const planned = Math.min(1000, poisson(boss.killsPerHour * effectiveHours * efficiency, rng));
+  const supplies = boss.supplies || {385: 2, 2434: 1};
+  requestInputs(user, supplies, Math.max(1, planned) * 2);
+  const kills = Math.min(planned, ...Object.entries(supplies).map(([id, count]) => Math.floor((user.economy.holdings[id] || 0) / count)));
+  if (!kills) return { trainingHours: hours, gains, active: false };
   const deaths = Math.min(10, poisson(effectiveHours * (0.08 + user.career.risk * 0.18) * (1.2 - experience), rng));
-  const [common, rare] = BOSS_ITEMS[boss.key];
-  const rareTable = RARE_ITEMS[boss.key] || (rare ? [[rare, 1]] : []);
-  const drops = rareTable.length ? rareDrops(kills, boss.rareChance, rng) : 0;
-  const rewards = { [common]: kills * boss.loot * clamp(lognormal(rng, 0.35), 0.25, 3) / basePrice(common) };
-  for (let drop = 0; drop < drops; drop++) {
-    const [id] = weighted(rareTable, item => item[1], rng);
-    rewards[id] = (rewards[id] || 0) + 1;
-  }
-  const cost = kills * boss.cost * supplyIndex(market) * (1.2 - user.career.thrift * 0.35) + deaths * Math.min(500000, user.economy.bankValue * 0.005);
+  const { rewards, drops } = rollBossDrops(boss, kills, rng);
+  if (supplies[2434]) rewards[229] = (rewards[229] || 0) + supplies[2434] * kills;
+  const consumed = Object.fromEntries(Object.entries(supplies).map(([id, count]) => [id, count * kills]));
+  const cost = deaths * Math.min(500000, Math.floor(user.economy.bankValue * 0.005));
   user.bosses[boss.key] = integer(user.bosses[boss.key] + kills);
   user.economy.rareDrops = integer(user.economy.rareDrops + drops);
   user.economy.deaths = integer(user.economy.deaths + deaths);
@@ -157,30 +243,34 @@ export function progressBossing(user, date, { hours, rng, market, scale = 1 }) {
   gains[combatSkill] = kills * boss.hp * 4 / pace;
   gains.hitpoints = kills * boss.hp * 4 / (3 * pace);
   if (boss.slayer) gains.slayer = kills * boss.hp / pace;
-  settle(user, 0, cost, { activity: "bossing", boss: boss.key, kills, rareDrops: drops, deaths, hours: bossHours, activityScale: pace }, date, market, rewards);
+  settle(user, 0, cost, { activity: "bossing", boss: boss.key, kills, rareDrops: drops, deaths, hours: bossHours, activityScale: pace }, date, market, rewards, consumed);
   return { trainingHours: hours - bossHours, gains, active: true };
 }
-const SKILL_INCOME = { fishing: 150000, mining: 180000, woodcutting: 90000, thieving: 300000, hunter: 220000, runecraft: 280000, farming: 180000, slayer: 160000, sailing: 160000, agility: 30000 };
-const SKILL_COST = { construction: 1200000, herblore: 700000, prayer: 900000, crafting: 300000, smithing: 180000, fletching: 100000, firemaking: 60000, cooking: 30000, magic: 100000, sailing: 60000 };
+// Funding is determined by physical inputs. No XP for an unfunded recipe.
 export function skillingFunding(user, skill, hours, market) {
-  const fullCost = (SKILL_COST[skill] || 5000) * hours * supplyIndex(market) * (1.2 - user.career.thrift * 0.5);
-  // Poorer accounts use slower, cheaper methods rather than receiving expensive
-  // buyable-skill rates after their bank has run out. Never borrow below zero.
-  return fullCost > 0 ? 0.2 + 0.8 * Math.min(1, user.economy.bankValue / fullCost) : 1;
+  const m = selectMethod(user, skill, market);
+  if (!m || !Object.keys(m.inputs).length) return 1;
+  const planned = Math.max(1, Math.floor(m.rate * hours));
+  return Math.min(1, ...Object.entries(m.inputs).map(([id, count]) => Math.floor((user.economy.holdings?.[id] || 0) / count) / planned));
 }
-export function progressSkillingEconomy(user, date, { skill, hours, rng, market, append = false }) {
-  if (!(hours > 0) || !skill) return;
+export function progressSkillingEconomy(user, date, { skill, hours, market, append = false }) {
+  if (!(hours > 0) || !skill) return { xp: 0, modeled: false };
   valueBank(user, market);
-  const level = user.skills[skill].level;
-  const efficiency = 0.15 + 0.85 * (level / 99) ** 1.5;
-  const rate = clamp(lognormal(rng, 0.25), 0.3, 3);
-  const earned = (SKILL_INCOME[skill] || 15000) * hours * efficiency * rate;
-  const spent = (SKILL_COST[skill] || 5000) * hours * supplyIndex(market) * (1.2 - user.career.thrift * 0.5);
-  const item = SKILL_ITEMS[skill];
+  const m = selectMethod(user, skill, market);
+  if (!m) return { xp: 0, modeled: false };
+  const planned = Math.floor(m.rate * hours * user.career.aptitude);
+  // Keep boss supply requests alongside the next training batch.
+  const priorNeeds = user.economy.needs || {};
+  requestInputs(user, m.inputs, Math.max(1, planned) * 2);
+  for (const [id, count] of Object.entries(priorNeeds)) user.economy.needs[id] = Math.max(user.economy.needs[id] || 0, count);
+  const actions = Math.min(planned, ...Object.entries(m.inputs).map(([id, count]) => Math.floor((user.economy.holdings[id] || 0) / count)));
+  const rewards = Object.fromEntries(Object.entries(m.outputs).map(([id, count]) => [id, count * actions]));
+  const consumed = Object.fromEntries(Object.entries(m.inputs).map(([id, count]) => [id, count * actions]));
   const previous = append ? user.economy.lastSession : null;
-  settle(user, item ? 0 : earned, spent, { activity: "skilling", skill, hours }, date, market, item ? { [item]: earned / basePrice(item) } : {});
+  settle(user, actions * m.coins, 0, { activity: "skilling", skill, method: m.name, actions, hours }, date, market, rewards, consumed);
   if (previous) {
     const current = user.economy.lastSession;
     user.economy.lastSession = { ...previous, trainingSkill: skill, trainingHours: hours, earned: previous.earned + current.earned, spent: previous.spent + current.spent, net: previous.net + current.net };
   }
+  return { xp: Math.floor(actions * m.xp), modeled: true, actions };
 }

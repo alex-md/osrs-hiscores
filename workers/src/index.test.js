@@ -255,7 +255,7 @@ test("scheduled simulation seeds an empty world and never lowers XP or loses his
   const before = await allUsers(e);
   now += 15 * 60_000;
   const second = await runScheduled(e);
-  assert.ok(second.totalPlayers > 5);
+  assert.ok(second.totalPlayers >= 5 && second.totalPlayers <= 6);
   const after = await allUsers(e);
   for (const old of before) {
     const user = after.find((u) => u.username === old.username);

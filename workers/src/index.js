@@ -280,7 +280,7 @@ async function route(request, env) {
   const snapshot = await getSnapshot(env);
   if (path === "/api/exchange") {
     const exchange = await readJSON(env, "system:exchange", { items: [], tape: [], fills: 0, turnover: 0, tax: 0 });
-    const { prices, ...publicExchange } = exchange;
+    const { prices, buckets, priceHistory, ...publicExchange } = exchange;
     return cached({ ...publicExchange, ...snapshotInfo(snapshot) });
   }
   if (path === "/api/world")

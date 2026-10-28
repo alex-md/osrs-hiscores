@@ -21,6 +21,7 @@ function player(level = 80) {
     totalXP: totalXP(skills),
     totalLevel: totalLevel(skills),
     archetype: "CASUAL",
+    trainingState: { focusSkill: "agility", targetXP: 200000000, remaining: 10, phase: "steady", phaseRemaining: 10, fatigue: 0, aptitude: 1, momentum: 1 },
     achievements: {},
   };
 }

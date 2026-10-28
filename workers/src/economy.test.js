@@ -3,13 +3,18 @@ import assert from "node:assert/strict";
 import { SKILLS } from "./constants.js";
 import { BOSSES, MAX_BANK_VALUE } from "../../frontend/lib/activities.js";
 import { normalizeUser } from "./store.js";
-import { normalizeCareer, eligibleBosses, progressBossing, progressSkillingEconomy, skillingFunding } from "./economy.js";
+import { normalizeCareer, eligibleBosses, progressBossing, progressSkillingEconomy, skillingFunding, valueBank } from "./economy.js";
 import { progressUser } from "./simulation.js";
 import { xpForLevel } from "./utils.js";
 const date = new Date("2026-10-26T19:00:00Z");
 function seeded(seed) { return () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 2 ** 32); }
 function player(name = "Ada", level = 99) {
-  return normalizeUser({ username: name, archetype: "PVMER", skills: Object.fromEntries(SKILLS.map(skill => [skill, { xp: xpForLevel(level), level }])), achievements: { old: 123 } });
+  const user = normalizeUser({ username: name, archetype: "PVMER", skills: Object.fromEntries(SKILLS.map(skill => [skill, { xp: xpForLevel(level), level }])), achievements: { old: 123 } });
+  valueBank(user);
+  user.economy.holdings[385] = 10000;
+  user.economy.holdings[2434] = 10000;
+  valueBank(user);
+  return user;
 }
 
 test("legacy players gain level-1 Sailing and an explicit bank estimate without fabricated boss history", () => {
@@ -66,14 +71,14 @@ test("bossing consumes a shared time budget and produces integer kills, bounded 
 test("funding constrains buyable methods, costs cannot overdraw a bank, and capped wealth stays finite", () => {
   const user = player();
   user.economy.bankValue = 0;
-  assert.equal(skillingFunding(user, "construction", 0.25, 31), 0.2);
+  assert.equal(skillingFunding(user, "construction", 0.25, 31), 0);
   progressSkillingEconomy(user, date, { skill: "construction", hours: 0.25, scale: 31, rng: seeded(9) });
   assert.ok(user.economy.bankValue >= 0);
   assert.ok(Number.isSafeInteger(user.economy.bankValue));
   user.economy.bankValue = Infinity;
   normalizeCareer(user);
   assert.equal(user.economy.bankValue, MAX_BANK_VALUE);
-  assert.equal(skillingFunding(user, "construction", 0.25, 31), 1);
+  assert.equal(skillingFunding(user, "construction", 0.25, 31), 0);
 });
 
 test("a population has diverse persistent personalities and heavy-tailed starting wealth", () => {

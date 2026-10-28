@@ -1,47 +1,165 @@
-# Sailing, boss records and wealth
+# Simulation economy
 
-This is an authored OSRS-inspired simulation, not an attempt to report real accounts or exact drop tables. Item valuations use the simulated world's own persistent Grand Exchange prices. Sailing joins the shared skill list as skill 24. It has a provisional ordinary training ceiling of 95,000 XP/hour before the world multiplier; the existing Wise Old Man capture predates Sailing. Max total level is 2,376. Combat level keeps its existing formula.
+The serialized SQLite Durable Object remains the sole owner of live players,
+inventories, prices and exchange state. D1 remains the existing 90-day historical
+projection. Public GET requests never advance the simulation or write state.
 
-## Player state and upgrade
+## Integer ownership and migration
 
-`normalizeUser` adds missing Sailing at zero XP / level 1. Existing skill XP, account timestamps and unlock history are retained. Historical max-account or 2,277 milestones are not deleted. New 2,376, Sailing mastery and Sailing 200M milestones can be earned.
+GP, inventories, trades, recorded XP and KC are integers. Rates, work durations,
+percentages and XP/action definitions can be fractional; completed actions and
+awarded XP are rounded down before storage. Opening bank estimates remain bounded
+by the existing 5k–2B policy and do not grow automatically with earned XP.
 
-Each player receives persistent aptitude, risk tolerance, thrift, dedication and a favorite boss. Opening traits use a username seed; after publication they are saved with the account and survive renames. The opening bank estimate is proportional to existing total XP, multiplied by a uniform variation and a lognormal factor. It is bounded between 5,000 GP and 2B GP. This is labeled as an estimate. No historical kills, rare drops or earned-income history are fabricated. Existing saved bank values, counters and traits take precedence on every rebuild.
+Legacy fractional holdings migrate once (`inventoryVersion: 2`): retain whole
+items and convert the fractional remainder to rounded integer cash at the migration
+quote. The conversion records its value in `economy.migration`. This preserves
+rounded portfolio value, saved XP, achievements and boss records, and does not
+fabricate historic trades. Accounts without an inventory receive whole items from
+eight seeded catalog allocations, spending at most 70% of their existing estimate;
+the exact remainder stays in cash. This is an explicit opening endowment, not loot.
 
-The bank counter represents modeled cash, banked materials and equipment. On the first scheduled update with the new model, 30% of an existing balance becomes modeled cash and 70% becomes an equal-value basket of abyssal whips and amulets of fury at that update's prices. This preserves the opening value exactly; the fractional quantities are a representative equipment basket, not an assertion that an account owns those exact items. Opening wealth is estimated once, never repeatedly topped up as accelerated XP rises.
+Every session records item creation/consumption and coin faucets/sinks in
+`economy.flows`. Supplies cannot be funded by destroying a percentage of arbitrary
+holdings. The 1T safety ceiling uses explicit integer asset removals (`capSink`),
+never fractional scaling. Trade tax counts as spending and a coin sink. Market
+revaluation remains separate from income and spending.
 
-Income adds cash or retained item quantities. Spending uses cash first and then liquidates the same proportion of every retained item. The bank reconciles as opening estimate + earned income − actual spending + market revaluation, subject to rounding and a 1T GP safety cap. Only the latest economic session and aggregate income, spending, rare drops, deaths and revaluation are kept. Item holdings have a fixed catalog bound; there is no growing transaction log.
+## Methods, production and decisions
 
-## Autonomous prices
+`workers/data/methods.js` defines unlock levels, ordinary actions/hour, XP/action,
+integer input/output recipes and explicit coin awards. Mining supplies ores for
+Smithing; bars can become platebodies for high alchemy. Fishing supplies Cooking;
+food and prayer potions supply PvM. Farming supplies herbs for Herblore; farmer
+pickpocket batches provide seeds. Runecrafting consumes essence. Construction,
+Prayer, Fletching, Crafting, Ranged and Firemaking consume their actual materials.
+Four-dose potion batches preserve the four-herbs-to-three-bottles dose ratio;
+leftover/recovered empty vials can be filled again without awarding XP.
 
-The market starts from the bundled offline item-price catalog once. The simulation makes no external GE price requests. It never reads a daily price snapshot, resets quotes at midnight, or pulls prices toward real-world values. Persisted quotes compound from their own previous close. The original catalog also defines the units of authored loot baskets and supply costs; using those fixed quantities does not peg current prices.
+Only completed, inventory-backed actions receive recipe XP. Missing inputs post
+funded demand to the next exchange; they do not grant a discounted free XP rate.
+Methods unlock through the existing OSRS XP/level thresholds. Their selection
+balances XP/hour, current input/output prices, available wealth and skill gates.
+Relative profitability also changes skill-choice weights. Persistent training
+goals retain the existing multi-session behavior rather than switching every tick.
+Non-recipe physical activities retain the existing calibrated XP-rate path.
+Trading awards no XP.
 
-At each scheduled update, inactive and active accounts have retained quantities revalued at the shared simulated quotes. Price moves affect market revaluation rather than earned-income counters. Common loot and skilling material quantities use authored production rates; their GP value changes as simulated prices change. Supplies track a modeled shark/prayer-potion price index. Materials, supply usage and rare tables remain representative approximations. Rare rewards receive their simulated item price with no extra GP multiplier.
+Training and bossing share one session budget. Existing 6–31x world XP pacing is
+retained. Physical work uses its square-root activity multiplier; recipe XP is
+rescaled once from completed work. This intentionally accelerates progression
+relative to item production, rather than multiplying wealth by the full XP scale.
 
-## Coupled sessions
+## Bosses and equipment
 
-A sampled activity duration is divided between bossing and ordinary skill training. They share the same elapsed-time budget. Inactive sessions do neither. Boss selection depends on archetype, a shared daily appetite for that player's preferred boss, personal dedication, familiarity and appetite for harder encounters. Combat/skill gates and a minimum supply budget limit eligibility. Quest completion, team composition and exact equipment inventories are not separately simulated; the gates are proxies for readiness.
+The shared catalog now has 24 encounter categories, including KBD, Chaos Elemental,
+Kraken, Thermonuclear Smoke Devil, Cerberus and individual Dagannoth Kings.
+Existing aggregate Dagannoth history is retained. `drops` entries specify item,
+integer quantity, probability and rare-table membership. Common independent drops
+and one mutually exclusive rare roll per kill use bounded aggregate sampling;
+geometric gaps avoid iterating every kill. New bosses begin at zero recorded KC.
 
-Bossing consumes 60–100% of an active session when chosen. Effective boss hours multiply active boss time by the square root of the period-weighted XP scale: about 2.45–5.57× for a 6–31× XP world. Kill intensity is authored ordinary kills/hour multiplied by boss hours, personal aptitude, gear quality (a saturating logarithm of bank value), familiarity (saturating exponential of past KC), level readiness, and bounded lognormal session variation. Small kill counts use an exact Poisson draw; larger counts use a normal approximation. Each session has a 1,000-kill safety bound.
+Combat and Slayer gates remain in effect. `workers/data/equipment.js` defines owned
+upgrade slots and skill requirements. Equipped item ratings affect kill efficiency;
+unused cash cannot masquerade as equipment. Boss weights respond to the expected
+value of their own drops less current supply prices. Available food/potions bound
+actual kills; supplies are consumed before drops are credited. Death recovery is
+a cash sink. Players retain useful equipped items and may buy affordable upgrades
+or sell surplus loot through the same exchange.
 
-Kills award combat XP from the encounter's modeled HP, with related Hitpoints XP and Slayer XP where applicable. Combat XP per recorded kill is divided by the activity pace before applying the full XP multiplier, so the two multipliers do not stack. Kills, drop opportunities, supplies and death exposure use the same accelerated boss time. Bank balances and rare-item prices are never multiplied directly. The unused session time trains a skill using the existing ordinary-rate model and the same world scale. Buyable methods lose efficiency when the player cannot afford full supplies, representing slower self-supplied alternatives.
+Source references for selected drops:
 
-Ordinary loot quantities use bounded lognormal session variation. Rare drops use geometric waiting gaps, equivalent to independent Bernoulli chances per kill without a loop over every kill. Supply costs depend on recorded kills, GE supply prices and thrift; death frequency depends on accelerated boss hours, risk and familiarity, with wealth-dependent recovery costs. Spending never makes the bank negative. Skill income rises with level and varies by session; construction, prayer and other buyables consume wealth. Skill income, supply costs and affordability use training time multiplied by the same square-root pace. Existing wealth improves equipment with diminishing returns. Favorites and familiarity support boss specialists; rare drops create occasional rank upsets. Costs rise alongside activity so extra pace is not free profit.
+- [KBD](https://oldschool.runescape.wiki/w/King_Black_Dragon): bones, two black hides and 1/5000 visage.
+- [Kraken tentacle](https://oldschool.runescape.wiki/w/Kraken_tentacle): 1/400.
+- [Jagex drop rates](https://www.runescape.com/drop-rates): Dagannoth unique tables.
+- [Dagannoth Rex](https://oldschool.runescape.wiki/w/Dagannoth_Rex): Dagannoth bones.
 
-The 16 encounter categories cover early bosses, Barrows, Dagannoth Kings, Zulrah, Vorkath, Muspah, four God Wars generals, Hydra, and three raids. Rates, material mixes, drop probabilities and gates are deliberately authored estimates, with GE pricing for the modeled tradeable quantities. A rare drop is a modeled valuable reward, not a claim about a real account. Raids count completions, Barrows counts chests, and Dagannoth Kings is an aggregate category.
+This is a **selected-drop simulation**, not a complete OSRS server. Older encounters
+retain authored common reward bundles and rare reward weights. New tables include
+selected drops, not every reward. Kill rates, readiness gates, supply usage,
+equipment power and some farming/seed yields are estimates. Quests, Slayer-task
+assignment, teams, exact combat accuracy, travel, crop timers and ironman trade
+restrictions are not reproduced. Some catalog materials currently have no renewable
+producer or consumer; they can remain scarce or illiquid. No NPC liquidity or
+invented completed sales are added to hide this limitation.
 
-## Rankings and storage budget
+## Grand Exchange and 24-hour records
 
-`/api/activity-rankings?category=bank|bosses|<boss-key>` provides the same pagination/name filtering as skill ladders. Zero-KC accounts are unranked; ties use player names, and filtering preserves global rank. Profiles carry bank/boss ranks from the same published generation as their state. New UI routes are `#wealth` and `#bosses?boss=vorkath`.
+The catalog has more than 150 tradeable resources, consumables, materials,
+equipment and uniques. Additional catalog opening prices are authored estimates;
+legacy quotes retain their captured baseline. Persisted world prices always win.
+There are no external price requests, daily resets or forced mean reversion.
 
-All computation happens inside the existing serialized world update. Rankings share the existing 500-player packed documents. Profiles use 125-player documents, so a cold batch across the whole 5,000-player world reads at most 40 profile documents plus the manifest. Existing generations with 100-player packs remain readable through their manifest indexes. The next successful update repacks them atomically. Public reads never initialize or write state. New ranking endpoints use the existing edge cache.
+Each update builds inventory-backed sell orders and cash-funded material/upgrade
+buy orders. Input reserves and equipped gear are retained; surplus can be offered.
+Offers rotate player priority, cannot self-match, and expire at the next clearing.
+The exchange transfers whole items and exact coins, with a rounded-down authored
+2% seller fee. Cash checks prevent overspending across multiple orders. There is
+no external market maker, short selling, borrowing or persistent limit-order book.
 
-`npm run capacity` uses disposable local workerd/SQLite, creates 5,000 maxed accounts with all boss records populated, measures a scheduled update including index/deletion costs, and exercises cold batch/wealth/boss/profile reads. It rejects scheduled writes of 30,000/day or more, a conservative read projection of 4.5M/day or more at the 100,000 DO request limit (including scheduled calls), any public-read writes, documents of 1.9 MB or more, or a live dataset of 100 MB or more. These are local workload measurements, not production traffic/account-usage telemetry. Cloudflare allowances are shared with unrelated applications; administrative rebuilds and other account usage also need headroom.
+Backed supply/demand imbalance proposes a small quote change with a 1M GP minimum
+notional depth, 2% exponential movement bound and integer rounding. The quote
+becomes the new price only if a trade completes. Unfilled orders cannot revalue
+an account's inventory. Quiet items retain their last price or opening estimate.
+Absolute quotes remain bounded to 1 GP–1T GP.
 
-## Simulated Grand Exchange
+`system:exchange` version 3 retains at most 96 timestamped volume buckets, 98 price
+observations (including a boundary quote) and the latest 100 fills within 24 hours.
+The API strips internal buckets and quote maps. Each item exposes:
 
-`#exchange` and `GET /api/exchange` show a shared player market: item prices, per-update GP volume, changes since the prior update and up to 20 fills from the latest clearing. Backed sell quantities and cash-funded demand set the imbalance. The next quote is `current price × exp(0.02 × imbalance × elapsed fraction)`, with a maximum log move of 2% per full update. Small offered GP volume has less influence below the 1M GP depth threshold. There is no long-term price band or mean reversion. Empty markets keep their prices. Absolute 1 GP and 1T GP numerical bounds prevent invalid values. New quotes apply on the following update. Quote histories retain only 24 observations.
+- `price`: integer closing unit price.
+- `volume24h`: actual units matched after the rolling cutoff.
+- `circulatingSupply`: sum of owned player quantities after clearing.
+- `buyUnits` / `sellUnits`: unfilled units in this update's order book.
+- `change`: percentage against the observed quote at the 24-hour boundary; null until available.
+- `lastTrade`: timestamp, integer unit price and quantity of the latest completed fill.
 
-After sessions, active players offer 5% of each retained item basket and submit one buy offer guided by persistent taste, training inputs, portfolio exposure, and recent price trends. Risk-tolerant buyers favor momentum; cautious buyers look for discounts relative to recent simulated prices. Existing cash funds purchases: 1–3% of cash depending on thrift, capped at 2M GP per update. Short elapsed windows scale offers and budgets down; zero-time or inactive players submit no orders. Account priority rotates with each timestamp. Only matched player offers trade; no self-trades or external liquidity are invented. Unfilled offers expire each update. A simulated 2% sale fee removes coins and counts as spending. It is an authored fee for fractional representative baskets, not an exact implementation of OSRS GE tax rules.
+Legacy fractional volume/tape is not relabeled as integer or 24-hour activity.
+`statsStartedAt` discloses the start of new observation. The UI shows unavailable
+changes as a dash and distinguishes quiet items through filtering. GP abbreviations
+are presentation only; tooltips preserve exact amounts. The ledger supports item
+search, player/direction filters and newest-first ordering. The market supports
+name, price, volume and circulation sorting. Tables scroll within the page on
+small screens, and the exchange uses a wider desktop register.
 
-Coins transfer buyer to seller, less fees; item quantities are conserved. Trading alone does not produce income or inflate bank values. Market revaluation affects held items and is recorded separately from income and spending. Loot generation and supply consumption still occur through the session economy, outside the player exchange. Fractional quantities are deliberate because holdings represent value baskets; this is not an exact per-item inventory or a limit-price order book. The market keeps one bounded document in the same SQLite transaction as the world snapshot. No GE network calls are made. Supply generation and purchases react to evolving prices, but this remains a fractional-basket spot market rather than an exact OSRS inventory, recipe or limit-order simulation.
+## Population and retirement
+
+For an existing population, arrivals average **0.45 per update**, down from 1.5
+(70% fewer). Empty-world bootstrap remains five accounts; the cap remains 5,000.
+No percentage of the existing population is removed.
+
+Cleanup runs daily before progression. New/legacy records get a 14-day observation
+grace. Default inactivity thresholds are 45 days, or 180 for established accounts
+(100 sessions, 1M earned XP, 100 KC for a boss, 100 trades, or 10M total XP).
+The most recent progression, meaningful economic action, completed trade, saved
+update or creation timestamp protects an account. `retention.preserve` exempts it.
+Configurable Worker variables:
+
+- `POPULATION_INACTIVITY_DAYS`
+- `POPULATION_ESTABLISHED_DAYS`
+- `POPULATION_GRACE_DAYS`
+- `POPULATION_CLEANUP_INTERVAL_HOURS`
+
+Removed players do not enter the next snapshot, live profile index, rankings or
+order book. Coins/items leave circulation, with cumulative retired asset totals
+and a bounded latest-removal list at `system:population`. Old live snapshot shards
+are removed by the existing atomic generation commit. Historical D1 observations
+remain accurate historical records until their normal retention expiry; recent
+ledger entries remain historical transactions, not outstanding orders.
+
+## Validation and bounds
+
+Run `npm test`, `npm run check`, `npm run capacity` and a Wrangler dry-run bundle.
+Tests cover integer conversion, cash/item conservation, funded production and
+supply consumption, unlocks, drop generation, economic choices, retirement,
+rolling statistics, frontend number formatting and existing world rollback paths.
+Browser checks use local simulated fills, including search/direction filters and
+mobile overflow. These are local validation, not a production deployment or
+long-run calibration of a live economy.
+
+The local 5,000-player capacity harness exercises the serialized scheduled update,
+packed profile/ranking reads, exchange and 30-day historical queries. Its existing
+storage/database limits remain the acceptance gate. Profiles still use 125-player
+shards; historical publication keeps the existing idempotent outbox. All added
+histories, order state and accounting maps have catalog/population bounds, rather
+than storing one database row per kill, resource action or trade.

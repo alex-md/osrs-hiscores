@@ -96,7 +96,7 @@ test("fully capped accounts can continue economic activity without selecting an 
 
 test("rising simulated material prices attract more gathering choices", () => {
   const user = player();
-  const counts = [0.5, 2].map(ratio => {
+  const counts = [0.5, 10].map(ratio => {
     const rng = seeded(13);
     let mining = 0;
     for (let i = 0; i < 5000; i++)

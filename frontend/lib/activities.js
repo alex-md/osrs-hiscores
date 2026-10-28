@@ -1,5 +1,5 @@
-// Authored ordinary-play rates and readiness gates, not exact drop tables.
-// The Worker prices representative rewards using daily GE data. Activity uses a reduced world multiplier; bank value follows items and costs.
+// Authored ordinary-play rates and readiness gates. Selected drop tables are
+// explicit below; older encounters retain approximate common reward bundles.
 export const BOSSES = [
   { key: "scurrius", name: "Scurrius", combat: 45, killsPerHour: 35, hp: 500, loot: 16000, cost: 8000, rareChance: 1/100 },
   { key: "giant-mole", name: "Giant Mole", combat: 65, killsPerHour: 40, hp: 200, loot: 26000, cost: 7000, rareChance: 1/500 },
@@ -17,6 +17,34 @@ export const BOSSES = [
   { key: "chambers-of-xeric", requirements: { magic: 75, ranged: 75, prayer: 70 }, name: "Chambers of Xeric", combat: 105, killsPerHour: 1.8, hp: 3500, loot: 650000, cost: 300000, rareChance: 1/30 },
   { key: "theatre-of-blood", requirements: { attack: 85, strength: 85, ranged: 80, magic: 80, prayer: 70 }, name: "Theatre of Blood", combat: 115, killsPerHour: 1.5, hp: 4500, loot: 850000, cost: 450000, rareChance: 1/25 },
   { key: "tombs-of-amascut", requirements: { magic: 70, ranged: 70, prayer: 60 }, name: "Tombs of Amascut", combat: 95, killsPerHour: 1.8, hp: 3500, loot: 550000, cost: 350000, rareChance: 1/35 },
+  // Selected tradeable Wiki drops; encounter rates and supply usage are estimates.
+  ...[
+    ["king-black-dragon", "King Black Dragon", 80, 35, 240, 0, [[536,1,1],[1747,2,1],[11286,1,1/5000]]],
+    ["chaos-elemental", "Chaos Elemental", 80, 25, 250, 0, [[11920,1,1/256]]],
+    ["kraken", "Kraken", 90, 40, 255, 87, [[560,50,10/128],[12004,1,1/400]]],
+    ["thermonuclear-smoke-devil", "Thermonuclear Smoke Devil", 100, 45, 240, 93, [[565,100,10/128],[12002,1,1/350]]],
+    ["cerberus", "Cerberus", 105, 30, 600, 91, [[13227,1,1/512],[13229,1,1/512],[13231,1,1/512],[13233,1,1/512]]],
+    ["dagannoth-rex", "Dagannoth Rex", 75, 35, 255, 0, [[6729,1,1],[6737,1,1/128]]],
+    ["dagannoth-prime", "Dagannoth Prime", 85, 35, 255, 0, [[6729,1,1],[6731,1,1/128]]],
+    ["dagannoth-supreme", "Dagannoth Supreme", 85, 35, 255, 0, [[6729,1,1],[6733,1,1/128]]],
+  ].map(([key,name,combat,killsPerHour,hp,slayer,table]) => ({ key,name,combat,killsPerHour,hp,slayer,
+    cost: 10000, loot: 0, rareChance: 0, supplies: {385: 2,2434: 1},
+    drops: table.map(([id,quantity,chance]) => ({ id,quantity,chance,rare: chance < 0.01 })),
+    source: `https://oldschool.runescape.wiki/w/${name.replaceAll(" ", "_")}` })),
 ];
+// Supplies are authored whole-item budgets per kill/completion. Raid entries
+// represent one completion, so they consume a trip's supplies rather than a kill's.
+const SUPPLY_BUDGETS = {
+  barrows: {385:3,2434:1,560:60},
+  zulrah: {385:3,2434:1,12934:50},
+  vorkath: {385:4,2434:1,9144:10},
+  "phantom-muspah": {385:5,2434:2,560:40},
+  "alchemical-hydra": {385:4,2434:2,9144:15},
+  cerberus: {385:5,2434:3},
+  "chambers-of-xeric": {385:20,2434:12,565:200},
+  "theatre-of-blood": {385:25,2434:15,565:300},
+  "tombs-of-amascut": {385:20,2434:12,565:250},
+};
+for (const boss of BOSSES) boss.supplies = SUPPLY_BUDGETS[boss.key] || boss.supplies || {385:2,2434:1};
 export const BOSS_BY_KEY = Object.fromEntries(BOSSES.map(boss => [boss.key, boss]));
 export const MAX_BANK_VALUE = 1_000_000_000_000;

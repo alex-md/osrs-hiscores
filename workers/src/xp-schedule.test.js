@@ -60,7 +60,7 @@ test("actual XP uses the period-weighted scale once and records it without chang
   t.mock.method(Math, "random", () => 0.999);
   const date = new Date("2026-10-24T00:07:30Z");
   const skills = Object.fromEntries(SKILLS.map(skill => [skill, { xp: xpForLevel(80), level: 80 }]));
-  const user = { username: "Test", skills, totalXP: totalXP(skills), totalLevel: totalLevel(skills), archetype: "CASUAL", achievements: { old: 123 } };
+  const user = { username: "Test", skills, totalXP: totalXP(skills), totalLevel: totalLevel(skills), archetype: "CASUAL", trainingState: { focusSkill: "agility", targetXP: 200000000, remaining: 10, phase: "steady", phaseRemaining: 10, fatigue: 0, aptitude: 1, momentum: 1 }, achievements: { old: 123 } };
   const before = structuredClone(user);
   progressUser(user, date, { rng: () => 0.5 });
   const session = user.progress.lastSession;
@@ -81,7 +81,7 @@ test("identical active sessions earn more XP in busy periods than overnight lull
   const indices = [schedule.scales.indexOf(schedule.minScale), schedule.scales.indexOf(schedule.maxScale)];
   const sessions = indices.map(index => {
     const skills = Object.fromEntries(SKILLS.map(skill => [skill, { xp: xpForLevel(80), level: 80 }]));
-    const user = { username: "Test", skills, totalXP: totalXP(skills), totalLevel: totalLevel(skills), archetype: "CASUAL", achievements: {} };
+    const user = { username: "Test", skills, totalXP: totalXP(skills), totalLevel: totalLevel(skills), archetype: "CASUAL", trainingState: { focusSkill: "agility", targetXP: 200000000, remaining: 10, phase: "steady", phaseRemaining: 10, fatigue: 0, aptitude: 1, momentum: 1 }, achievements: {} };
     progressUser(user, new Date(day.getTime() + (index + 1) * 15 * 60_000), { rng: () => 0.5 });
     return user.progress.lastSession;
   });

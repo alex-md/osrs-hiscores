@@ -1,4 +1,6 @@
-import { BOSSES, BOSS_BY_KEY } from "./lib/activities.js";
+import { mountExchange } from "./lib/exchange-view.js";
+import { compactGP } from "./lib/gp.js";
+import { BOSSES, BOSS_BY_KEY } from "./lib/activities.js?v=economy-3";
 import { SKILLS, title } from "./lib/domain.js";
 import { request, apiBase, saveBase, latestGeneration } from "./lib/api.js";
 
@@ -298,15 +300,7 @@ async function activityView(current, signal, revision) {
 async function exchangeView(signal, revision) {
   const data = await request("/api/exchange", { signal });
   if (revision !== state.revision) return;
-  const items = [...data.items].sort((a, b) => b.traded - a.traded || a.name.localeCompare(b.name));
-  const names = new Map(items.map(item => [item.id, item.name]));
-  $("#view").innerHTML = `<section class="rankings-page">
-    ${pageHeading("Player market", "Grand Exchange", "Simulated players trade loot and build their banks. Offers clear every 15 minutes.")}
-    ${stats([["Traded this update", number(Math.round(data.turnover || 0)), "GP"], ["Trades", number(data.fills)], ["Total traded", number(Math.round(data.totalTurnover || 0)), "GP"]], "ranking-summary")}
-    <section class="panel ranking-panel"><div class="panel-heading"><h2>Market prices</h2>${markUpdated(data)}</div>
-    <div class="table-scroll" role="region" aria-label="Grand Exchange prices" tabindex="0"><table><thead><tr><th scope="col">Item</th><th scope="col" class="numeric">Price (GP)</th><th scope="col" class="numeric">Change</th><th scope="col" class="numeric">Traded (GP)</th></tr></thead><tbody>${items.length ? items.map(item => `<tr><th scope="row">${escape(item.name)}</th><td class="numeric">${number(item.price)}</td><td class="numeric">${item.change > 0 ? "+" : ""}${item.change.toFixed(2)}%</td><td class="numeric">${number(Math.round(item.traded))}</td></tr>`).join("") : '<tr><td colspan="4" class="table-empty">Trading begins with the next world update.</td></tr>'}</tbody></table></div></section>
-    <p class="coverage-note">Prices follow player offers and carry forward between updates. Change is since the previous update. Sales have a 2% fee. Item quantities represent modeled baskets.</p>
-    <section class="panel ranking-panel"><div class="panel-heading"><h2>Recent trades</h2><span class="updated">Latest update · up to 20 fills</span></div><div class="table-scroll" role="region" aria-label="Recent simulated trades" tabindex="0"><table><thead><tr><th scope="col">Item</th><th scope="col">Buyer</th><th scope="col">Seller</th><th scope="col" class="numeric">Value (GP)</th></tr></thead><tbody>${data.tape.length ? data.tape.map(trade => `<tr><th scope="row">${escape(names.get(trade.item))}</th><td><a href="${playerLink(trade.buyer)}">${escape(trade.buyer)}</a></td><td><a href="${playerLink(trade.seller)}">${escape(trade.seller)}</a></td><td class="numeric">${number(Math.round(trade.quantity * trade.price))}</td></tr>`).join("") : '<tr><td colspan="4" class="table-empty">No matched offers this update.</td></tr>'}</tbody></table></div></section></section>`;
+  mountExchange($("#view"), data, { escape, number, date, playerLink, heading: pageHeading, updated: markUpdated, stats });
 }
 
 function careerSection(user) {
@@ -316,7 +310,7 @@ function careerSection(user) {
   const session = economy.lastSession;
   return `<section class="profile-career"><div class="section-heading"><h2>Bank & boss record</h2><a href="#wealth">Wealth hiscores ↗</a></div>
     ${stats([["Estimated bank value", number(economy.bankValue), "GP"], ["Bank rank", user.activityRanks?.bank ? `#${number(user.activityRanks.bank)}` : "Unranked"], ["Recorded boss kills", number(kills)], ["Rare drops", number(economy.rareDrops)]], "profile-summary")}
-    ${economy.exchange ? `<p class="profile-updated">GE trading: ${number(economy.exchange.fills)} fills · ${number(Math.round(economy.exchange.bought))} GP bought · ${number(Math.round(economy.exchange.sold))} GP sold · ${number(Math.round(economy.exchange.tax))} GP in fees. <a href="#exchange">View market</a></p>` : ""}
+    ${economy.exchange ? `<p class="profile-updated">GE trading: ${number(economy.exchange.fills)} fills · ${compactGP(economy.exchange.bought)} GP bought · ${compactGP(economy.exchange.sold)} GP sold · ${compactGP(economy.exchange.tax)} GP in fees. <a href="#exchange">View market</a></p>` : ""}
     <details class="bank-accounting"><summary>Bank accounting</summary><p class="profile-updated">Opening bank estimate: ${number(economy.openingEstimate)} GP. Recorded income: ${number(economy.earned)} GP; supplies and training: ${number(economy.spent)} GP. Includes representative item baskets and equipment at simulated GE prices. Market revaluation: ${number(economy.revaluation || 0)} GP. Prices: ${escape(economy.pricing?.status || "simulated")}${economy.pricing?.capturedAt ? ` (${escape(new Date(economy.pricing.capturedAt).toISOString().slice(0, 10))} UTC)` : ""}.</p></details>
     ${session ? `<p class="profile-updated">Latest activity: ${session.boss ? escape(BOSS_BY_KEY[session.boss]?.name || title(session.boss)) : escape(title(session.skill || "Training"))}${session.boss ? ` · ${number(session.kills)} kills · ${number(session.rareDrops)} rare drops · ${number(session.deaths)} deaths` : ""} · ${session.net >= 0 ? "+" : "−"}${number(Math.abs(session.net))} GP net.</p>` : `<p class="profile-updated">Boss and income history begins with this model; the opening balance is estimated.</p>`}
     <section class="panel boss-record"><div class="panel-heading"><h2>Boss kill counts</h2><a href="#bosses">All boss hiscores ↗</a></div><div class="table-scroll" role="region" aria-label="Hiscores table" tabindex="0"><table><thead><tr><th scope="col">Boss</th><th scope="col" class="numeric">Kills</th><th scope="col" class="numeric">Rank</th></tr></thead><tbody>${BOSSES.map(boss => `<tr><th scope="row"><a href="#bosses?boss=${boss.key}">${escape(boss.name)}</a></th><td class="numeric">${number(user.bosses?.[boss.key])}</td><td class="numeric">${user.activityRanks?.[boss.key] ? `#${number(user.activityRanks[boss.key])}` : "—"}</td></tr>`).join("")}</tbody></table></div></section></section>`;
