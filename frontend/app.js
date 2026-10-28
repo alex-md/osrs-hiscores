@@ -300,7 +300,7 @@ async function activityView(current, signal, revision) {
 async function exchangeView(signal, revision) {
   const data = await request("/api/exchange", { signal });
   if (revision !== state.revision) return;
-  mountExchange($("#view"), data, { escape, number, date, playerLink, heading: pageHeading, updated: markUpdated, stats });
+  mountExchange($("#view"), data, { escape, number, date, heading: pageHeading, updated: markUpdated, stats });
 }
 
 function careerSection(user) {

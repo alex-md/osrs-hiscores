@@ -34,9 +34,12 @@ export class BenchWorld extends HiscoresWorld {
   await publishSnapshot(this.env, users); this.store.commit(); await flushHistory(this.env); d1Read=0; d1Written=0;
   const sql = this.store.sql; let read=0, written=0;
   this.store.sql={exec:(...args)=>{const c=sql.exec(...args);read+=c.rowsRead;written+=c.rowsWritten;return c;}};
+  let telemetryPoints=0;
+  this.env.EXCHANGE_ANALYTICS={writeDataPoint:()=>{telemetryPoints++;}};
   const start=Date.now();
   const result=await this.respond(new Request('https://world/internal/scheduled',{method:'POST'}));
   const run=await result.json();
+  const scheduledTelemetryPoints=telemetryPoints;
   const scheduledRead=read, scheduledWritten=written, elapsedMs=Date.now()-start, scheduledD1Read=d1Read, scheduledD1Written=d1Written;
   const latestDay = new Date().toISOString().slice(0,10);
   await this.env.HISTORY_DB.batch(Array.from({length:29},(_,i)=>[
@@ -54,7 +57,8 @@ export class BenchWorld extends HiscoresWorld {
    reads.push({path,rowsRead:read-beforeRead,rowsWritten:written-beforeWritten,d1RowsRead:d1Read-beforeD1Read,d1RowsWritten:d1Written-beforeD1Written,elapsedMs:Date.now()-startRead});
   }
   const size=sql.exec('SELECT sum(length(value)) AS storedBytes, max(length(value)) AS largestDocumentBytes, count(*) AS documents FROM documents').toArray()[0];
-  return Response.json({status:result.status,rowsRead:scheduledRead,rowsWritten:scheduledWritten,elapsedMs,scheduledD1Read,scheduledD1Written,updatesPerDay:86400000/UPDATE_INTERVAL_MS,reads,historySize,...size,run});
+  if(telemetryPoints !== scheduledTelemetryPoints) throw new Error('Reads emitted telemetry');
+  return Response.json({status:result.status,rowsRead:scheduledRead,rowsWritten:scheduledWritten,elapsedMs,scheduledD1Read,scheduledD1Written,scheduledTelemetryPoints,updatesPerDay:86400000/UPDATE_INTERVAL_MS,reads,historySize,...size,run});
  }
 }
 export default {fetch(request,env){return env.WORLD.get(env.WORLD.idFromName('benchmark')).fetch(request);}};
@@ -67,9 +71,12 @@ try {
   data.projectedScheduledWritesPerDay = data.rowsWritten * data.updatesPerDay;
   data.projectedD1WritesPerDay = data.scheduledD1Written * data.updatesPerDay;
   data.projectedScheduledReadsPerDay = data.rowsRead * data.updatesPerDay;
+  data.projectedTelemetryPointsPerDay = data.scheduledTelemetryPoints * data.updatesPerDay;
   const worstRead = Math.max(...data.reads.map(row => row.rowsRead));
   data.projectedReadsAtRequestLimit = data.projectedScheduledReadsPerDay + worstRead * (100000 - data.updatesPerDay);
   console.log(JSON.stringify(data, null, 2));
+  if (data.scheduledTelemetryPoints !== Object.keys((await import('../workers/data/ge-baseline.js')).default).length + 1 || data.scheduledTelemetryPoints > 250 || data.projectedTelemetryPointsPerDay >= 100_000)
+    throw new Error("Telemetry capacity benchmark failed");
   if (data.status !== 200 || data.run.totalPlayers !== 5000 || data.run.newUsers !== 0 || data.projectedScheduledWritesPerDay >= 30_000 || data.projectedD1WritesPerDay >= 80_000 || data.projectedReadsAtRequestLimit >= 4_500_000 || data.largestDocumentBytes >= 1_900_000 || data.storedBytes >= 100_000_000 || data.historySize.bytes * 35 / 30 >= 450_000_000 || data.reads.some(row => row.rowsWritten !== 0 || row.d1RowsWritten !== 0 || row.d1RowsRead > 500))
     throw new Error("Capacity benchmark failed");
 } finally { await mf.dispose(); }

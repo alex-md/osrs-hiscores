@@ -105,7 +105,9 @@ Absolute quotes remain bounded to 1 GP–1T GP.
 
 `system:exchange` version 3 retains at most 96 timestamped volume buckets, 98 price
 observations (including a boundary quote) and the latest 100 fills within 24 hours.
-The API strips internal buckets and quote maps. Each item exposes:
+The API strips transaction records, internal buckets and quote maps. Completed
+fills remain in backend storage; the frontend displays market prices only.
+Each item exposes:
 
 - `price`: integer closing unit price.
 - `volume24h`: actual units matched after the rolling cutoff.
@@ -117,10 +119,10 @@ The API strips internal buckets and quote maps. Each item exposes:
 Legacy fractional volume/tape is not relabeled as integer or 24-hour activity.
 `statsStartedAt` discloses the start of new observation. The UI shows unavailable
 changes as a dash and distinguishes quiet items through filtering. GP abbreviations
-are presentation only; tooltips preserve exact amounts. The ledger supports item
-search, player/direction filters and newest-first ordering. The market supports
-name, price, volume and circulation sorting. Tables scroll within the page on
-small screens, and the exchange uses a wider desktop register.
+are presentation only; tooltips preserve exact amounts. The market supports item
+search, liquidity filtering, and name, price, volume and circulation sorting.
+Tables scroll within the page on small screens, and the exchange uses a wider
+desktop register.
 
 ## Population and retirement
 

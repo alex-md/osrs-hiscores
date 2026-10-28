@@ -29,3 +29,10 @@ binding = "HISTORY_DB"
 database_name = "osrs-hiscores-history"
 database_id = "3c1244c3-667f-41ae-8530-4f6732601eef"
 migrations_dir = "migrations"
+
+# Optional observational telemetry; removing this binding disables emission.
+# Cloudflare creates the dataset on the first write. No SQL API token is needed
+# by the simulation; querying it separately requires Account Analytics Read.
+[[analytics_engine_datasets]]
+binding = "EXCHANGE_ANALYTICS"
+dataset = "osrs_exchange"

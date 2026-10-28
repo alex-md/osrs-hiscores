@@ -125,6 +125,11 @@ The obsolete public migration, regex purge, hitpoints rebalance, and fake-word s
 
 ## Data and consistency
 
+The [Cloudflare architecture review](docs/cloudflare-architecture.md) explains the
+storage/CPU tradeoffs and the `EXCHANGE_ANALYTICS` binding for market cycle and
+item telemetry. Analytics emission follows successful SQLite commits and does
+not replace the bounded market history used by the simulation and public GE page.
+
 The singleton `HiscoresWorld` Durable Object owns a SQLite database. Public reads, administrative updates, and 15-minute cron runs all go through the same request queue. There are no Workers KV bindings or KV operations in the active architecture. Public requests never create or rebuild snapshots; an uninitialized world returns `503` until it is seeded or the first cron runs.
 
 A successful update writes packed 500-player ranking shards, 125-player profile shards, the manifest, and simulation metadata into one SQLite transaction. Profile shards are the canonical player records, including XP and achievement history. A failed computation or SQL commit leaves the previous generation intact. Obsolete generations are deleted in that same transaction, so snapshot storage does not grow on every update. The current generation has no expiry. Individual JSON rows are checked against a 1.9 MB safety threshold below SQLite's 2 MB row limit.
