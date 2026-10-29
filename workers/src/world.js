@@ -2,7 +2,6 @@ import { flushHistory } from "./history.js";
 import { DurableStore } from "./durable-store.js";
 import { handleApiRequest, runScheduled } from "./index.js";
 import { json, HttpError } from "./http.js";
-import { emitExchangeTelemetry } from "./telemetry.js";
 
 export class HiscoresWorld {
   constructor(ctx, env) {
@@ -29,12 +28,7 @@ export class HiscoresWorld {
         response = await handleApiRequest(request, this.env);
       }
       if (response.ok) {
-        // Capture only this job's staged exchange, without another SQL read.
-        // A rebuild/read has none; retries and failed commits emit no points.
-        const exchange = this.store.pending.get("system:exchange");
-        const snapshot = this.store.pending.get("snapshot:current");
         this.store.commit();
-        emitExchangeTelemetry(this.env, exchange, snapshot);
       } else this.store.rollback();
       if (request.method === "POST") {
         try { await flushHistory(this.env); }

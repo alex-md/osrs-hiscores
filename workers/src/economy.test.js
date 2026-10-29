@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { SKILLS } from "./constants.js";
 import { BOSSES, MAX_BANK_VALUE } from "../../frontend/lib/activities.js";
 import { normalizeUser } from "./store.js";
-import { normalizeCareer, eligibleBosses, progressBossing, progressSkillingEconomy, skillingFunding, valueBank } from "./economy.js";
+import { normalizeCareer, eligibleBosses, progressBossing, progressSkillingEconomy, valueBank } from "./economy.js";
 import { progressUser } from "./simulation.js";
 import { xpForLevel } from "./utils.js";
 const date = new Date("2026-10-26T19:00:00Z");
@@ -68,17 +68,15 @@ test("bossing consumes a shared time budget and produces integer kills, bounded 
   assert.equal(user.achievements.old, 123);
 });
 
-test("funding constrains buyable methods, costs cannot overdraw a bank, and capped wealth stays finite", () => {
+test("session costs cannot overdraw an empty bank and capped wealth stays finite", () => {
   const user = player();
-  user.economy.bankValue = 0;
-  assert.equal(skillingFunding(user, "construction", 0.25, 31), 0);
-  progressSkillingEconomy(user, date, { skill: "construction", hours: 0.25, scale: 31, rng: seeded(9) });
-  assert.ok(user.economy.bankValue >= 0);
-  assert.ok(Number.isSafeInteger(user.economy.bankValue));
+  user.economy = { ...user.economy, bankValue: 0, cash: 0, holdings: {} };
+  progressSkillingEconomy(user, date, { skill: "construction", hours: 0.25, rng: seeded(9) });
+  assert.equal(user.economy.bankValue, 0);
+  assert.equal(user.economy.cash, 0);
   user.economy.bankValue = Infinity;
   normalizeCareer(user);
   assert.equal(user.economy.bankValue, MAX_BANK_VALUE);
-  assert.equal(skillingFunding(user, "construction", 0.25, 31), 0);
 });
 
 test("a population has diverse persistent personalities and heavy-tailed starting wealth", () => {

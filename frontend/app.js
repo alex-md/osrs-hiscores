@@ -1,5 +1,3 @@
-import { mountExchange } from "./lib/exchange-view.js";
-import { compactGP } from "./lib/gp.js";
 import { BOSSES, BOSS_BY_KEY } from "./lib/activities.js?v=economy-3";
 import { SKILLS, title } from "./lib/domain.js";
 import { request, apiBase, saveBase, latestGeneration } from "./lib/api.js";
@@ -69,7 +67,6 @@ function route() {
     };
   }
   if (path === "progress") return { type: "progress", params };
-  if (path === "exchange") return { type: "exchange", params };
   if (path === "bosses" || path === "wealth")
     return { type: "activity", path, params };
   if (path && path !== "overall") return { type: "invalid" };
@@ -81,7 +78,7 @@ function layout() {
       <div class="header-ornament" aria-hidden="true">${skillIcon("mining")}${skillIcon("woodcutting")}${skillIcon("fishing")}</div>
       <a class="brand" href="#overall">${crest}<span><small>Simulated RuneScape accounts</small><strong>Old School <span>Hiscores</span></strong><span class="brand-home">Home</span></span></a>
       <div class="header-ornament" aria-hidden="true">${skillIcon("attack")}${skillIcon("magic")}${skillIcon("prayer")}</div>
-    </div><div class="navigation-bar"><nav aria-label="Main navigation"><a data-nav="overall" href="#overall">Hiscores</a><a data-nav="bosses" href="#bosses">Boss kill counts</a><a data-nav="wealth" href="#wealth">Bank value</a><a data-nav="exchange" href="#exchange">Grand Exchange</a><a data-nav="progress" href="#progress">Gains & records</a><a data-nav="achievements" href="#achievements">Achievements</a></nav><button class="icon-button" id="theme" aria-label="Switch color theme" title="Switch color theme">◐</button></div></header>
+    </div><div class="navigation-bar"><nav aria-label="Main navigation"><a data-nav="overall" href="#overall">Hiscores</a><a data-nav="bosses" href="#bosses">Boss kill counts</a><a data-nav="wealth" href="#wealth">Bank value</a><a data-nav="progress" href="#progress">Gains & records</a><a data-nav="achievements" href="#achievements">Achievements</a></nav><button class="icon-button" id="theme" aria-label="Switch color theme" title="Switch color theme">◐</button></div></header>
     <main class="workspace" id="content" tabindex="-1">
       <aside class="sidebar" aria-label="Hiscores categories"><div class="sidebar-label category-banner">Category</div><a class="sidebar-link" data-skill="overall" href="#overall"><span aria-hidden="true">♜</span> Overall <span class="link-arrow">↗</span></a>
         <a class="sidebar-link" data-activity="bosses" href="#bosses"><span aria-hidden="true">♟</span> Boss kill counts</a><a class="sidebar-link" data-activity="wealth" href="#wealth"><span aria-hidden="true">¤</span> Bank value</a><div class="sidebar-label skill-heading">Skills <span>${SKILLS.length}</span></div><nav class="skill-nav" aria-label="Skill rankings">${SKILLS.map((s) => `<a class="sidebar-link" data-skill="${s}" href="#skills/${s}">${skillIcon(s)}${title(s)}</a>`).join("")}</nav>
@@ -89,7 +86,7 @@ function layout() {
       </aside>
       <aside class="tool-rail" aria-label="Player search and hiscores tools">
         <section class="stone-tool"><h2>Search by name</h2><form id="player-search" role="search"><label class="sr-only" for="search">Find a player</label><input id="search" placeholder="Player name" maxlength="12" autocomplete="off" list="player-names"><datalist id="player-names"></datalist><button class="button" type="submit">Search</button></form></section>
-        <section class="stone-tool"><h2>Explore hiscores</h2><nav aria-label="More hiscores"><a href="#overall">Overall rankings</a><a href="#bosses">Boss kill counts</a><a href="#wealth">Bank value</a><a href="#exchange">Grand Exchange</a><a href="#progress">Gains & records</a><a href="#achievements">Achievement firsts</a></nav></section>
+        <section class="stone-tool"><h2>Explore hiscores</h2><nav aria-label="More hiscores"><a href="#overall">Overall rankings</a><a href="#bosses">Boss kill counts</a><a href="#wealth">Bank value</a><a href="#progress">Gains & records</a><a href="#achievements">Achievement firsts</a></nav></section>
         <section class="stone-tool world-notice"><h2>World updates</h2><p>Scores update every 15 minutes.</p><span class="notice-rule" aria-hidden="true">◆</span><p class="simulation-disclosure">All accounts and scores are simulated.</p></section>
       </aside>
       <div class="main-content"><div id="view" aria-live="polite"></div></div>
@@ -289,18 +286,13 @@ async function activityView(current, signal, revision) {
     <section class="panel ranking-panel"><div class="panel-heading"><h2>${wealth ? "Bank value" : boss ? escape(BOSS_BY_KEY[boss].name) : "All bosses"}</h2>${markUpdated(data)}</div>
     <div class="table-scroll" role="region" aria-label="Hiscores table" tabindex="0"><table><thead><tr><th scope="col" class="numeric">Rank</th><th scope="col">Player</th><th scope="col" class="numeric">${wealth ? "Bank value (GP)" : "Kill count"}</th></tr></thead><tbody>${data.players.length ? data.players.map(row => `<tr>${rankCell(row.rank)}<td><a class="player-link" href="${playerLink(row.username)}">${escape(row.username)}</a></td><td class="numeric">${number(row.score)}</td></tr>`).join("") : `<tr><td colspan="3" class="table-empty"><h3>No recorded ${wealth ? "bank values" : "kills"}</h3><p>${current.params.get("q") ? "Try another player name or reset the filters." : "These rankings fill as eligible adventurers play. Existing accounts start with zero recorded kills."}</p></td></tr>`}</tbody></table></div>
     ${pager(data)}<form class="filter-bar" id="activity-filters">${wealth ? "" : `<label>Boss<select name="boss"><option value="">All bosses</option>${BOSSES.map(item => `<option value="${item.key}" ${boss === item.key ? "selected" : ""}>${escape(item.name)}</option>`).join("")}</select></label>`}<label class="search-filter"><span>Filter players</span><input name="q" maxlength="12" placeholder="Player name" value="${escape(current.params.get("q") || "")}"></label><label>Rows<select name="limit">${[25,50,100].map(limit => `<option ${data.limit === limit ? "selected" : ""}>${limit}</option>`).join("")}</select></label><button class="button primary">Apply</button><button class="button" type="button" id="reset-activities">Reset</button></form></section>
-    <p class="coverage-note activity-explanation">${wealth ? "Bank value tracks cash and items at simulated market prices, plus loot and income, less supplies and training costs." : "Bossing shares session time with training and follows a reduced world multiplier. Stats, gear, experience and rare drops affect results."}</p></section>`;
+    <p class="coverage-note activity-explanation">${wealth ? "Bank value tracks cash and items at fixed item estimates, plus loot and income, less supplies and training costs." : "Bossing shares session time with training and follows a reduced world multiplier. Stats, gear, experience and rare drops affect results."}</p></section>`;
   bindPagination(data);
   $("#activity-filters").addEventListener("submit", event => {
     event.preventDefault();
     updateQuery({ ...Object.fromEntries(new FormData(event.currentTarget)), page: "" });
   });
   $("#reset-activities").addEventListener("click", () => { location.hash = current.path; });
-}
-async function exchangeView(signal, revision) {
-  const data = await request("/api/exchange", { signal });
-  if (revision !== state.revision) return;
-  mountExchange($("#view"), data, { escape, number, date, heading: pageHeading, updated: markUpdated, stats });
 }
 
 function careerSection(user) {
@@ -310,8 +302,7 @@ function careerSection(user) {
   const session = economy.lastSession;
   return `<section class="profile-career"><div class="section-heading"><h2>Bank & boss record</h2><a href="#wealth">Wealth hiscores ↗</a></div>
     ${stats([["Estimated bank value", number(economy.bankValue), "GP"], ["Bank rank", user.activityRanks?.bank ? `#${number(user.activityRanks.bank)}` : "Unranked"], ["Recorded boss kills", number(kills)], ["Rare drops", number(economy.rareDrops)]], "profile-summary")}
-    ${economy.exchange ? `<p class="profile-updated">GE trading: ${number(economy.exchange.fills)} fills · ${compactGP(economy.exchange.bought)} GP bought · ${compactGP(economy.exchange.sold)} GP sold · ${compactGP(economy.exchange.tax)} GP in fees. <a href="#exchange">View market</a></p>` : ""}
-    <details class="bank-accounting"><summary>Bank accounting</summary><p class="profile-updated">Opening bank estimate: ${number(economy.openingEstimate)} GP. Recorded income: ${number(economy.earned)} GP; supplies and training: ${number(economy.spent)} GP. Includes representative item baskets and equipment at simulated GE prices. Market revaluation: ${number(economy.revaluation || 0)} GP. Prices: ${escape(economy.pricing?.status || "simulated")}${economy.pricing?.capturedAt ? ` (${escape(new Date(economy.pricing.capturedAt).toISOString().slice(0, 10))} UTC)` : ""}.</p></details>
+    <details class="bank-accounting"><summary>Bank accounting</summary><p class="profile-updated">Opening bank estimate: ${number(economy.openingEstimate)} GP. Recorded income: ${number(economy.earned)} GP; supplies and training: ${number(economy.spent)} GP. Includes retained items and loot at fixed catalog estimates. Recorded revaluation: ${number(economy.revaluation || 0)} GP. Prices: ${escape(economy.pricing?.status || "fixed")}${economy.pricing?.capturedAt ? ` (${escape(new Date(economy.pricing.capturedAt).toISOString().slice(0, 10))} UTC)` : ""}.</p></details>
     ${session ? `<p class="profile-updated">Latest activity: ${session.boss ? escape(BOSS_BY_KEY[session.boss]?.name || title(session.boss)) : escape(title(session.skill || "Training"))}${session.boss ? ` · ${number(session.kills)} kills · ${number(session.rareDrops)} rare drops · ${number(session.deaths)} deaths` : ""} · ${session.net >= 0 ? "+" : "−"}${number(Math.abs(session.net))} GP net.</p>` : `<p class="profile-updated">Boss and income history begins with this model; the opening balance is estimated.</p>`}
     <section class="panel boss-record"><div class="panel-heading"><h2>Boss kill counts</h2><a href="#bosses">All boss hiscores ↗</a></div><div class="table-scroll" role="region" aria-label="Hiscores table" tabindex="0"><table><thead><tr><th scope="col">Boss</th><th scope="col" class="numeric">Kills</th><th scope="col" class="numeric">Rank</th></tr></thead><tbody>${BOSSES.map(boss => `<tr><th scope="row"><a href="#bosses?boss=${boss.key}">${escape(boss.name)}</a></th><td class="numeric">${number(user.bosses?.[boss.key])}</td><td class="numeric">${user.activityRanks?.[boss.key] ? `#${number(user.activityRanks[boss.key])}` : "—"}</td></tr>`).join("")}</tbody></table></div></section></section>`;
 }
@@ -464,11 +455,11 @@ async function renderRoute() {
   const revision = ++state.revision;
   const current = route();
   state.route = current;
-  document.title = `${current.type === "player" ? current.username : current.type === "skill" ? `${title(current.skill)} hiscores` : current.type === "progress" ? "Gains & records" : current.type === "exchange" ? "Grand Exchange" : current.type === "achievements" ? "Achievements" : current.type === "activity" ? current.path === "wealth" ? "Bank value hiscores" : "Boss hiscores" : "Rankings"} · OSRS Hiscores`;
+  document.title = `${current.type === "player" ? current.username : current.type === "skill" ? `${title(current.skill)} hiscores` : current.type === "progress" ? "Gains & records" : current.type === "achievements" ? "Achievements" : current.type === "activity" ? current.path === "wealth" ? "Bank value hiscores" : "Boss hiscores" : "Rankings"} · OSRS Hiscores`;
   document.querySelectorAll("[data-nav]").forEach((a) => {
     const active =
       a.dataset.nav ===
-      (current.type === "progress" ? "progress" : current.type === "exchange" ? "exchange" : current.type === "achievements" ? "achievements" : current.type === "activity" ? current.path : "overall");
+      (current.type === "progress" ? "progress" : current.type === "achievements" ? "achievements" : current.type === "activity" ? current.path : "overall");
     if (active) a.setAttribute("aria-current", "page");
     else a.removeAttribute("aria-current");
   });
@@ -499,8 +490,6 @@ async function renderRoute() {
       const { progressView } = await import("./lib/progress-view.js");
       await progressView({current, signal:state.request.signal, isCurrent:()=>revision === state.revision, view:$("#view"), escape, number, date, playerLink, pageHeading, stats});
     }
-    else if (current.type === "exchange")
-      await exchangeView(state.request.signal, revision);
     else if (current.type === "activity")
       await activityView(current, state.request.signal, revision);
     else if (current.type === "player")

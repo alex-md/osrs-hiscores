@@ -19,7 +19,7 @@ test("all modeled rewards and materials have opening catalog prices", () => {
     if (id) assert.ok(baseline[id]?.price > 0);
 });
 
-test("legacy conversion preserves wealth/history and retained equipment follows GE prices exactly once", () => {
+test("legacy conversion preserves wealth/history and fixed catalog ignores archived GE prices", () => {
   const user = player();
   const old = structuredClone(user);
   valueBank(user);
@@ -28,14 +28,14 @@ test("legacy conversion preserves wealth/history and retained equipment follows 
   assert.deepEqual(user.bosses, old.bosses);
   const market = { prices: Object.fromEntries(Object.entries(baseline).map(([id, item]) => [id, item.price * 2])), status: "current", capturedAt: date.getTime() };
   valueBank(user, market);
-  assert.equal(user.economy.bankValue, user.economy.cash + Object.entries(user.economy.holdings).reduce((sum, [id,n]) => sum + n * market.prices[id], 0));
+  assert.equal(user.economy.bankValue, user.economy.cash + Object.entries(user.economy.holdings).reduce((sum, [id,n]) => sum + n * baseline[id].price, 0));
   assert.equal(user.economy.revaluation, user.economy.bankValue - old.economy.bankValue);
   const saved = structuredClone(user);
   for (let index = 0; index < 96; index++) valueBank(user, market);
   assert.deepEqual(user, saved);
 });
 
-test("skilling produces whole resources independent of XP scale and never liquidates unfunded inputs", () => {
+test("skilling produces whole resources and session costs redeem assets without overdrawing", () => {
   const low = player(), high = structuredClone(low);
   for (const [user, scale] of [[low, 6], [high, 31]])
     progressSkillingEconomy(user, date, { skill: "fishing", hours: 0.25, scale, rng: () => 0.5 });
@@ -43,16 +43,17 @@ test("skilling produces whole resources independent of XP scale and never liquid
   const before = low.economy.bankValue;
   const market = { prices: Object.fromEntries(Object.entries(baseline).map(([id,item]) => [id,item.price * 2])) };
   valueBank(low, market);
-  assert.ok(low.economy.bankValue > before);
+  assert.equal(low.economy.bankValue, before);
   low.economy.cash = 0;
   valueBank(low, market);
   low.economy.holdings = { 4151: 1 };
   valueBank(low, market);
   const saved = low.economy.bankValue;
-  const work = progressSkillingEconomy(low, date, { skill: "construction", hours: 10000, rng: () => 0.5, market });
-  assert.equal(work.actions, 0);
+  progressSkillingEconomy(low, date, { skill: "construction", hours: 10000, rng: () => 0.5, market });
   valueBank(low, market);
-  assert.equal(low.economy.bankValue, saved);
+  assert.ok(low.economy.bankValue < saved);
+  assert.ok(low.economy.bankValue >= 0);
+  assert.ok(Number.isSafeInteger(low.economy.cash));
 });
 
 test("market gains respect the wealth cap without leaving hidden spendable holdings", () => {

@@ -628,19 +628,3 @@ dialog { background: var(--paper); border-color: #88744f; }
 .history-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .pagination #history-prev, .pagination #history-next { width: auto; min-width: 62px; padding: 3px 8px; }
 @media (max-width: 400px) { .history-summary { grid-template-columns: 1fr; } }
-
-/* Exchange: parchment register, aligned figures and recognisable item sprites. */
-.ge-market { min-width: 1020px; }
-.ge-item { display: flex; align-items: center; gap: 9px; min-width: 175px; }
-.ge-icon { object-fit: contain; flex: 0 0 32px; image-rendering: pixelated; }
-.ge-time { white-space: nowrap; font-size: 12px; color: var(--muted); }
-.ge-page td.numeric { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.ge-page th.numeric { white-space: nowrap; }
-.ge-page .filter-bar { border-bottom: 1px solid var(--line); }
-.ge-page input:focus-visible, .ge-page select:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
-#app:has(.ge-page) { max-width: 1440px; }
-.ge-page .ranking-panel .ge-market { min-width: 1020px; }
-@media (min-width: 941px) {
-  .workspace:has(.ge-page) { grid-template-columns: 154px minmax(0, 1fr); }
-  .workspace:has(.ge-page) .tool-rail { grid-column: 2; grid-row: 2; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}

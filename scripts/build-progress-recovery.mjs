@@ -1,13 +1,11 @@
 // Build an auditable, fixed one-time compensation plan; no production writes.
 // node scripts/build-progress-recovery.mjs /tmp/public-snapshot.json
-import { readFile, writeFile, mkdtemp, rm } from 'node:fs/promises';
+import { readFile, writeFile, mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { progressUser } from '../workers/src/simulation.js';
-import { clearExchange, exchangeMarket } from '../workers/src/exchange.js';
 import { advanceTrainingClimate } from '../workers/src/training-dynamics.js';
 import { SKILLS } from '../workers/src/constants.js';
 import { BOSSES } from '../frontend/lib/activities.js';
@@ -15,6 +13,7 @@ import { allocateDeficit } from '../workers/src/recovery-math.js';
 const source = await readFile(process.argv[2]);
 const snapshot = JSON.parse(source);
 const legacyRevision = 'cc08c5ada59d8a87daa7298e8c31cde77e1f9357';
+const repairedRevision = '9e2a4f7fd7bfa762c1d6a0793e93be0a9968decd';
 const root = await mkdtemp(join(tmpdir(), 'osrs-legacy-recovery-'));
 const hash = text => createHash('sha256').update(text).digest('hex');
 function random(key) {
@@ -26,6 +25,13 @@ try {
   execFileSync('tar',['-x','-C',root],{input:archive});
   const oldSim=await import(pathToFileURL(join(root,'workers/src/simulation.js')));
   const oldExchange=await import(pathToFileURL(join(root,'workers/src/exchange.js')));
+  const repairedRoot=join(root,'repaired');
+  await mkdir(repairedRoot);
+  const repairedArchive=execFileSync('git',['archive',repairedRevision,'package.json','workers/src','workers/data','frontend'],{maxBuffer:20*1024*1024});
+  execFileSync('tar',['-x','-C',repairedRoot],{input:repairedArchive});
+  const repairedSim=await import(pathToFileURL(join(repairedRoot,'workers/src/simulation.js')));
+  const repairedExchange=await import(pathToFileURL(join(repairedRoot,'workers/src/exchange.js')));
+  const {exchangeMarket}=oldExchange;
   const endAt=snapshot.exchange.generatedAt, startAt=endAt-12*3600000;
   const startingExchange={...snapshot.exchange,prices:Object.fromEntries(snapshot.exchange.items.map(i=>[i.id,i.price]))};
   const climates=[];let climate;
@@ -51,7 +57,7 @@ try {
     return users;
   }
   const broken=replay(oldSim.progressUser,oldExchange.clearExchange);
-  const repaired=replay(progressUser,clearExchange);
+  const repaired=replay(repairedSim.progressUser,repairedExchange.clearExchange);
   const rows=[];const skills=Array(SKILLS.length).fill(0),bosses=Array(BOSSES.length).fill(0);
   let xp=0,kills=0;
   for(let i=0;i<repaired.length;i++) {

@@ -1,6 +1,5 @@
 import { arrivals, cleanupPopulation, populationPolicy } from "./population.js";
-import { activityScale, normalizeCareer, progressBossing, progressSkillingEconomy, selectMethod, valueBank } from "./economy.js";
-import { clearExchange, exchangeMarket } from "./exchange.js";
+import { activityScale, normalizeCareer, progressBossing, progressSkillingEconomy, valueBank } from "./economy.js";
 import { advanceTrainingClimate, personalTraining } from "./training-dynamics.js";
 import { windowXpScale } from "./xp-schedule.js";
 import { MAX_PLAYERS } from "../../frontend/lib/simulation-config.js";
@@ -59,11 +58,9 @@ export function newUser(username) {
 export function progressUser(
   user,
   date = new Date(),
-  { hours = TICK_HOURS, rng = Math.random, market, climate } = {},
+  { hours = TICK_HOURS, rng = Math.random, climate } = {},
 ) {
   normalizeCareer(user);
-  user.economy.needs = {};
-  user.economy.inputReserve = {};
   user.xpGainTier = determineXpGainTierFromTotal(user.totalXP);
   user.archetype ||= "CASUAL";
   user.multipliers ||= buildSkillMultipliers(user.archetype, user.xpGainTier);
@@ -72,8 +69,8 @@ export function progressUser(
   const duration =
     Math.max(0, Math.min(TICK_HOURS, hours)) * (min + rng() * (max - min));
   const scale = Math.max(6, Math.min(31, windowXpScale(date, hours) * (climate?.factor || 1)));
-  const personal = personalTraining(user, { hours: Math.max(0, Math.min(TICK_HOURS, hours)), activeHours: duration, rng, climate, market });
-  const bossing = progressBossing(user, date, { hours: duration, rng, market, scale });
+  const personal = personalTraining(user, { hours: Math.max(0, Math.min(TICK_HOURS, hours)), activeHours: duration, rng, climate });
+  const bossing = progressBossing(user, date, { hours: duration, rng, scale });
   const gains = {};
   const add = (skill, xp) => {
     const before = user.skills[skill].xp;
@@ -82,24 +79,12 @@ export function progressUser(
     gains[skill] = (gains[skill] || 0) + user.skills[skill].xp - before;
   };
   for (const [skill, xp] of Object.entries(bossing.gains)) add(skill, xp * scale * personal.multiplier);
-  let skill = personal.skill;
+  const skill = personal.skill;
   if (bossing.trainingHours > 0 && skill) {
-    let work = progressSkillingEconomy(user, date, { skill, hours: bossing.trainingHours * activityScale(scale), market, rng, append: bossing.active });
-    if (work.modeled && !work.actions && !work.preparation) {
-      // A stalled goal yields to a useful session, rather than idling for hours
-      // on an unavailable recipe. Thieving rebuilds spendable cash, not paper wealth.
-      const alternatives = SKILLS.filter(s => s !== "hitpoints" && user.skills[s].xp < 200_000_000
-        && (!selectMethod(user, s, market) || !Object.keys(selectMethod(user, s, market).inputs).length));
-      skill = user.skills.thieving.xp < 200_000_000 ? "thieving"
-        : alternatives[Math.min(alternatives.length - 1, Math.floor(rng() * alternatives.length))] || "thieving";
-      user.trainingState.remaining = 0;
-      work = progressSkillingEconomy(user, date, { skill, hours: bossing.trainingHours * activityScale(scale), market, rng, append: bossing.active, earnCash: skill === "thieving" });
-    }
+    progressSkillingEconomy(user, date, { skill, hours: bossing.trainingHours * activityScale(scale), rng, append: bossing.active });
     const stat = user.skills[skill];
     const skillScale = climate?.focusSkill === skill ? climate.skillFactor : 1;
-    const gain = work.modeled
-      ? work.xp * scale / activityScale(scale) * personal.multiplier * skillScale
-      : expectedRate(skill, stat.xp, stat.level) * bossing.trainingHours * scale * personal.multiplier * skillScale;
+    const gain = expectedRate(skill, stat.xp, stat.level) * bossing.trainingHours * scale * personal.multiplier * skillScale;
     add(skill, gain);
     if (["attack", "strength", "defence", "ranged"].includes(skill))
       add("hitpoints", gain / 3);
@@ -152,15 +137,13 @@ export async function runScheduled(env) {
   const changed = [];
   const previous = await readJSON(env, "system:last-run");
   const date = new Date(Date.now());
-  const previousExchange = await readJSON(env, "system:exchange", {});
-  const market = exchangeMarket(previousExchange);
   const climate = advanceTrainingClimate(await readJSON(env, "system:training-climate"), date);
   await writeJSON(env, "system:training-climate", climate);
   const policy = populationPolicy(env);
   const previousCleanup = await readJSON(env, "system:population", {});
   let cleanup = { removed: [], retired: { players: 0 } };
   if (!previousCleanup.generatedAt || date.getTime() - previousCleanup.generatedAt >= policy.cleanupIntervalHours * 3600000) {
-    for (const user of users) valueBank(user, market);
+    for (const user of users) valueBank(user);
     cleanup = cleanupPopulation(users, date, policy);
     users = cleanup.users;
     const totals = previousCleanup.retired || { players: 0, cash: 0, bankValue: 0, items: {} };
@@ -176,8 +159,8 @@ export async function runScheduled(env) {
     : TICK_HOURS;
   for (const user of users) {
     const before = JSON.stringify(user);
-    valueBank(user, market);
-    progressUser(user, date, { hours, market, climate });
+    valueBank(user);
+    progressUser(user, date, { hours, climate });
     if (JSON.stringify(user) !== before) changed.push(user);
   }
   const count = users.length;
@@ -187,8 +170,6 @@ export async function runScheduled(env) {
     users.push(user);
     changed.push(user);
   }
-  const exchange = clearExchange(users, date, previousExchange, { hours });
-  await writeJSON(env, "system:exchange", exchange);
   const snapshot = await publishSnapshot(env, users);
   const result = {
     processed: count,
@@ -198,7 +179,7 @@ export async function runScheduled(env) {
     generatedAt: snapshot.generatedAt,
     simulatedHours: hours,
     changedPlayers: changed.length,
-    pricing: { status: market.status, capturedAt: market.capturedAt || null },
+    pricing: { status: "fixed", capturedAt: null },
   };
   await writeJSON(env, "system:last-run", result);
   return result;

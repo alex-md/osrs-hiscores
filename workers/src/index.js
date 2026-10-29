@@ -277,7 +277,6 @@ async function route(request, env) {
     "/api/leaderboard",
     "/api/skill-rankings",
     "/api/activity-rankings",
-    "/api/exchange",
     "/api/users",
     "/api/achievements/stats",
     "/api/achievements/firsts",
@@ -287,12 +286,6 @@ async function route(request, env) {
   ];
   if (!known.includes(path)) throw new HttpError(404, "Unknown API route.");
   const snapshot = await getSnapshot(env);
-  if (path === "/api/exchange") {
-    const exchange = await readJSON(env, "system:exchange", { items: [], fills: 0, turnover: 0, tax: 0 });
-    // Completed fills stay in storage for backend use, outside the public payload.
-    const { prices, buckets, priceHistory, tape, ...publicExchange } = exchange;
-    return cached({ ...publicExchange, ...snapshotInfo(snapshot) });
-  }
   if (path === "/api/world")
     return cached({
       ...snapshotInfo(snapshot),

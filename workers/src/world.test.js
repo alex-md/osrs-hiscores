@@ -39,7 +39,7 @@ test("a clean Durable Object world ignores the old KV namespace entirely", async
   assert.equal((await request("/internal/scheduled", {})).status, 200);
   const world = await (await request("/api/world")).json();
   assert.equal(world.totalPlayers, 5);
-  for (const path of ["/api/world", "/api/leaderboard", "/api/generate/users/dry-run", "/api/skill-rankings", "/api/achievements/catalog", "/api/exchange"])
+  for (const path of ["/api/world", "/api/leaderboard", "/api/generate/users/dry-run", "/api/skill-rankings", "/api/achievements/catalog"])
     assert.equal((await request(path)).status, 200, path);
   assert.equal((await request("/api/admin/rebuild", {})).status, 200);
   assert.equal((await request("/api/seed", { usernames: ["Ada", "__proto__"] })).status, 200);
@@ -52,7 +52,7 @@ test("a clean Durable Object world ignores the old KV namespace entirely", async
 test("all public reads stay read-only when the world is absent", async () => {
   const { request, db } = setup();
   for (let i = 0; i < 20; i++)
-    for (const path of ["/api/world", "/api/users", "/api/leaderboard", "/api/generate/users/dry-run", "/api/debug", "/api/exchange"])
+    for (const path of ["/api/world", "/api/users", "/api/leaderboard", "/api/generate/users/dry-run", "/api/debug"])
       await request(path);
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM documents").get().n, 0);
 });
@@ -78,39 +78,20 @@ test("failed SQL commit rolls back player state, manifest, and simulation slot",
   assert.equal(await object.store.get("system:exchange"), null);
   assert.equal(await object.store.get("system:training-climate"), null);
   assert.equal((await request("/internal/scheduled", {})).status, 200);
-  assert.ok(points.length > 1);
+  assert.equal(points.length, 0);
 });
 
-test("telemetry observes committed cycles only and does not replay on reads, rebuilds or duplicate triggers", async () => {
+test("scheduled updates ignore archived exchange state and never emit market telemetry", async () => {
   const { request, object } = setup();
-  const points = [];
-  object.env.EXCHANGE_ANALYTICS = { writeDataPoint(point) {
-    assert.equal(object.store.pending.size, 0);
-    points.push(point);
-  } };
+  const archived = { prices: { 385: 999999999 }, generatedAt: 123, tape: [{ quantity: 2 }] };
+  await object.store.put("system:exchange", JSON.stringify(archived));
+  object.store.commit();
+  object.env.EXCHANGE_ANALYTICS = { writeDataPoint() { throw new Error("Removed exchange must not emit"); } };
   assert.equal((await request("/internal/scheduled", {})).status, 200);
-  const exchange = JSON.parse(await object.store.get("system:exchange"));
-  const snapshot = JSON.parse(await object.store.get("snapshot:current"));
-  assert.equal(points.length, 1 + exchange.items.length);
-  assert.deepEqual(points[0].doubles, [exchange.generatedAt, exchange.turnover, exchange.tax, exchange.fills, snapshot.totalPlayers]);
-  assert.ok(points.every(point => point.blobs[3] === snapshot.generation));
-  assert.deepEqual(points[1].doubles, [exchange.generatedAt, ...["price", "volume", "traded", "circulatingSupply", "buyUnits", "sellUnits"].map(key => exchange.items[0][key])]);
-  const count = points.length;
-  assert.equal((await request("/api/exchange")).status, 200);
+  assert.deepEqual(JSON.parse(await object.store.get("system:exchange")), archived);
+  assert.equal((await request("/api/exchange")).status, 404);
   assert.equal((await request("/api/admin/rebuild", {})).status, 200);
   assert.equal((await request("/internal/scheduled", {})).status, 429);
-  assert.equal(points.length, count);
-});
-
-test("telemetry failure cannot roll back or report failure for a committed cycle", async (t) => {
-  t.mock.method(console, "error", () => {});
-  const { request, object } = setup();
-  object.env.EXCHANGE_ANALYTICS = { writeDataPoint() { throw new Error("Analytics unavailable"); } };
-  assert.equal((await request("/internal/scheduled", {})).status, 200);
-  assert.ok(await object.store.get("system:exchange"));
-  assert.ok(await object.store.get("system:update-slot"));
-  assert.equal((await request("/internal/scheduled", {})).status, 429);
-  assert.equal((await request("/api/world")).status, 200);
 });
 
 test("simultaneous triggers advance the world once and retain only current shards", async () => {
@@ -221,25 +202,6 @@ test("rename-all rolls back backup, history and names if the SQLite commit fails
   assert.equal(await object.store.get("system:username-migration:v1"), null);
   assert.equal(await object.store.get("backup:username-v1:players:0"), null);
 });
-
-test("exchange reads publish bounded market data with the world generation and never write", async () => {
-  const { request, db } = setup();
-  await request("/internal/scheduled", {});
-  const before = db.prepare("SELECT key, value FROM documents ORDER BY key").all();
-  const world = await (await request("/api/world")).json();
-  const response = await request("/api/exchange");
-  assert.equal(response.status, 200);
-  const data = await response.json();
-  assert.equal(data.generation, world.generation);
-  assert.ok(data.items.length > 20);
-  assert.equal(Object.hasOwn(data, "tape"), false);
-  const storedExchange = JSON.parse(before.find(row => row.key === "system:exchange").value);
-  assert.ok(Array.isArray(storedExchange.tape));
-  assert.equal(data.fills, storedExchange.fills);
-  assert.equal(data.prices, undefined);
-  assert.deepEqual(db.prepare("SELECT key, value FROM documents ORDER BY key").all(), before);
-});
-
 
 test("scheduled worlds cross UTC days without external price requests", async (t) => {
   let now = Date.parse("2026-10-26T23:45:00Z");

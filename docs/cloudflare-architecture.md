@@ -2,10 +2,13 @@
 
 Reviewed against the code and Cloudflare documentation on October 28, 2026.
 
+Updated October 29: the Grand Exchange and its telemetry have been removed.
+The market telemetry discussion below is an archived design record, not active configuration.
+
 ## Keep the simulation and snapshots in the Durable Object
 
 The scheduled Worker forwards one request to the singleton `HiscoresWorld`.
-The object owns simulation, market settlement, and snapshot publication; the
+The object owns simulation and snapshot publication; the
 gateway does not compute the ladders. Cloudflare documents a default 30-second
 CPU limit for Durable Object requests. Ordinary free Workers have a 10 ms CPU
 limit, and free Workflows have 10 ms per step. The proposed 50 ms limit is not
@@ -13,7 +16,7 @@ the current free Worker allowance, and moving computation into Workflows does
 not automatically provide more CPU.
 
 Profile shards are canonical player state, not disposable public exports.
-SQLite atomically commits those profiles, rankings, exchange state, history
+SQLite atomically commits those profiles, rankings, history
 outbox, and the simulation slot. Failed updates roll back together, and retries
 cannot advance a successful slot twice. Replacing this with R2 would require a
 cross-service publication and garbage-collection protocol. Reading a whole world
@@ -33,7 +36,7 @@ elapsed times are not production CPU measurements. Production CPU, memory,
 duration, traffic, and account-wide usage still need Cloudflare metrics; no local
 benchmark guarantees that an account stays within every free allowance.
 
-## Export market telemetry after commit
+## Archived: market telemetry after commit
 
 `workers/src/telemetry.js` writes to the `EXCHANGE_ANALYTICS` binding after a
 successful world commit. It uses the staged exchange and manifest, with no extra

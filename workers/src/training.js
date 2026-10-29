@@ -1,6 +1,5 @@
 import { TICK_HOURS, UPDATE_MINUTES, MAX_PLAYERS } from "../../frontend/lib/simulation-config.js";
 export { TICK_HOURS };
-import { methodOpportunity } from "./economy.js";
 import calibration from "../data/calibration.js";
 import {
   SKILL_POPULARITY,
@@ -67,13 +66,12 @@ export function preferenceWeight(skill, user) {
     (user.multipliers?.perSkill?.[skill] || 1)
   );
 }
-export function chooseTrainingSkill(user, rng = Math.random, { climate, market } = {}) {
+export function chooseTrainingSkill(user, rng = Math.random, { climate } = {}) {
   const entries = Object.entries(user.skills).filter(
     ([s, v]) => s !== "hitpoints" && v.xp < 200000000,
   );
   const weights = entries.map(([s]) => {
-    const opportunity = methodOpportunity(user, s, market);
-    return preferenceWeight(s, user) * opportunity * (climate?.focusSkill === s ? 4 : 1);
+    return preferenceWeight(s, user) * (climate?.focusSkill === s ? 4 : 1);
   });
   let pick = rng() * weights.reduce((a, b) => a + b, 0);
   for (let i = 0; i < entries.length; i++) {

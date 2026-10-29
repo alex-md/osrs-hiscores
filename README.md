@@ -77,7 +77,6 @@ One application serves every view. Routes work on static hosts, including under 
 - `#user/Rune%20Mage` — player summary, combat level, skill ranks, XP progress, achievement history.
 - `#wealth` — modeled bank-value rankings, name filtering and pagination.
 - `#bosses` — total recorded boss KC; `#bosses?boss=vorkath` selects an encounter.
-- `#exchange` — simulated player trading, market prices, volume and recent fills.
 - `#achievements` — searchable catalog, category and rarity filters, sort controls, recent unlocks, recorded firsts.
 
 The older `skill-hiscores.html?skill=attack` and `achievements.html` entry points still work. Theme and connection preferences are optional local storage settings. `?api=https://example.workers.dev` temporarily selects another API. Blank connection settings restore the default. A missing API or failed request produces a retry screen with connection controls. Player search supports keyboard submission and native username suggestions.
@@ -88,7 +87,6 @@ All responses are JSON with CORS enabled. Reads cache for 30 seconds in browsers
 
 | Method | Endpoint                              | Response                                                                            |
 | ------ | ------------------------------------- | ----------------------------------------------------------------------------------- |
-| GET    | `/api/exchange`                       | Simulated market quotes, volume and recent player trades                            |
 | GET    | `/api/world`                          | Snapshot generation, training calibration and estimated next update                  |
 | GET    | `/api/health`                         | Liveness and Durable Object storage status                                                      |
 | GET    | `/api/debug`                          | Binding status and last successful simulation; no secret values                     |
@@ -126,10 +124,9 @@ The obsolete public migration, regex purge, hitpoints rebalance, and fake-word s
 
 ## Data and consistency
 
-The [Cloudflare architecture review](docs/cloudflare-architecture.md) explains the
-storage/CPU tradeoffs and the `EXCHANGE_ANALYTICS` binding for market cycle and
-item telemetry. Analytics emission follows successful SQLite commits and does
-not replace the bounded market history used by the simulation and public GE page.
+The [Cloudflare architecture review](docs/cloudflare-architecture.md) records the
+storage/CPU tradeoffs. The Grand Exchange, its public API and Analytics Engine
+emission have been removed; simulation no longer reads or writes market state.
 
 The singleton `HiscoresWorld` Durable Object owns a SQLite database. Public reads, administrative updates, and 15-minute cron runs all go through the same request queue. There are no Workers KV bindings or KV operations in the active architecture. Public requests never create or rebuild snapshots; an uninitialized world returns `503` until it is seeded or the first cron runs.
 
@@ -208,7 +205,8 @@ The username migration runs once with `POST /api/admin/users/rename-all` and `{"
 
 ## Boss and wealth simulation
 
-Sailing, 24 encounter categories, 159 tradeable items and data-driven resource methods share the existing world. Methods consume owned inputs, generate whole items and award XP for completed work. Bossing consumes actual supplies, uses owned equipment and responds to drop profitability. The GE matches funded player orders using integer coins/items, records bounded 24-hour unit volume and prices, and exposes held supply and unfilled order units. Existing fractional baskets migrate once while preserving rounded wealth, XP, KC and unlocks. Arrivals are reduced 70%; configurable daily retention cleanup records retired assets and protects established accounts. The bundled price catalog initializes quotes once, with no live GE checks or price resets. Selected drop tables, encounter rates and readiness remain approximations. See [the economy model](docs/simulation-economy.md) for migration, accounting, retention settings, sources and limitations.
+Sailing and 24 encounter categories share the existing world. Training uses calibrated XP rates, independent of supplies, cash or trading. Boss sessions use stat unlocks, estimated readiness, experience, personality and luck, with a shared session time budget and reduced world multiplier. Loot and estimated activity costs update bounded bank values at fixed catalog prices. Existing accounts, XP, KC, achievements, inventory and progression history remain intact. Arrivals and retention settings are unchanged. See [the simulation model](docs/simulation-economy.md) for accounting, migration and limitations.
+
 
 ## Gains and records
 

@@ -19,7 +19,7 @@ export function advanceTrainingClimate(previous, date, rng = Math.random) {
     until: date.getTime() + Math.round((1.5 + rng() * 7.5) * 3_600_000) };
 }
 
-export function personalTraining(user, { hours, activeHours, rng, climate, market }) {
+export function personalTraining(user, { hours, activeHours, rng, climate }) {
   if (!(hours > 0)) return { multiplier: 1, skill: null, phase: "steady" };
   const state = user.trainingState ||= {
     aptitude: 0.75 + rng() * 0.5, fatigue: 0, momentum: 1, remaining: 0,
@@ -35,7 +35,7 @@ export function personalTraining(user, { hours, activeHours, rng, climate, marke
   }
   const focused = user.skills[state.focusSkill];
   if (state.remaining <= 0 || !focused || focused.xp >= Math.min(200_000_000, state.targetXP)) {
-    state.focusSkill = chooseTrainingSkill(user, rng, { climate, market });
+    state.focusSkill = chooseTrainingSkill(user, rng, { climate });
     const stat = user.skills[state.focusSkill];
     state.targetXP = stat ? stat.level < 99 ? xpForLevel(Math.min(99, stat.level + 2 + Math.floor(rng() * 4)))
       : Math.min(200_000_000, stat.xp + 1_000_000 + Math.floor(rng() * 4_000_000)) : 0;
@@ -48,7 +48,7 @@ export function personalTraining(user, { hours, activeHours, rng, climate, marke
   state.momentum = clamp(state.momentum + (rng() - 0.5) * 0.12 * Math.sqrt(elapsed), 0.65, 1.4);
   const execution = 0.85 + rng() * 0.3;
   const multiplier = clamp(state.aptitude * state.momentum * phaseFactor * (1 - state.fatigue * 0.35) * execution, 0.2, 2.5);
-  const skill = rng() < 0.85 && state.focusSkill ? state.focusSkill : chooseTrainingSkill(user, rng, { climate, market });
+  const skill = rng() < 0.85 && state.focusSkill ? state.focusSkill : chooseTrainingSkill(user, rng, { climate });
   state.phaseRemaining -= activeHours;
   state.remaining -= activeHours;
   state.fatigue = clamp(state.fatigue + activeHours * (state.phase === "grind" ? 0.16 : state.phase === "recovery" ? -0.3 : 0.025), 0, 1);

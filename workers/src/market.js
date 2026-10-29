@@ -1,8 +1,7 @@
 import baseline from "../data/ge-baseline.js";
 
-export const priceOf = (market, id) => market?.prices?.[id] ?? baseline[id].price;
-export const basePrice = id => baseline[id].price;
-export const supplyIndex = market => (priceOf(market, 385) / basePrice(385) + priceOf(market, 2434) / basePrice(2434)) / 2;
+// The first argument is ignored for saved callers; prices are fixed.
+export const priceOf = (_market, id) => baseline[id].price;
 export const SKILL_ITEMS = { fishing: 7944, mining: 444, woodcutting: 1515, hunter: 10034, runecraft: 560, farming: 257, slayer: 565, sailing: 1515 };
 // Representative tradeable rewards, not full drop tables. Untradeable rewards
 // (e.g. Scurrius spines and pets) never receive a GE price.
