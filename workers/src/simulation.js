@@ -1,5 +1,5 @@
 import { arrivals, cleanupPopulation, populationPolicy } from "./population.js";
-import { activityScale, normalizeCareer, progressBossing, progressSkillingEconomy, valueBank } from "./economy.js";
+import { activityScale, normalizeCareer, progressBossing, progressSkillingEconomy, selectMethod, valueBank } from "./economy.js";
 import { clearExchange, exchangeMarket } from "./exchange.js";
 import { advanceTrainingClimate, personalTraining } from "./training-dynamics.js";
 import { windowXpScale } from "./xp-schedule.js";
@@ -82,11 +82,21 @@ export function progressUser(
     gains[skill] = (gains[skill] || 0) + user.skills[skill].xp - before;
   };
   for (const [skill, xp] of Object.entries(bossing.gains)) add(skill, xp * scale * personal.multiplier);
-  const skill = personal.skill;
-  const skillScale = climate && skill && climate.focusSkill === skill ? climate.skillFactor : 1;
+  let skill = personal.skill;
   if (bossing.trainingHours > 0 && skill) {
+    let work = progressSkillingEconomy(user, date, { skill, hours: bossing.trainingHours * activityScale(scale), market, rng, append: bossing.active });
+    if (work.modeled && !work.actions && !work.preparation) {
+      // A stalled goal yields to a useful session, rather than idling for hours
+      // on an unavailable recipe. Thieving rebuilds spendable cash, not paper wealth.
+      const alternatives = SKILLS.filter(s => s !== "hitpoints" && user.skills[s].xp < 200_000_000
+        && (!selectMethod(user, s, market) || !Object.keys(selectMethod(user, s, market).inputs).length));
+      skill = user.skills.thieving.xp < 200_000_000 ? "thieving"
+        : alternatives[Math.min(alternatives.length - 1, Math.floor(rng() * alternatives.length))] || "thieving";
+      user.trainingState.remaining = 0;
+      work = progressSkillingEconomy(user, date, { skill, hours: bossing.trainingHours * activityScale(scale), market, rng, append: bossing.active, earnCash: skill === "thieving" });
+    }
     const stat = user.skills[skill];
-    const work = progressSkillingEconomy(user, date, { skill, hours: bossing.trainingHours * activityScale(scale), market, rng, append: bossing.active });
+    const skillScale = climate?.focusSkill === skill ? climate.skillFactor : 1;
     const gain = work.modeled
       ? work.xp * scale / activityScale(scale) * personal.multiplier * skillScale
       : expectedRate(skill, stat.xp, stat.level) * bossing.trainingHours * scale * personal.multiplier * skillScale;
@@ -118,7 +128,7 @@ export function progressUser(
         trainingHours: bossing.trainingHours,
         xpScale: scale,
         personalScale: personal.multiplier,
-        skillScale,
+        skillScale: climate?.focusSkill === skill ? climate.skillFactor : 1,
         trainingPhase: personal.phase,
         gainedXP,
         gains,

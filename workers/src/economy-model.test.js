@@ -36,11 +36,11 @@ test('legacy fractional conversion preserves rounded wealth exactly and runs onc
   const copy=structuredClone(u.economy);valueBank(u);assert.deepEqual(u.economy,copy);
   assert.ok(Number.isSafeInteger(u.economy.cash));assert.ok(Object.values(u.economy.holdings).every(Number.isSafeInteger));
 });
-test('ore prices change available mining methods without changing skill gates',()=>{
+test('extreme ore prices cannot replace a much better training method or bypass skill gates',()=>{
   const u=player('Miner',{},1000000,40);
   const ordinary=selectMethod(u,'mining');
   const expensiveGold=selectMethod(u,'mining',{prices:{444:10000}});
-  assert.notEqual(ordinary.name,expensiveGold.name);assert.equal(expensiveGold.outputs[444],1);
+  assert.equal(ordinary.name,expensiveGold.name);assert.equal(expensiveGold.outputs[440],1);
   u.skills.mining.level=1;assert.equal(selectMethod(u,'mining',{prices:{444:10000}}).level,1);
 });
 test('Mining → Smithing transforms owned ores; missing inputs block XP and request real orders',()=>{
@@ -71,7 +71,7 @@ test('Farming → Herblore → PvM consumes real herbs, potion ingredients and f
   assert.ok(encounter.active);const kills=fighter.economy.lastSession.kills;
   assert.ok(kills>0);assert.equal(fighter.economy.holdings[385],before[385]-kills*2);
   assert.equal(fighter.economy.holdings[2434],before[2434]-kills);
-  const starved=player('Starved',{},1000000,99);assert.equal(progressBossing(starved,at,{hours:1,rng:()=>.01}).active,false);
+  const starved=player('Starved',{},1000000,99);assert.equal(progressBossing(starved,at,{hours:1,rng:()=>.01}).active,true);
   assert.ok(starved.economy.needs[2434]>0);
 });
 test('selected boss tables produce deterministic guaranteed drops and sampled rares',()=>{
@@ -138,10 +138,11 @@ test('boss sampling grants exact guaranteed quantities and statistically bounded
 });
 
 test('potion dose recipes preserve bottles and empty-vial preparation earns no XP', () => {
-  const u=player('PotionMaker',{257:4,231:4,227:4},1000000,38);
+  const u=player('PotionMaker',{257:4,231:4,227:4},0,38);
   const made=work(u,'herblore',1);
   assert.equal(made.actions,1);assert.equal(u.economy.holdings[2434],3);assert.equal(u.economy.holdings[229],1);
   u.economy.holdings[229]=10;
+  u.economy.holdings[2434]=0;
   const refill=work(u,'herblore',1);
   assert.equal(refill.xp,0);assert.equal(u.economy.holdings[227],10);assert.equal(u.economy.holdings[229],0);
 });

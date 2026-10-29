@@ -1,3 +1,4 @@
+import { recoverProgress, RECOVERY_ID } from "./progress-recovery.js";
 import { historyResponse } from "./history.js";
 import { BOSS_BY_KEY } from "../../frontend/lib/activities.js";
 import { generateUsernames } from "./usernames.js";
@@ -93,6 +94,14 @@ async function route(request, env) {
   if (method === "POST") {
     requireAdmin(request, env);
     return mutate(env, async () => {
+      if (path === "/api/admin/progress/recover-2026-10-28") {
+        const body = await bodyJSON(request);
+        if (body.dryRun !== undefined && typeof body.dryRun !== "boolean")
+          throw new HttpError(400, "dryRun must be a boolean.");
+        if (body.dryRun === false && body.planId !== RECOVERY_ID)
+          throw new HttpError(400, "Applying recovery requires the fixed planId.");
+        return json(await recoverProgress(env, { dryRun: body.dryRun !== false }));
+      }
       if (path === "/api/admin/users/rename-all") {
         const body = await bodyJSON(request);
         if (body.dryRun !== undefined && typeof body.dryRun !== "boolean")

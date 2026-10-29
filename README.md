@@ -107,6 +107,7 @@ All responses are JSON with CORS enabled. Reads cache for 30 seconds in browsers
 | GET    | `/api/generate/users/dry-run?count=5` | Unique generated names without database writes                          |
 | POST   | `/api/seed`                           | Create 1–200 named players; existing names are skipped                              |
 | POST   | `/api/cron/trigger`                   | Run the scheduled simulation                                                        |
+| POST   | `/api/admin/progress/recover-2026-10-28` | Preview/apply the fixed, authenticated one-time 12-hour compensation plan |
 | POST   | `/api/admin/rebuild`                  | Normalize stored documents at read time and rebuild ranking/achievement projections |
 | POST   | `/api/admin/users/rename-all`         | One-time rename of all existing players; defaults to preview, preserves progress and history |
 | POST   | `/api/admin/users/delete-batch`       | Preview or delete selected names, or a random batch                                 |

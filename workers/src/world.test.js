@@ -2,6 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { HiscoresWorld } from "./world.js";
+import recoveryPlan from "../data/progress-recovery-2026-10-28.js";
+import { RECOVERY_ID, RECOVERY_KEY } from "./progress-recovery.js";
+import { normalizeUser } from "./store.js";
+import { publishSnapshot } from "./snapshots.js";
+import { SKILLS } from "./constants.js";
 import { forwardApiRequest } from "./gateway.js";
 
 function setup(legacy) {
@@ -266,4 +271,45 @@ test("gateway health reports the serving release even when a world retains its e
   assert.equal(response.headers.get('cache-control'),'no-store');
   env.HISCORES_WORLD.get = () => ({fetch:async()=>Response.json({error:'World unavailable'}, {status:503})});
   assert.equal((await forwardApiRequest(new Request('https://site/api/health'),env)).status,503);
+});
+
+function recoveryPlayer() {
+  const row=recoveryPlan.rows[0],xp=Math.floor(row[2]/SKILLS.length);
+  return normalizeUser({username:row[0],createdAt:row[1],skills:Object.fromEntries(SKILLS.map((s,i)=>[s,{xp:xp+(i===0?row[2]-xp*SKILLS.length:0)}]))});
+}
+test("fixed recovery is authenticated, preview-only by default, backed up and idempotent",async()=>{
+  const {object,request}=setup();
+  const original=recoveryPlayer();await publishSnapshot(object.env,[original]);object.store.commit();
+  const route='/api/admin/progress/recover-2026-10-28';
+  assert.equal((await request(route,{},'wrong')).status,401);
+  assert.equal((await request(route,{dryRun:'false'})).status,400);
+  assert.equal((await request(route,{dryRun:false})).status,400);
+  const before=await object.store.get('snapshot:current');
+  const preview=await(await request(route,{})).json();
+  assert.equal(preview.dryRun,true);assert.equal(preview.players,1);
+  assert.equal(await object.store.get(RECOVERY_KEY),null);
+  assert.equal(await object.store.get('snapshot:current'),before);
+  const applied=await(await request(route,{dryRun:false,planId:RECOVERY_ID})).json();
+  assert.equal(applied.players,1);assert.ok(applied.xp>0||applied.kills>0);
+  const backup=JSON.parse(await object.store.get(`backup:progress-recovery:${RECOVERY_ID}:players:0`));
+  assert.equal(backup[0].totalXP,original.totalXP);
+  const after=await object.store.get('snapshot:current');
+  const repeat=await(await request(route,{dryRun:false,planId:RECOVERY_ID})).json();
+  assert.equal(repeat.alreadyApplied,true);assert.equal(repeat.xp,applied.xp);
+  assert.equal(await object.store.get('snapshot:current'),after);
+  assert.equal(await object.store.get('system:exchange'),null);
+  assert.equal(await object.store.get('system:update-slot'),null);
+});
+test("recovery and backups roll back together when SQLite commit fails",async t=>{
+  t.mock.method(console,'error',()=>{});
+  const {object,request,storage}=setup();await publishSnapshot(object.env,[recoveryPlayer()]);object.store.commit();
+  const before=await object.store.get('snapshot:current'),exec=storage.sql.exec;
+  storage.sql.exec=(sql,...args)=>{if(sql.startsWith('INSERT')&&args[0]===RECOVERY_KEY)throw new Error('Injected recovery failure');return exec(sql,...args);};
+  const response=await request('/api/admin/progress/recover-2026-10-28',{dryRun:false,planId:RECOVERY_ID});
+  assert.equal(response.status,503);storage.sql.exec=exec;
+  assert.equal(await object.store.get('snapshot:current'),before);
+  assert.equal(await object.store.get(RECOVERY_KEY),null);
+  assert.equal(await object.store.get(`backup:progress-recovery:${RECOVERY_ID}:players:0`),null);
+  const retry=await request('/api/admin/progress/recover-2026-10-28',{dryRun:false,planId:RECOVERY_ID});
+  assert.equal(retry.status,200);
 });

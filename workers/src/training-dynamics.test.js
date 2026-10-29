@@ -94,14 +94,15 @@ test("fully capped accounts can continue economic activity without selecting an 
   assert.equal(user.trainingState?.focusSkill, undefined);
 });
 
-test("rising simulated material prices attract more gathering choices", () => {
+test("prices have a modest influence on skill preferences", () => {
   const user = player();
   const counts = [0.5, 10].map(ratio => {
     const rng = seeded(13);
     let mining = 0;
     for (let i = 0; i < 5000; i++)
-      if (chooseTrainingSkill(user, rng, { market: { prices: { 444: 100 * ratio }, history: { 444: [100, 100, 100] } } }) === "mining") mining++;
+      if (chooseTrainingSkill(user, rng, { market: { prices: { 440: 100 * ratio }, history: { 440: [100, 100, 100] } } }) === "mining") mining++;
     return mining;
   });
-  assert.ok(counts[1] > counts[0] * 2);
+  assert.ok(counts[1] > counts[0]);
+  assert.ok(counts[1] < counts[0] * 1.3);
 });

@@ -44,13 +44,14 @@ export function clearExchange(users, date, previous = {}, { hours = 0.25 } = {})
       if (!quantity) continue;
       books[id].sells.push({ user, quantity }); books[id].supply += quantity;
     }
-    let budget = Math.floor(e.cash * 0.3 * fraction);
+    const budget = Math.floor(e.cash * 0.3 * fraction);
+    const requestedCost = Object.entries(needs).reduce((sum, [id, n]) => sum + (books[id] && n > 0 ? n * market.prices[id] : 0), 0);
+    const funding = Math.min(1, budget / Math.max(1, requestedCost));
     for (const [id, requested] of Object.entries(needs)) {
       if (!books[id] || !(requested > 0)) continue;
-      const quantity = Math.min(Math.floor(requested), Math.floor(budget / market.prices[id]));
+      const quantity = Math.min(Math.floor(requested), Math.floor(requested * funding));
       if (!quantity) continue;
       books[id].buys.push({ user, quantity }); books[id].demand += quantity;
-      budget -= quantity * market.prices[id];
     }
   }
   let turnover = 0, tax = 0, fills = 0;

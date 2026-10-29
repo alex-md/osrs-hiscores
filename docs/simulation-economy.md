@@ -37,11 +37,16 @@ Four-dose potion batches preserve the four-herbs-to-three-bottles dose ratio;
 leftover/recovered empty vials can be filled again without awarding XP.
 
 Only completed, inventory-backed actions receive recipe XP. Missing inputs post
-funded demand to the next exchange; they do not grant a discounted free XP rate.
+funded demand to the next exchange and may use the supply service described below;
+they do not grant a discounted free XP rate.
 Methods unlock through the existing OSRS XP/level thresholds. Their selection
-balances XP/hour, current input/output prices, available wealth and skill gates.
-Relative profitability also changes skill-choice weights. Persistent training
-goals retain the existing multi-session behavior rather than switching every tick.
+prioritizes XP/hour, owned inputs, spendable cash and skill gates. Profitability
+adjusts method scores by at most 15% and skill-choice weights by at most 10%.
+Unrelated illiquid items do not make a recipe affordable. Persistent training
+goals retain the existing multi-session behavior. If no actions are affordable,
+the player spends the session earning cash through pickpocketing and releases the
+blocked goal for reconsideration. If Thieving is XP-capped, another available
+uncapped activity is chosen. No recipe XP is awarded for that abandoned plan.
 Non-recipe physical activities retain the existing calibrated XP-rate path.
 Trading awards no XP.
 
@@ -79,9 +84,43 @@ retain authored common reward bundles and rare reward weights. New tables includ
 selected drops, not every reward. Kill rates, readiness gates, supply usage,
 equipment power and some farming/seed yields are estimates. Quests, Slayer-task
 assignment, teams, exact combat accuracy, travel, crop timers and ironman trade
-restrictions are not reproduced. Some catalog materials currently have no renewable
-producer or consumer; they can remain scarce or illiquid. No NPC liquidity or
-invented completed sales are added to hide this limitation.
+restrictions are not reproduced. The catalog does not model every renewable
+producer or consumer. A separate authored supply service prevents that incomplete
+coverage from stopping progression; it is not a claim about actual OSRS NPC shops.
+Equipment and unique rewards still require player-owned supply.
+
+## Supply service and cash recovery
+
+The player GE remains the first opportunity to stock the next session. Sessions
+reserve inputs for two batches; overlapping boss and training reserves merge by
+maximum quantity. Cash-limited GE orders fund all requested ingredients in
+proportion to their total cost, so the first item cannot consume the entire order
+budget while another essential ingredient receives nothing.
+
+When a session still lacks consumables, a supply service sells only the missing
+whole-item recipe or boss-supply bundles, using at most 25% of current cash. Its
+unit quote is the larger of 110% of the current GE price or 125% of the opening
+catalog price, rounded up. Buying complete bundles prevents stranding cash in an
+unusable half-recipe. Owned supplies are consumed first, and the GE can replenish
+reserves for less than the service price.
+
+Cash-poor players can liquidate renewable surplus to this service to fund the
+planned session. The service pays 60% of the lower of the opening/current price,
+rounded down (minimum 1 GP). Purchases are limited to the session's missing-supply
+cost. It retains input reserves, excludes that recipe's inputs, and never buys
+equipment or rare-only rewards. The bid/ask spread and opening-price floor prevent
+resale or high-alchemy loops from creating free GP. Players with no usable assets
+fall back to earning cash; there is no cash grant, debt or inventory reset.
+
+These are explicit simulated external sources/sinks: bought supplies enter
+`flows.created`, liquidated items enter `flows.consumed`, payments leave through
+`coinSinks`, and liquidation receipts enter `coinFaucets`. `economy.restock` and
+`economy.liquidation` retain bounded cumulative item/cash totals. Portfolio loss
+from premiums/discounts is spending; transferred item value is not counted as new
+earnings. Session details include these costs and reconcile `net` with bank value.
+The service does not create GE fills, volume, counterparties or price observations.
+A partially supplied boss trip consumes only the corresponding fraction of time;
+the remaining session is available for training.
 
 ## Grand Exchange and 24-hour records
 
@@ -94,8 +133,9 @@ Each update builds inventory-backed sell orders and cash-funded material/upgrade
 buy orders. Input reserves and equipped gear are retained; surplus can be offered.
 Offers rotate player priority, cannot self-match, and expire at the next clearing.
 The exchange transfers whole items and exact coins, with a rounded-down authored
-2% seller fee. Cash checks prevent overspending across multiple orders. There is
+2% seller fee. Cash checks prevent overspending across multiple orders. The GE has
 no external market maker, short selling, borrowing or persistent limit-order book.
+The separate supply service never matches these orders.
 
 Backed supply/demand imbalance proposes a small quote change with a 1M GP minimum
 notional depth, 2% exponential movement bound and integer rounding. The quote
@@ -165,3 +205,13 @@ storage/database limits remain the acceptance gate. Profiles still use 125-playe
 shards; historical publication keeps the existing idempotent outbox. All added
 histories, order state and accounting maps have catalog/population bounds, rather
 than storing one database row per kill, resource action or trade.
+
+## Recovery replay
+
+`node scripts/simulation-health.mjs /tmp/snapshot.json 672` replays seven simulated
+days offline with a fixed seed. Supply a JSON document containing `users` from the
+public batch endpoint and `exchange` from the public exchange endpoint. The script
+reconstructs saved quotes from public item prices. It checks integer, nonnegative
+cash/items and reports per-skill XP, active-session stalls, boss kills, actual GE
+fills and daily totals. This never mutates the live world. Regression tests also
+exercise a supply-starved mixed population over three days.
