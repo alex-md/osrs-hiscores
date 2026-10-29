@@ -5,6 +5,7 @@ import { allocateDeficit } from './recovery-math.js';
 import { applyRecoveryToUsers } from './progress-recovery.js';
 import { normalizeUser } from './store.js';
 import { SKILLS } from './constants.js';
+import { progressUser } from './simulation.js';
 import { BOSSES } from '../../frontend/lib/activities.js';
 export function recoveryFixture(row=plan.rows[0]) {
   const xp=Math.floor(row[2]/SKILLS.length);
@@ -62,4 +63,14 @@ test('recovery skips replaced/missing accounts and clamps gains at XP caps',()=>
   const result=applyRecoveryToUsers([capped]);
   assert.equal(result.summary.xp,0);assert.equal(result.summary.levels,0);
   assert.ok(result.users[0].totalXP<=4800000000);
+});
+
+test('ordinary progression retains the recovery audit counters and one-time marker',t=>{
+  t.mock.method(Math,'random',()=>.999);
+  const recovered=applyRecoveryToUsers([recoveryFixture()],Date.parse('2026-10-29T06:56:00Z')).users[0];
+  const audit=structuredClone(recovered.recoveries),xp=recovered.progress.recoveredXP;
+  progressUser(recovered,new Date('2026-10-29T07:00:00Z'),{rng:()=>.5});
+  assert.equal(recovered.progress.recoveredXP,xp);
+  assert.deepEqual(recovered.recoveries,audit);
+  assert.ok(recovered.progress.earnedXP>=xp);
 });

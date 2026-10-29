@@ -56,7 +56,7 @@ bundle funding/reserves, and a supply-starved mixed population over three days.
 Existing tests were updated where they specifically required prices to overpower
 training or required cash-rich players to remain supply-starved.
 
-Validation passed: 123 Worker/project tests plus 5 release tests, JavaScript checks,
+Validation passed: 124 Worker/project tests plus 5 release tests, JavaScript checks,
 the 5,000-player real-runtime capacity harness, and the Wrangler deployment dry run.
 The capacity harness projected 27,552 scheduled writes/day and 4,122,944 reads at
 the request limit, below its existing acceptance gates. No frontend changes or
@@ -107,3 +107,9 @@ application time and individual XP/KC. Existing session counts, last-session and
 best-session records are preserved. Progress history records the correction when
 it is applied; earlier daily history is not rewritten to imply those sessions
 were observed. D1 publication uses the existing retryable post-commit outbox.
+
+The recovery was applied on production at `2026-10-29T06:56:03.043Z` with the exact
+preview totals above and nine durable backup shards. Every profile was checked
+against its expected XP, levels and KC; existing balances, inventories and market
+records were unchanged. A repeated apply returned the saved result without a
+second grant, and the D1 progress projection included the correction.

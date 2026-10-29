@@ -116,6 +116,7 @@ export function progressUser(
     const previous = user.progress || {};
     const day = date.toISOString().slice(0, 10);
     user.progress = {
+      ...previous,
       sessions: (previous.sessions || 0) + 1,
       earnedXP: (previous.earnedXP || 0) + gainedXP,
       day,
