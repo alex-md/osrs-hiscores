@@ -1,3 +1,4 @@
+import { worldDiagnostics } from './diagnostics.js';
 import { recoverProgress, RECOVERY_ID } from "./progress-recovery.js";
 import { historyResponse } from "./history.js";
 import { BOSS_BY_KEY } from "../../frontend/lib/activities.js";
@@ -85,6 +86,7 @@ async function route(request, env) {
         storage: env.WORLD_STORE ? "durable-object-sqlite" : "unconfigured",
         revision: env.RELEASE_SHA || "local",
         time: Date.now(),
+        diagnostics: await worldDiagnostics(env),
       },
       env.WORLD_STORE ? 200 : 503,
     );
@@ -198,6 +200,7 @@ async function route(request, env) {
       adminConfigured: Boolean(env.ADMIN_TOKEN),
       assetsConfigured: Boolean(env.ASSETS),
       lastRun: await readJSON(env, "system:last-run"),
+      diagnostics: await worldDiagnostics(env),
     });
   if (path === "/api/generate/users/dry-run") {
     const count = integer(url.searchParams.get("count"), 5, 1, 50, "count");
@@ -283,9 +286,12 @@ async function route(request, env) {
     "/api/achievements/catalog",
     "/api/banners/rare",
     "/api/world",
+    "/api/stories",
   ];
   if (!known.includes(path)) throw new HttpError(404, "Unknown API route.");
   const snapshot = await getSnapshot(env);
+  if (path === "/api/stories") return cached({ ...snapshotInfo(snapshot),
+    stories: snapshot.stories || [], races: snapshot.races || [], contenders: snapshot.contenders || [] });
   if (path === "/api/world")
     return cached({
       ...snapshotInfo(snapshot),

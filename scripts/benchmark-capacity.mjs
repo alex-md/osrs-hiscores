@@ -29,6 +29,8 @@ export class BenchWorld extends HiscoresWorld {
    user.economy.cash=0;
    user.economy.holdings=Object.fromEntries(Object.entries(baseline).map(([id,item])=>[id,user.economy.bankValue/Object.keys(baseline).length/item.price]));
    user.economy.revaluation=0;
+   user.economy.notableLoot=Array.from({length:8},(_,n)=>({itemId:20997,quantity:1,boss:'chambers-of-xeric',kc:1000000+i,timestamp:Date.now()-n*900000,value:1427650000}));
+   user.career.raidProgress={'chambers-of-xeric':.9,'theatre-of-blood':.9,'tombs-of-amascut':.9};
    return normalizeUser(user);
   });
   await publishSnapshot(this.env, users); this.store.commit(); await flushHistory(this.env); d1Read=0; d1Written=0;
@@ -45,7 +47,7 @@ export class BenchWorld extends HiscoresWorld {
   ]).flat());
   const historySize=await this.env.HISTORY_DB.prepare('SELECT sum(length(payload)) AS bytes, count(*) AS rows FROM progress_players').first();
   const reads=[];
-  for(const path of ['/api/users/batch?usernames='+Array.from({length:50},(_,i)=>'Bench'+(i*100)).join(','),'/api/activity-rankings?category=bank','/api/activity-rankings?category=vorkath','/api/users/Bench0','/api/progress?days=30']){
+  for(const path of ['/api/users/batch?usernames='+Array.from({length:50},(_,i)=>'Bench'+(i*100)).join(','),'/api/activity-rankings?category=bank','/api/activity-rankings?category=vorkath','/api/users/Bench0','/api/stories','/api/health','/api/progress?days=30']){
    const beforeRead=read, beforeWritten=written, beforeD1Read=d1Read, beforeD1Written=d1Written, startRead=Date.now();
    const response=await this.respond(new Request('https://world'+path));
    if(!response.ok) throw new Error('Read failed: '+path);

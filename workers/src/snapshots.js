@@ -1,3 +1,4 @@
+import { buildStories } from './stories.js';
 import { stageHistory } from "./history.js";
 import { BOSSES } from "../../frontend/lib/activities.js";
 import { MAX_PLAYERS } from "../../frontend/lib/simulation-config.js";
@@ -158,6 +159,7 @@ export async function publishSnapshot(env, users = null) {
     };
   });
   await stageHistory(env, profiles, generation, now);
+  const chronicle = buildStories(profiles, rankings, events, previousSnapshot, now);
   // Pack skill and activity ladders together: one write per 500 players.
   const shardCount = Math.ceil(users.length / CHUNK_SIZE);
   for (const name of Object.keys(rankings)) chunks[name] = shardCount;
@@ -187,6 +189,10 @@ export async function publishSnapshot(env, users = null) {
   const snapshot = {
     version: 2,
     activitiesVersion: 1,
+    stories: chronicle.stories,
+    storyLeaders: chronicle.leaders,
+    races: chronicle.races,
+    contenders: chronicle.contenders,
     profileChunkSize: PROFILE_CHUNK_SIZE,
     generation,
     generatedAt: now,

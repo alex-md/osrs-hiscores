@@ -1,3 +1,5 @@
+import { archetypePolicy } from './archetypes.js';
+import { SKILLS } from "./constants.js";
 import { BOSSES, MAX_BANK_VALUE } from "../../frontend/lib/activities.js";
 import { combatLevel } from "../../frontend/lib/domain.js";
 import { priceOf, SKILL_ITEMS, BOSS_ITEMS, RARE_ITEMS } from "./market.js";
@@ -46,6 +48,7 @@ export function normalizeCareer(user) {
     thrift: 0.2 + rng() * 0.7, dedication: 0.2 + rng() * 0.8,
     favoriteBoss: BOSSES[Math.floor(rng() * BOSSES.length)].key,
   };
+  defaults.specialty = SKILLS.filter(s=>s !== "hitpoints")[Math.floor(rng() * (SKILLS.length-1))];
   const saved = user.career || {};
   user.career = { ...defaults, ...saved };
   for (const key of ["aptitude", "risk", "thrift", "dedication"])
@@ -130,7 +133,11 @@ function settle(user, income, cost, details, date, market, rewards = {}) {
     e.holdings[id] = (e.holdings[id] || 0) + n;
     e.flows.created[id] = (e.flows.created[id] || 0) + n;
   }
-  const spent = Math.min(integer(cost), e.bankValue + earned);
+  const estimatedCost = integer(cost);
+  const spent = Math.min(estimatedCost, e.bankValue + earned);
+  const unpaid = estimatedCost - spent;
+  e.unpaidCosts = integer((e.unpaidCosts || 0) + unpaid);
+  e.costTrackingFrom ??= date.getTime();
   for (const [id, held] of Object.entries(e.holdings)) {
     if (e.cash >= spent) break;
     const price = priceOf(null, id);
@@ -148,7 +155,7 @@ function settle(user, income, cost, details, date, market, rewards = {}) {
   valueBank(user);
   e.recordedFrom ??= date.getTime();
   e.lastActivityAt = date.getTime();
-  e.lastSession = { ...details, earned, spent, net: earned - spent, timestamp: date.getTime() };
+  e.lastSession = { ...details, earned, spent, estimatedCost, unpaid, net: earned - spent, timestamp: date.getTime() };
 }
 export function bossDropTable(boss) {
   if (boss.drops) return boss.drops;
@@ -159,15 +166,25 @@ export function bossDropTable(boss) {
     ...rareTable.map(([id, weight]) => ({ id, quantity: 1, chance: boss.rareChance * weight / rareTable.reduce((sum, row) => sum + row[1], 0), rare: true }))];
 }
 export function rollBossDrops(boss, kills, rng) {
-  const table = bossDropTable(boss), rewards = {};
+  const table = bossDropTable(boss), rewards = {}, notable = [];
   const grant = (entry, n) => { if (n) rewards[entry.id] = (rewards[entry.id] || 0) + n * entry.quantity; };
   for (const entry of table.filter(d => !d.rare)) grant(entry, entry.chance === 1 ? kills : rareDrops(kills, entry.chance, rng));
   // One rare-table roll per kill prevents multiple raid purples or crystals from
   // a single kill. Geometric waiting gaps avoid a loop for every kill.
   const rares = table.filter(d => d.rare), chance = rares.reduce((sum, d) => sum + d.chance, 0);
   const drops = chance ? rareDrops(kills, chance, rng) : 0;
-  for (let i = 0; i < drops; i++) grant(weighted(rares, entry => entry.chance, rng), 1);
-  return { rewards, drops };
+  for (let i = 0; i < drops; i++) {
+    const entry = weighted(rares, entry => entry.chance, rng);
+    grant(entry, 1);
+    const saved = notable.find(drop => drop.itemId === entry.id);
+    if (saved) saved.quantity += entry.quantity;
+    else notable.push({ itemId: entry.id, quantity: entry.quantity });
+  }
+  // Explicit tables contain selected items. A stated common-reward allowance
+  // covers the missing common table without duplicating its existing expectation.
+  const commonEV = table.filter(d => !d.rare).reduce((sum,d) => sum + d.quantity * d.chance * priceOf(null,d.id), 0);
+  const coins = Math.floor(Math.max(0, (boss.commonLoot || 0) - commonEV) * kills);
+  return { rewards, drops, coins, notable };
 }
 export const activityScale = scale => Math.sqrt(clamp(Number(scale) || 1, 1, 31));
 
@@ -177,17 +194,24 @@ export function progressBossing(user, date, { hours, rng, market, scale = 1 }) {
   if (!(hours > 0)) return { trainingHours: 0, gains, active: false };
   valueBank(user, market);
   const eligible = eligibleBosses(user);
-  const inclination = ({ PVMER: 0.72, HARDCORE: 0.42, ELITE_GRINDER: 0.45, IRON_SOUL: 0.45, SKILLER: 0.015, IDLER: 0.04, SOCIALITE: 0.06 })[user.archetype] ?? 0.16;
+  const policy = archetypePolicy(user.archetype);
+  const inclination = policy.bossChance ?? ({ PVMER: 0.72, HARDCORE: 0.42, ELITE_GRINDER: 0.45, IRON_SOUL: 0.45, SKILLER: 0.015, IDLER: 0.04, SOCIALITE: 0.06 })[user.archetype] ?? 0.16;
   // A shared daily appetite plus persistent personal taste: streaks and goals,
   // rather than independently choosing every boss on every tick.
   const daily = seeded(`${date.toISOString().slice(0,10)}:${user.career.favoriteBoss}`);
   const appetite = 0.75 + daily() * 0.5;
   if (!eligible.length || rng() >= inclination * appetite) return { trainingHours: hours, gains, active: false };
-  const boss = weighted(eligible, boss => {
+  // Finish an underway raid when returning to bossing; progress survives days off.
+  const pendingRaid = eligible.find(b => b.raid && user.career.raidProgress?.[b.key] > 0);
+  const boss = pendingRaid || weighted(eligible, boss => {
     const familiarity = Math.log1p(user.bosses[boss.key]) / 10;
     const preference = boss.key === user.career.favoriteBoss ? 3 + 4 * user.career.dedication : 1;
     const challenge = 1 + user.career.risk * (boss.combat - 45) / 45;
-    return preference * challenge * (1 + familiarity);
+    const raidPreference = boss.raid ? policy.raidWeight || 1 : 1;
+    const slayerPreference = boss.slayer ? policy.slayerWeight || 1 : 1;
+    const exploration = (policy.collection || policy.completion) ? 1 + 5 / Math.sqrt(1 + user.bosses[boss.key]) : 1;
+    const collection = policy.collection ? 1 + bossDropTable(boss).filter(d=>d.rare && !(user.economy.flows?.created?.[d.id]>0)).length * 1.5 : 1;
+    return preference * challenge * (1 + familiarity) * raidPreference * slayerPreference * exploration * collection;
   }, rng);
   // Bossing consumes this session's time; it does not run alongside a full XP session.
   const bossHours = hours * (0.6 + rng() * 0.4);
@@ -197,22 +221,33 @@ export function progressBossing(user, date, { hours, rng, market, scale = 1 }) {
   const experience = 0.65 + 0.35 * (1 - Math.exp(-user.bosses[boss.key] / 300));
   const level = 0.65 + 0.35 * clamp((combatLevel(user.skills) - boss.combat) / 25, 0, 1);
   const efficiency = user.career.aptitude * gear * experience * level * clamp(lognormal(rng, 0.18), 0.5, 1.5);
-  const planned = Math.min(1000, poisson(boss.killsPerHour * effectiveHours * efficiency, rng));
-  const kills = planned;
-  if (!kills) return { trainingHours: hours, gains, active: false };
-  const deaths = Math.min(10, poisson(effectiveHours * kills / planned * (0.08 + user.career.risk * 0.18) * (1.2 - experience), rng));
-  const { rewards, drops } = rollBossDrops(boss, kills, rng);
-  const cost = kills * boss.cost * (1.2 - user.career.thrift * 0.35)
+  const work = Math.min(1000, boss.killsPerHour * effectiveHours * efficiency);
+  let kills;
+  if (boss.raid) {
+    user.career.raidProgress ||= {};
+    const progress = (user.career.raidProgress[boss.key] || 0) + work;
+    kills = Math.floor(progress);
+    user.career.raidProgress[boss.key] = progress - kills;
+  } else kills = Math.min(1000, poisson(work, rng));
+  const deaths = Math.min(10, poisson(effectiveHours * (0.08 + user.career.risk * 0.18) * (1.2 - experience), rng));
+  const { rewards, drops, coins, notable } = rollBossDrops(boss, kills, rng);
+  const cost = (boss.raid ? work : Math.max(kills, work * .25)) * boss.cost * (1.2 - user.career.thrift * 0.35)
     + deaths * Math.min(500000, Math.floor(user.economy.bankValue * 0.005));
-  user.bosses[boss.key] = integer(user.bosses[boss.key] + kills);
+  const oldKC = user.bosses[boss.key];
+  user.bosses[boss.key] = integer(oldKC + kills);
+  const milestone = [100,500,1000,5000,10000,50000,100000].filter(n => oldKC < n && user.bosses[boss.key] >= n).at(-1);
+  if (milestone) user.career.lastBossMilestone = { boss:boss.key, value:milestone, timestamp:date.getTime() };
   user.economy.rareDrops = integer(user.economy.rareDrops + drops);
   user.economy.deaths = integer(user.economy.deaths + deaths);
   const combatSkill = ["attack", "strength", "defence", "ranged", "magic"][Math.min(4, Math.floor(rng() * 5))];
   gains[combatSkill] = kills * boss.hp * 4 / pace;
   gains.hitpoints = kills * boss.hp * 4 / (3 * pace);
   if (boss.slayer) gains.slayer = kills * boss.hp / pace;
-  settle(user, 0, cost, { activity: "bossing", boss: boss.key, kills, rareDrops: drops, deaths, hours: bossHours, activityScale: pace }, date, market, rewards);
-  return { trainingHours: hours - bossHours, gains, active: true };
+  settle(user, coins, cost, { activity: "bossing", boss: boss.key, kills, rareDrops: drops, deaths, hours: bossHours, activityScale: pace, raidProgress: user.career.raidProgress?.[boss.key] ?? null }, date, market, rewards);
+  const loot = notable.map(drop => ({ ...drop, boss: boss.key, kc: user.bosses[boss.key],
+    timestamp: date.getTime(), value: drop.quantity * priceOf(null, drop.itemId) }));
+  user.economy.notableLoot = [...loot, ...(user.economy.notableLoot || [])].slice(0, 8);
+  return { trainingHours: hours - bossHours, gains, active: true, boss: boss.key };
 }
 const SKILL_INCOME = { fishing: 150000, mining: 180000, woodcutting: 90000, thieving: 300000, hunter: 220000, runecraft: 280000, farming: 180000, slayer: 160000, sailing: 160000, agility: 30000 };
 const SKILL_COST = { construction: 1200000, herblore: 700000, prayer: 900000, crafting: 300000, smithing: 180000, fletching: 100000, firemaking: 60000, cooking: 30000, magic: 100000, sailing: 60000 };
@@ -229,6 +264,31 @@ export function progressSkillingEconomy(user, date, { skill, hours, rng = Math.r
   settle(user, item ? 0 : earned, spent, { activity: "skilling", skill, hours }, date, market, item ? { [item]: Math.floor(earned / priceOf(null, item)) } : {});
   if (previous) {
     const current = user.economy.lastSession;
-    user.economy.lastSession = { ...previous, trainingSkill: skill, trainingHours: hours, earned: previous.earned + current.earned, spent: previous.spent + current.spent, net: previous.net + current.net };
+    user.economy.lastSession = { ...previous, trainingSkill: skill, trainingHours: hours, earned: previous.earned + current.earned, spent: previous.spent + current.spent, net: previous.net + current.net, estimatedCost: previous.estimatedCost + current.estimatedCost, unpaid: previous.unpaid + current.unpaid };
   }
+}
+
+// Authored treasure-trail model: four steps per casket, ordinary coin rewards
+// and a rare item roll. These are simulation estimates, not real clue odds.
+export function progressClues(user, date, { hours, scale=1, rng=Math.random }) {
+  const chance = archetypePolicy(user.archetype).clueChance || .008;
+  if (!(hours>0) || rng()>=chance) return {active:false,trainingHours:hours,gains:{}};
+  const used = hours*(.45+rng()*.4);
+  const trail = user.career.clues ||= { steps:0, completed:0 };
+  trail.steps += used*activityScale(scale)*8;
+  const completed = Math.floor(trail.steps/4);
+  trail.steps -= completed*4;
+  trail.completed = integer(trail.completed+completed);
+  const drops = rareDrops(completed,1/200,rng);
+  const rewards = drops ? {2577:drops} : {};
+  const income = Math.floor(completed*(20000+rng()*100000));
+  valueBank(user);
+  settle(user,income,used*activityScale(scale)*12000,{activity:'clues',clues:completed,hours:used},date,null,rewards);
+  if(drops) {
+    const loot={itemId:2577,quantity:drops,boss:'treasure-trails',kc:trail.completed,countUnit:'caskets',timestamp:+date,value:drops*priceOf(null,2577)};
+    user.economy.notableLoot=[loot,...(user.economy.notableLoot||[])].slice(0,8);
+    user.economy.rareDrops=integer(user.economy.rareDrops+drops);
+  }
+  if(completed) user.career.lastTrail={completed:trail.completed,timestamp:+date};
+  return {active:true,trainingHours:hours-used,gains:{agility:used*2500,thieving:used*2500}};
 }

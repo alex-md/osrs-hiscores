@@ -1,5 +1,7 @@
+import { adoptExpandedCareer, careerPhase } from './archetypes.js';
+import { isRestDay } from './engagement.js';
 import { arrivals, cleanupPopulation, populationPolicy } from "./population.js";
-import { activityScale, normalizeCareer, progressBossing, progressSkillingEconomy, valueBank } from "./economy.js";
+import { activityScale, normalizeCareer, progressBossing, progressClues, progressSkillingEconomy, valueBank } from "./economy.js";
 import { advanceTrainingClimate, personalTraining } from "./training-dynamics.js";
 import { windowXpScale } from "./xp-schedule.js";
 import { MAX_PLAYERS } from "../../frontend/lib/simulation-config.js";
@@ -42,7 +44,7 @@ export function newUser(username) {
   skills.hitpoints = { xp: xpForLevel(hp), level: hp };
   const xpGainTier = determineXpGainTierFromTotal(totalXP(skills));
   const now = Date.now();
-  return normalizeUser({
+  const user = normalizeUser({
     username,
     skills,
     archetype,
@@ -54,6 +56,8 @@ export function newUser(username) {
     achievements: {},
     version: 5,
   });
+  user.career.identityVersion = 2;
+  return user;
 }
 export function progressUser(
   user,
@@ -61,16 +65,23 @@ export function progressUser(
   { hours = TICK_HOURS, rng = Math.random, climate } = {},
 ) {
   normalizeCareer(user);
+  adoptExpandedCareer(user, date);
   user.xpGainTier = determineXpGainTierFromTotal(user.totalXP);
   user.archetype ||= "CASUAL";
   user.multipliers ||= buildSkillMultipliers(user.archetype, user.xpGainTier);
-  user.activity = chooseActivityForUser(user.archetype, user.xpGainTier);
+  user.restDay = isRestDay(user, date);
+  user.activity = user.restDay ? "INACTIVE" : chooseActivityForUser(user.archetype, user.xpGainTier, user.career.dedication);
+  // Retire the obsolete pre-climate goal representation.
+  delete user.goal;
+  const phase = careerPhase(user, date);
+  if (!user.restDay && phase === "surge" && Math.random() < .75) user.activity = "GRINDING";
   const [min, max] = SESSION_FRACTIONS[user.activity];
   const duration =
-    Math.max(0, Math.min(TICK_HOURS, hours)) * (min + rng() * (max - min));
+    Math.max(0, Math.min(TICK_HOURS, hours)) * (min + rng() * (max - min)) * (phase === "quiet" ? .35 : 1);
   const scale = Math.max(6, Math.min(31, windowXpScale(date, hours) * (climate?.factor || 1)));
   const personal = personalTraining(user, { hours: Math.max(0, Math.min(TICK_HOURS, hours)), activeHours: duration, rng, climate });
-  const bossing = progressBossing(user, date, { hours: duration, rng, scale });
+  const clues = progressClues(user,date,{hours:duration,rng,scale});
+  const bossing = clues.active ? {active:false,trainingHours:clues.trainingHours,gains:{}} : progressBossing(user, date, { hours: duration, rng, scale });
   const gains = {};
   const add = (skill, xp) => {
     const before = user.skills[skill].xp;
@@ -78,10 +89,11 @@ export function progressUser(
     user.skills[skill].level = levelFromXp(user.skills[skill].xp);
     gains[skill] = (gains[skill] || 0) + user.skills[skill].xp - before;
   };
+  for (const [skill, xp] of Object.entries(clues.gains)) add(skill, xp * scale * personal.multiplier);
   for (const [skill, xp] of Object.entries(bossing.gains)) add(skill, xp * scale * personal.multiplier);
   const skill = personal.skill;
   if (bossing.trainingHours > 0 && skill) {
-    progressSkillingEconomy(user, date, { skill, hours: bossing.trainingHours * activityScale(scale), rng, append: bossing.active });
+    progressSkillingEconomy(user, date, { skill, hours: bossing.trainingHours * activityScale(scale), rng, append: bossing.active || clues.active });
     const stat = user.skills[skill];
     const skillScale = climate?.focusSkill === skill ? climate.skillFactor : 1;
     const gain = expectedRate(skill, stat.xp, stat.level) * bossing.trainingHours * scale * personal.multiplier * skillScale;
@@ -108,7 +120,8 @@ export function progressUser(
       dayXP: (previous.day === day ? previous.dayXP || 0 : 0) + gainedXP,
       bestSessionXP: Math.max(previous.bestSessionXP || 0, gainedXP),
       lastSession: {
-        skill: bossing.active ? "bossing" : skill,
+        skill: clues.active ? "treasure-trails" : bossing.active ? "bossing" : skill,
+        boss: bossing.boss || null,
         trainingSkill: skill,
         hours: duration,
         trainingHours: bossing.trainingHours,
@@ -131,6 +144,7 @@ export function progressUser(
   return user;
 }
 export async function runScheduled(env) {
+  const startedAt = Date.now();
   await reserveUpdate(env);
   let users = await allUsers(env);
   const existing = new Set(users.map((u) => u.username.toLowerCase()));
@@ -179,6 +193,9 @@ export async function runScheduled(env) {
     generatedAt: snapshot.generatedAt,
     simulatedHours: hours,
     changedPlayers: changed.length,
+    durationMs: Date.now() - startedAt,
+    activePlayers: users.filter(u => u.updatedAt === date.getTime()).length,
+    restingPlayers: users.filter(u => u.restDay).length,
     pricing: { status: "fixed", capturedAt: null },
   };
   await writeJSON(env, "system:last-run", result);

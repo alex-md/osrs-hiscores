@@ -13,6 +13,8 @@ export function simulateHealth(snapshot, ticks = 96, seed = 12345) {
   const rng = () => ((state = (Math.imul(state, 1664525) + 1013904223) >>> 0) / 2 ** 32);
   const originalRandom = Math.random;
   const initial = users.map(u => u.totalXP);
+  const initialKC = users.map(u => Object.values(u.bosses).reduce((a,b)=>a+b,0));
+  const initialClues = users.map(u => u.career.clues?.completed || 0);
   const gains = Object.fromEntries(SKILLS.map(s => [s, 0]));
   let active = 0, stalled = 0, kills = 0, climate;
   const days = [];
@@ -37,12 +39,19 @@ export function simulateHealth(snapshot, ticks = 96, seed = 12345) {
       if ((tick + 1) % 96 === 0 || tick === ticks - 1) {
         const xp = Object.values(gains).reduce((a,b)=>a+b,0);
         days.push({ day: days.length + 1, xp: xp - prior.xp, kills: kills - prior.kills,
+          restingPlayers: users.filter(u=>u.restDay).length,
           stalledPercent: +(100 * (stalled - prior.stalled) / Math.max(1, active - prior.active)).toFixed(2) });
         prior = { xp, kills, active, stalled };
       }
     }
   } finally { Math.random = originalRandom; }
-  return { players: users.length, ticks, active, stalled, stalledPercent: +(100*stalled/Math.max(1,active)).toFixed(2),
+  const cohorts = Object.fromEntries([...new Set(users.map(u=>u.archetype))].map(archetype=>{
+    const group=users.map((u,i)=>({u,i})).filter(({u})=>u.archetype===archetype);
+    return [archetype,{players:group.length, meanXP:Math.round(group.reduce((n,{u,i})=>n+u.totalXP-initial[i],0)/group.length),
+      meanKC:Math.round(group.reduce((n,{u,i})=>n+Object.values(u.bosses).reduce((a,b)=>a+b,0)-initialKC[i],0)/group.length)}];
+  }));
+  return { players: users.length, ticks, cohorts, maxedPlayers:users.filter(u=>u.totalLevel===2376).length,
+    treasureCaskets:users.reduce((n,u,i)=>n+(u.career.clues?.completed || 0)-initialClues[i],0), active, stalled, stalledPercent: +(100*stalled/Math.max(1,active)).toFixed(2),
     playersGaining: users.filter((u,i) => u.totalXP > initial[i]).length, xp: Object.values(gains).reduce((a,b)=>a+b,0), kills, gains, days };
 }
 if (process.argv[1]?.endsWith('/simulation-health.mjs')) console.log(JSON.stringify(simulateHealth(JSON.parse(await readFile(process.argv[2], 'utf8')), Number(process.argv[3] || 96)), null, 2));

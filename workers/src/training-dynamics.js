@@ -1,3 +1,4 @@
+import { archetypePolicy } from './archetypes.js';
 import { SKILLS } from "./constants.js";
 import { chooseTrainingSkill } from "./training.js";
 import { xpForLevel } from "./utils.js";
@@ -34,12 +35,14 @@ export function personalTraining(user, { hours, activeHours, rng, climate }) {
     state.phaseRemaining = 0.75 + rng() * 4.25;
   }
   const focused = user.skills[state.focusSkill];
-  if (state.remaining <= 0 || !focused || focused.xp >= Math.min(200_000_000, state.targetXP)) {
+  const finishCape = user.archetype === "EFFICIENT_MAXER" && focused?.level === 99 && Object.values(user.skills).some(s => s.level < 99);
+  const avoidCombat = user.archetype === "SKILLER" && ["attack", "strength", "defence", "ranged", "magic", "prayer", "slayer"].includes(state.focusSkill);
+  if (finishCape || avoidCombat || state.remaining <= 0 || !focused || focused.xp >= Math.min(200_000_000, state.targetXP)) {
     state.focusSkill = chooseTrainingSkill(user, rng, { climate });
     const stat = user.skills[state.focusSkill];
     state.targetXP = stat ? stat.level < 99 ? xpForLevel(Math.min(99, stat.level + 2 + Math.floor(rng() * 4)))
       : Math.min(200_000_000, stat.xp + 1_000_000 + Math.floor(rng() * 4_000_000)) : 0;
-    state.remaining = 1 + rng() * 7;
+    state.remaining = (1 + rng() * 7) * (archetypePolicy(user.archetype).goalHours || 1);
   }
   const phaseFactor = { recovery: 0.5, grind: 1.6, steady: 1 }[state.phase];
   // Slow personal momentum plus modest session noise: streaks, not a new

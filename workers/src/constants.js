@@ -1,3 +1,4 @@
+import { EXPANDED_ARCHETYPES } from './archetypes.js';
 export { SKILLS } from "../../frontend/lib/domain.js";
 import { SKILLS } from "../../frontend/lib/domain.js";
 
@@ -6,6 +7,7 @@ import { SKILLS } from "../../frontend/lib/domain.js";
 // Interpretation: non-normalized relative weights for RNG sampling.
 // Keeping integers to match typical weighted-choice utilities you may be using.
 export const PLAYER_ARCHETYPES = {
+  ...Object.fromEntries(Object.entries(EXPANDED_ARCHETYPES).map(([key,p])=>[key,{weight:p.weight}])),
   // Light engagement / social
   IDLER: { weight: 8 },
   SOCIALITE: { weight: 6 },
@@ -171,6 +173,7 @@ export const SKILL_POPULARITY = {
 // This keeps creation-time weighting independent from ongoing gain multipliers.
 // Each archetype lists focused skills; weights are applied on top of SKILL_POPULARITY.
 export const INITIAL_DISTRIBUTION_ARCHETYPE_FOCUS = {
+  ...Object.fromEntries(Object.entries(EXPANDED_ARCHETYPES).map(([key,p])=>[key,p.focus])),
   SKILLER: [
     "crafting",
     "fletching",

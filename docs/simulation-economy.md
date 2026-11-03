@@ -1,6 +1,6 @@
 # Simulation and bank accounting
 
-Updated October 29, 2026. The Grand Exchange has been removed, including player
+Updated November 2, 2026. The Grand Exchange has been removed, including player
 orders, price changes, trade fees, the public market page/API and market telemetry.
 The simulation does not read or update `system:exchange`. Old exchange records
 remain inert in storage; no account reset or historical rewrite is performed.
@@ -82,3 +82,29 @@ Existing achievements, recovery audit records and history remain intact.
 The historical October 28 recovery plan remains fixed and idempotent. Its audit
 builder loads both original algorithms from pinned Git revisions, so removing
 the exchange does not silently change that prior compensation calculation.
+
+## Emergent careers and the noticeboard
+
+See [emergent world](emergent-world.md) for personality blending, rest days,
+maxing goals, raid progress, common reward allowances, bounded loot logs,
+world stories, diagnostics and release validation.
+
+Raid work accumulates a fractional completion across sessions. A returning raider
+finishes that encounter before choosing another. Attempts consume their assigned
+time and estimated costs even when no completion occurs; incomplete attempts
+produce no item rewards. Ordinary zero-kill attempts also consume time. Raids
+award completion XP and loot when the completion is recorded. Personality-based
+days off preserve the unfinished raid.
+
+Explicit partial drop tables have an authored common GP allowance covering their
+missing common rewards. The allowance subtracts the expected value of common
+items already in the table, then pays the remainder as coins per recorded kill.
+Rares remain separate item rolls. This is an authored simulation, not a claim
+about live OSRS profitability or exact drop tables. Group Dagannoth hunts and
+solo king hunts are separate sessions; a kill enters only the selected category.
+
+Costs now retain estimated, actually paid and unpaid amounts. Unpaid costs never
+create debt or block progression. The existing asset ceiling remains an explicit
+sink. New notable-loot records identify the session's final KC when the reward
+was recorded, not a fabricated exact per-kill drop timestamp. Existing holdings
+and historical kill counts are unchanged.

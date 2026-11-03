@@ -1,3 +1,4 @@
+import { archetypePolicy } from './archetypes.js';
 import { TICK_HOURS, UPDATE_MINUTES, MAX_PLAYERS } from "../../frontend/lib/simulation-config.js";
 export { TICK_HOURS };
 import calibration from "../data/calibration.js";
@@ -71,7 +72,18 @@ export function chooseTrainingSkill(user, rng = Math.random, { climate } = {}) {
     ([s, v]) => s !== "hitpoints" && v.xp < 200000000,
   );
   const weights = entries.map(([s]) => {
-    return preferenceWeight(s, user) * (climate?.focusSkill === s ? 4 : 1);
+    const level = user.skills[s].level;
+    const policy = archetypePolicy(user.archetype);
+    const maxer = user.archetype === "EFFICIENT_MAXER";
+    const skiller = user.archetype === "SKILLER";
+    const combat = ["attack", "defence", "strength", "ranged", "magic", "prayer", "slayer"].includes(s);
+    // Finish the cape before chasing post-99 records. Specialists keep their grinds.
+    const completion = maxer ? (level < 99 ? 5 + (99 - level) / 8 : .08) : 1;
+    const completionist = policy.completion ? (level < 99 ? policy.completion * (1 + (99-level)/40) : .3) : 1;
+    const specialty = policy.specialty ? (s === user.career?.specialty ? 30 : .12) : 1;
+    const rank = user.ranks?.[s];
+    const crown = policy.crowns && rank ? rank === 1 ? .4 : 1 + 12 / Math.sqrt(rank) : 1;
+    return preferenceWeight(s, user) * completionist * specialty * crown * completion * (skiller && combat ? .04 : 1) * (climate?.focusSkill === s ? 4 : 1);
   });
   let pick = rng() * weights.reduce((a, b) => a + b, 0);
   for (let i = 0; i < entries.length; i++) {

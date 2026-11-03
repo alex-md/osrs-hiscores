@@ -1,11 +1,10 @@
+import { activityWeights } from './engagement.js';
 import {
   PLAYER_ARCHETYPES,
   SKILLS,
   INITIAL_TOTAL_XP_TIERS,
   SKILL_POPULARITY,
   XP_GAIN_TIER_THRESHOLDS,
-  XP_GAIN_TIER_ACTIVITY_WEIGHTS,
-  ARCHETYPE_TO_ACTIVITY_PROBABILITY,
   INITIAL_DISTRIBUTION_ARCHETYPE_FOCUS,
   INITIAL_DISTRIBUTION_ARCHETYPE_GLOBAL,
 } from "./constants.js";
@@ -130,10 +129,10 @@ export function inferMetaTierWithContext(user, ctx) {
   }
 }
 
-export function weightedRandomChoice(choices) {
+export function weightedRandomChoice(choices, rng = Math.random) {
   const totalWeight = Object.values(choices).reduce((sum, w) => sum + w, 0);
   if (totalWeight <= 0) return null;
-  let r = Math.random() * totalWeight;
+  let r = rng() * totalWeight;
   for (const [name, weight] of Object.entries(choices)) {
     if ((r -= weight) <= 0) return name;
   }
@@ -421,7 +420,7 @@ export function assignArchetypeForTotalXP(totalXP2, rng = Math.random) {
     const mult = multSet[name] || 1;
     weights[name] = base * mult;
   }
-  return weightedRandomChoice(weights);
+  return weightedRandomChoice(weights, rng);
 }
 
 // Persistent XP tier logic and per-user multipliers
@@ -488,11 +487,6 @@ export function buildSkillMultipliers(archetype, xpTier) {
 }
 
 // Choose an activity for a user constrained by their persistent XP tier; falls back to archetype probabilities
-export function chooseActivityForUser(archetype, xpTier) {
-  const tierProbs = XP_GAIN_TIER_ACTIVITY_WEIGHTS[xpTier];
-  if (tierProbs) return weightedRandomChoice(tierProbs);
-  return weightedRandomChoice(
-    ARCHETYPE_TO_ACTIVITY_PROBABILITY[archetype] ||
-      ARCHETYPE_TO_ACTIVITY_PROBABILITY.CASUAL,
-  );
+export function chooseActivityForUser(archetype, xpTier, dedication = .5) {
+  return weightedRandomChoice(activityWeights(archetype, xpTier, dedication));
 }

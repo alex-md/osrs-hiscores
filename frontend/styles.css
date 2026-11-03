@@ -628,3 +628,64 @@ dialog { background: var(--paper); border-color: #88744f; }
 .history-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .pagination #history-prev, .pagination #history-next { width: auto; min-width: 62px; padding: 3px 8px; }
 @media (max-width: 400px) { .history-summary { grid-template-columns: 1fr; } }
+
+/* World noticeboard: pinned dispatches and a quiet race-to-max ledger. */
+.category-toggle { display: none; }
+.scroll-cue { font-size: 11px; color: var(--muted); margin: 8px 12px; text-align: right; }
+.scroll-cue[hidden] { display: none; }
+.chart-partial { fill: url(#partial-day); }
+.noticeboard { border-top: 3px double #866c3c; }
+.rivalries { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); }
+.rivalries article { padding: 18px; border-right: 1px solid var(--line); }
+.rivalries article:last-child { border-right: 0; }
+.rivalries h3 { font: bold 16px/1.6 var(--display); }
+.rivalries h3 span { display: block; font: italic 12px var(--display); color: var(--muted); }
+.rivalries p, .story-list p { font-size: 12px; margin: 5px 0; }
+.story-list { list-style: none; margin: 0; padding: 0; }
+.story-list li { position: relative; padding: 16px 20px 16px 30px; border-bottom: 1px solid var(--line); line-height: 1.6; }
+.story-list li::before { content: '◆'; position: absolute; left: 12px; top: 18px; color: #897044; font-size: 8px; }
+.story-list time { display: block; font-size: 11px; color: var(--muted); }
+.story-kind { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+.max-race { list-style: none; padding: 0 20px; }
+.max-race li { display: grid; gap: 8px; padding: 15px 0; border-bottom: 1px solid var(--line); }
+.max-race span { color: var(--muted); font-size: 12px; }
+.max-race progress { width: 100%; height: 9px; accent-color: #7a874a; }
+.bank-view, .loot-log { margin: 16px 0; }
+.ranking-panel > .filter-bar { border-bottom: 1px solid var(--line); }
+@media (max-width: 940px) { .rivalries { grid-template-columns: 1fr; } .rivalries article { border-right: 0; border-bottom: 1px solid var(--line); } }
+@media (max-width: 650px) {
+  .site-header { padding-bottom: 6px; }
+  .header-inner { min-height: 0; padding: 8px 0; }
+  .brand { padding: 7px 10px; border-width: 2px; }
+  .brand strong { font-size: 19px; }
+  .brand small, .brand-home { display: none; }
+  .brand svg { width: 20px; height: 26px; }
+  .navigation-bar { gap: 5px; }
+  .site-header nav { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 4px; scrollbar-width: thin; }
+  .site-header nav a { flex: 0 0 auto; min-height: 36px; padding: 8px; }
+  .workspace { display: flex; flex-direction: column; gap: 8px; }
+  .sidebar { order: 0; width: 100%; padding: 0; border: 0; }
+  .sidebar::after { display: none; }
+  .category-toggle { display: flex; justify-content: space-between; width: 100%; min-height: 38px; }
+  .category-options { display: none; padding: 10px; background: #282e2e; border: 1px solid #696b64; }
+  .categories-open .category-options { display: block; }
+  .category-options .category-banner, .category-options .simulation-note { display: none; }
+  .category-options > .sidebar-link { display: inline-flex; }
+  .category-options .skill-heading { display: block; margin-top: 8px; }
+  .skill-nav { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); overflow: visible; }
+  .skill-nav .sidebar-link { min-height: 36px; white-space: normal; }
+  .tool-rail { order: 3; width: 100%; grid-column: auto; grid-row: auto; padding: 0; }
+  .tool-rail .stone-tool:not(:first-child) { display: none; }
+  .main-content { order: 1; width: 100%; margin: 8px 0; padding: 20px 10px; }
+  .table-scroll { background: linear-gradient(to left,#92754b33,transparent 22px) right / 30px 100% no-repeat; }
+  .history-summary { grid-template-columns: repeat(3,minmax(0,1fr)); }
+}
+@media (max-width: 360px) { .skill-nav { grid-template-columns: repeat(2,minmax(0,1fr)); } .brand strong { font-size: 17px; } }
+
+@media (max-width: 650px) {
+  .tool-rail { order: 1; }
+  .main-content { order: 2; }
+  .tool-rail .stone-tool:first-child { display: flex; padding: 5px; }
+  .tool-rail .stone-tool:first-child h2 { display: none; }
+  #player-search input, #player-search .button { min-height: 34px; }
+}

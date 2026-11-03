@@ -107,6 +107,8 @@ export async function flushHistory(env) {
     for (let i=0;i<count;i++) await env.WORLD_STORE.delete(`history:outbox:${day}:${i}`);
     await env.WORLD_STORE.delete(`history:outbox:${day}:summary`);
     delete pending[day];
+    const publication = await readJSON(env, 'history:publication', {});
+    await writeJSON(env, 'history:publication', { ...publication, lastPublishedAt: summary.generatedAt, lastSuccessAt:Date.now() });
     await writeJSON(env, 'history:pending', pending);
     env.WORLD_STORE.commit();
   }

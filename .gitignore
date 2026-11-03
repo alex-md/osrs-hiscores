@@ -146,4 +146,5 @@ workers/.wrangler/
 !.dev.vars.example
 output/
 .playwright-cli/
+.playwright-mcp/
 .DS_Store

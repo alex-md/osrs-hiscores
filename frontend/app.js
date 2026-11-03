@@ -1,4 +1,5 @@
-import { BOSSES, BOSS_BY_KEY } from "./lib/activities.js?v=economy-3";
+import { bankView } from "./lib/bank-view.js";
+import { BOSSES, BOSS_BY_KEY } from "./lib/activities.js";
 import { SKILLS, title } from "./lib/domain.js";
 import { request, apiBase, saveBase, latestGeneration } from "./lib/api.js";
 
@@ -66,6 +67,7 @@ function route() {
       params,
     };
   }
+  if (path === "stories") return { type: "stories", params };
   if (path === "progress") return { type: "progress", params };
   if (path === "bosses" || path === "wealth")
     return { type: "activity", path, params };
@@ -78,15 +80,15 @@ function layout() {
       <div class="header-ornament" aria-hidden="true">${skillIcon("mining")}${skillIcon("woodcutting")}${skillIcon("fishing")}</div>
       <a class="brand" href="#overall">${crest}<span><small>Simulated RuneScape accounts</small><strong>Old School <span>Hiscores</span></strong><span class="brand-home">Home</span></span></a>
       <div class="header-ornament" aria-hidden="true">${skillIcon("attack")}${skillIcon("magic")}${skillIcon("prayer")}</div>
-    </div><div class="navigation-bar"><nav aria-label="Main navigation"><a data-nav="overall" href="#overall">Hiscores</a><a data-nav="bosses" href="#bosses">Boss kill counts</a><a data-nav="wealth" href="#wealth">Bank value</a><a data-nav="progress" href="#progress">Gains & records</a><a data-nav="achievements" href="#achievements">Achievements</a></nav><button class="icon-button" id="theme" aria-label="Switch color theme" title="Switch color theme">◐</button></div></header>
+    </div><div class="navigation-bar"><nav aria-label="Main navigation"><a data-nav="overall" href="#overall">Hiscores</a><a data-nav="bosses" href="#bosses">Boss kill counts</a><a data-nav="wealth" href="#wealth">Bank value</a><a data-nav="progress" href="#progress">Gains & records</a><a data-nav="stories" href="#stories">World stories</a><a data-nav="achievements" href="#achievements">Achievements</a></nav><button class="icon-button" id="theme" aria-label="Switch color theme" title="Switch color theme">◐</button></div></header>
     <main class="workspace" id="content" tabindex="-1">
-      <aside class="sidebar" aria-label="Hiscores categories"><div class="sidebar-label category-banner">Category</div><a class="sidebar-link" data-skill="overall" href="#overall"><span aria-hidden="true">♜</span> Overall <span class="link-arrow">↗</span></a>
+      <aside class="sidebar" aria-label="Hiscores categories"><button id="category-toggle" class="button category-toggle" aria-expanded="false" aria-controls="category-options">Browse skills & categories <span aria-hidden="true">▾</span></button><div id="category-options" class="category-options"><div class="sidebar-label category-banner">Category</div><a class="sidebar-link" data-skill="overall" href="#overall"><span aria-hidden="true">♜</span> Overall <span class="link-arrow">↗</span></a>
         <a class="sidebar-link" data-activity="bosses" href="#bosses"><span aria-hidden="true">♟</span> Boss kill counts</a><a class="sidebar-link" data-activity="wealth" href="#wealth"><span aria-hidden="true">¤</span> Bank value</a><div class="sidebar-label skill-heading">Skills <span>${SKILLS.length}</span></div><nav class="skill-nav" aria-label="Skill rankings">${SKILLS.map((s) => `<a class="sidebar-link" data-skill="${s}" href="#skills/${s}">${skillIcon(s)}${title(s)}</a>`).join("")}</nav>
         <div class="simulation-note"><span class="status-dot"></span><strong>Simulated accounts</strong><p>Accounts progress every 15 minutes. All players and scores are simulated.</p></div>
-      </aside>
+      </div></aside>
       <aside class="tool-rail" aria-label="Player search and hiscores tools">
         <section class="stone-tool"><h2>Search by name</h2><form id="player-search" role="search"><label class="sr-only" for="search">Find a player</label><input id="search" placeholder="Player name" maxlength="12" autocomplete="off" list="player-names"><datalist id="player-names"></datalist><button class="button" type="submit">Search</button></form></section>
-        <section class="stone-tool"><h2>Explore hiscores</h2><nav aria-label="More hiscores"><a href="#overall">Overall rankings</a><a href="#bosses">Boss kill counts</a><a href="#wealth">Bank value</a><a href="#progress">Gains & records</a><a href="#achievements">Achievement firsts</a></nav></section>
+        <section class="stone-tool"><h2>Explore hiscores</h2><nav aria-label="More hiscores"><a href="#overall">Overall rankings</a><a href="#bosses">Boss kill counts</a><a href="#wealth">Bank value</a><a href="#progress">Gains & records</a><a href="#stories">World stories</a><a href="#achievements">Achievement firsts</a></nav></section>
         <section class="stone-tool world-notice"><h2>World updates</h2><p>Scores update every 15 minutes.</p><span class="notice-rule" aria-hidden="true">◆</span><p class="simulation-disclosure">All accounts and scores are simulated.</p></section>
       </aside>
       <div class="main-content"><div id="view" aria-live="polite"></div></div>
@@ -97,6 +99,17 @@ function layout() {
     event.preventDefault();
     $("#content").focus();
     $("#content").scrollIntoView();
+  });
+  $("#category-toggle").addEventListener("click", event => {
+    const open = event.currentTarget.getAttribute("aria-expanded") !== "true";
+    event.currentTarget.setAttribute("aria-expanded", String(open));
+    $(".sidebar").classList.toggle("categories-open", open);
+  });
+  $(".skill-nav").addEventListener("click", event => {
+    if (event.target.closest("a")) {
+      $(".sidebar").classList.remove("categories-open");
+      $("#category-toggle").setAttribute("aria-expanded", "false");
+    }
   });
   $("#theme").addEventListener("click", () => {
     const value =
@@ -234,6 +247,7 @@ async function rankingView(current, signal, revision) {
       <label>Rows<select name="limit">${[25, 50, 100].map((n) => `<option value="${n}" ${data.limit === n ? "selected" : ""}>${n}</option>`).join("")}</select></label><button class="button primary">Apply</button><button class="button subtle" type="button" id="clear-filters">Reset</button></form>
     </section><div class="below-table"><p>${skill ? "Ranks are ordered by XP. Ties are settled by player name." : "Ranks are ordered by total level, then total XP, then player name."}</p><button id="export" class="text-button">↓ Export this page</button></div>
     </section>`;
+  $(".ranking-panel .panel-heading").after($("#filters"));
   $("#filters").addEventListener("submit", (event) => {
     event.preventDefault();
     updateQuery({
@@ -281,12 +295,13 @@ async function activityView(current, signal, revision) {
   if (revision !== state.revision) return;
   const name = wealth ? "Bank value hiscores" : boss ? `${BOSS_BY_KEY[boss].name} hiscores` : "Boss kill counts";
   $("#view").innerHTML = `<section class="rankings-page">
-    ${pageHeading(wealth ? "The wealth rankings" : "Boss hiscores", escape(name), wealth ? "Estimated bank and equipment value, in GP. All wealth belongs to simulated accounts." : "Recorded kills and raid completions. Combat levels, equipment, experience and luck shape each account’s progress.")}
-    ${stats([["Ranked players", number(data.total)], [wealth ? "Largest bank" : "Leading count", number(data.players[0]?.score || 0), wealth ? "GP" : "kills"], ["Activity pace", xpScale(Math.sqrt(data.training?.scale || 1)), "×"]], "ranking-summary")}
+    ${pageHeading(wealth ? "The wealth rankings" : "Boss hiscores", escape(name), wealth ? "Estimated bank and equipment value, in GP. All wealth belongs to simulated accounts." : "Recorded kills and raid completions. Combat levels, wealth-based readiness, experience and luck shape each account’s progress.")}
+    ${stats([["Ranked players", number(data.total)], [wealth ? "Largest bank" : "Leading count", number(data.players[0]?.score || 0), wealth ? "GP" : boss ? BOSS_BY_KEY[boss].unit : "kills / completions"], ["Activity pace", xpScale(Math.sqrt(data.training?.scale || 1)), "×"]], "ranking-summary")}
     <section class="panel ranking-panel"><div class="panel-heading"><h2>${wealth ? "Bank value" : boss ? escape(BOSS_BY_KEY[boss].name) : "All bosses"}</h2>${markUpdated(data)}</div>
-    <div class="table-scroll" role="region" aria-label="Hiscores table" tabindex="0"><table><thead><tr><th scope="col" class="numeric">Rank</th><th scope="col">Player</th><th scope="col" class="numeric">${wealth ? "Bank value (GP)" : "Kill count"}</th></tr></thead><tbody>${data.players.length ? data.players.map(row => `<tr>${rankCell(row.rank)}<td><a class="player-link" href="${playerLink(row.username)}">${escape(row.username)}</a></td><td class="numeric">${number(row.score)}</td></tr>`).join("") : `<tr><td colspan="3" class="table-empty"><h3>No recorded ${wealth ? "bank values" : "kills"}</h3><p>${current.params.get("q") ? "Try another player name or reset the filters." : "These rankings fill as eligible adventurers play. Existing accounts start with zero recorded kills."}</p></td></tr>`}</tbody></table></div>
+    <div class="table-scroll" role="region" aria-label="Hiscores table" tabindex="0"><table><thead><tr><th scope="col" class="numeric">Rank</th><th scope="col">Player</th><th scope="col" class="numeric">${wealth ? "Bank value (GP)" : boss && BOSS_BY_KEY[boss].raid ? "Completions" : "Kill count"}</th></tr></thead><tbody>${data.players.length ? data.players.map(row => `<tr>${rankCell(row.rank)}<td><a class="player-link" href="${playerLink(row.username)}">${escape(row.username)}</a></td><td class="numeric">${number(row.score)}</td></tr>`).join("") : `<tr><td colspan="3" class="table-empty"><h3>No recorded ${wealth ? "bank values" : "kills"}</h3><p>${current.params.get("q") ? "Try another player name or reset the filters." : "These rankings fill as eligible adventurers play. Existing accounts start with zero recorded kills."}</p></td></tr>`}</tbody></table></div>
     ${pager(data)}<form class="filter-bar" id="activity-filters">${wealth ? "" : `<label>Boss<select name="boss"><option value="">All bosses</option>${BOSSES.map(item => `<option value="${item.key}" ${boss === item.key ? "selected" : ""}>${escape(item.name)}</option>`).join("")}</select></label>`}<label class="search-filter"><span>Filter players</span><input name="q" maxlength="12" placeholder="Player name" value="${escape(current.params.get("q") || "")}"></label><label>Rows<select name="limit">${[25,50,100].map(limit => `<option ${data.limit === limit ? "selected" : ""}>${limit}</option>`).join("")}</select></label><button class="button primary">Apply</button><button class="button" type="button" id="reset-activities">Reset</button></form></section>
-    <p class="coverage-note activity-explanation">${wealth ? "Bank value tracks cash and items at fixed item estimates, plus loot and income, less supplies and training costs." : "Bossing shares session time with training and follows a reduced world multiplier. Stats, gear, experience and rare drops affect results."}</p></section>`;
+    <p class="coverage-note activity-explanation">${wealth ? "Bank value tracks cash and items at fixed item estimates, plus loot and income, less supplies and training costs." : "Bossing shares session time with training and follows a reduced world multiplier. Stats, wealth-based readiness, experience and rare drops affect results. Group hunts and solo Dagannoth hunts are separate sessions; each defeated king counts once. Raids retain unfinished progress between visits."}</p></section>`;
+  $(".ranking-panel .panel-heading").after($("#activity-filters"));
   bindPagination(data);
   $("#activity-filters").addEventListener("submit", event => {
     event.preventDefault();
@@ -301,10 +316,11 @@ function careerSection(user) {
   const kills = BOSSES.reduce((sum, boss) => sum + (user.bosses?.[boss.key] || 0), 0);
   const session = economy.lastSession;
   return `<section class="profile-career"><div class="section-heading"><h2>Bank & boss record</h2><a href="#wealth">Wealth hiscores ↗</a></div>
-    ${stats([["Estimated bank value", number(economy.bankValue), "GP"], ["Bank rank", user.activityRanks?.bank ? `#${number(user.activityRanks.bank)}` : "Unranked"], ["Recorded boss kills", number(kills)], ["Rare drops", number(economy.rareDrops)]], "profile-summary")}
+    ${stats([["Estimated bank value", number(economy.bankValue), "GP"], ["Bank rank", user.activityRanks?.bank ? `#${number(user.activityRanks.bank)}` : "Unranked"], ["Kills & completions", number(kills)], ["Rare drops", number(economy.rareDrops)]], "profile-summary")}
     <details class="bank-accounting"><summary>Bank accounting</summary><p class="profile-updated">Opening bank estimate: ${number(economy.openingEstimate)} GP. Recorded income: ${number(economy.earned)} GP; supplies and training: ${number(economy.spent)} GP. Includes retained items and loot at fixed catalog estimates. Recorded revaluation: ${number(economy.revaluation || 0)} GP. Prices: ${escape(economy.pricing?.status || "fixed")}${economy.pricing?.capturedAt ? ` (${escape(new Date(economy.pricing.capturedAt).toISOString().slice(0, 10))} UTC)` : ""}.</p></details>
-    ${session ? `<p class="profile-updated">Latest activity: ${session.boss ? escape(BOSS_BY_KEY[session.boss]?.name || title(session.boss)) : escape(title(session.skill || "Training"))}${session.boss ? ` · ${number(session.kills)} kills · ${number(session.rareDrops)} rare drops · ${number(session.deaths)} deaths` : ""} · ${session.net >= 0 ? "+" : "−"}${number(Math.abs(session.net))} GP net.</p>` : `<p class="profile-updated">Boss and income history begins with this model; the opening balance is estimated.</p>`}
-    <section class="panel boss-record"><div class="panel-heading"><h2>Boss kill counts</h2><a href="#bosses">All boss hiscores ↗</a></div><div class="table-scroll" role="region" aria-label="Hiscores table" tabindex="0"><table><thead><tr><th scope="col">Boss</th><th scope="col" class="numeric">Kills</th><th scope="col" class="numeric">Rank</th></tr></thead><tbody>${BOSSES.map(boss => `<tr><th scope="row"><a href="#bosses?boss=${boss.key}">${escape(boss.name)}</a></th><td class="numeric">${number(user.bosses?.[boss.key])}</td><td class="numeric">${user.activityRanks?.[boss.key] ? `#${number(user.activityRanks[boss.key])}` : "—"}</td></tr>`).join("")}</tbody></table></div></section></section>`;
+    ${session ? `<p class="profile-updated">Latest activity: ${session.boss ? escape(BOSS_BY_KEY[session.boss]?.name || title(session.boss)) : escape(session.activity === "clues" ? "Treasure trails" : title(session.skill || "Training"))}${session.boss ? ` · ${number(session.kills)} ${BOSS_BY_KEY[session.boss]?.unit || "kills"} · ${number(session.rareDrops)} rare drops · ${number(session.deaths)} deaths` : ""} · ${session.net >= 0 ? "+" : "−"}${number(Math.abs(session.net))} GP net.</p>` : `<p class="profile-updated">Boss and income history begins with this model; the opening balance is estimated.</p>`}
+    ${bankView(user, {number,escape,date})}
+    <section class="panel boss-record"><div class="panel-heading"><h2>Boss kill counts</h2><a href="#bosses">All boss hiscores ↗</a></div><div class="table-scroll" role="region" aria-label="Hiscores table" tabindex="0"><table><thead><tr><th scope="col">Boss</th><th scope="col" class="numeric">Kills / completions</th><th scope="col" class="numeric">Rank</th></tr></thead><tbody>${BOSSES.map(boss => `<tr><th scope="row"><a href="#bosses?boss=${boss.key}">${escape(boss.name)}</a></th><td class="numeric">${number(user.bosses?.[boss.key])}</td><td class="numeric">${user.activityRanks?.[boss.key] ? `#${number(user.activityRanks[boss.key])}` : "—"}</td></tr>`).join("")}</tbody></table></div></section></section>`;
 }
 
 async function loadCatalog(signal) {
@@ -331,7 +347,7 @@ async function playerView(current, signal, revision) {
   const mastered = SKILLS.filter((s) => user.skills[s]?.level === 99).length;
   $("#view").innerHTML =
     `<article class="adventurer-profile"><a class="back-link" href="#overall">← Back to rankings</a>
-    ${pageHeading("Adventurer profile", escape(user.username), `${escape(title(user.archetype || "Casual"))} · Joined ${user.createdAt ? new Date(user.createdAt).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }) : "date unknown"}`, `<div class="profile-emblem">${crest}</div>`)}
+    ${pageHeading("Adventurer profile", escape(user.username), `Joined ${user.createdAt ? new Date(user.createdAt).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }) : "date unknown"}`, `<div class="profile-emblem">${crest}</div>`)}
     ${stats([
       ["Overall rank", user.rank ? `#${number(user.rank)}` : "Unranked"],
       ["Total level", number(user.totalLevel), `/ ${number(SKILLS.length * 99)}`],
@@ -339,6 +355,7 @@ async function playerView(current, signal, revision) {
       ["Combat level", number(user.combatLevel), "/ 126"],
     ], "profile-summary")}
     <div class="profile-notes"><p><a href="#progress?username=${encodeURIComponent(user.username)}">View XP, bossing & rank history ↗</a></p>${user.progress?.lastSession ? `<p class="profile-updated">Latest session: ${escape(title(user.progress.lastSession.skill))} · +${number(user.progress.lastSession.gainedXP)} XP${user.progress.lastSession.xpScale ? ` at ${xpScale(user.progress.lastSession.xpScale)}× world` : ""} · ${number(user.progress.sessions)} sessions recorded · Best session: ${number(user.progress.bestSessionXP)} XP</p>` : ""}
+    <p class="profile-updated">${user.restDay ? 'Taking a day off today (UTC).' : `Current focus: ${escape(title(user.trainingState?.focusSkill || 'Exploring'))}.`} ${user.career?.clues ? `${number(user.career.clues.completed)} treasure caskets completed. ` : ""}${Object.entries(user.career?.raidProgress || {}).filter(([,progress])=>progress>0).map(([key,progress])=>`${escape(BOSS_BY_KEY[key]?.name || key)}: ${(progress*100).toFixed(0)}% toward the next completion.`).join(' ')}</p>
     </div><section class="panel skills-panel"><div class="panel-heading"><h2>Skills & experience</h2><span class="updated">${mastered} of ${SKILLS.length} skills mastered</span></div>
     <div class="skill-book" role="region" aria-label="Skills and experience table" tabindex="0"><table class="profile-skills-table"><colgroup><col class="skill-name-column"><col class="skill-level-column"><col><col class="skill-rank-column"></colgroup><thead><tr><th scope="col">Skill</th><th scope="col" class="numeric">Level</th><th scope="col" class="numeric">XP</th><th scope="col" class="numeric">Rank</th></tr></thead><tbody>${SKILLS.map((s) => {
       const stat = user.skills[s] || { level: 1, xp: 0 };
@@ -455,11 +472,11 @@ async function renderRoute() {
   const revision = ++state.revision;
   const current = route();
   state.route = current;
-  document.title = `${current.type === "player" ? current.username : current.type === "skill" ? `${title(current.skill)} hiscores` : current.type === "progress" ? "Gains & records" : current.type === "achievements" ? "Achievements" : current.type === "activity" ? current.path === "wealth" ? "Bank value hiscores" : "Boss hiscores" : "Rankings"} · OSRS Hiscores`;
+  document.title = `${current.type === "player" ? current.username : current.type === "skill" ? `${title(current.skill)} hiscores` : current.type === "stories" ? "World stories" : current.type === "progress" ? "Gains & records" : current.type === "achievements" ? "Achievements" : current.type === "activity" ? current.path === "wealth" ? "Bank value hiscores" : "Boss hiscores" : "Rankings"} · OSRS Hiscores`;
   document.querySelectorAll("[data-nav]").forEach((a) => {
     const active =
       a.dataset.nav ===
-      (current.type === "progress" ? "progress" : current.type === "achievements" ? "achievements" : current.type === "activity" ? current.path : "overall");
+      (current.type === "stories" ? "stories" : current.type === "progress" ? "progress" : current.type === "achievements" ? "achievements" : current.type === "activity" ? current.path : "overall");
     if (active) a.setAttribute("aria-current", "page");
     else a.removeAttribute("aria-current");
   });
@@ -486,6 +503,10 @@ async function renderRoute() {
       );
     if (current.type === "overall" || current.type === "skill")
       await rankingView(current, state.request.signal, revision);
+    else if (current.type === "stories") {
+      const { storiesView } = await import("./lib/stories-view.js");
+      await storiesView({signal:state.request.signal,isCurrent:()=>revision === state.revision,view:$("#view"),escape,number,date,playerLink,pageHeading});
+    }
     else if (current.type === "progress") {
       const { progressView } = await import("./lib/progress-view.js");
       await progressView({current, signal:state.request.signal, isCurrent:()=>revision === state.revision, view:$("#view"), escape, number, date, playerLink, pageHeading, stats});
@@ -507,6 +528,18 @@ async function renderRoute() {
         : error,
     );
   }
+}
+function updateScrollCues() {
+  document.querySelectorAll('.table-scroll, .skill-book').forEach(table => {
+    const overflow = table.scrollWidth > table.clientWidth + 1;
+    let cue = table.previousElementSibling;
+    if (!cue?.classList.contains('scroll-cue')) {
+      cue = document.createElement('p'); cue.className = 'scroll-cue';
+      cue.textContent = 'Scroll table sideways to see all columns →';
+      table.before(cue);
+    }
+    if (cue.hidden !== !overflow) cue.hidden = !overflow;
+  });
 }
 let displayedGeneration = null;
 let checkingWorld = false;
@@ -535,5 +568,7 @@ document.addEventListener("visibilitychange", () => {
   if (!document.hidden) checkWorld();
 });
 layout();
+new ResizeObserver(updateScrollCues).observe(document.querySelector('.main-content'));
+new MutationObserver(() => requestAnimationFrame(updateScrollCues)).observe(document.querySelector('#view'), {childList:true,subtree:true});
 window.addEventListener("hashchange", renderRoute);
 renderRoute();
