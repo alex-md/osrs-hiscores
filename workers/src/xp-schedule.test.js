@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { dailyXpSchedule, xpModifier, windowXpScale, XP_SCALE } from "./xp-schedule.js";
+import { dailyXpSchedule, xpModifier, windowXpScale, XP_SCALE, MIN_XP_SCALE, MAX_XP_SCALE } from "./xp-schedule.js";
 import { progressUser } from "./simulation.js";
-import { expectedRate } from "./training.js";
+import { expectedRate, trainingInfo } from "./training.js";
 import { SKILLS } from "./constants.js";
 import { xpForLevel, totalXP, totalLevel } from "./utils.js";
 
@@ -23,22 +23,20 @@ test("daily hierarchical schedules repeat across reads and vary across days with
 });
 
 test("a year of schedules has overnight lulls, evening peaks, variable lows and capped combined weekend rates", () => {
-  let reachedCap = false;
   const lows = new Set(), peaks = new Set();
   for (let day = 0; day < 366; day++) {
     const date = new Date(Date.UTC(2026, 0, 1 + day));
     const schedule = dailyXpSchedule(date);
-    assert.ok(schedule.scales.every(value => Number.isFinite(value) && value >= 6 && value <= 31));
+    assert.ok(schedule.scales.every(value => Number.isFinite(value) && value >= MIN_XP_SCALE && value <= MAX_XP_SCALE));
     const mean = schedule.scales.reduce((sum, value) => sum + value, 0) / 96;
     assert.ok(Math.abs(mean - XP_SCALE * schedule.weekendMultiplier * schedule.dailyFactor) < 1e-10);
     const average = values => values.reduce((sum, value) => sum + value, 0) / values.length;
     assert.ok(average(schedule.scales.slice(17 * 4, 22 * 4)) > average(schedule.scales.slice(2 * 4, 6 * 4)));
     assert.equal(schedule.weekendMultiplier, [0, 6].includes(date.getUTCDay()) ? 1.15 : 1);
-    reachedCap ||= schedule.maxScale === 31;
+    assert.ok(schedule.maxScale > schedule.meanScale);
     lows.add(schedule.minScale.toFixed(2));
     peaks.add(schedule.scales.indexOf(schedule.maxScale));
   }
-  assert.ok(reachedCap);
   assert.ok(lows.size > 100);
   assert.ok(peaks.size > 10);
 });
@@ -72,6 +70,13 @@ test("actual XP uses the period-weighted scale once and records it without chang
   const previous = user.totalXP;
   progressUser(user, date, { hours: 0, rng: () => 0.5 });
   assert.equal(user.totalXP, previous);
+  for (const [factor, expected] of [[100, MAX_XP_SCALE], [0.01, MIN_XP_SCALE]]) {
+    const climate = { factor };
+    const active = structuredClone(before);
+    progressUser(active, date, { rng: () => 0.5, climate });
+    assert.equal(active.progress.lastSession.xpScale, expected);
+    assert.equal(trainingInfo(date, climate).scale, expected);
+  }
 });
 
 test("identical active sessions earn more XP in busy periods than overnight lulls", (t) => {

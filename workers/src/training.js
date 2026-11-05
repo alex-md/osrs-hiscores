@@ -7,7 +7,7 @@ import {
   INITIAL_DISTRIBUTION_ARCHETYPE_FOCUS,
 } from "./constants.js";
 
-import { xpModifier, dailyXpSchedule } from "./xp-schedule.js";
+import { xpModifier, dailyXpSchedule, MIN_XP_SCALE, MAX_XP_SCALE } from "./xp-schedule.js";
 export { XP_SCALE } from "./xp-schedule.js";
 export const SESSION_FRACTIONS = {
   INACTIVE: [0, 0],
@@ -94,7 +94,7 @@ export function chooseTrainingSkill(user, rng = Math.random, { climate } = {}) {
 }
 export const trainingInfo = (date = new Date(), climate = null) => ({
   ...xpModifier(date),
-  scale: Math.max(6, Math.min(31, xpModifier(date).scale * (climate?.factor || 1))),
+  scale: Math.max(MIN_XP_SCALE, Math.min(MAX_XP_SCALE, xpModifier(date).scale * (climate?.factor || 1))),
   climate,
   schedule: dailyXpSchedule(date),
   tickHours: TICK_HOURS,

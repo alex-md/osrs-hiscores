@@ -352,8 +352,8 @@ test("packed snapshots cut writes and profiles read one generation with two cold
   assert.equal(reads, 2);
   assert.equal(response.generation, snapshot.generation);
   assert.equal(response.ranks.attack, 448);
-  assert.equal(response.training.baseScale, 18.5);
-  assert.ok(response.training.scale >= 6 && response.training.scale <= 31);
+  assert.equal(response.training.baseScale, 29);
+  assert.ok(response.training.scale >= 11 && response.training.scale <= 70);
   assert.equal(response.training.schedule.day, new Date(snapshot.generatedAt).toISOString().slice(0, 10));
   // Obsolete direct documents cannot change the authoritative published world.
   await e.WORLD_STORE.put("user:user500", JSON.stringify(player("User500", 99)));
@@ -377,8 +377,8 @@ test("scheduled updates process every existing player and persist each at most o
       .every(([, n]) => n === 1),
   );
   const world = await (await call(e, "/api/world")).json();
-  assert.equal(world.training.baseScale, 18.5);
-  assert.ok(world.training.scale >= 6 && world.training.scale <= 31);
+  assert.equal(world.training.baseScale, 29);
+  assert.ok(world.training.scale >= 11 && world.training.scale <= 70);
   assert.equal(world.generatedAt, result.generatedAt);
 });
 
@@ -450,13 +450,13 @@ test("full skill rankings load each packed shard once", async () => {
   assert.equal(Object.keys(response.rankings).length, SKILLS.length);
 });
 
-test("administrative seed cannot exceed the 5000-player world budget", async () => {
+test("administrative seed cannot exceed the 2000-player world budget", async () => {
   const e = env();
-  await publishSnapshot(e, Array.from({ length: 5000 }, (_, i) => player(`Cap${i}`)));
+  await publishSnapshot(e, Array.from({ length: 2000 }, (_, i) => player(`Cap${i}`)));
   const generation = JSON.parse(await e.WORLD_STORE.get("snapshot:current")).generation;
   assert.equal((await call(e, "/api/seed", post({ usernames: ["Overflow"] }))).status, 409);
   assert.equal(JSON.parse(await e.WORLD_STORE.get("snapshot:current")).generation, generation);
-  assert.equal((await allUsers(e)).length, 5000);
+  assert.equal((await allUsers(e)).length, 2000);
 });
 
 test("Sailing and activity rankings share packed generations, global ranks, pagination and stable bank state", async () => {

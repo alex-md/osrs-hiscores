@@ -26,7 +26,7 @@ function player(level = 80) {
   };
 }
 test("all skills have finite rates; slow skills and low-level unlocks stay slower before the variable world scale", () => {
-  assert.equal(XP_SCALE, 18.5);
+  assert.equal(XP_SCALE, 29);
   assert.ok(trainingInfo().sampleSize > 0);
   for (const s of SKILLS) {
     assert.ok(expectedRate(s, 0, 1) > 0);

@@ -3,6 +3,7 @@
 import { build } from "../workers/node_modules/esbuild/lib/main.js";
 import { Miniflare, convertV4MiniflareOptions } from "../workers/node_modules/miniflare/dist/src/index.js";
 import { fileURLToPath } from "node:url";
+import { MAX_PLAYERS } from "../frontend/lib/simulation-config.js";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const source = `
 import { HiscoresWorld } from './workers/src/world.js';
@@ -72,6 +73,6 @@ try {
   const worstRead = Math.max(...data.reads.map(row => row.rowsRead));
   data.projectedReadsAtRequestLimit = data.projectedScheduledReadsPerDay + worstRead * (100000 - data.updatesPerDay);
   console.log(JSON.stringify(data, null, 2));
-  if (data.status !== 200 || data.run.totalPlayers !== 5000 || data.run.newUsers !== 0 || data.projectedScheduledWritesPerDay >= 30_000 || data.projectedD1WritesPerDay >= 80_000 || data.projectedReadsAtRequestLimit >= 4_500_000 || data.largestDocumentBytes >= 1_900_000 || data.storedBytes >= 100_000_000 || data.historySize.bytes * 35 / 30 >= 450_000_000 || data.reads.some(row => row.rowsWritten !== 0 || row.d1RowsWritten !== 0 || row.d1RowsRead > 500))
+  if (data.status !== 200 || data.run.totalPlayers !== MAX_PLAYERS || data.run.newUsers !== 0 || data.projectedScheduledWritesPerDay >= 30_000 || data.projectedD1WritesPerDay >= 80_000 || data.projectedReadsAtRequestLimit >= 4_500_000 || data.largestDocumentBytes >= 1_900_000 || data.storedBytes >= 100_000_000 || data.historySize.bytes * 35 / 30 >= 450_000_000 || data.reads.some(row => row.rowsWritten !== 0 || row.d1RowsWritten !== 0 || row.d1RowsRead > 500))
     throw new Error("Capacity benchmark failed");
 } finally { await mf.dispose(); }

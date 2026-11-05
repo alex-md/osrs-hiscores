@@ -59,10 +59,11 @@ export function dailyXpSchedule(date = new Date()) {
   });
   const mean = raw.reduce((sum, value) => sum + value, 0) / PERIODS;
   const low = Math.min(...raw), high = Math.max(...raw);
-  const floor = between(rng, MIN_XP_SCALE, 10);
-  // Some days reach 31x; others have a softer peak. Weekend uplift is already
+  const floor = between(rng, MIN_XP_SCALE, MIN_XP_SCALE + (meanScale - MIN_XP_SCALE) * 0.32);
+  // Peak and floor ranges follow the configured scale so changing the baseline
+  // cannot invert the daily waves. Weekend uplift is already
   // included here, rather than multiplying the capped schedule a second time.
-  const peak = between(rng, 27, 32);
+  const peak = between(rng, meanScale + (MAX_XP_SCALE - meanScale) * 0.8, MAX_XP_SCALE * 1.03);
   const ceiling = Math.min(MAX_XP_SCALE, peak);
   const amplitude = Math.min((ceiling - meanScale) / (high - mean), (meanScale - floor) / (mean - low));
   const scales = Object.freeze(raw.map(value => Math.max(MIN_XP_SCALE, Math.min(MAX_XP_SCALE, meanScale + (value - mean) * amplitude))));

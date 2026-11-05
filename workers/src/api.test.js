@@ -46,7 +46,7 @@ test("client adapts legacy pagination and explicitly exposes snapshot coverage",
   const api = await client(t, {
     "/api/leaderboard?page=2&limit=25": () =>
       json({ totalPlayers: 90, players: players.slice(0, 25) }),
-    "/api/leaderboard?limit=5000": () => json({ totalPlayers: 90, players }),
+    "/api/leaderboard?limit=2000": () => json({ totalPlayers: 90, players }),
   });
   const result = await api.request("/api/leaderboard?page=2&limit=25");
   assert.equal(result.coverage, 55);
@@ -80,7 +80,7 @@ test("legacy profile and catalog use shared domain rules and recorded firsts", a
   );
   const api = await client(t, {
     "/api/users/Ada": () => json({ username: "Ada", skills }),
-    "/api/leaderboard?limit=5000": () =>
+    "/api/leaderboard?limit=2000": () =>
       json({ players: [{ username: "Ada", rank: 1, tier: "Grandmaster" }] }),
     "/api/skill-rankings": () =>
       json({

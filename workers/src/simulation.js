@@ -3,7 +3,7 @@ import { isRestDay } from './engagement.js';
 import { arrivals, cleanupPopulation, populationPolicy } from "./population.js";
 import { activityScale, normalizeCareer, progressBossing, progressClues, progressSkillingEconomy, valueBank } from "./economy.js";
 import { advanceTrainingClimate, personalTraining } from "./training-dynamics.js";
-import { windowXpScale } from "./xp-schedule.js";
+import { windowXpScale, MIN_XP_SCALE, MAX_XP_SCALE } from "./xp-schedule.js";
 import { MAX_PLAYERS } from "../../frontend/lib/simulation-config.js";
 import { reserveUpdate } from "./budget.js";
 import {
@@ -78,7 +78,7 @@ export function progressUser(
   const [min, max] = SESSION_FRACTIONS[user.activity];
   const duration =
     Math.max(0, Math.min(TICK_HOURS, hours)) * (min + rng() * (max - min)) * (phase === "quiet" ? .35 : 1);
-  const scale = Math.max(6, Math.min(31, windowXpScale(date, hours) * (climate?.factor || 1)));
+  const scale = Math.max(MIN_XP_SCALE, Math.min(MAX_XP_SCALE, windowXpScale(date, hours) * (climate?.factor || 1)));
   const personal = personalTraining(user, { hours: Math.max(0, Math.min(TICK_HOURS, hours)), activeHours: duration, rng, climate });
   const clues = progressClues(user,date,{hours:duration,rng,scale});
   const bossing = clues.active ? {active:false,trainingHours:clues.trainingHours,gains:{}} : progressBossing(user, date, { hours: duration, rng, scale });
