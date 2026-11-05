@@ -1,3 +1,5 @@
+import { trainingBenefits } from './wealth-progression.js';
+import { tradeRares } from './rare-trading.js';
 import { adoptExpandedCareer, careerPhase } from './archetypes.js';
 import { isRestDay } from './engagement.js';
 import { arrivals, cleanupPopulation, populationPolicy } from "./population.js";
@@ -92,11 +94,12 @@ export function progressUser(
   for (const [skill, xp] of Object.entries(clues.gains)) add(skill, xp * scale * personal.multiplier);
   for (const [skill, xp] of Object.entries(bossing.gains)) add(skill, xp * scale * personal.multiplier);
   const skill = personal.skill;
+  const benefits = trainingBenefits(user, skill, bossing.trainingHours, scale);
   if (bossing.trainingHours > 0 && skill) {
-    progressSkillingEconomy(user, date, { skill, hours: bossing.trainingHours * activityScale(scale), rng, append: bossing.active || clues.active });
+    progressSkillingEconomy(user, date, { skill, hours: bossing.trainingHours * activityScale(scale), rng, append: bossing.active || clues.active, fundingCost: benefits.fundingCost });
     const stat = user.skills[skill];
     const skillScale = climate?.focusSkill === skill ? climate.skillFactor : 1;
-    const gain = expectedRate(skill, stat.xp, stat.level) * bossing.trainingHours * scale * personal.multiplier * skillScale;
+    const gain = expectedRate(skill, stat.xp, stat.level) * bossing.trainingHours * scale * personal.multiplier * skillScale * benefits.multiplier;
     add(skill, gain);
     if (["attack", "strength", "defence", "ranged"].includes(skill))
       add("hitpoints", gain / 3);
@@ -127,6 +130,8 @@ export function progressUser(
         trainingHours: bossing.trainingHours,
         xpScale: scale,
         personalScale: personal.multiplier,
+        wealthScale: benefits.multiplier,
+        benefits,
         skillScale: climate?.focusSkill === skill ? climate.skillFactor : 1,
         trainingPhase: personal.phase,
         gainedXP,
@@ -184,6 +189,8 @@ export async function runScheduled(env) {
     users.push(user);
     changed.push(user);
   }
+  const rareTrading = tradeRares(users, date, await readJSON(env, "system:rare-trading"), {hours});
+  await writeJSON(env, "system:rare-trading", rareTrading);
   const snapshot = await publishSnapshot(env, users);
   const result = {
     processed: count,
@@ -197,6 +204,7 @@ export async function runScheduled(env) {
     activePlayers: users.filter(u => u.updatedAt === date.getTime()).length,
     restingPlayers: users.filter(u => u.restDay).length,
     pricing: { status: "fixed", capturedAt: null },
+    rareTrading: rareTrading.summary,
   };
   await writeJSON(env, "system:last-run", result);
   return result;

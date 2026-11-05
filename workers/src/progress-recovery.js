@@ -12,7 +12,7 @@ export const RECOVERY_KEY=`system:progress-recovery:${RECOVERY_ID}`;
 // boss counts, dates or usernames can expand this one-time operation.
 export function applyRecoveryToUsers(users, at=Date.now(), recovery=plan) {
   if (JSON.stringify(recovery.skillKeys)!==JSON.stringify(SKILLS)
-    || JSON.stringify(recovery.bossKeys)!==JSON.stringify(BOSSES.map(b=>b.key))) throw new Error('Recovery catalog mismatch');
+    || recovery.bossKeys.some(key => !BOSSES.some(b => b.key === key)) || new Set(recovery.bossKeys).size !== recovery.bossKeys.length) throw new Error('Recovery catalog mismatch');
   const byName=new Map(recovery.rows.map(row=>[row[0].toLowerCase(),row]));
   const summary={id:recovery.id,estimated:true,method:recovery.method,inputSha256:recovery.inputSha256,
     startAt:recovery.startAt,endAt:recovery.endAt,hours:12,players:0,xp:0,levels:0,kills:0,
@@ -27,15 +27,15 @@ export function applyRecoveryToUsers(users, at=Date.now(), recovery=plan) {
     if(original.recoveries?.[recovery.id]) {
       summary.skipped.push({username:original.username,reason:'Already compensated'});return original;
     }
-    if(row[3].length!==SKILLS.length||row[4].length!==BOSSES.length||[...row[3],...row[4]].some(n=>!Number.isSafeInteger(n)||n<0)) throw new Error('Invalid recovery award');
+    if(row[3].length!==SKILLS.length||row[4].length!==recovery.bossKeys.length||[...row[3],...row[4]].some(n=>!Number.isSafeInteger(n)||n<0)) throw new Error('Invalid recovery award');
     const user=structuredClone(original),skills={},bosses={};let xp=0,kills=0;
     SKILLS.forEach((skill,i)=>{
       const stat=user.skills[skill],amount=Math.min(row[3][i],200000000-stat.xp);
       stat.xp+=amount;stat.level=levelFromXp(stat.xp);skills[skill]=amount;xp+=amount;summary.skills[skill]+=amount;
     });
-    BOSSES.forEach((boss,i)=>{
-      const amount=Math.min(row[4][i],1000000000000-(user.bosses[boss.key]||0));
-      user.bosses[boss.key]=(user.bosses[boss.key]||0)+amount;bosses[boss.key]=amount;kills+=amount;summary.bosses[boss.key]+=amount;
+    recovery.bossKeys.forEach((key,i)=>{
+      const amount=Math.min(row[4][i],1000000000000-(user.bosses[key]||0));
+      user.bosses[key]=(user.bosses[key]||0)+amount;bosses[key]=amount;kills+=amount;summary.bosses[key]+=amount;
     });
     if(!xp&&!kills)return original;
     user.totalXP=totalXP(user.skills);user.totalLevel=totalLevel(user.skills);

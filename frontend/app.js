@@ -1,3 +1,5 @@
+import items from "./lib/items.js";
+import { RARE_ITEMS } from "./lib/loot.js";
 import { bankView } from "./lib/bank-view.js";
 import { BOSSES, BOSS_BY_KEY } from "./lib/activities.js";
 import { SKILLS, title } from "./lib/domain.js";
@@ -293,6 +295,8 @@ async function activityView(current, signal, revision) {
   params.set("limit", params.get("limit") || "25");
   const data = await request(`/api/activity-rankings?${params}`, { signal });
   if (revision !== state.revision) return;
+  const encounter = BOSS_BY_KEY[boss];
+  const rares = encounter?.drops?.filter(drop => drop.rare) || (RARE_ITEMS[boss] || []).map(([id])=>({id}));
   const name = wealth ? "Bank value hiscores" : boss ? `${BOSS_BY_KEY[boss].name} hiscores` : "Boss kill counts";
   $("#view").innerHTML = `<section class="rankings-page">
     ${pageHeading(wealth ? "The wealth rankings" : "Boss hiscores", escape(name), wealth ? "Estimated bank and equipment value, in GP. All wealth belongs to simulated accounts." : "Recorded kills and raid completions. Combat levels, wealth-based readiness, experience and luck shape each account’s progress.")}
@@ -300,6 +304,7 @@ async function activityView(current, signal, revision) {
     <section class="panel ranking-panel"><div class="panel-heading"><h2>${wealth ? "Bank value" : boss ? escape(BOSS_BY_KEY[boss].name) : "All bosses"}</h2>${markUpdated(data)}</div>
     <div class="table-scroll" role="region" aria-label="Hiscores table" tabindex="0"><table><thead><tr><th scope="col" class="numeric">Rank</th><th scope="col">Player</th><th scope="col" class="numeric">${wealth ? "Bank value (GP)" : boss && BOSS_BY_KEY[boss].raid ? "Completions" : "Kill count"}</th></tr></thead><tbody>${data.players.length ? data.players.map(row => `<tr>${rankCell(row.rank)}<td><a class="player-link" href="${playerLink(row.username)}">${escape(row.username)}</a></td><td class="numeric">${number(row.score)}</td></tr>`).join("") : `<tr><td colspan="3" class="table-empty"><h3>No recorded ${wealth ? "bank values" : "kills"}</h3><p>${current.params.get("q") ? "Try another player name or reset the filters." : "These rankings fill as eligible adventurers play. Existing accounts start with zero recorded kills."}</p></td></tr>`}</tbody></table></div>
     ${pager(data)}<form class="filter-bar" id="activity-filters">${wealth ? "" : `<label>Boss<select name="boss"><option value="">All bosses</option>${BOSSES.map(item => `<option value="${item.key}" ${boss === item.key ? "selected" : ""}>${escape(item.name)}</option>`).join("")}</select></label>`}<label class="search-filter"><span>Filter players</span><input name="q" maxlength="12" placeholder="Player name" value="${escape(current.params.get("q") || "")}"></label><label>Rows<select name="limit">${[25,50,100].map(limit => `<option ${data.limit === limit ? "selected" : ""}>${limit}</option>`).join("")}</select></label><button class="button primary">Apply</button><button class="button" type="button" id="reset-activities">Reset</button></form></section>
+    ${encounter ? `<section class="panel"><div class="panel-heading"><h2>Notable rewards</h2><a href="${escape(encounter.source || 'https://oldschool.runescape.wiki/w/'+encodeURIComponent(encounter.name.replaceAll(' ','_')))}" target="_blank" rel="noopener noreferrer">Encounter guide ↗</a></div><p class="history-note">Selected tradeable rewards at fixed simulation values. Pace, access, team contribution and drop odds are approximated. Untradeable quest items and pets carry no bank value.</p>${rares.length ? `<div class="table-scroll"><table><thead><tr><th>Rare reward</th><th class="numeric">Value (GP)</th></tr></thead><tbody>${rares.map(drop=>`<tr><th>${escape(items[drop.id]?.name || 'Rare item')}</th><td class="numeric">${number(items[drop.id]?.price)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="history-note">This encounter mainly earns ordinary loot.</p>'}</section>` : ''}
     <p class="coverage-note activity-explanation">${wealth ? "Bank value tracks cash and items at fixed item estimates, plus loot and income, less supplies and training costs." : "Bossing shares session time with training and follows a reduced world multiplier. Stats, wealth-based readiness, experience and rare drops affect results. Group hunts and solo Dagannoth hunts are separate sessions; each defeated king counts once. Raids retain unfinished progress between visits."}</p></section>`;
   $(".ranking-panel .panel-heading").after($("#activity-filters"));
   bindPagination(data);

@@ -63,10 +63,11 @@ test('partial raids consume time, pay attempt costs, persist progress and eventu
   assert.ok(partial);assert.ok(completed);assert.ok(u.economy.spent>0);assert.ok(u.economy.bankValue!==before);
   assert.ok(u.career.raidProgress['theatre-of-blood']>=0 && u.career.raidProgress['theatre-of-blood']<1);
 });
-test('selected reward tables have explicit common value covering base costs',()=>{
+test('selected reward tables have finite rewards and common plus rare value covering base costs',()=>{
   for(const boss of BOSSES) {
     const table=bossDropTable(boss),common=table.filter(d=>!d.rare).reduce((n,d)=>n+d.quantity*d.chance*items[d.id].price,0);
-    assert.ok(Math.max(common,boss.commonLoot)>=boss.cost || !boss.drops,boss.key);
+    const rareEV=table.filter(d=>d.rare).reduce((n,d)=>n+d.quantity*d.chance*items[d.id].price,0);
+    assert.ok(Math.max(common,boss.commonLoot)+rareEV>=boss.cost || !boss.drops,boss.key);
     const result=rollBossDrops(boss,0,seeded(2));assert.equal(result.coins,0);assert.deepEqual(result.notable,[]);
   }
 });

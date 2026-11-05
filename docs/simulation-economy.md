@@ -1,7 +1,8 @@
 # Simulation and bank accounting
 
-Updated November 2, 2026. The Grand Exchange has been removed, including player
-orders, price changes, trade fees, the public market page/API and market telemetry.
+Updated November 4, 2026. The Grand Exchange has been removed, including player
+orders, price changes, the public market page/API and market telemetry. A bounded
+rare-item trading step now supports fixed-price player and outside sales.
 The simulation does not read or update `system:exchange`. Old exchange records
 remain inert in storage; no account reset or historical rewrite is performed.
 
@@ -9,7 +10,8 @@ remain inert in storage; no account reset or historical rewrite is performed.
 
 Training uses `expectedRate` from the calibrated training model, skill level,
 active session hours, the time-of-day XP multiplier, personal training state and
-shared training climate. Cash, recipes, input availability and market prices do
+shared training climate. Wealth, retained upgrades and funded methods add bounded
+bonuses; their absence never reduces the ordinary baseline. Cash, recipes, input availability and market prices do
 not limit XP or steer skill choices. Persisted skill goals can continue directly,
 including buyable skills on accounts with empty banks. Skills cap at 200M XP.
 
@@ -17,7 +19,8 @@ Bossing keeps combat/skill unlocks, persistent preferences, experience, luck and
 an estimated readiness factor derived from bank value. It does not require an
 owned equipment purchase, spendable cash, food, potions or another player.
 Bossing and training share one session time budget. KC uses the square root of
-the world multiplier, bounded by the existing 6–31x XP scale. Combat XP divides
+the world multiplier, with the activity multiplier capped at sqrt(31). The world
+XP schedule uses an 11x floor, 29x baseline and 70x ceiling. Combat XP divides
 out that KC multiplier before the ordinary XP multiplier is applied, avoiding
 double acceleration. Selected whole-item drops and rare rewards remain tied to
 recorded kills. No retrospective kills or XP are added by this change.
@@ -29,7 +32,8 @@ GE does not force every hour to match yesterday's activity.
 ## Fixed bank estimates
 
 The bundled item catalog supplies fixed GP estimates. There are no price refreshes,
-order books, supply chains, recipes, restock budgets or liquidity checks.
+order books, supply chains, recipes or restock requirements for base progression.
+Rare purchases check available cash and real player/outside item stock.
 
 Accounts retain their cash, whole-item holdings, earned/spent totals, rare-drop
 counts and death records. Existing fractional legacy baskets still migrate once:
@@ -46,8 +50,8 @@ Skilling generates estimated income or representative whole-item resources based
 on level, elapsed activity time and modest session variation. It does not use
 resource recipes to determine XP. Bossing generates drops from its selected drop
 tables. Estimated training, supply and death costs debit available bank value.
-Cash pays first, then whole items are redeemed at the same fixed catalog value;
-any excess remains as cash. An exhausted bank pays only its available balance,
+Cash pays first, then ordinary whole items are redeemed at the same fixed catalog value;
+any excess remains as cash. Rare holdings are preserved for voluntary sales. An exhausted bank pays only its available spendable balance,
 without blocking training or kills or borrowing below zero. These costs are an
 abstract accounting model rather than an exact OSRS inventory simulation.
 
@@ -58,7 +62,7 @@ player documents as inactive historical fields. They no longer drive progress.
 
 ## Population and storage
 
-Arrivals retain the existing reduced rate and 5,000-player cap. Daily retention
+Arrivals retain the existing reduced rate and 2,000-player cap. Daily retention
 cleanup and its configured grace/established-account protections are unchanged.
 Retired assets remain recorded. This change does not run a separate cleanup.
 
@@ -73,7 +77,7 @@ Existing achievements, recovery audit records and history remain intact.
   fixed quotes, archived exchange isolation, time budgets, transaction rollback,
   history and recovery preservation.
 - `npm run check`: JavaScript syntax.
-- `npm run capacity`: disposable 5,000-player workerd storage/CPU/read checks.
+- `npm run capacity`: disposable 2,000-player workerd storage/CPU/read checks.
 - `node scripts/simulation-health.mjs /tmp/snapshot.json 288`: deterministic
   three-day offline replay. Input requires `users` from the public batch API and
   `generatedAt` from the world API; older saved snapshots with
@@ -108,3 +112,5 @@ create debt or block progression. The existing asset ceiling remains an explicit
 sink. New notable-loot records identify the session's final KC when the reward
 was recorded, not a fabricated exact per-kill drop timestamp. Existing holdings
 and historical kill counts are unchanged.
+
+See [rare rewards and wealth progression](../README.md#rare-rewards-and-wealth-progression) for bonus limits, stock and tax accounting, encounter approximations, retained rares and history compatibility.

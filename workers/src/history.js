@@ -32,7 +32,7 @@ export async function stageHistory(env, profiles, generation, now) {
     if (h.day !== day) h = { ...h, day, base: h.last, rankBase: h.lastRanks, levelBase: h.lastLevel, from: h.at };
     h.initial ||= h.base; h.initialRanks ||= h.rankBase;
     h.initialAt ??= h.from; h.initialLevel ??= h.levelBase;
-    const gains = v.map((n,i) => n - h.base[i]);
+    const gains = v.map((n,i) => n - (h.base[i] ?? 0));
     h.xpStreak = streak(h.xpStreak, day, gains[0] > 0);
     h.bossStreak = streak(h.bossStreak, day, gains[SKILLS.length + 1] > 0);
     const activeXP = h.xpStreak.day === day ? h.xpStreak.count : 0;
@@ -141,7 +141,7 @@ export async function historyResponse(request, env) {
     const addDaily = (row,day) => {
       let player = byName.get(row[0]);
       if (!player) byName.set(row[0],player={username:row[0],gain:0,levels:0,startRank:row[2][index],fromAt:row[7]});
-      player.gain+=row[1][index];player.levels+=row[4];player.endRank=row[3][index];player.throughAt=row[8];
+      player.gain+=(row[1][index] ?? 0);player.levels+=row[4];player.endRank=row[3][index];player.throughAt=row[8];
       player.xpStreak=day===meta.day?row[5]:0;player.bossStreak=day===meta.day?row[6]:0;
     };
     let series;
@@ -153,26 +153,26 @@ export async function historyResponse(request, env) {
       for (const point of points.results) if (point.shard !== null) {
         const shard = await env.HISTORY_DB.prepare('SELECT payload FROM progress_players WHERE day = ? AND shard = ?').bind(point.day,point.shard).first();
         const row = shard && JSON.parse(shard.payload).find(row=>row[0].toLowerCase()===username.toLowerCase());
-        if (row) {addDaily(row,point.day);series.push({day:point.day,gain:row[1][index],levels:row[4],startRank:row[2][index],endRank:row[3][index],movement:row[2][index] && row[3][index] ? row[2][index]-row[3][index] : null});}
+        if (row) {addDaily(row,point.day);series.push({day:point.day,gain:row[1][index] ?? 0,levels:row[4],startRank:row[2][index],endRank:row[3][index],movement:row[2][index] && row[3][index] ? row[2][index]-row[3][index] : null});}
       }
     } else {
       // Cumulative counters make any calendar window a two-snapshot comparison.
       // No json_each scan over all players/days, and no 30-day payload in memory.
       for (const shard of lastRows.results) for (const row of JSON.parse(shard.payload)) {
-        byName.set(row[0], {username:row[0],gain:row[9][index]-row[10][index],levels:row[13]-row[14],
-          startRank:row[11][index],endRank:row[3][index],fromAt:row[12],throughAt:row[8],xpStreak:row[5],bossStreak:row[6],current:row[9][index],currentLevel:row[13],initialAt:row[12]});
+        byName.set(row[0], {username:row[0],gain:(row[9][index] ?? 0)-(row[10][index] ?? 0),levels:row[13]-row[14],
+          startRank:row[11][index],endRank:row[3][index],fromAt:row[12],throughAt:row[8],xpStreak:row[5],bossStreak:row[6],current:row[9][index] ?? 0,currentLevel:row[13],initialAt:row[12]});
       }
       const first = await env.HISTORY_DB.prepare('SELECT MIN(day) AS day FROM progress_players WHERE day >= ?').bind(from).first();
       if (first?.day) {
         const startRows = await env.HISTORY_DB.prepare('SELECT payload FROM progress_players WHERE day = ? ORDER BY shard').bind(first.day).all();
         for (const shard of startRows.results) for (const row of JSON.parse(shard.payload)) {
           const player=byName.get(row[0]);
-          if (player && player.initialAt === row[12]) {player.gain=player.current-(row[9][index]-row[1][index]);player.levels=player.currentLevel-(row[13]-row[4]);player.startRank=row[2][index];player.fromAt=row[7];}
+          if (player && player.initialAt === row[12]) {player.gain=player.current-((row[9][index] ?? 0)-(row[1][index] ?? 0));player.levels=player.currentLevel-(row[13]-row[4]);player.startRank=row[2][index];player.fromAt=row[7];}
         }
       }
       const totals = await env.HISTORY_DB.prepare("SELECT day, json_extract(summary, ?) AS gain, json_extract(summary, '$.levels') AS levels FROM progress_days WHERE day >= ? ORDER BY day")
         .bind(`$.totals[${index}]`,from).all();
-      series=totals.results;
+      series=totals.results.map(row=>({...row,gain:row.gain ?? 0}));
     }
     for (const player of byName.values()) {
       player.movement=player.startRank && player.endRank ? player.startRank-player.endRank : null;

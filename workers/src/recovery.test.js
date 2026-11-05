@@ -34,15 +34,21 @@ test('persisted buyable-skill goals earn calibrated XP with an empty bank',t=>{
   assert.deepEqual(u.progress.recovery,{planId:'saved'});
   assert.equal(u.economy.cash,0);
 });
-test('archived prices, input requests and balances cannot change training XP',t=>{
+test('wealth adds a bounded bonus while obsolete input requests and archived prices never gate base XP',t=>{
   t.mock.method(Math,'random',()=>.999);
   const poor=player('Matched',0,{},1),rich=structuredClone(poor);
   rich.economy.cash=10000000;rich.economy.bankValue=10000000;
   rich.economy.needs={960:100000};rich.economy.inputReserve={960:100000};
+  const plain=structuredClone(rich);
+  delete plain.economy.needs;delete plain.economy.inputReserve;
+  progressUser(plain,at,{rng:()=>.5});
   progressUser(poor,at,{rng:()=>.5});
   progressUser(rich,at,{rng:()=>.5,market:{prices:{960:99999999},status:'simulated'}});
-  assert.deepEqual(poor.skills,rich.skills);
-  assert.deepEqual(poor.progress,rich.progress);
+  assert.deepEqual(plain.skills,rich.skills);
+  assert.deepEqual(plain.progress,rich.progress);
+  assert.ok(poor.progress.lastSession.gainedXP>0);
+  assert.ok(rich.progress.lastSession.gainedXP>=poor.progress.lastSession.gainedXP);
+  assert.ok(rich.progress.lastSession.gainedXP<=poor.progress.lastSession.gainedXP*1.54);
 });
 test('fixed valuation preserves owned integer items and ignores old exchange quotes',()=>{
   const u=player('Fixed',123,{20997:1,1511:1000});

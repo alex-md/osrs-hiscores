@@ -1,6 +1,6 @@
 // Legacy opening quotes captured 2026-10-26; expanded resources use authored
 // opening estimates. These seed quotes once, never fabricate completed trades.
-export default {
+const items = {
   "2577":{"name":"Ranger boots","price":12000000},
   "229":{"name":"Vial","price":3},
   "5299":{"name":"Kwuarm seed","price":500},
@@ -346,3 +346,65 @@ export default {
     "price": 1118641713
   }
 };
+
+// Expansion values and upgrade potential are authored simulation estimates.
+const expansion = {
+  "12819": {"name":"Elysian sigil","price":650000000,"rare":true,"style":"defence","power":0.12,"requiredLevel":80},
+  "12827": {"name":"Arcane sigil","price":100000000,"rare":true,"style":"magic","power":0.08,"requiredLevel":80},
+  "12823": {"name":"Spectral sigil","price":50000000,"rare":true,"style":"defence","power":0.07,"requiredLevel":70},
+  "26376": {"name":"Torva full helm (damaged)","price":100000000,"rare":true,"style":"melee","power":0.07,"requiredLevel":80},
+  "26378": {"name":"Torva platebody (damaged)","price":250000000,"rare":true,"style":"melee","power":0.1,"requiredLevel":80},
+  "26380": {"name":"Torva platelegs (damaged)","price":180000000,"rare":true,"style":"melee","power":0.09,"requiredLevel":80},
+  "26235": {"name":"Zaryte vambraces","price":75000000,"rare":true,"style":"ranged","power":0.1,"requiredLevel":70},
+  "26372": {"name":"Nihil horn","price":300000000,"rare":true,"style":"ranged","power":0.12,"requiredLevel":80},
+  "24419": {"name":"Inquisitor's great helm","price":45000000,"rare":true,"style":"melee","power":0.07,"requiredLevel":70},
+  "24420": {"name":"Inquisitor's hauberk","price":80000000,"rare":true,"style":"melee","power":0.09,"requiredLevel":70},
+  "24421": {"name":"Inquisitor's plateskirt","price":60000000,"rare":true,"style":"melee","power":0.08,"requiredLevel":70},
+  "24417": {"name":"Inquisitor's mace","price":400000000,"rare":true,"style":"melee","power":0.16,"requiredLevel":80},
+  "24422": {"name":"Nightmare staff","price":25000000,"rare":true,"style":"magic","power":0.07,"requiredLevel":70},
+  "24511": {"name":"Harmonised orb","price":350000000,"rare":true,"style":"magic","power":0.14,"requiredLevel":80},
+  "24514": {"name":"Volatile orb","price":60000000,"rare":true,"style":"magic","power":0.1,"requiredLevel":70},
+  "24517": {"name":"Eldritch orb","price":200000000,"rare":true,"style":"magic","power":0.12,"requiredLevel":80},
+  "26241": {"name":"Virtus mask","price":8000000,"rare":true,"style":"magic","power":0.04,"requiredLevel":70},
+  "26243": {"name":"Virtus robe top","price":35000000,"rare":true,"style":"magic","power":0.08,"requiredLevel":70},
+  "26245": {"name":"Virtus robe bottom","price":22000000,"rare":true,"style":"magic","power":0.06,"requiredLevel":70},
+  "28334": {"name":"Awakener's orb","price":1000000,"rare":true},
+  "23956": {"name":"Crystal armour seed","price":5000000,"rare":true,"style":"ranged","power":0.05,"requiredLevel":70},
+  "25859": {"name":"Enhanced crystal weapon seed","price":100000000,"rare":true,"style":"ranged","power":0.13,"requiredLevel":80},
+  "3140": {"name":"Dragon chainbody","price":180000,"rare":true,"style":"melee","power":0.025,"requiredLevel":70},
+  "7158": {"name":"Dragon 2h sword","price":130000,"rare":true,"style":"melee","power":0.025,"requiredLevel":70},
+  "13265": {"name":"Abyssal dagger","price":2000000,"rare":true,"style":"melee","power":0.04,"requiredLevel":70},
+  "21742": {"name":"Granite hammer","price":100000,"rare":true,"style":"melee","power":0.025,"requiredLevel":70},
+  "27684": {"name":"Voidwaker blade","price":12000000,"rare":true,"style":"melee","power":0.06,"requiredLevel":70},
+  "27687": {"name":"Voidwaker gem","price":35000000,"rare":true,"style":"melee","power":0.08,"requiredLevel":70},
+  "27681": {"name":"Voidwaker hilt","price":18000000,"rare":true,"style":"melee","power":0.07,"requiredLevel":70},
+  "12601": {"name":"Ring of the gods","price":3000000,"rare":true,"style":"defence","power":0.04,"requiredLevel":70},
+  "12603": {"name":"Tyrannical ring","price":500000,"rare":true,"style":"melee","power":0.025,"requiredLevel":70},
+  "12605": {"name":"Treasonous ring","price":500000,"rare":true,"style":"melee","power":0.025,"requiredLevel":70},
+  "22372": {"name":"Bryophyta's essence","price":6000000,"rare":true,"style":"magic","power":0.04,"requiredLevel":70},
+  "20756": {"name":"Hill giant club","price":500000,"rare":true,"style":"melee","power":0.03,"requiredLevel":70},
+  "29796": {"name":"Noxious halberd","price":18000000,"rare":true,"style":"melee","power":0.09,"requiredLevel":70},
+  "30750": {"name":"Oathplate helm","price":100000000,"rare":true,"style":"melee","power":0.08,"requiredLevel":80},
+  "30753": {"name":"Oathplate chest","price":250000000,"rare":true,"style":"melee","power":0.12,"requiredLevel":80},
+  "30756": {"name":"Oathplate legs","price":180000000,"rare":true,"style":"melee","power":0.1,"requiredLevel":80},
+  "30759": {"name":"Soulflame horn","price":250000000,"rare":true,"style":"melee","power":0.13,"requiredLevel":80},
+  "31088": {"name":"Avernic treads","price":150000000,"rare":true,"style":"all","power":0.09,"requiredLevel":80},
+  "31115": {"name":"Eye of Ayak (uncharged)","price":80000000,"rare":true,"style":"magic","power":0.11,"requiredLevel":70},
+  "12932": {"name":"Magic fang","price":8000000,"rare":true,"style":"magic","power":0.07,"requiredLevel":70},
+  "12927": {"name":"Serpentine visage","price":3000000,"rare":true,"style":"defence","power":0.04,"requiredLevel":70},
+  "11832": {"name":"Bandos chestplate","price":25000000,"rare":true,"style":"melee","power":0.06,"requiredLevel":70},
+  "11836": {"name":"Bandos boots","price":1000000,"rare":true,"style":"melee","power":0.03,"requiredLevel":70},
+  "11812": {"name":"Bandos hilt","price":10000000,"rare":true,"style":"melee","power":0.05,"requiredLevel":70},
+  "11826": {"name":"Armadyl helmet","price":4000000,"rare":true,"style":"ranged","power":0.04,"requiredLevel":70},
+  "11830": {"name":"Armadyl chainskirt","price":25000000,"rare":true,"style":"ranged","power":0.06,"requiredLevel":70},
+  "11810": {"name":"Armadyl hilt","price":8000000,"rare":true,"style":"ranged","power":0.05,"requiredLevel":70},
+  "11785": {"name":"Armadyl crossbow","price":50000000,"rare":true,"style":"ranged","power":0.09,"requiredLevel":70},
+  "11838": {"name":"Saradomin sword","price":500000,"rare":true,"style":"melee","power":0.03,"requiredLevel":70},
+  "11816": {"name":"Zamorak hilt","price":3000000,"rare":true,"style":"melee","power":0.04,"requiredLevel":70},
+  "22983": {"name":"Hydra leather","price":8000000,"rare":true,"style":"melee","power":0.05,"requiredLevel":70},
+};
+for (const [id, item] of Object.entries(expansion)) items[id] = { ...item, ...items[id], rare: true, ...(item.style ? { style: item.style, power: item.power, requiredLevel: item.requiredLevel } : {}) };
+const existingGear = {"20997": {"style": "ranged", "power": 0.18, "requiredLevel": 85}, "22486": {"style": "melee", "power": 0.18, "requiredLevel": 80}, "27277": {"style": "magic", "power": 0.18, "requiredLevel": 85}, "21003": {"style": "melee", "power": 0.12, "requiredLevel": 80}, "13652": {"style": "melee", "power": 0.1, "requiredLevel": 60}, "26219": {"style": "melee", "power": 0.09, "requiredLevel": 82}, "22324": {"style": "melee", "power": 0.08, "requiredLevel": 80}, "22481": {"style": "magic", "power": 0.09, "requiredLevel": 82}, "4151": {"style": "melee", "power": 0.04, "requiredLevel": 70}, "12922": {"style": "ranged", "power": 0.07, "requiredLevel": 75}, "11834": {"style": "melee", "power": 0.05, "requiredLevel": 65}, "11828": {"style": "ranged", "power": 0.06, "requiredLevel": 70}, "22966": {"style": "melee", "power": 0.08, "requiredLevel": 78}, "27614": {"style": "ranged", "power": 0.06, "requiredLevel": 80}};
+for (const [id, gear] of Object.entries(existingGear)) Object.assign(items[id], gear, {rare:true});
+for (const id of [2577,4749,4726,4712,4718,4736,4757,23528,21034,21079,21000,21012,21015,21018,21021,21024,21043,22326,22327,22328,25975,25985,27226,27229,27232,22477,11814,11824,12004,12002,13227,13229,13231,13233,11286,11920,6731,6733,6737,22111]) items[id].rare = true;
+export default items;

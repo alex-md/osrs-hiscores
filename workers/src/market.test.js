@@ -46,7 +46,7 @@ test("skilling produces whole resources and session costs redeem assets without 
   assert.equal(low.economy.bankValue, before);
   low.economy.cash = 0;
   valueBank(low, market);
-  low.economy.holdings = { 4151: 1 };
+  low.economy.holdings = { 1511: 10000 };
   valueBank(low, market);
   const saved = low.economy.bankValue;
   progressSkillingEconomy(low, date, { skill: "construction", hours: 10000, rng: () => 0.5, market });

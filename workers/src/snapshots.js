@@ -20,8 +20,8 @@ import {
   readManyJSON,
 } from "./store.js";
 
-const CHUNK_SIZE = 500;
-const PROFILE_CHUNK_SIZE = 125;
+const CHUNK_SIZE = 250; // Expanded per-boss ladders share each ranking row.
+const PROFILE_CHUNK_SIZE = 64; // Room for discoveries, trades and the expanded boss catalog.
 
 export function buildRankings(
   users,
@@ -188,7 +188,8 @@ export async function publishSnapshot(env, users = null) {
   }
   const snapshot = {
     version: 2,
-    activitiesVersion: 1,
+    activitiesVersion: 2,
+    rareTrading: (await readJSON(env, "system:rare-trading"))?.summary || null,
     stories: chronicle.stories,
     storyLeaders: chronicle.leaders,
     races: chronicle.races,
@@ -209,8 +210,10 @@ export async function publishSnapshot(env, users = null) {
   const documents = [...writes, { key: "snapshot:current", value: snapshot }]
     .map((doc) => ({ ...doc, encoded: JSON.stringify(doc.value) }));
   // SQLite limits individual rows to 2 MB. Fail without changing the live world.
-  if (documents.some((doc) => new TextEncoder().encode(doc.encoded).length > 1_900_000))
-    throw new Error("Snapshot row exceeds the SQLite safety limit; reduce shard size.");
+  for (const doc of documents) {
+    const bytes = new TextEncoder().encode(doc.encoded).length;
+    if (bytes > 1_900_000) throw new Error(`Snapshot row ${doc.key} (${bytes} bytes) exceeds the SQLite safety limit; reduce shard size.`);
+  }
   for (const doc of documents)
     await env.WORLD_STORE.put(doc.key, doc.encoded);
   return snapshot;

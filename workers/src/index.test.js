@@ -341,7 +341,7 @@ test("packed snapshots cut writes and profiles read one generation with two cold
     return put(key, value);
   };
   const snapshot = await publishSnapshot(e, users);
-  assert.equal(writes, 2); // Previously 48 ranking shard writes.
+  assert.equal(writes, 3); // All ladders share three bounded rows for 501 players.
   let reads = 0;
   const get = e.WORLD_STORE.get.bind(e.WORLD_STORE);
   e.WORLD_STORE.get = async (...args) => {

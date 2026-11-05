@@ -31,6 +31,8 @@ export class BenchWorld extends HiscoresWorld {
    user.economy.holdings=Object.fromEntries(Object.entries(baseline).map(([id,item])=>[id,user.economy.bankValue/Object.keys(baseline).length/item.price]));
    user.economy.revaluation=0;
    user.economy.notableLoot=Array.from({length:8},(_,n)=>({itemId:20997,quantity:1,boss:'chambers-of-xeric',kc:1000000+i,timestamp:Date.now()-n*900000,value:1427650000}));
+   user.economy.rareFinds=Object.fromEntries(Object.entries(baseline).filter(([,item])=>item.rare).map(([id])=>[id,{quantity:1000,firstAt:Date.now()-86400000,lastAt:Date.now(),boss:'chambers-of-xeric'}]));
+   user.economy.trades=Array.from({length:8},(_,n)=>({side:'sell',itemId:20997,price:1427650000,tax:28553000,counterparty:'Bench'+n,timestamp:Date.now()}));
    user.career.raidProgress={'chambers-of-xeric':.9,'theatre-of-blood':.9,'tombs-of-amascut':.9};
    return normalizeUser(user);
   });

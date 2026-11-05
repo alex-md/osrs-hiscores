@@ -30,7 +30,7 @@ test('bundled plan has a bounded twelve-hour window and exact integer totals',()
   assert.ok(plan.rows.length<=plan.cohort);
   let xp=0,kills=0;
   for(const row of plan.rows) {
-    assert.equal(row[3].length,SKILLS.length);assert.equal(row[4].length,BOSSES.length);
+    assert.equal(row[3].length,SKILLS.length);assert.equal(row[4].length,plan.bossKeys.length);
     assert.ok([...row[3],...row[4]].every(n=>Number.isSafeInteger(n)&&n>=0));
     xp+=row[3].reduce((a,b)=>a+b,0);kills+=row[4].reduce((a,b)=>a+b,0);
   }

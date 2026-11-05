@@ -155,3 +155,31 @@ test('replacing a smaller daily population removes obsolete D1 shards',async()=>
   assert.equal((await progress({days:1})).totalPlayers,25);
   assert.deepEqual(JSON.parse(await world.store.get('history:pending')),{});
 });
+
+test('appending boss metrics preserves older packed history and starts new ladders at zero',async t=>{
+  let now=Date.parse('2026-11-03T12:00Z');t.mock.method(Date,'now',()=>now);
+  const {world,request,history,progress}=setup();
+  await request('/api/seed',{usernames:['Ada']});
+  const oldLength=1+SKILLS.length+1+24;
+  // Reproduce a stored pre-expansion profile and D1 row with only 24 bosses.
+  const users=await allUsers(world.env),user=users[0];
+  for(const key of ['base','rankBase','last','lastRanks','initial','initialRanks']) user.tracking[key]=user.tracking[key].slice(0,oldLength);
+  const snapshot=JSON.parse(await world.store.get('snapshot:current'));
+  const profileKey=`snapshot:${snapshot.generation}:profiles:0`;
+  const group=JSON.parse(await world.store.get(profileKey));group.ada=user;
+  await world.store.put(profileKey,JSON.stringify(group));world.store.commit();
+  for(const row of history.prepare('SELECT day,shard,payload FROM progress_players').all()) {
+    const payload=JSON.parse(row.payload);
+    for(const packed of payload) for(const i of [1,2,3,9,10,11]) packed[i]=packed[i].slice(0,oldLength);
+    history.prepare('UPDATE progress_players SET payload=? WHERE day=? AND shard=?').run(JSON.stringify(payload),row.day,row.shard);
+  }
+  assert.equal((await progress({days:7,metric:'nex'})).totalGain,0);
+  assert.equal((await progress({days:7,metric:'nex',username:'Ada'})).totalGain,0);
+  now+=86400000;
+  const next=await allUsers(world.env);next[0].bosses.nex=3;next[0].skills.attack.xp+=1000;
+  await publishSnapshot(world.env,next);world.store.commit();await flushHistory(world.env);
+  assert.equal((await progress({days:7,metric:'nex'})).totalGain,3);
+  const timeline=await progress({days:7,metric:'nex',username:'Ada'});
+  assert.equal(timeline.totalGain,3);assert.deepEqual(timeline.series.map(point=>point.gain),[0,3]);
+  assert.equal((await progress({days:7,metric:'attack'})).totalGain,1000);
+});

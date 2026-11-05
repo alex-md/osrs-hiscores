@@ -1,3 +1,4 @@
+import { EXPANDED_BOSSES, EXPANDED_DROPS } from "./boss-expansion.js";
 // Authored ordinary-play rates and readiness gates. Selected drop tables are
 // explicit below; older encounters retain approximate common reward bundles.
 export const BOSSES = [
@@ -32,6 +33,10 @@ export const BOSSES = [
     drops: table.map(([id,quantity,chance]) => ({ id,quantity,chance,rare: chance < 0.01 })),
     source: `https://oldschool.runescape.wiki/w/${name.replaceAll(" ", "_")}` })),
 ];
+// Append only: packed historical metric indices retain their meaning.
+BOSSES.push(...EXPANDED_BOSSES);
+for (const boss of BOSSES) if (EXPANDED_DROPS[boss.key]) boss.drops = EXPANDED_DROPS[boss.key];
+
 // Supplies are authored whole-item budgets per kill/completion. Raid entries
 // represent one completion, so they consume a trip's supplies rather than a kill's.
 const SUPPLY_BUDGETS = {
@@ -56,7 +61,7 @@ const COMMON_LOOT = { "king-black-dragon": 22000, "chaos-elemental": 18000, krak
   "thermonuclear-smoke-devil": 22000, cerberus: 18000, "dagannoth-rex": 18000,
   "dagannoth-prime": 18000, "dagannoth-supreme": 18000 };
 for (const boss of BOSSES) {
-  boss.raid = RAID_KEYS.includes(boss.key);
+  boss.raid = RAID_KEYS.includes(boss.key) || !!boss.completion;
   boss.unit = boss.raid ? "completions" : "kills";
   boss.commonLoot = COMMON_LOOT[boss.key] ?? boss.loot;
 }

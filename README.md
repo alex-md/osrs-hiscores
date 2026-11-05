@@ -130,11 +130,11 @@ The obsolete public migration, regex purge, hitpoints rebalance, and fake-word s
 
 The [Cloudflare architecture review](docs/cloudflare-architecture.md) records the
 storage/CPU tradeoffs. The Grand Exchange, its public API and Analytics Engine
-emission have been removed; simulation no longer reads or writes market state.
+emission have been removed; legacy exchange state remains inert; the rare-item settlement step uses separate bounded stock.
 
 The singleton `HiscoresWorld` Durable Object owns a SQLite database. Public reads, administrative updates, and 15-minute cron runs all go through the same request queue. There are no Workers KV bindings or KV operations in the active architecture. Public requests never create or rebuild snapshots; an uninitialized world returns `503` until it is seeded or the first cron runs.
 
-A successful update writes packed 500-player ranking shards, 125-player profile shards, the manifest, and simulation metadata into one SQLite transaction. Profile shards are the canonical player records, including XP and achievement history. A failed computation or SQL commit leaves the previous generation intact. Obsolete generations are deleted in that same transaction, so snapshot storage does not grow on every update. The current generation has no expiry. Individual JSON rows are checked against a 1.9 MB safety threshold below SQLite's 2 MB row limit.
+A successful update writes packed 250-player ranking shards, 64-player profile shards, the manifest, and simulation metadata into one SQLite transaction. Profile shards are the canonical player records, including XP and achievement history. A failed computation or SQL commit leaves the previous generation intact. Obsolete generations are deleted in that same transaction, so snapshot storage does not grow on every update. The current generation has no expiry. Individual JSON rows are checked against a 1.9 MB safety threshold below SQLite's 2 MB row limit.
 
 The object serializes reads and writes, and stores a simulation slot identifier atomically with the simulation. Repeated or concurrent cron/manual triggers in the same 15-minute UTC window return `429` without progressing players again. Seed, rebuild, and deletion remain available independently of that simulation guard. Failed simulations can be retried because their slot reservation rolls back too.
 
@@ -211,7 +211,7 @@ The username migration runs once with `POST /api/admin/users/rename-all` and `{"
 
 ## Boss and wealth simulation
 
-Sailing and 24 encounter categories share the existing world. Training uses calibrated XP rates, independent of supplies, cash or trading. Boss sessions use stat unlocks, estimated readiness, experience, personality and luck, with a shared session time budget and reduced world multiplier. Loot and estimated activity costs update bounded bank values at fixed catalog prices. Existing accounts, XP, KC, achievements, inventory and progression history remain intact. Arrivals and retention settings are unchanged. See [the simulation model](docs/simulation-economy.md) for accounting, migration and limitations.
+Sailing and 48 encounter categories share the existing world. Training uses calibrated XP rates, independent of supplies, cash or trading. Boss sessions use stat unlocks, estimated readiness, experience, personality and luck, with a shared session time budget and reduced world multiplier. Loot and estimated activity costs update bounded bank values at fixed catalog prices. Existing accounts, XP, KC, achievements, inventory and progression history remain intact. Arrivals and retention settings are unchanged. See [the simulation model](docs/simulation-economy.md) for accounting, migration and limitations.
 
 
 ## Gains and records
@@ -219,3 +219,54 @@ Sailing and 24 encounter categories share the existing world. Training uses cali
 The public **Gains & records** page (`#progress`) tracks XP, skill and boss gains, rank rises/falls, player timelines, daily records, training streaks and rank-one reigns. Filter by today, 7 days or 30 days and any skill or boss. History starts at the first capture and retains 35 UTC dates; lifetime records remain. The live simulation stays in its Durable Object, with retryable publication to D1.
 
 The release pipeline creates/resolves the named history database and applies migrations before Worker deployment. Add **Account / D1 / Edit** to the Cloudflare release token. Local preview needs `cd workers && npx wrangler d1 migrations apply osrs-hiscores-history --local` before `npx wrangler dev`. See [progress history](docs/progress-history.md) for data definitions, storage, quotas and manual deployment.
+
+
+## Rare rewards and wealth progression
+
+The roster now includes 48 encounters. The expansion adds Nex, Corporeal Beast,
+Nightmare and Phosani, all four DT2 bosses, both Gauntlets, six Wilderness bosses,
+Kalphite Queen, Abyssal Sire, Grotesque Guardians, Obor, Bryophyta, Araxxor, Yama
+and Doom of Mokhaiotl. Existing Zulrah, God Wars and Hydra tables have more named
+uniques. Selected tradeable rewards and item identities were researched using
+[OSRS Wiki encounter pages](https://oldschool.runescape.wiki/w/Boss) and its
+[item mapping API](https://prices.runescape.wiki/api/v1/osrs/mapping) on November 4, 2026.
+
+These are authored simulation models, not exhaustive live-game drop tables or
+live GE prices. Team contribution, keys, quests, preparation, delve depth and
+component assembly are approximated through effective per-player encounter and
+reward rates. Araxxor's completed halberd uses an effective 1/600 reward rate for
+its three-piece assembly. Untradeable vestiges, axe pieces and pets are excluded
+from priced rewards. Nightmare's orb table rolls independently of armour/staff;
+each raid completion still permits only one purple. New boss ladders begin at
+zero. The original 24 boss keys retain their packed-history positions, and the
+one-time recovery plan continues to use its own immutable boss-key list.
+
+Rare trading is a bounded settlement step inside each scheduled world transaction,
+with up to 64 exchanges per tick. It matches participating players first, then
+allows outside sales. Outside resale stock comes only from real recorded sales;
+there is no generated rare-item shop supply. Purchases use cash, retain a reserve,
+and never borrow. Fixed catalog estimates determine prices, and sellers pay a 2%
+tax. Player trades conserve items and total wealth less tax; outside cash/item
+flows are tracked explicitly. Each profile retains its latest eight trades and
+lifetime drop discoveries. Collectors keep their first copy; self-sufficient
+Iron Soul accounts do not trade. Other owners can choose to sell a first copy,
+and duplicate rares are sold more readily. These are simulated account decisions.
+
+Ordinary XP and levels remain independent of cash, supplies, trading or purchases.
+Wealth adds up to 10% to training efficiency; the best retained relevant upgrade
+adds up to 18%, with skill gates and no duplicate stacking. Expensive components
+have authored upgrade potential rather than full finished-weapon power. Optional
+funded methods add up to 25% to buyable-skill training and debit real costs. These
+bonuses add, for at most 53% extra training efficiency. Gear also gives up to 18%
+extra bossing efficiency. They affect future active sessions, never grant instant
+XP on acquisition or sale, and never penalize the base rate when money runs out.
+Routine cost accounting redeems ordinary resources but preserves rare holdings;
+unaffordable costs are recorded unpaid. The existing 1T bank safety ceiling can
+still sink excess assets. All ordinary skill XP remains capped at 200M.
+
+Boss pages show selected notable rewards; bank profiles show the latest training
+bonus and recent purchases/sales. `/api/world` includes the latest `rareTrading`
+summary. The old `/api/exchange` remains retired. Simulation updates need no
+external price requests. Capacity checks include profiles packed with discoveries
+and recent trades; their resource figures are local projections, not production
+measurements.

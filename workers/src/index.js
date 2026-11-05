@@ -295,6 +295,7 @@ async function route(request, env) {
   if (path === "/api/world")
     return cached({
       ...snapshotInfo(snapshot),
+      rareTrading: snapshot.rareTrading || null,
       nextUpdateAt: (Math.floor(Date.now() / UPDATE_INTERVAL_MS) + 1) * UPDATE_INTERVAL_MS,
     });
   if (path === "/api/activity-rankings") {
