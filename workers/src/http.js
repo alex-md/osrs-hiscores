@@ -49,7 +49,7 @@ export function requireAdmin(request, env) {
     throw new HttpError(401, "A valid X-Admin-Token header is required.");
 }
 export function paginate(rows, params) {
-  const limit = integer(params.get("limit"), 50, 1, 5000, "limit");
+  const limit = integer(params.get("limit"), 50, 1, 2000, "limit");
   const page = integer(params.get("page"), 1, 1, 1_000_000, "page");
   const pages = Math.max(1, Math.ceil(rows.length / limit));
   const current = Math.min(page, pages);

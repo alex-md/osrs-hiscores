@@ -21,7 +21,7 @@ import {
 } from "./store.js";
 
 const CHUNK_SIZE = 500;
-const PROFILE_CHUNK_SIZE = 125; // At 5,000 players, a cold batch reads at most 41 SQL rows.
+const PROFILE_CHUNK_SIZE = 125;
 
 export function buildRankings(
   users,

@@ -1,9 +1,9 @@
 import { UPDATE_INTERVAL_MS, UPDATE_MINUTES } from "../../frontend/lib/simulation-config.js";
 import { weekendBonusMultiplier } from "./utils.js";
 
-export const XP_SCALE = 18.5;
-export const MAX_XP_SCALE = 31;
-export const MIN_XP_SCALE = 6;
+export const XP_SCALE = 29;
+export const MAX_XP_SCALE = 70;
+export const MIN_XP_SCALE = 11;
 const DAY_MS = 86_400_000;
 const PERIODS = DAY_MS / UPDATE_INTERVAL_MS;
 

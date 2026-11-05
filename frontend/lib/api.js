@@ -97,7 +97,7 @@ export async function request(path, options = {}) {
     const skill = params.get("skill");
     if (url.pathname === "/api/skill-rankings" && !skill) return data;
     if (url.pathname === "/api/leaderboard")
-      data = await fetchJSON("/api/leaderboard?limit=5000", options);
+      data = await fetchJSON("/api/leaderboard?limit=2000", options);
     let rows = skill ? data.rankings[skill] || [] : data.players || [];
     const coverage = rows.length;
     const query = (params.get("q") || "").trim().toLowerCase();
@@ -135,7 +135,7 @@ export async function request(path, options = {}) {
     !data.ranks
   ) {
     const [overall, skills] = await Promise.all([
-      fetchJSON("/api/leaderboard?limit=5000", options),
+      fetchJSON("/api/leaderboard?limit=2000", options),
       fetchJSON("/api/skill-rankings", options),
     ]);
     const match = (row) =>
