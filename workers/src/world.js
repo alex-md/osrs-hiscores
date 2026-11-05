@@ -17,6 +17,14 @@ export class HiscoresWorld {
     this.queue = job.catch(() => {});
     return job;
   }
+  async recordOperationFailure() {
+    const operations = await readJSON(this.env, 'system:operations', {});
+    await writeJSON(this.env, 'system:operations', {
+      failures: (operations.failures || 0) + 1,
+      lastFailedAt: Date.now(),
+    });
+    this.store.commit();
+  }
   async respond(request) {
     try {
       const path = new URL(request.url).pathname;
@@ -33,9 +41,7 @@ export class HiscoresWorld {
       } else {
         this.store.rollback();
         if (response.status >= 500 && request.method === 'POST') {
-          const operations = await readJSON(this.env, 'system:operations', {});
-          await writeJSON(this.env, 'system:operations', { failures:(operations.failures || 0)+1, lastFailedAt:Date.now() });
-          this.store.commit();
+          await this.recordOperationFailure();
         }
       }
       if (request.method === "POST") {
@@ -55,9 +61,7 @@ export class HiscoresWorld {
       this.store.rollback();
       if (!(error instanceof HttpError) && request.method === "POST") {
         try {
-          const operations = await readJSON(this.env, 'system:operations', {});
-          await writeJSON(this.env, 'system:operations', { failures:(operations.failures || 0)+1, lastFailedAt:Date.now() });
-          this.store.commit();
+          await this.recordOperationFailure();
         } catch { this.store.rollback(); }
       }
       if (!(error instanceof HttpError)) console.error("World operation failed:", error);

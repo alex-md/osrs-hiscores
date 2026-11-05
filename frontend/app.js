@@ -2,34 +2,12 @@ import items from "./lib/items.js";
 import { RARE_ITEMS } from "./lib/loot.js";
 import { bankView } from "./lib/bank-view.js";
 import { BOSSES, BOSS_BY_KEY } from "./lib/activities.js";
+import { route, routeTitle, routeNavigation } from "./lib/routes.js";
+import { number, escape, xpScale, playerLink, date, skillIcon, crest } from "./lib/presentation.js";
 import { SKILLS, title } from "./lib/domain.js";
 import { request, apiBase, saveBase, latestGeneration } from "./lib/api.js";
 
 const $ = (selector) => document.querySelector(selector);
-const number = (value) =>
-  new Intl.NumberFormat("en-US").format(Number(value) || 0);
-const escape = (value) =>
-  String(value ?? "").replace(
-    /[&<>"']/g,
-    (c) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
-        c
-      ],
-  );
-const xpScale = (value) => Number(value).toLocaleString("en-US", { maximumFractionDigits: 1 });
-const playerLink = (name) => `#user/${encodeURIComponent(name)}`;
-const date = (value) =>
-  value
-    ? new Date(value).toLocaleString(undefined, {
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      })
-    : "Not recorded";
-const skillIcon = (skill) =>
-  `<svg class="skill-symbol" aria-hidden="true" viewBox="0 0 16 16"><use href="skill-icons.svg#${skill}"></use></svg>`;
-const crest = `<svg viewBox="0 0 48 56" aria-hidden="true"><path d="M24 2 44 11v18C44 42 24 53 24 53S4 42 4 29V11Z"/><path d="m17 18 14 20m-14 0 14-20M12 34l9 7m6 0 9-7"/></svg>`;
 const state = {
   catalog: [],
   catalogFetchedAt: 0,
@@ -39,43 +17,6 @@ const state = {
   revision: 0,
 };
 
-function route() {
-  const raw = location.hash.slice(1);
-  if (raw.startsWith("user/")) {
-    try {
-      return { type: "player", username: decodeURIComponent(raw.slice(5)) };
-    } catch {
-      return { type: "invalid" };
-    }
-  }
-  const [path, query = ""] = raw.split("?");
-  const params = new URLSearchParams(query);
-  if (
-    path === "achievements" ||
-    (!raw && location.pathname.endsWith("achievements.html"))
-  )
-    return { type: "achievements", params };
-  if (
-    path.startsWith("skills/") ||
-    (!raw && location.pathname.endsWith("skill-hiscores.html"))
-  ) {
-    const skill =
-      path.slice(7) ||
-      new URLSearchParams(location.search).get("skill") ||
-      "attack";
-    return {
-      type: SKILLS.includes(skill) ? "skill" : "invalid",
-      skill,
-      params,
-    };
-  }
-  if (path === "stories") return { type: "stories", params };
-  if (path === "progress") return { type: "progress", params };
-  if (path === "bosses" || path === "wealth")
-    return { type: "activity", path, params };
-  if (path && path !== "overall") return { type: "invalid" };
-  return { type: "overall", params };
-}
 function layout() {
   $("#app").innerHTML = `
     <header class="site-header"><div class="header-inner">
@@ -349,6 +290,14 @@ async function playerView(current, signal, revision) {
   const unlocked = Object.entries(user.achievements || {}).sort(
     (a, b) => b[1] - a[1],
   );
+  const renderUnlocks = (entries) => entries.map(([key, timestamp]) =>
+    achievementCard(byKey.get(key) || {
+      name: title(key),
+      description: "A historical unlock recorded on this account.",
+      category: "Progression",
+      rarity: "common",
+    }, timestamp),
+  ).join("");
   const mastered = SKILLS.filter((s) => user.skills[s]?.level === 99).length;
   $("#view").innerHTML =
     `<article class="adventurer-profile"><a class="back-link" href="#overall">← Back to rankings</a>
@@ -370,21 +319,7 @@ async function playerView(current, signal, revision) {
     <section class="profile-achievements"><div class="section-heading"><div><div class="eyebrow">Recorded milestones</div><h2>Achievement collection <span class="count-label">${unlocked.length}</span></h2></div><a href="#achievements">View the catalog ↗</a></div>
       <div id="profile-unlocks" class="achievement-grid">${
         unlocked.length
-          ? unlocked
-              .slice(0, 12)
-              .map(([key, timestamp]) =>
-                achievementCard(
-                  byKey.get(key) || {
-                    name: title(key),
-                    description:
-                      "A historical unlock recorded on this account.",
-                    category: "Progression",
-                    rarity: "common",
-                  },
-                  timestamp,
-                ),
-              )
-              .join("")
+          ? renderUnlocks(unlocked.slice(0, 12))
           : '<div class="empty-state"><h3>A fresh page</h3><p>This player has no recorded achievements yet. Check back after the next simulation cycle.</p></div>'
       }</div>${unlocked.length > 12 ? `<div class="collection-controls"><span id="collection-count">Showing 12 of ${unlocked.length}</span><button id="expand-collection" class="button subtle" aria-expanded="false">Show all achievements</button></div>` : ""}</section>
     <p class="profile-updated">Player last active ${date(user.updatedAt)} · Rankings updated ${date(user.generatedAt)}</p></article>`;
@@ -397,21 +332,9 @@ async function playerView(current, signal, revision) {
       : "Show all achievements";
     $("#collection-count").textContent =
       `Showing ${expanded ? unlocked.length : 12} of ${unlocked.length}`;
-    $("#profile-unlocks").innerHTML = (
-      expanded ? unlocked : unlocked.slice(0, 12)
-    )
-      .map(([key, timestamp]) =>
-        achievementCard(
-          byKey.get(key) || {
-            name: title(key),
-            description: "A historical unlock recorded on this account.",
-            category: "Progression",
-            rarity: "common",
-          },
-          timestamp,
-        ),
-      )
-      .join("");
+    $("#profile-unlocks").innerHTML = renderUnlocks(
+      expanded ? unlocked : unlocked.slice(0, 12),
+    );
   });
 }
 async function achievementsView(current, signal, revision) {
@@ -475,13 +398,13 @@ async function renderRoute() {
   state.request?.abort();
   state.request = new AbortController();
   const revision = ++state.revision;
-  const current = route();
+  const current = route(location);
   state.route = current;
-  document.title = `${current.type === "player" ? current.username : current.type === "skill" ? `${title(current.skill)} hiscores` : current.type === "stories" ? "World stories" : current.type === "progress" ? "Gains & records" : current.type === "achievements" ? "Achievements" : current.type === "activity" ? current.path === "wealth" ? "Bank value hiscores" : "Boss hiscores" : "Rankings"} · OSRS Hiscores`;
+  document.title = `${routeTitle(current)} · OSRS Hiscores`;
   document.querySelectorAll("[data-nav]").forEach((a) => {
     const active =
       a.dataset.nav ===
-      (current.type === "stories" ? "stories" : current.type === "progress" ? "progress" : current.type === "achievements" ? "achievements" : current.type === "activity" ? current.path : "overall");
+      routeNavigation(current);
     if (active) a.setAttribute("aria-current", "page");
     else a.removeAttribute("aria-current");
   });
