@@ -1,3 +1,4 @@
+import { publicEconomy } from './market.js';
 import { buildStories } from './stories.js';
 import { stageHistory } from "./history.js";
 import { BOSSES } from "../../frontend/lib/activities.js";
@@ -21,7 +22,7 @@ import {
 } from "./store.js";
 
 const CHUNK_SIZE = 250; // Expanded per-boss ladders share each ranking row.
-const PROFILE_CHUNK_SIZE = 64; // Room for discoveries, trades and the expanded boss catalog.
+const PROFILE_CHUNK_SIZE = 48; // Room for discoveries, trades and per-item market quotes.
 
 export function buildRankings(
   users,
@@ -189,6 +190,7 @@ export async function publishSnapshot(env, users = null) {
   const snapshot = {
     version: 2,
     activitiesVersion: 2,
+    economy: publicEconomy(await readJSON(env, "system:economy")),
     rareTrading: (await readJSON(env, "system:rare-trading"))?.summary || null,
     stories: chronicle.stories,
     storyLeaders: chronicle.leaders,

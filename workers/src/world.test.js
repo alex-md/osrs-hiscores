@@ -77,6 +77,7 @@ test("failed SQL commit rolls back player state, manifest, and simulation slot",
   assert.equal(await object.store.get("system:update-slot"), null);
   assert.equal(await object.store.get("system:exchange"), null);
   assert.equal(await object.store.get("system:training-climate"), null);
+  assert.equal(await object.store.get("system:economy"), null);
   assert.equal((await request("/internal/scheduled", {})).status, 200);
   assert.equal(points.length, 0);
 });
@@ -274,4 +275,29 @@ test("recovery and backups roll back together when SQLite commit fails",async t=
   assert.equal(await object.store.get(`backup:progress-recovery:${RECOVERY_ID}:players:0`),null);
   const retry=await request('/api/admin/progress/recover-2026-10-28',{dryRun:false,planId:RECOVERY_ID});
   assert.equal(retry.status,200);
+});
+
+
+test("economy prices, bank quotes and public generation commit together and survive rebuilds",async t=>{
+  let now=Date.parse('2026-11-06T12:00:00Z');
+  t.mock.method(Date,'now',()=>now);
+  const {request,object}=setup();
+  await request('/api/seed',{usernames:['MarketOwner']});
+  assert.equal((await request('/internal/scheduled',{})).status,200);
+  const first=await(await request('/api/economy')).json();
+  assert.equal(first.economy.model,'supply-demand-v1');
+  assert.equal(first.economy.capturedAt,now);
+  const user=await(await request('/api/users/MarketOwner')).json();
+  assert.equal(user.generation,first.generation);
+  assert.equal(user.economy.pricing.capturedAt,first.economy.capturedAt);
+  for(const [id,price] of Object.entries(user.economy.pricing.prices)) assert.equal(price,first.economy.items[id].price);
+  const state=await object.store.get('system:economy');
+  await request('/api/admin/rebuild',{});
+  assert.equal(await object.store.get('system:economy'),state);
+  assert.deepEqual((await(await request('/api/economy')).json()).economy,first.economy);
+  now+=900000;
+  assert.equal((await request('/internal/scheduled',{})).status,200);
+  const next=await(await request('/api/economy')).json();
+  assert.equal(next.economy.capturedAt,now);
+  assert.ok(next.economy.items[1515].history.length>first.economy.items[1515].history.length);
 });

@@ -3,7 +3,7 @@ import { archetypePolicy } from './archetypes.js';
 import { SKILLS } from "./constants.js";
 import { BOSSES, MAX_BANK_VALUE } from "../../frontend/lib/activities.js";
 import { combatLevel } from "../../frontend/lib/domain.js";
-import { priceOf, SKILL_ITEMS, BOSS_ITEMS, RARE_ITEMS } from "./market.js";
+import { priceOf, costIndex, recordDemand, SKILL_ITEMS, BOSS_ITEMS, RARE_ITEMS } from "./market.js";
 import baseline from "../data/ge-baseline.js";
 
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
@@ -103,30 +103,32 @@ export function valueBank(user, market) {
     e.migration = { fractionalValueConverted: Math.round(remainder) };
   }
   e.flows ||= { created: {}, consumed: {}, coinFaucets: 0, coinSinks: 0, capSink: 0 };
-  let modeled = e.cash + Object.entries(e.holdings).reduce((sum, [id, count]) => sum + count * priceOf(null, id), 0);
+  let modeled = e.cash + Object.entries(e.holdings).reduce((sum, [id, count]) => sum + count * priceOf(market, id), 0);
   // Explicit integer asset sink at the safety ceiling, never proportional fractions.
   if (modeled > MAX_BANK_VALUE) {
     const cashSink = Math.min(e.cash, modeled - MAX_BANK_VALUE);
     e.cash -= cashSink; modeled -= cashSink; e.flows.capSink += cashSink;
     for (const [id, count] of Object.entries(e.holdings)) {
       if (modeled <= MAX_BANK_VALUE) break;
-      const removed = Math.min(count, Math.ceil((modeled - MAX_BANK_VALUE) / priceOf(null, id)));
-      e.holdings[id] -= removed; modeled -= removed * priceOf(null, id);
+      const removed = Math.min(count, Math.ceil((modeled - MAX_BANK_VALUE) / priceOf(market, id)));
+      e.holdings[id] -= removed; modeled -= removed * priceOf(market, id);
       e.flows.consumed[id] = (e.flows.consumed[id] || 0) + removed;
-      e.flows.capSink += removed * priceOf(null, id);
+      e.flows.capSink += removed * priceOf(market, id);
     }
   }
   e.bankValue = modeled;
   e.revaluation = (e.revaluation || 0) + modeled - before;
-  e.pricing = { source: "Fixed item catalog", capturedAt: null, status: "fixed" };
+  e.pricing = { source: market?.model ? "Simulated supply and demand" : "Opening item estimates", capturedAt: market?.capturedAt || null, status: market?.model ? "simulated" : "opening",
+    prices: Object.fromEntries(Object.keys(e.holdings).map(id => [id, priceOf(market,id)])),
+    changes: Object.fromEntries(Object.keys(e.holdings).map(id => [id, market?.items?.[id]?.dayChangePct || 0])) };
 }
 // Session costs are accounting estimates. They never limit XP or kill counts.
-// Pay with cash, then redeem whole items at their fixed catalog value. Any change
+// Pay with cash, then redeem whole items at the current market value. Any change
 // stays as cash; an exhausted bank pays only what it owns and never borrows.
 function settle(user, income, cost, details, date, market, rewards = {}) {
   const e = user.economy;
   income = integer(income);
-  const earned = income + Object.entries(rewards).reduce((sum, [id, n]) => sum + n * priceOf(null, id), 0);
+  const earned = income + Object.entries(rewards).reduce((sum, [id, n]) => sum + n * priceOf(market, id), 0);
   e.cash += income;
   e.flows.coinFaucets += income;
   for (const [id, n] of Object.entries(rewards)) {
@@ -134,8 +136,8 @@ function settle(user, income, cost, details, date, market, rewards = {}) {
     e.holdings[id] = (e.holdings[id] || 0) + n;
     e.flows.created[id] = (e.flows.created[id] || 0) + n;
   }
-  const estimatedCost = integer(cost);
-  const spendable = e.cash + Object.entries(e.holdings).reduce((sum,[id,n]) => sum + (baseline[id].rare ? 0 : n * priceOf(null,id)),0);
+  const estimatedCost = integer(cost * costIndex(details.skill || details.activity, market));
+  const spendable = e.cash + Object.entries(e.holdings).reduce((sum,[id,n]) => sum + (baseline[id].rare ? 0 : n * priceOf(market,id)),0);
   const spent = Math.min(estimatedCost, spendable);
   const unpaid = estimatedCost - spent;
   e.unpaidCosts = integer((e.unpaidCosts || 0) + unpaid);
@@ -143,7 +145,7 @@ function settle(user, income, cost, details, date, market, rewards = {}) {
   for (const [id, held] of Object.entries(e.holdings)) {
     if (e.cash >= spent) break;
     if (baseline[id].rare) continue; // Retain rares until an explicit voluntary sale.
-    const price = priceOf(null, id);
+    const price = priceOf(market, id);
     const n = Math.min(held, Math.ceil((spent - e.cash) / price));
     e.holdings[id] -= n;
     e.flows.consumed[id] = (e.flows.consumed[id] || 0) + n;
@@ -155,7 +157,8 @@ function settle(user, income, cost, details, date, market, rewards = {}) {
   e.bankValue += earned - spent;
   e.earned = integer(e.earned + earned);
   e.spent = integer(e.spent + spent);
-  valueBank(user);
+  recordDemand(e, details.skill || details.activity, spent, market);
+  valueBank(user, market);
   e.recordedFrom ??= date.getTime();
   e.lastActivityAt = date.getTime();
   e.lastSession = { ...details, earned, spent, estimatedCost, unpaid, net: earned - spent, timestamp: date.getTime() };
@@ -264,7 +267,7 @@ export function progressBossing(user, date, { hours, rng, market, scale = 1 }) {
     user.economy.rareFinds[drop.itemId] = { quantity:(prior?.quantity || 0)+drop.quantity,firstAt:prior?.firstAt || +date,lastAt:+date,boss:boss.key };
   }
   const loot = notable.map(drop => ({ ...drop, boss: boss.key, kc: user.bosses[boss.key],
-    timestamp: date.getTime(), value: drop.quantity * priceOf(null, drop.itemId) }));
+    timestamp: date.getTime(), value: drop.quantity * priceOf(market, drop.itemId) }));
   user.economy.notableLoot = [...loot, ...(user.economy.notableLoot || [])].slice(0, 8);
   return { trainingHours: hours - bossHours, gains, active: true, boss: boss.key };
 }
@@ -289,7 +292,7 @@ export function progressSkillingEconomy(user, date, { skill, hours, rng = Math.r
 
 // Authored treasure-trail model: four steps per casket, ordinary coin rewards
 // and a rare item roll. These are simulation estimates, not real clue odds.
-export function progressClues(user, date, { hours, scale=1, rng=Math.random }) {
+export function progressClues(user, date, { hours, scale=1, rng=Math.random, market }) {
   const chance = archetypePolicy(user.archetype).clueChance || .008;
   if (!(hours>0) || rng()>=chance) return {active:false,trainingHours:hours,gains:{}};
   const used = hours*(.45+rng()*.4);
@@ -301,10 +304,10 @@ export function progressClues(user, date, { hours, scale=1, rng=Math.random }) {
   const drops = rareDrops(completed,1/200,rng);
   const rewards = drops ? {2577:drops} : {};
   const income = Math.floor(completed*(20000+rng()*100000));
-  valueBank(user);
-  settle(user,income,used*activityScale(scale)*12000,{activity:'clues',clues:completed,hours:used},date,null,rewards);
+  valueBank(user, market);
+  settle(user,income,used*activityScale(scale)*12000,{activity:'clues',clues:completed,hours:used},date,market,rewards);
   if(drops) {
-    const loot={itemId:2577,quantity:drops,boss:'treasure-trails',kc:trail.completed,countUnit:'caskets',timestamp:+date,value:drops*priceOf(null,2577)};
+    const loot={itemId:2577,quantity:drops,boss:'treasure-trails',kc:trail.completed,countUnit:'caskets',timestamp:+date,value:drops*priceOf(market,2577)};
     user.economy.notableLoot=[loot,...(user.economy.notableLoot||[])].slice(0,8);
     user.economy.rareDrops=integer(user.economy.rareDrops+drops);
   }

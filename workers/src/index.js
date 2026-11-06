@@ -286,10 +286,12 @@ async function route(request, env) {
     "/api/achievements/catalog",
     "/api/banners/rare",
     "/api/world",
+    "/api/economy",
     "/api/stories",
   ];
   if (!known.includes(path)) throw new HttpError(404, "Unknown API route.");
   const snapshot = await getSnapshot(env);
+  if (path === "/api/economy") return cached({ ...snapshotInfo(snapshot), economy:snapshot.economy || null });
   if (path === "/api/stories") return cached({ ...snapshotInfo(snapshot),
     stories: snapshot.stories || [], races: snapshot.races || [], contenders: snapshot.contenders || [] });
   if (path === "/api/world")
@@ -307,7 +309,7 @@ async function route(request, env) {
     let rows = await rankingRows(env, snapshot, `activity:${category}`);
     const q = (url.searchParams.get("q") || "").trim().toLowerCase();
     if (q) rows = rows.filter(row => row.username.toLowerCase().includes(q));
-    return cached({ ...snapshotInfo(snapshot), category, ...paginate(rows, url.searchParams) });
+    return cached({ ...snapshotInfo(snapshot), category, prices:Object.fromEntries(Object.entries(snapshot.economy?.items || {}).map(([id,row])=>[id,row.price])), ...paginate(rows, url.searchParams) });
   }
   if (path === "/api/leaderboard" || path === "/api/skill-rankings") {
     const skill =

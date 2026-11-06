@@ -362,8 +362,8 @@ body {
 .header-ornament .skill-symbol:nth-child(2) { width: 38px; height: 38px; flex-basis: 38px; transform: translateY(-13px); }
 .header-ornament:last-child { transform: scaleX(-1); }
 .navigation-bar { display: flex; gap: 7px; justify-content: center; }
-.site-header nav { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 7px; flex: 1; max-width: 780px; padding: 0; border: 0; order: 0; }
-.site-header nav a { display: flex; justify-content: center; align-items: center; min-height: 36px; padding: 6px 12px; border: 2px outset #685b45; color: #b9cd83; background: #0b0c08; font-size: 12px; font-weight: bold; box-shadow: 0 2px 3px #0006; }
+.site-header nav { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 7px; flex: 1; max-width: 880px; padding: 0; border: 0; order: 0; }
+.site-header nav a { display: flex; justify-content: center; align-items: center; min-height: 36px; padding: 6px 8px; border: 2px outset #685b45; color: #b9cd83; background: #0b0c08; font-size: 12px; font-weight: bold; box-shadow: 0 2px 3px #0006; }
 .site-header nav a:hover { background: #24261b; color: #ffde59; text-decoration: none; }
 .site-header nav a[aria-current] { border-style: inset; background: #25251b; color: #ffde59; text-decoration: none; }
 .navigation-bar .icon-button { width: 36px; height: 36px; }

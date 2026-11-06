@@ -1,3 +1,4 @@
+import { advanceEconomy, economyFrame } from './market.js';
 import { trainingBenefits } from './wealth-progression.js';
 import { tradeRares } from './rare-trading.js';
 import { adoptExpandedCareer, careerPhase } from './archetypes.js';
@@ -64,7 +65,7 @@ export function newUser(username) {
 export function progressUser(
   user,
   date = new Date(),
-  { hours = TICK_HOURS, rng = Math.random, climate } = {},
+  { hours = TICK_HOURS, rng = Math.random, climate, market } = {},
 ) {
   normalizeCareer(user);
   adoptExpandedCareer(user, date);
@@ -82,8 +83,8 @@ export function progressUser(
     Math.max(0, Math.min(TICK_HOURS, hours)) * (min + rng() * (max - min)) * (phase === "quiet" ? .35 : 1);
   const scale = Math.max(MIN_XP_SCALE, Math.min(MAX_XP_SCALE, windowXpScale(date, hours) * (climate?.factor || 1)));
   const personal = personalTraining(user, { hours: Math.max(0, Math.min(TICK_HOURS, hours)), activeHours: duration, rng, climate });
-  const clues = progressClues(user,date,{hours:duration,rng,scale});
-  const bossing = clues.active ? {active:false,trainingHours:clues.trainingHours,gains:{}} : progressBossing(user, date, { hours: duration, rng, scale });
+  const clues = progressClues(user,date,{hours:duration,rng,scale,market});
+  const bossing = clues.active ? {active:false,trainingHours:clues.trainingHours,gains:{}} : progressBossing(user, date, { hours: duration, rng, scale, market });
   const gains = {};
   const add = (skill, xp) => {
     const before = user.skills[skill].xp;
@@ -96,7 +97,7 @@ export function progressUser(
   const skill = personal.skill;
   const benefits = trainingBenefits(user, skill, bossing.trainingHours, scale);
   if (bossing.trainingHours > 0 && skill) {
-    progressSkillingEconomy(user, date, { skill, hours: bossing.trainingHours * activityScale(scale), rng, append: bossing.active || clues.active, fundingCost: benefits.fundingCost });
+    progressSkillingEconomy(user, date, { skill, hours: bossing.trainingHours * activityScale(scale), rng, market, append: bossing.active || clues.active, fundingCost: benefits.fundingCost });
     const stat = user.skills[skill];
     const skillScale = climate?.focusSkill === skill ? climate.skillFactor : 1;
     const gain = expectedRate(skill, stat.xp, stat.level) * bossing.trainingHours * scale * personal.multiplier * skillScale * benefits.multiplier;
@@ -158,11 +159,13 @@ export async function runScheduled(env) {
   const date = new Date(Date.now());
   const climate = advanceTrainingClimate(await readJSON(env, "system:training-climate"), date);
   await writeJSON(env, "system:training-climate", climate);
+  const market = await readJSON(env, "system:economy");
+  const previousTrades = await readJSON(env, "system:rare-trading");
   const policy = populationPolicy(env);
   const previousCleanup = await readJSON(env, "system:population", {});
   let cleanup = { removed: [], retired: { players: 0 } };
   if (!previousCleanup.generatedAt || date.getTime() - previousCleanup.generatedAt >= policy.cleanupIntervalHours * 3600000) {
-    for (const user of users) valueBank(user);
+    for (const user of users) valueBank(user, market);
     cleanup = cleanupPopulation(users, date, policy);
     users = cleanup.users;
     const totals = previousCleanup.retired || { players: 0, cash: 0, bankValue: 0, items: {} };
@@ -176,12 +179,15 @@ export async function runScheduled(env) {
         Math.min(TICK_HOURS, (date.getTime() - previous.generatedAt) / 3600000),
       )
     : TICK_HOURS;
+  for (const user of users) valueBank(user, market);
+  const economyBefore = economyFrame(users);
   for (const user of users) {
     const before = JSON.stringify(user);
-    valueBank(user);
-    progressUser(user, date, { hours, climate });
+    valueBank(user, market);
+    progressUser(user, date, { hours, climate, market });
     if (JSON.stringify(user) !== before) changed.push(user);
   }
+  const economy = advanceEconomy(market, economyBefore, users, date, {hours, stock:previousTrades?.stock});
   const count = users.length;
   const newCount = arrivals(users.length, MAX_PLAYERS);
   for (const username of await generateUsernames(newCount, existing, env)) {
@@ -189,8 +195,10 @@ export async function runScheduled(env) {
     users.push(user);
     changed.push(user);
   }
-  const rareTrading = tradeRares(users, date, await readJSON(env, "system:rare-trading"), {hours});
+  const rareTrading = tradeRares(users, date, previousTrades, {hours,market:economy});
   await writeJSON(env, "system:rare-trading", rareTrading);
+  for (const user of users) valueBank(user, economy);
+  await writeJSON(env, "system:economy", economy);
   const snapshot = await publishSnapshot(env, users);
   const result = {
     processed: count,
@@ -203,7 +211,7 @@ export async function runScheduled(env) {
     durationMs: Date.now() - startedAt,
     activePlayers: users.filter(u => u.updatedAt === date.getTime()).length,
     restingPlayers: users.filter(u => u.restDay).length,
-    pricing: { status: "fixed", capturedAt: null },
+    pricing: { status: economy.status, capturedAt: economy.capturedAt },
     rareTrading: rareTrading.summary,
   };
   await writeJSON(env, "system:last-run", result);

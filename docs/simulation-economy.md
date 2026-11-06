@@ -1,10 +1,9 @@
 # Simulation and bank accounting
 
-Updated November 4, 2026. The Grand Exchange has been removed, including player
-orders, price changes, the public market page/API and market telemetry. A bounded
-rare-item trading step now supports fixed-price player and outside sales.
-The simulation does not read or update `system:exchange`. Old exchange records
-remain inert in storage; no account reset or historical rewrite is performed.
+Updated November 6, 2026. Item prices now evolve in a persistent supply-and-demand
+model, with a public Item economy page and `/api/economy`. Rare trading settles at
+current quotes. The former Grand Exchange order book remains removed; old
+`system:exchange` records remain inert. No accounts or history are reset.
 
 ## Progression
 
@@ -29,11 +28,45 @@ Personal fatigue, training phases, climate, activity probabilities and the daily
 schedule remain active. A few slow hours can still occur naturally; removing the
 GE does not force every hour to match yesterday's activity.
 
-## Fixed bank estimates
+## Dynamic prices and bank values
 
-The bundled item catalog supplies fixed GP estimates. There are no price refreshes,
-order books, supply chains, recipes or restock requirements for base progression.
-Rare purchases check available cash and real player/outside item stock.
+The item catalog provides opening prices and physical production allowances.
+`system:economy` persists subsequent prices inside the same SQLite transaction as
+players, trades, rankings and the simulation-slot guard. No external price feed
+is required. Only tagged current-economy quotes are used; archived exchange data
+cannot inject prices. Rebuilds republish the saved quotes without advancing them.
+
+Each 15-minute session measures newly produced whole items and estimated supply
+use associated with actually paid activity costs. Paid construction raises plank
+demand, prayer raises bone demand, bossing raises food/potion/ammunition demand,
+and so on. These spending baskets are authored estimates, not completed trades
+or exact recipes. More production pushes prices down; demand pushes them up.
+Owned inventory relative to the opening stock adds scarcity/surplus pressure.
+Rare resale stock is included, and eligible players with enough disposable cash
+add upgrade interest only for gear that improves their existing equipment.
+Iron accounts do not contribute purchase interest. Supply/demand rates smooth
+over six hours, so one large session does not instantly reprice the world.
+
+A bounded coin inflation factor compares average cash with opening conditions.
+Prices tend toward opening value adjusted by inflation, flow imbalance and
+scarcity. Market depth absorbs small changes; fractional internal quotes let
+cheap goods accumulate movement before rounding to whole GP. Fair values move
+at most 2% per full update and stay between 15% and 8× opening estimates (minimum
+1 GP). Displayed integer prices for very cheap goods can jump by more than 2%.
+These bounds and the opening anchor are deliberate simulation stabilizers.
+
+Prices determine bank valuations, voluntary rare purchases/sales, reward values
+at discovery and the cost of modeled spending baskets. Physical drop/resource
+quantities do not shrink when prices rise. Base progression continues without
+cash or purchases. Changing quotes revalue existing items without changing cash,
+owned quantities, lifetime income, XP, achievements or earlier trade/drop records,
+except for the pre-existing explicit 1T asset-ceiling sink.
+
+The Item economy table shows prices, last-update/24-hour changes, up to 97 quotes
+(24 hours at normal cadence), price pressure, new supply and estimated demand.
+Younger markets show available history. Each bank stores the exact held-item
+quotes and changes from its generation, so profile rows and wealth rankings agree.
+Profile shards hold 48 players to leave space below SQLite's row-size limit.
 
 Accounts retain their cash, whole-item holdings, earned/spent totals, rare-drop
 counts and death records. Existing fractional legacy baskets still migrate once:
@@ -41,16 +74,16 @@ whole items remain and their fractional remainder becomes rounded cash. New
 accounts receive the existing explicit opening bank estimate and representative
 integer item basket, without fabricated historical kills or drops.
 
-Switching an existing item bank from the former floating quotes to the catalog can
-change its displayed bank value. This is recorded in `economy.revaluation`; its
-items and cash are not replaced or reset. The fixed catalog is an estimate, not
-current real-world GE pricing.
+Price movements are recorded in `economy.revaluation`; items and cash are not
+replaced or reset. Prices describe this simulated world, not current live OSRS GE
+quotes. The model has estimated outside activity, liquidity and spending demand;
+it is not a full exchange matching engine or exact inventory/crafting simulation.
 
 Skilling generates estimated income or representative whole-item resources based
 on level, elapsed activity time and modest session variation. It does not use
 resource recipes to determine XP. Bossing generates drops from its selected drop
 tables. Estimated training, supply and death costs debit available bank value.
-Cash pays first, then ordinary whole items are redeemed at the same fixed catalog value;
+Cash pays first, then ordinary whole items are redeemed at the current simulated market value;
 any excess remains as cash. Rare holdings are preserved for voluntary sales. An exhausted bank pays only its available spendable balance,
 without blocking training or kills or borrowing below zero. These costs are an
 abstract accounting model rather than an exact OSRS inventory simulation.
@@ -67,17 +100,20 @@ cleanup and its configured grace/established-account protections are unchanged.
 Retired assets remain recorded. This change does not run a separate cleanup.
 
 The SQLite Durable Object owns live player state. Each 15-minute update commits
-profiles, rankings, training climate, population metadata, history outbox and the
+profiles, rankings, economy prices, training climate, population metadata, history outbox and the
 simulation-slot guard atomically. D1 retains public daily progression history.
 Existing achievements, recovery audit records and history remain intact.
 
 ## Verification
 
 - `npm test`: progression, empty-bank/buyable goals, whole-item accounting,
-  fixed quotes, archived exchange isolation, time budgets, transaction rollback,
+  dynamic prices, archived exchange isolation, time budgets, transaction rollback,
   history and recovery preservation.
 - `npm run check`: JavaScript syntax.
 - `npm run capacity`: disposable 2,000-player workerd storage/CPU/read checks.
+- `node scripts/economy-replay.mjs 288 100`: deterministic three-day, 100-player
+  economy experiment with active pricing/trading and bank-accounting invariants.
+  Accepts tick/population counts; makes no network requests or production writes.
 - `node scripts/simulation-health.mjs /tmp/snapshot.json 288`: deterministic
   three-day offline replay. Input requires `users` from the public batch API and
   `generatedAt` from the world API; older saved snapshots with

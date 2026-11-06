@@ -91,6 +91,7 @@ All responses are JSON with CORS enabled. Reads cache for 30 seconds in browsers
 | Method | Endpoint                              | Response                                                                            |
 | ------ | ------------------------------------- | ----------------------------------------------------------------------------------- |
 | GET    | `/api/stories`                        | Bounded world noticeboard, leading rivalries and maxing contenders |
+| GET    | `/api/economy`                       | Simulated item prices, supply/demand pressure and up to 24 hours of quotes           |
 | GET    | `/api/world`                          | Snapshot generation, training calibration and estimated next update                  |
 | GET    | `/api/health`                         | Liveness and Durable Object storage status                                                      |
 | GET    | `/api/debug`                          | Binding status and last successful simulation; no secret values                     |
@@ -211,7 +212,7 @@ The username migration runs once with `POST /api/admin/users/rename-all` and `{"
 
 ## Boss and wealth simulation
 
-Sailing and 48 encounter categories share the existing world. Training uses calibrated XP rates, independent of supplies, cash or trading. Boss sessions use stat unlocks, estimated readiness, experience, personality and luck, with a shared session time budget and reduced world multiplier. Loot and estimated activity costs update bounded bank values at fixed catalog prices. Existing accounts, XP, KC, achievements, inventory and progression history remain intact. Arrivals and retention settings are unchanged. See [the simulation model](docs/simulation-economy.md) for accounting, migration and limitations.
+Sailing and 48 encounter categories share the existing world. Training uses calibrated XP rates, independent of supplies, cash or trading. Boss sessions use stat unlocks, estimated readiness, experience, personality and luck, with a shared session time budget and reduced world multiplier. Loot and estimated activity costs update bounded bank values at evolving supply-and-demand prices. Existing accounts, XP, KC, achievements, inventory and progression history remain intact. Arrivals and retention settings are unchanged. See [the simulation model](docs/simulation-economy.md) for accounting, migration and limitations.
 
 
 ## Gains and records
@@ -245,8 +246,8 @@ Rare trading is a bounded settlement step inside each scheduled world transactio
 with up to 64 exchanges per tick. It matches participating players first, then
 allows outside sales. Outside resale stock comes only from real recorded sales;
 there is no generated rare-item shop supply. Purchases use cash, retain a reserve,
-and never borrow. Fixed catalog estimates determine prices, and sellers pay a 2%
-tax. Player trades conserve items and total wealth less tax; outside cash/item
+and never borrow. Current simulated market quotes determine prices, and sellers pay a 2%
+tax. At a shared quote, player trades conserve items and total wealth less tax; outside cash/item
 flows are tracked explicitly. Each profile retains its latest eight trades and
 lifetime drop discoveries. Collectors keep their first copy; self-sufficient
 Iron Soul accounts do not trade. Other owners can choose to sell a first copy,
@@ -270,3 +271,14 @@ summary. The old `/api/exchange` remains retired. Simulation updates need no
 external price requests. Capacity checks include profiles packed with discoveries
 and recent trades; their resource figures are local projections, not production
 measurements.
+
+
+### Item economy
+
+Open `#economy` to browse changing item prices, biggest movers and price trends.
+Production adds supply; paid training and bossing costs add estimated supply
+demand; affordable upgrade interest supports rare equipment. Inventory scarcity
+and coin inflation also influence prices. Prices persist across updates, feed
+rare trades and revalue held items in banks. Base XP remains available with an
+empty bank. See [the economy model](docs/simulation-economy.md#dynamic-prices-and-bank-values)
+for smoothing, price bounds, accounting and simulation limitations.

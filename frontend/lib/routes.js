@@ -30,6 +30,7 @@ export function route(location) {
       params,
     };
   }
+  if (path === "economy") return { type: "economy", params };
   if (path === "stories") return { type: "stories", params };
   if (path === "progress") return { type: "progress", params };
   if (["bosses", "wealth"].includes(path))
@@ -38,6 +39,7 @@ export function route(location) {
   return { type: "overall", params };
 }
 const PAGE_TITLES = {
+  economy: "Item economy",
   stories: "World stories",
   progress: "Gains & records",
   achievements: "Achievements",
