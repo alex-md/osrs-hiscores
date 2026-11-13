@@ -1,3 +1,4 @@
+import { buildWorldWatch } from './world-watch.js';
 import { publicEconomy } from './market.js';
 import { buildStories } from './stories.js';
 import { stageHistory } from "./history.js";
@@ -192,6 +193,7 @@ export async function publishSnapshot(env, users = null) {
     activitiesVersion: 2,
     economy: publicEconomy(await readJSON(env, "system:economy")),
     rareTrading: (await readJSON(env, "system:rare-trading"))?.summary || null,
+    worldWatch: buildWorldWatch(users, now),
     stories: chronicle.stories,
     storyLeaders: chronicle.leaders,
     races: chronicle.races,

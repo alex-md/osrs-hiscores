@@ -1,0 +1,51 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { buildWorldWatch } from './world-watch.js';
+import { normalizeUser } from './store.js';
+import { xpForLevel } from './utils.js';
+import { publishSnapshot } from './snapshots.js';
+import { handleApiRequest } from './index.js';
+const now=Date.parse('2026-11-13T06:00:00Z');
+const player=username=>normalizeUser({username,createdAt:now-86400000,skills:{fishing:{xp:xpForLevel(99)-200}}});
+
+test('watch counts recent primary activities once and keeps all encounter lifetimes',()=>{
+  const active=player('Active'), stale=player('Stale'),future=player('Future');
+  active.bosses.vardorvis=105;
+  active.economy.lastSession={activity:'bossing',boss:'vardorvis',kills:5,timestamp:now-1000};
+  active.progress={lastSession:{skill:'fishing',gainedXP:1000,timestamp:now-1000}};
+  stale.bosses.vardorvis=20;
+  stale.economy.lastSession={activity:'bossing',boss:'vardorvis',kills:20,timestamp:now-900000};
+  future.progress={lastSession:{skill:'fishing',gainedXP:99,timestamp:now+1000}};
+  const watch=buildWorldWatch([active,stale,future],now);
+  assert.equal(watch.activePlayers,1);assert.equal(watch.bossingPlayers,1);assert.equal(watch.recentXP,1000);
+  assert.deepEqual(watch.activities,[{key:'vardorvis',players:1}]);
+  assert.deepEqual(watch.encounters.find(b=>b.key==='vardorvis'),{key:'vardorvis',participants:2,totalKC:125,hunters:1,recentKC:5});
+  assert.equal(watch.encounters.length,48);
+});
+test('watch bounds near-99 and newcomer lists, excludes finished skills and sorts deterministically',()=>{
+  const users=Array.from({length:15},(_,i)=>player(`Player${i}`));
+  users[0].skills.fishing={level:99,xp:xpForLevel(99)};
+  users[0].skills.mining={level:98,xp:xpForLevel(99)-50};
+  users[1].createdAt=now-8*86400000;
+  users[2].createdAt=now+1;
+  const watch=buildWorldWatch(users,now);
+  assert.equal(watch.nearMastery.length,8);assert.equal(watch.nearMastery[0].skill,'mining');
+  assert.equal(new Set(watch.nearMastery.map(p=>p.username)).size,8);
+  assert.equal(watch.newcomers.length,8);
+  assert.ok(!watch.newcomers.some(p=>['Player1','Player2'].includes(p.username)));
+  assert.equal(buildWorldWatch([],now).activePlayers,0);
+});
+test('watch endpoint reads the published generation without mutating the world and tolerates older snapshots',async()=>{
+  const data=new Map();
+  const WORLD_STORE={async get(key){return data.get(key)||null;},async put(key,value){data.set(key,value);},async delete(key){data.delete(key);}};
+  const env={WORLD_STORE};
+  const snapshot=await publishSnapshot(env,[player('Ada')]);
+  const before=new Map(data);
+  const response=await handleApiRequest(new Request('https://world/api/world-watch'),env);
+  assert.equal(response.status,200);
+  const body=await response.json();assert.equal(body.generation,snapshot.generation);assert.equal(body.watch.encounters.length,48);
+  assert.deepEqual(data,before);
+  delete snapshot.worldWatch;data.set('snapshot:current',JSON.stringify(snapshot));
+  const legacy=await handleApiRequest(new Request('https://world/api/world-watch'),env);
+  assert.equal((await legacy.json()).watch,null);
+});

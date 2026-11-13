@@ -9,6 +9,7 @@ test("hash routes retain filters and select the matching title and navigation", 
   for (const [hash, type, heading, navigation] of [
     ["overall", "overall", "Rankings", "overall"],
     ["achievements", "achievements", "Achievements", "achievements"],
+    ["world", "world", "World watch", "world"],
     ["stories", "stories", "World stories", "stories"],
     ["economy", "economy", "Item economy", "economy"],
     ["progress", "progress", "Gains & records", "progress"],

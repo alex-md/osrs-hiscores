@@ -288,9 +288,11 @@ async function route(request, env) {
     "/api/world",
     "/api/economy",
     "/api/stories",
+    "/api/world-watch",
   ];
   if (!known.includes(path)) throw new HttpError(404, "Unknown API route.");
   const snapshot = await getSnapshot(env);
+  if (path === "/api/world-watch") return cached({ ...snapshotInfo(snapshot), watch:snapshot.worldWatch || null });
   if (path === "/api/economy") return cached({ ...snapshotInfo(snapshot), economy:snapshot.economy || null });
   if (path === "/api/stories") return cached({ ...snapshotInfo(snapshot),
     stories: snapshot.stories || [], races: snapshot.races || [], contenders: snapshot.contenders || [] });
@@ -307,9 +309,10 @@ async function route(request, env) {
     if (!snapshot.activitiesVersion)
       throw new HttpError(503, "Boss and bank rankings become available after the next simulation update.");
     let rows = await rankingRows(env, snapshot, `activity:${category}`);
+    const leaderScore = rows[0]?.score || 0;
     const q = (url.searchParams.get("q") || "").trim().toLowerCase();
     if (q) rows = rows.filter(row => row.username.toLowerCase().includes(q));
-    return cached({ ...snapshotInfo(snapshot), category, prices:Object.fromEntries(Object.entries(snapshot.economy?.items || {}).map(([id,row])=>[id,row.price])), ...paginate(rows, url.searchParams) });
+    return cached({ ...snapshotInfo(snapshot), category, leaderScore, prices:Object.fromEntries(Object.entries(snapshot.economy?.items || {}).map(([id,row])=>[id,row.price])), ...paginate(rows, url.searchParams) });
   }
   if (path === "/api/leaderboard" || path === "/api/skill-rankings") {
     const skill =

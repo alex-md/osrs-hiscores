@@ -362,7 +362,7 @@ body {
 .header-ornament .skill-symbol:nth-child(2) { width: 38px; height: 38px; flex-basis: 38px; transform: translateY(-13px); }
 .header-ornament:last-child { transform: scaleX(-1); }
 .navigation-bar { display: flex; gap: 7px; justify-content: center; }
-.site-header nav { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 7px; flex: 1; max-width: 880px; padding: 0; border: 0; order: 0; }
+.site-header nav { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 7px; flex: 1; max-width: 880px; padding: 0; border: 0; order: 0; }
 .site-header nav a { display: flex; justify-content: center; align-items: center; min-height: 36px; padding: 6px 8px; border: 2px outset #685b45; color: #b9cd83; background: #0b0c08; font-size: 12px; font-weight: bold; box-shadow: 0 2px 3px #0006; }
 .site-header nav a:hover { background: #24261b; color: #ffde59; text-decoration: none; }
 .site-header nav a[aria-current] { border-style: inset; background: #25251b; color: #ffde59; text-decoration: none; }
@@ -689,3 +689,16 @@ dialog { background: var(--paper); border-color: #88744f; }
   .tool-rail .stone-tool:first-child h2 { display: none; }
   #player-search input, #player-search .button { min-height: 34px; }
 }
+
+/* World watch uses the existing parchment and stone palette. */
+.watch-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.watch-columns > .panel { min-width: 0; }
+.watch-activities { list-style: none; padding: 0 20px; }
+.watch-activities li { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; padding: 13px 0; border-bottom: 1px solid var(--line); }
+.watch-activities span { color: var(--muted); font-size: 11px; }
+.watch-activities meter { grid-column: 1 / -1; width: 100%; height: 12px; accent-color: var(--green); }
+.watch-newcomers { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.watch-newcomers article { padding: 16px; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.watch-newcomers p { margin: 4px 0; color: var(--muted); font-size: 11px; }
+@media (max-width: 1000px) { .watch-columns { grid-template-columns: 1fr; } .watch-newcomers { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.watch-table-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }

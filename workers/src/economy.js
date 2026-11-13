@@ -219,7 +219,10 @@ export function progressBossing(user, date, { hours, rng, market, scale = 1 }) {
   const appetite = 0.75 + daily() * 0.5;
   if (!eligible.length || rng() >= inclination * appetite) return { trainingHours: hours, gains, active: false };
   // Finish an underway raid when returning to bossing; progress survives days off.
-  const pendingRaid = eligible.find(b => b.raid && user.career.raidProgress?.[b.key] > 0);
+  // Legacy fractions resume once. A saved fraction alone must not force every
+  // future visit: a completion releases the player to choose another encounter.
+  const pendingRaid = eligible.find(b => b.raid && (user.career.pendingRaid === undefined
+    ? user.career.raidProgress?.[b.key] > 0 : user.career.pendingRaid === b.key));
   const boss = pendingRaid || weighted(eligible, boss => {
     const familiarity = Math.log1p(user.bosses[boss.key]) / 10;
     const preference = boss.key === user.career.favoriteBoss ? 3 + 4 * user.career.dedication : 1;
@@ -245,6 +248,7 @@ export function progressBossing(user, date, { hours, rng, market, scale = 1 }) {
     const progress = (user.career.raidProgress[boss.key] || 0) + work;
     kills = Math.floor(progress);
     user.career.raidProgress[boss.key] = progress - kills;
+    user.career.pendingRaid = kills === 0 ? boss.key : null;
   } else kills = Math.min(1000, poisson(work, rng));
   const deaths = Math.min(10, poisson(effectiveHours * (0.08 + user.career.risk * 0.18) * (1.2 - experience), rng));
   const { rewards, drops, coins, notable } = rollBossDrops(boss, kills, rng);

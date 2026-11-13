@@ -77,6 +77,7 @@ One application serves every view. Routes work on static hosts, including under 
 - `#user/Rune%20Mage` — player summary, combat level, skill ranks, XP progress, achievement history.
 - `#wealth` — modeled bank-value rankings, name filtering and pagination.
 - `#bosses` — total recorded boss KC; `#bosses?boss=vorkath` selects an encounter.
+- `#world` — recent world activity, approaching 99s, searchable boss field guide and newcomers.
 - `#stories` — new crowns, notable loot, boss milestones, rivalries and the race to max.
 - `#achievements` — searchable catalog, category and rarity filters, sort controls, recent unlocks, recorded firsts.
 
@@ -90,6 +91,7 @@ All responses are JSON with CORS enabled. Reads cache for 30 seconds in browsers
 
 | Method | Endpoint                              | Response                                                                            |
 | ------ | ------------------------------------- | ----------------------------------------------------------------------------------- |
+| GET    | `/api/world-watch`                    | Snapshot-backed activity, approaching 99s, boss participation and recent arrivals |
 | GET    | `/api/stories`                        | Bounded world noticeboard, leading rivalries and maxing contenders |
 | GET    | `/api/economy`                       | Simulated item prices, supply/demand pressure and up to 24 hours of quotes           |
 | GET    | `/api/world`                          | Snapshot generation, training calibration and estimated next update                  |
@@ -203,6 +205,8 @@ EHP rates represent optimized training, **not average observed XP/hour**. Weekly
 Each 15-minute opportunity samples activity duration, including inactive sessions. Players hold skill goals across sessions and move through grind, steady and recovery phases. Persistent aptitude, evolving momentum, fatigue and execution variation alter XP efficiency. Shared stochastic training climates last 1.5–9 hours and change overall activity intensity and the popularity/productivity of one skill. The daily schedule remains a base pattern; climates make macro gains vary beyond that pattern. Skill preferences follow personality, persistent goals and shared training climates. Efficient Maxers prioritize unfinished skills; Skillers strongly avoid combat. XP tier contributes 20% of the activity weights, with personality contributing 80%, before dedication adjusts intensity. Established accounts can take deterministic personal UTC days off. Combat and Slayer award related combat/Hitpoints XP. Elapsed time remains capped at 15 minutes, inactive sessions receive no XP, and each skill remains capped at 200M. No missed-time catch-up is introduced.
 
 Twenty-four internal career archetypes shape activities, skill goals, boss preferences and calendar rhythms. Archetypes are never displayed as profile labels. Treasure trails accumulate steps across sessions and produce caskets and occasional notable rewards.
+
+World watch (`#world`) shows recorded activity from the fifteen minutes preceding each snapshot, approaching 99s, boss participation and recent arrivals. Its bounded summaries share the rankings generation. See [the engagement review and roadmap](docs/world-engagement-review.md) for findings and future pages.
 
 Profiles show their latest and best session, session count, current focus, rest status, unfinished raids, bank contents and the latest eight notable rewards. Added milestones include 500/1000 total level, base 70, dual Agility/Runecraft mastery, first/100th training session and 1M XP in a UTC day. Session achievements begin with this version rather than inventing historical training logs.
 

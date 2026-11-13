@@ -1,3 +1,5 @@
+import { SKILLS } from './constants.js';
+
 export function buildStories(profiles, rankings, events, previous, now) {
   const leaders = Object.fromEntries(Object.entries(rankings).filter(([key]) => key === 'overall' || !key.includes(':') || key === 'activity:bosses' || key === 'activity:bank')
     .map(([key, rows]) => [key, rows[0]?.username || null]));
@@ -27,7 +29,9 @@ export function buildStories(profiles, rankings, events, previous, now) {
   const seen = new Set();
   const stories = [...fresh.sort((a,b) => b.timestamp-a.timestamp || (b.value || 0)-(a.value || 0)), ...(previous?.stories || [])]
     .filter(event => !seen.has(event.id) && seen.add(event.id)).slice(0,48);
-  const contenders = rankings.overall.slice(0,3).map(row => ({username:row.username,totalLevel:row.totalLevel,totalXP:row.totalXP,rank:row.rank}));
+  const maxLevel = SKILLS.length * 99;
+  const contenders = rankings.overall.filter(row => row.totalLevel < maxLevel).slice(0,3)
+    .map(row => ({username:row.username,totalLevel:row.totalLevel,totalXP:row.totalXP,rank:row.rank}));
   const races = [];
   for (const metric of ['overall', 'activity:bosses', 'activity:bank']) {
     const [first, second] = rankings[metric];

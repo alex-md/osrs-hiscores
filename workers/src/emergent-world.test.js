@@ -63,6 +63,30 @@ test('partial raids consume time, pay attempt costs, persist progress and eventu
   assert.ok(partial);assert.ok(completed);assert.ok(u.economy.spent>0);assert.ok(u.economy.bankValue!==before);
   assert.ok(u.career.raidProgress['theatre-of-blood']>=0 && u.career.raidProgress['theatre-of-blood']<1);
 });
+test('completing a legacy raid releases its priority while retaining fractional work',()=>{
+  const u=player();u.career.raidProgress={'chambers-of-xeric':.9};
+  const rng=seeded(827),visited=new Set();
+  for(let i=0;i<300;i++) {
+    const result=progressBossing(u,new Date(+at+i*900000),{hours:.25,scale:29,rng});
+    if(!result.active)continue;
+    visited.add(result.boss);
+    const session=u.economy.lastSession;
+    if(BOSSES.find(b=>b.key===result.boss).raid) {
+      assert.equal(u.career.pendingRaid,session.kills===0 ? result.boss : null);
+      assert.ok(u.career.raidProgress[result.boss]>=0 && u.career.raidProgress[result.boss]<1);
+    }
+  }
+  assert.ok(u.bosses['chambers-of-xeric']>0);
+  assert.ok(visited.size>15,`Only visited ${[...visited]}`);
+  assert.ok([...visited].some(key=>BOSSES.slice(24).some(b=>b.key===key)));
+});
+test('max race advances beyond finished accounts and handles an entirely maxed world',()=>{
+  const users=[player('Finished'),player('Almost'),player('Chasing')];
+  users[1].totalLevel--;users[2].totalLevel-=2;
+  const rankings=buildRankings(users);
+  assert.deepEqual(buildStories(users,rankings,[],null,+at).contenders.map(p=>p.username),['Almost','Chasing']);
+  assert.deepEqual(buildStories([users[0]],buildRankings([users[0]]),[],null,+at).contenders,[]);
+});
 test('selected reward tables have finite rewards and common plus rare value covering base costs',()=>{
   for(const boss of BOSSES) {
     const table=bossDropTable(boss),common=table.filter(d=>!d.rare).reduce((n,d)=>n+d.quantity*d.chance*items[d.id].price,0);
@@ -88,7 +112,7 @@ test('stories record new crowns and rewards once without inventing old acquisiti
   assert.equal(buildStories(users,rankings,[],{generatedAt:+at,storyLeaders:result.leaders,stories:result.stories},+at+1).stories.length,2);
 });
 test('public stories are snapshot reads and diagnostics detect stale progression',async()=>{
-  const WORLD_STORE=store(),env={WORLD_STORE};await publishSnapshot(env,[player()]);
+  const WORLD_STORE=store(),env={WORLD_STORE},u=player();u.skills.sailing={xp:xpForLevel(98),level:98};await publishSnapshot(env,[u]);
   const before=new Map(WORLD_STORE.data);
   const response=await handleApiRequest(new Request('https://world/api/stories'),env);
   assert.equal(response.status,200);assert.equal((await response.json()).contenders[0].username,'Ada');

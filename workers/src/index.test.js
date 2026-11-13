@@ -475,6 +475,10 @@ test("Sailing and activity rankings share packed generations, global ranks, pagi
   const filtered = await (await call(e, "/api/activity-rankings?category=vorkath&q=Zed")).json();
   assert.equal(filtered.players[0].rank, 2);
   assert.equal(filtered.total, 1);
+  assert.equal(filtered.leaderScore, 100); // Global leader survives filtering.
+  const secondPage = await (await call(e, "/api/activity-rankings?category=vorkath&limit=1&page=2")).json();
+  assert.equal(secondPage.players[0].score, 50);
+  assert.equal(secondPage.leaderScore, 100);
   const combined = await (await call(e, "/api/activity-rankings?category=bosses")).json();
   assert.equal(combined.players[0].score, 105);
   assert.equal(combined.total, 2); // Zero-KC players are unranked.
