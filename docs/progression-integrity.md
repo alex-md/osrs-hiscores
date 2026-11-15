@@ -1,0 +1,13 @@
+# Coupled combat progression
+
+The profile reported as `loboDa` showed 92,126 Slayer XP with level-one damage skills and baseline Hitpoints. The initial XP allocator selected skills independently, so an account could arrive with substantial Slayer XP and no combat history. Initial HP was then derived from an average of combat levels (including Prayer), losing the relationship between damage and HP. Ordinary Slayer sessions also awarded only twice their Slayer XP as damage-skill XP, whereas Slayer boss sessions used four times.
+
+The engine now uses a consistent ordinary damage-based model: one Slayer XP corresponds to four damage-skill XP and approximately 4/3 HP XP. This is a simulation policy, not a universal legality rule for real OSRS accounts: lamps, recoil, cannon methods and special account builds are not represented. Magic can still be trained without HP through noncombat methods; Prayer does not imply HP. Buyable skills do not require matching gathering levels because this economy permits buying supplies.
+
+- Initial allocation transfers unsupported Slayer XP into damage skills, preserving the sampled non-HP XP budget and initial per-skill caps. Starting HP uses damage XP, with the 1,154 XP baseline.
+- Ordinary Slayer sessions award the same damage/HP ratio as Slayer bosses. Their rate is bounded by the selected combat skill's training rate divided by four. Associated XP uses the actual integer Slayer award.
+- The scheduled update applies progression rules version 1 once to existing records. It preserves existing XP, adds any missing supporting combat and HP XP, refreshes totals, and records exact additions in `progressionRepair`. It never counts the repair as session-earned XP. Existing excess HP is preserved because its provenance is unknown. Repaired totals/ranks can rise; published historical snapshots are not rewritten.
+
+This migration deliberately runs during scheduled publication, not profile reads or arbitrary training calls. New accounts are already consistent and marked with the current rules version. Deploying the code alone does not repair the published population: a successful scheduled update must publish the corrected records.
+
+Regression coverage exercises 1,500 seeded starting allocations across five budgets, 300 complete new accounts, the reported account shape, idempotent legacy correction and a controlled Slayer training session. These checks establish consistency of the authored model; they do not establish real-game training rates. The broader audit in `logical-integrity-audit.md` adds funding limits, production tiers, usable boss styles and history correction accounting. Legacy Magic is accepted as possible Slayer support, while noncombat Magic alone does not imply Hitpoints.

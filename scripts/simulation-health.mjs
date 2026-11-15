@@ -5,6 +5,8 @@ import { progressUser } from '../workers/src/simulation.js';
 import { advanceTrainingClimate } from '../workers/src/training-dynamics.js';
 import { normalizeUser } from '../workers/src/store.js';
 import { SKILLS } from '../workers/src/constants.js';
+import { levelFromXp, totalXP, totalLevel } from '../workers/src/utils.js';
+import { eligibleBosses } from '../workers/src/economy.js';
 export function simulateHealth(snapshot, ticks = 96, seed = 12345) {
   const users = snapshot.users.map(u => normalizeUser(structuredClone(u)));
   const generatedAt = snapshot.generatedAt ?? snapshot.exchange?.generatedAt;
@@ -26,6 +28,8 @@ export function simulateHealth(snapshot, ticks = 96, seed = 12345) {
       climate = advanceTrainingClimate(climate, at, rng);
       for (const u of users) {
         const before = Object.fromEntries(SKILLS.map(s => [s, u.skills[s].xp]));
+        const eligible = new Set(eligibleBosses(u).map(b => b.key));
+        const priorBosses = {...u.bosses};
         const kc = Object.values(u.bosses).reduce((a,b) => a+b, 0);
         const xp = u.totalXP;
         progressUser(u, at, { rng, hours: .25, climate });
@@ -34,6 +38,11 @@ export function simulateHealth(snapshot, ticks = 96, seed = 12345) {
         }
         kills += Object.values(u.bosses).reduce((a,b) => a+b, 0) - kc;
         for (const s of SKILLS) gains[s] += u.skills[s].xp - before[s];
+        if (u.totalXP !== totalXP(u.skills) || u.totalLevel !== totalLevel(u.skills)
+          || Object.values(u.skills).some(s => !Number.isSafeInteger(s.xp) || s.xp < 0 || s.xp > 200000000 || s.level !== levelFromXp(s.xp)))
+          throw new Error('Invalid progression totals: '+u.username);
+        if (Object.entries(u.bosses).some(([key,n]) => !Number.isSafeInteger(n) || n < priorBosses[key] || (n > priorBosses[key] && !eligible.has(key))))
+          throw new Error('Ineligible or invalid boss progress: '+u.username);
         if (!Number.isSafeInteger(u.economy.cash) || u.economy.cash < 0 || Object.values(u.economy.holdings).some(n => !Number.isSafeInteger(n) || n < 0)) throw new Error('Invalid inventory: '+u.username);
       }
       if ((tick + 1) % 96 === 0 || tick === ticks - 1) {

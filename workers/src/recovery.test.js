@@ -5,22 +5,25 @@ import { SKILLS } from './constants.js';
 import { xpForLevel } from './utils.js';
 import { progressBossing, progressSkillingEconomy, valueBank } from './economy.js';
 import { progressUser } from './simulation.js';
+import { BOSSES } from '../../frontend/lib/activities.js';
 import { simulateHealth } from '../../scripts/simulation-health.mjs';
 const at = new Date('2026-10-29T00:00:00Z');
 function player(name, cash=1000000, holdings={}, level=80) {
   const u=normalizeUser({username:name,archetype:'PVMER',activity:'FOCUSED',skills:Object.fromEntries(SKILLS.map(s=>[s,{xp:xpForLevel(level)}])),economy:{cash,holdings,bankValue:cash,inventoryVersion:2}});
   valueBank(u);return u;
 }
-test('boss sessions complete without cash, supplies or an equipment purchase',()=>{
+test('empty banks attempt only encounters with no supply cost',()=>{
   const u=player('Empty',0);u.career.favoriteBoss='scurrius';
   const result=progressBossing(u,at,{hours:.25,scale:18,rng:()=>.01});
-  assert.ok(result.active);assert.ok(u.economy.lastSession.kills>0);
+  if (result.active) assert.equal(BOSSES.find(b => b.key === result.boss).cost, 0);
+  assert.ok(BOSSES.filter(b => b.cost > 0).every(b => u.bosses[b.key] === 0));
+  assert.equal(u.economy.unpaidCosts || 0, 0);
   assert.ok(result.trainingHours>=0&&result.trainingHours<=.25);
   assert.ok(u.economy.cash>=0);
   assert.equal(u.economy.needs,undefined);
   assert.equal(u.economy.restock,undefined);
 });
-test('persisted buyable-skill goals earn calibrated XP with an empty bank',t=>{
+test('unfunded buyable goals earn money before resuming training',t=>{
   t.mock.method(Math,'random',()=>.999);
   const u=player('Broke',0,{},1);
   u.trainingState={aptitude:1,fatigue:0,momentum:1,remaining:8,phase:'steady',phaseRemaining:3,focusSkill:'construction',targetXP:100000};
@@ -28,13 +31,16 @@ test('persisted buyable-skill goals earn calibrated XP with an empty bank',t=>{
   const before=u.totalXP;
   progressUser(u,at,{rng:()=>.5});
   assert.ok(u.totalXP>before);
-  assert.equal(u.progress.lastSession.trainingSkill,'construction');
-  assert.ok(u.skills.construction.xp>0);
+  assert.equal(u.progress.lastSession.trainingSkill,'thieving');
+  assert.equal(u.progress.lastSession.requestedTrainingSkill,'construction');
+  assert.equal(u.trainingState.focusSkill,'construction');
+  assert.equal(u.skills.construction.xp,0);
+  assert.ok(u.skills.thieving.xp>0);
   assert.equal(u.achievements.legacy,123);
   assert.deepEqual(u.progress.recovery,{planId:'saved'});
-  assert.equal(u.economy.cash,0);
+  assert.ok(u.economy.cash>0);
 });
-test('wealth adds a bounded bonus while obsolete input requests and archived prices never gate base XP',t=>{
+test('wealth bonuses stay bounded and obsolete input requests do not change funded methods',t=>{
   t.mock.method(Math,'random',()=>.999);
   const poor=player('Matched',0,{},1),rich=structuredClone(poor);
   rich.economy.cash=10000000;rich.economy.bankValue=10000000;
@@ -48,7 +54,7 @@ test('wealth adds a bounded bonus while obsolete input requests and archived pri
   assert.deepEqual(plain.progress,rich.progress);
   assert.ok(poor.progress.lastSession.gainedXP>0);
   assert.ok(rich.progress.lastSession.gainedXP>=poor.progress.lastSession.gainedXP);
-  assert.ok(rich.progress.lastSession.gainedXP<=poor.progress.lastSession.gainedXP*1.54);
+  assert.ok(rich.progress.lastSession.wealthScale<=1.54);
 });
 test('fixed valuation preserves owned integer items and ignores old exchange quotes',()=>{
   const u=player('Fixed',123,{20997:1,1511:1000});

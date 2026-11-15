@@ -159,7 +159,7 @@ test('weekend and comeback calendars create sustained multi-day variation',async
 });
 test('clue expeditions share time, carry steps and grant only completed caskets',async()=>{
   const {progressClues}=await import('./economy.js');
-  const u=player('Trails','CLUE_HUNTER');u.economy.cash=0;u.economy.holdings={};valueBank(u);
+  const u=player('Trails','CLUE_HUNTER');u.economy.cash=1000000;u.economy.holdings={};valueBank(u);
   const rng=seeded(95);let used=0;
   for(let i=0;i<100;i++) {
     const result=progressClues(u,new Date(+at+i*900000),{hours:.2,scale:18,rng});

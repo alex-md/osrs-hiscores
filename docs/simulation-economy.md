@@ -1,6 +1,6 @@
 # Simulation and bank accounting
 
-Updated November 6, 2026. Item prices now evolve in a persistent supply-and-demand
+Updated November 14, 2026. Item prices now evolve in a persistent supply-and-demand
 model, with a public Item economy page and `/api/economy`. Rare trading settles at
 current quotes. The former Grand Exchange order book remains removed; old
 `system:exchange` records remain inert. No accounts or history are reset.
@@ -10,13 +10,17 @@ current quotes. The former Grand Exchange order book remains removed; old
 Training uses `expectedRate` from the calibrated training model, skill level,
 active session hours, the time-of-day XP multiplier, personal training state and
 shared training climate. Wealth, retained upgrades and funded methods add bounded
-bonuses; their absence never reduces the ordinary baseline. Cash, recipes, input availability and market prices do
-not limit XP or steer skill choices. Persisted skill goals can continue directly,
-including buyable skills on accounts with empty banks. Skills cap at 200M XP.
+bonuses. Buyable training is limited to the fraction affordable from pre-session
+cash and ordinary assets at current quotes. Accounts with less than 1,000 GP
+spendable temporarily earn money while retaining their longer-term skill goal.
+Skills cap at 200M XP. Buying supplies does not require their gathering skills:
+every archetype follows main-account trading rules.
 
 Bossing keeps combat/skill unlocks, persistent preferences, experience, luck and
-an estimated readiness factor derived from bank value. It does not require an
-owned equipment purchase, spendable cash, food, potions or another player.
+an estimated readiness factor derived from bank value. Encounters require a
+usable offensive style and an affordable supply budget before rewards. Encounters
+configured with no supply costs remain accessible without cash. Exact equipment
+purchases, inventory recipes and other players are not prerequisites.
 Bossing and training share one session time budget. KC uses the square root of
 the world multiplier, with the activity multiplier capped at sqrt(31). The world
 XP schedule uses an 11x floor, 29x baseline and 70x ceiling. Combat XP divides
@@ -84,9 +88,11 @@ on level, elapsed activity time and modest session variation. It does not use
 resource recipes to determine XP. Bossing generates drops from its selected drop
 tables. Estimated training, supply and death costs debit available bank value.
 Cash pays first, then ordinary whole items are redeemed at the current simulated market value;
-any excess remains as cash. Rare holdings are preserved for voluntary sales. An exhausted bank pays only its available spendable balance,
-without blocking training or kills or borrowing below zero. These costs are an
-abstract accounting model rather than an exact OSRS inventory simulation.
+any excess remains as cash. Rare holdings are preserved for voluntary sales.
+Buyable training, paid boss attempts and clue work are bounded by pre-session
+spendable assets; rewards cannot fund the attempt that generated them. Gathering
+can still earn income without an upfront bank. These costs are an abstract
+accounting model rather than an exact OSRS inventory simulation.
 
 `economy.flows` records created/removed whole items and coin sources/sinks. Bank
 value stays at or below the existing 1T GP safety ceiling using explicit asset
@@ -143,10 +149,13 @@ Rares remain separate item rolls. This is an authored simulation, not a claim
 about live OSRS profitability or exact drop tables. Group Dagannoth hunts and
 solo king hunts are separate sessions; a kill enters only the selected category.
 
-Costs now retain estimated, actually paid and unpaid amounts. Unpaid costs never
-create debt or block progression. The existing asset ceiling remains an explicit
+Costs retain estimated, actually paid and unpaid amounts. Historical unpaid costs
+never create debt. Current paid methods are affordability-limited; unpaid gathering
+overhead remains an estimate. The existing asset ceiling remains an explicit
 sink. New notable-loot records identify the session's final KC when the reward
 was recorded, not a fabricated exact per-kill drop timestamp. Existing holdings
 and historical kill counts are unchanged.
 
 See [rare rewards and wealth progression](../README.md#rare-rewards-and-wealth-progression) for bonus limits, stock and tax accounting, encounter approximations, retained rares and history compatibility.
+
+See [logical integrity audit](logical-integrity-audit.md) for cross-system rules, regression coverage and remaining model boundaries.

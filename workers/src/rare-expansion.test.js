@@ -74,7 +74,7 @@ test('kept mega-rares survive unfunded costs and duplicate power never stacks',(
   const user=player('Keep',0,{27277:1});
   progressSkillingEconomy(user,at,{skill:'construction',hours:20,rng:()=>.5});
   assert.equal(user.economy.holdings[27277],1);assert.equal(user.economy.cash,0);
-  assert.ok(user.economy.unpaidCosts>0);assert.equal(equipmentBonus(user,'magic'),.18);
+  assert.equal(user.economy.unpaidCosts || 0,0);assert.equal(equipmentBonus(user,'magic'),.18);
   user.economy.holdings[27277]=100;assert.equal(equipmentBonus(user,'magic'),.18);
   const low=player('TooLow',0,{27277:1},1);assert.equal(equipmentBonus(low,'magic'),0);
   const benefits=trainingBenefits(user,'magic',.25,70);
@@ -84,14 +84,14 @@ test('kept mega-rares survive unfunded costs and duplicate power never stacks',(
   tradeRares([user],at,null,{rng:()=>0});assert.equal(user.economy.holdings[27277],1);
 });
 
-test('empty banks keep the full base XP, cash boosts pay real costs, and inactive accounts gain no XP',t=>{
+test('empty banks earn supplies, funded training pays costs, and inactive accounts gain no XP',t=>{
   t.mock.method(Math,'random',()=>.999);
   const poor=player('Matched',0,{},1),rich=structuredClone(poor);
   rich.economy.cash=20_000_000;valueBank(rich);
   for(const user of [poor,rich]) user.trainingState={aptitude:1,fatigue:0,momentum:1,remaining:8,phase:'steady',phaseRemaining:3,focusSkill:'construction',targetXP:200000000};
   const start=poor.totalXP;
   progressUser(poor,at,{rng:()=>.5});progressUser(rich,at,{rng:()=>.5});
-  assert.ok(poor.totalXP>start);assert.ok(poor.skills.construction.level>1);
+  assert.ok(poor.totalXP>start);assert.equal(poor.skills.construction.level,1);assert.ok(poor.skills.thieving.xp>0);
   assert.equal(poor.progress.lastSession.wealthScale,1);
   assert.ok(rich.totalXP>poor.totalXP);assert.ok(rich.progress.lastSession.benefits.fundingCost>0);
   assert.ok(rich.economy.cash<20_000_000);
@@ -100,11 +100,12 @@ test('empty banks keep the full base XP, cash boosts pay real costs, and inactiv
   assert.deepEqual(tradeRares([inactive],at,null,{hours:0,rng:()=>0}).summary,{timestamp:+at,playerTrades:0,outsideSales:0,outsidePurchases:0,volume:0,tax:0});
 });
 
-test('trading respects available cash, self-sufficiency, level gates and bounded ledgers',()=>{
+test('all main-account archetypes can trade, respecting cash, upgrade choices and bounded ledgers',()=>{
   const seller=player('Seller',0,{20997:2}),broke=player('Broke',0),low=player('Low',5_000_000_000,{},1),iron=player('Iron',5_000_000_000);
   iron.archetype='IRON_SOUL';
   tradeRares([seller,broke,low,iron],at,null,{rng:()=>0});
-  for(const user of [broke,low,iron]) assert.equal(user.economy.holdings[20997],undefined);
+  for(const user of [broke,low]) assert.equal(user.economy.holdings[20997],undefined);
+  assert.equal(iron.economy.holdings[20997],1);
   const collector=player('Lots',0,{20997:100}),prev={stock:{},summary:{}};
   for(let tick=0;tick<12;tick++) Object.assign(prev,tradeRares([collector],new Date(+at+tick*900000),prev,{rng:()=>0}));
   assert.equal(collector.economy.trades.length,8);assert.equal(collector.economy.tradeCount,12);

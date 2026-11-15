@@ -91,7 +91,7 @@ test("fully capped accounts can continue economic activity without selecting an 
   user.totalXP = SKILLS.length * 200000000;
   progressUser(user, date, { rng: seeded(7) });
   assert.equal(user.totalXP, SKILLS.length * 200000000);
-  assert.equal(user.trainingState?.focusSkill, undefined);
+  assert.ok(user.trainingState?.focusSkill == null);
 });
 
 test("archived prices have no influence on skill preferences", () => {

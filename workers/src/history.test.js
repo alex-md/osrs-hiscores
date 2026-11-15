@@ -183,3 +183,24 @@ test('appending boss metrics preserves older packed history and starts new ladde
   assert.equal(timeline.totalGain,3);assert.deepEqual(timeline.series.map(point=>point.gain),[0,3]);
   assert.equal((await progress({days:7,metric:'attack'})).totalGain,1000);
 });
+
+for (const rollover of [false,true]) test(`account corrections do not become XP records${rollover?' across UTC rollover':''}`,async t=>{
+  let now=Date.parse('2026-11-14T12:00Z');t.mock.method(Date,'now',()=>now);
+  const {world,request,progress}=setup();
+  await request('/api/seed',{usernames:['Repair']});
+  let users=await allUsers(world.env),u=users[0];
+  u.skills=Object.fromEntries(SKILLS.map(s=>[s,{xp:s==='hitpoints'?1154:s==='slayer'?92126:1}]));
+  delete u.tracking; delete u.progressionRulesVersion;
+  await publishSnapshot(world.env,users);world.store.commit();await flushHistory(world.env);
+  users=await allUsers(world.env);u=users[0];
+  const {repairCombatProgression}=await import('./utils.js');
+  now+=rollover?86400000:900000;
+  repairCombatProgression(u,new Date(now));
+  assert.ok(u.progressionRepair.gains.hitpoints>0);
+  u.skills.attack.xp+=5000;
+  await publishSnapshot(world.env,users);world.store.commit();await flushHistory(world.env);
+  const p=await progress({days:1});
+  assert.equal(p.totalGain,5000);
+  assert.equal(p.records['daily:overall'].value,5000);
+  assert.equal((await progress({days:7})).totalGain,5000);
+});

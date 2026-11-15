@@ -4,7 +4,7 @@ import { tradeRares } from './rare-trading.js';
 import { adoptExpandedCareer, careerPhase } from './archetypes.js';
 import { isRestDay } from './engagement.js';
 import { arrivals, cleanupPopulation, populationPolicy } from "./population.js";
-import { activityScale, normalizeCareer, progressBossing, progressClues, progressSkillingEconomy, valueBank } from "./economy.js";
+import { activityScale, BUYABLE_SKILLS, spendableBank, normalizeCareer, progressBossing, progressClues, progressSkillingEconomy, valueBank } from "./economy.js";
 import { advanceTrainingClimate, personalTraining } from "./training-dynamics.js";
 import { windowXpScale, MIN_XP_SCALE, MAX_XP_SCALE } from "./xp-schedule.js";
 import { MAX_PLAYERS } from "../../frontend/lib/simulation-config.js";
@@ -19,8 +19,8 @@ import {
   sampleInitialTotalXP,
   assignArchetypeForTotalXP,
   distributeInitialXP,
-  computeHitpointsLevelFromCombat,
-  xpForLevel,
+  repairCombatProgression,
+  DAMAGE_SKILLS,
   determineXpGainTierFromTotal,
   buildSkillMultipliers,
   chooseActivityForUser,
@@ -43,12 +43,14 @@ export function newUser(username) {
       { xp: allocation[s] || 0, level: levelFromXp(allocation[s] || 0) },
     ]),
   );
-  const hp = computeHitpointsLevelFromCombat(skills);
-  skills.hitpoints = { xp: xpForLevel(hp), level: hp };
+  skills.hitpoints = { xp: 1154, level: 10 };
+  const initial = { skills };
+  repairCombatProgression(initial);
   const xpGainTier = determineXpGainTierFromTotal(totalXP(skills));
   const now = Date.now();
   const user = normalizeUser({
     username,
+    progressionRulesVersion: 1,
     skills,
     archetype,
     xpGainTier,
@@ -91,25 +93,33 @@ export function progressUser(
     user.skills[skill].xp = Math.min(200_000_000, before + Math.floor(xp));
     user.skills[skill].level = levelFromXp(user.skills[skill].xp);
     gains[skill] = (gains[skill] || 0) + user.skills[skill].xp - before;
+    return user.skills[skill].xp - before;
   };
   for (const [skill, xp] of Object.entries(clues.gains)) add(skill, xp * scale * personal.multiplier);
   for (const [skill, xp] of Object.entries(bossing.gains)) add(skill, xp * scale * personal.multiplier);
-  const skill = personal.skill;
+  let skill = personal.skill;
+  valueBank(user, market);
+  // Persist the long-term goal, but earn supplies when the method is unfunded.
+  if (BUYABLE_SKILLS.has(skill) && spendableBank(user, market) < 1000) skill = ["thieving", "mining", "fishing", "woodcutting", "hunter", "agility"]
+    .find(candidate => user.skills[candidate].xp < 200_000_000) || "thieving";
+  let trainingFraction = 1;
   const benefits = trainingBenefits(user, skill, bossing.trainingHours, scale);
   if (bossing.trainingHours > 0 && skill) {
-    progressSkillingEconomy(user, date, { skill, hours: bossing.trainingHours * activityScale(scale), rng, market, append: bossing.active || clues.active, fundingCost: benefits.fundingCost });
+    const training = progressSkillingEconomy(user, date, { skill, hours: bossing.trainingHours * activityScale(scale), rng, market, append: bossing.active || clues.active, fundingCost: benefits.fundingCost });
+    trainingFraction = training.fraction;
     const stat = user.skills[skill];
     const skillScale = climate?.focusSkill === skill ? climate.skillFactor : 1;
-    const gain = expectedRate(skill, stat.xp, stat.level) * bossing.trainingHours * scale * personal.multiplier * skillScale * benefits.multiplier;
-    add(skill, gain);
+    const combat = skill === "slayer" ? DAMAGE_SKILLS[Math.floor(rng() * DAMAGE_SKILLS.length)] : null;
+    // A low-level fighter cannot use a high-level Slayer XP rate independently
+    // of the damage they can deal. Both rewards come from the same kills.
+    const rate = Math.min(expectedRate(skill, stat.xp, stat.level), combat
+      ? expectedRate(combat, user.skills[combat].xp, user.skills[combat].level) / 4 : Infinity);
+    const gain = add(skill, rate * bossing.trainingHours * trainingFraction * scale * personal.multiplier * skillScale * benefits.multiplier);
     if (["attack", "strength", "defence", "ranged"].includes(skill))
       add("hitpoints", gain / 3);
     if (skill === "slayer") {
-      const combat = ["attack", "strength", "defence", "ranged"][
-        Math.floor(rng() * 4)
-      ];
-      add(combat, gain * 2);
-      add("hitpoints", (gain * 2) / 3);
+      add(combat, gain * 4);
+      add("hitpoints", (gain * 4) / 3);
     }
   }
   const gainedXP = Object.values(gains).reduce((a, b) => a + b, 0);
@@ -128,7 +138,9 @@ export function progressUser(
         boss: bossing.boss || null,
         trainingSkill: skill,
         hours: duration,
-        trainingHours: bossing.trainingHours,
+        trainingHours: bossing.trainingHours * trainingFraction,
+        requestedTrainingSkill: personal.skill,
+        fundingFraction: trainingFraction,
         xpScale: scale,
         personalScale: personal.multiplier,
         wealthScale: benefits.multiplier,
@@ -184,6 +196,7 @@ export async function runScheduled(env) {
   for (const user of users) {
     const before = JSON.stringify(user);
     valueBank(user, market);
+    repairCombatProgression(user, date);
     progressUser(user, date, { hours, climate, market });
     if (JSON.stringify(user) !== before) changed.push(user);
   }

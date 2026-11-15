@@ -3,7 +3,7 @@ import { archetypePolicy } from './archetypes.js';
 import { SKILLS } from "./constants.js";
 import { BOSSES, MAX_BANK_VALUE } from "../../frontend/lib/activities.js";
 import { combatLevel } from "../../frontend/lib/domain.js";
-import { priceOf, costIndex, recordDemand, SKILL_ITEMS, BOSS_ITEMS, RARE_ITEMS } from "./market.js";
+import { priceOf, costIndex, recordDemand, skillingItem, BOSS_ITEMS, RARE_ITEMS } from "./market.js";
 import baseline from "../data/ge-baseline.js";
 
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
@@ -68,9 +68,30 @@ export function normalizeCareer(user) {
   };
   return user;
 }
+// Authored readiness floor: total combat alone can be inflated by Prayer/Defence.
+export function bossCombatSkills(user, boss) {
+  const styles = {
+    kraken: ["magic"], "dagannoth-rex": ["magic"],
+    "dagannoth-prime": ["ranged"], "dagannoth-supreme": ["attack", "strength", "defence"],
+    kreearra: ["ranged", "magic"], "the-whisperer": ["magic"],
+    "the-leviathan": ["ranged"],
+  };
+  const allowed = boss.styles || styles[boss.key] || ["attack", "strength", "defence", "ranged", "magic"];
+  const floor = Math.max(1, Math.ceil(boss.combat * .6));
+  return allowed.filter(skill => skill === "defence"
+    ? user.skills.defence.level >= floor && Math.min(user.skills.attack.level, user.skills.strength.level) >= floor
+    : skill === "attack" || skill === "strength"
+      ? Math.min(user.skills.attack.level, user.skills.strength.level) >= floor
+      : user.skills[skill].level >= floor);
+}
+export function spendableBank(user, market) {
+  return Math.max(0, user.economy.cash + Object.entries(user.economy.holdings)
+    .reduce((sum, [id, n]) => sum + (baseline[id]?.rare ? 0 : n * priceOf(market, id)), 0));
+}
+export const BUYABLE_SKILLS = new Set(["construction", "herblore", "prayer", "crafting", "smithing", "fletching", "firemaking", "cooking", "magic", "sailing"]);
 export function eligibleBosses(user) {
   const combat = combatLevel(user.skills);
-  return BOSSES.filter(boss => combat >= boss.combat && (!boss.slayer || user.skills.slayer?.level >= boss.slayer)
+  return BOSSES.filter(boss => combat >= boss.combat && bossCombatSkills(user, boss).length > 0 && (!boss.slayer || user.skills.slayer?.level >= boss.slayer)
     && Object.entries(boss.requirements || {}).every(([skill, level]) => (user.skills[skill]?.level || 1) >= level));
 }
 // Upgrade fractional legacy baskets once. Whole items are retained and the
@@ -122,22 +143,14 @@ export function valueBank(user, market) {
     prices: Object.fromEntries(Object.keys(e.holdings).map(id => [id, priceOf(market,id)])),
     changes: Object.fromEntries(Object.keys(e.holdings).map(id => [id, market?.items?.[id]?.dayChangePct || 0])) };
 }
-// Session costs are accounting estimates. They never limit XP or kill counts.
-// Pay with cash, then redeem whole items at the current market value. Any change
-// stays as cash; an exhausted bank pays only what it owns and never borrows.
+// Costs are paid from pre-session assets. Rewards cannot finance the attempt
+// that produced them. Rare equipment is never silently liquidated.
 function settle(user, income, cost, details, date, market, rewards = {}) {
   const e = user.economy;
   income = integer(income);
   const earned = income + Object.entries(rewards).reduce((sum, [id, n]) => sum + n * priceOf(market, id), 0);
-  e.cash += income;
-  e.flows.coinFaucets += income;
-  for (const [id, n] of Object.entries(rewards)) {
-    if (!Number.isSafeInteger(n) || n < 0) throw new Error("Invalid production");
-    e.holdings[id] = (e.holdings[id] || 0) + n;
-    e.flows.created[id] = (e.flows.created[id] || 0) + n;
-  }
   const estimatedCost = integer(cost * costIndex(details.skill || details.activity, market));
-  const spendable = e.cash + Object.entries(e.holdings).reduce((sum,[id,n]) => sum + (baseline[id].rare ? 0 : n * priceOf(market,id)),0);
+  const spendable = spendableBank(user, market);
   const spent = Math.min(estimatedCost, spendable);
   const unpaid = estimatedCost - spent;
   e.unpaidCosts = integer((e.unpaidCosts || 0) + unpaid);
@@ -154,6 +167,14 @@ function settle(user, income, cost, details, date, market, rewards = {}) {
   }
   e.cash -= spent;
   e.flows.coinSinks += spent;
+  e.cash += income;
+  e.flows.coinFaucets += income;
+  for (const [id, n] of Object.entries(rewards)) {
+    if (!Number.isSafeInteger(n) || n < 0) throw new Error("Invalid production");
+    e.holdings[id] = (e.holdings[id] || 0) + n;
+    e.flows.created[id] = (e.flows.created[id] || 0) + n;
+  }
+
   e.bankValue += earned - spent;
   e.earned = integer(e.earned + earned);
   e.spent = integer(e.spent + spent);
@@ -210,7 +231,9 @@ export function progressBossing(user, date, { hours, rng, market, scale = 1 }) {
   const gains = {};
   if (!(hours > 0)) return { trainingHours: 0, gains, active: false };
   valueBank(user, market);
-  const eligible = eligibleBosses(user);
+  const budget = spendableBank(user, market);
+  const costFactor = (1.2 - user.career.thrift * .35) * costIndex("bossing", market);
+  const eligible = eligibleBosses(user).filter(boss => budget >= boss.cost * costFactor);
   const policy = archetypePolicy(user.archetype);
   const inclination = policy.bossChance ?? ({ PVMER: 0.72, HARDCORE: 0.42, ELITE_GRINDER: 0.45, IRON_SOUL: 0.45, SKILLER: 0.015, IDLER: 0.04, SOCIALITE: 0.06 })[user.archetype] ?? 0.16;
   // A shared daily appetite plus persistent personal taste: streaks and goals,
@@ -234,14 +257,17 @@ export function progressBossing(user, date, { hours, rng, market, scale = 1 }) {
     return preference * challenge * (1 + familiarity) * raidPreference * slayerPreference * exploration * collection;
   }, rng);
   // Bossing consumes this session's time; it does not run alongside a full XP session.
-  const bossHours = hours * (0.6 + rng() * 0.4);
+  let bossHours = hours * (0.6 + rng() * 0.4);
   const pace = activityScale(scale);
-  const effectiveHours = bossHours * pace;
+  let effectiveHours = bossHours * pace;
   const gear = 0.4 + 0.6 * Math.min(1, Math.log1p(user.economy.bankValue / 100000) / Math.log(1001));
   const experience = 0.65 + 0.35 * (1 - Math.exp(-user.bosses[boss.key] / 300));
   const level = 0.65 + 0.35 * clamp((combatLevel(user.skills) - boss.combat) / 25, 0, 1);
   const efficiency = user.career.aptitude * gear * (1 + equipmentBonus(user)) * experience * level * clamp(lognormal(rng, 0.18), 0.5, 1.5);
-  const work = Math.min(1000, boss.killsPerHour * effectiveHours * efficiency);
+  let work = Math.min(1000, boss.killsPerHour * effectiveHours * efficiency);
+  const affordableWork = boss.cost > 0 ? budget / (boss.cost * costFactor) : Infinity;
+  const fraction = work > 0 ? Math.min(1, affordableWork / work) : 1;
+  work *= fraction; bossHours *= fraction; effectiveHours *= fraction;
   let kills;
   if (boss.raid) {
     user.career.raidProgress ||= {};
@@ -249,18 +275,20 @@ export function progressBossing(user, date, { hours, rng, market, scale = 1 }) {
     kills = Math.floor(progress);
     user.career.raidProgress[boss.key] = progress - kills;
     user.career.pendingRaid = kills === 0 ? boss.key : null;
-  } else kills = Math.min(1000, poisson(work, rng));
+  } else kills = Math.min(1000, Math.floor(affordableWork), poisson(work, rng));
   const deaths = Math.min(10, poisson(effectiveHours * (0.08 + user.career.risk * 0.18) * (1.2 - experience), rng));
   const { rewards, drops, coins, notable } = rollBossDrops(boss, kills, rng);
-  const cost = (boss.raid ? work : Math.max(kills, work * .25)) * boss.cost * (1.2 - user.career.thrift * 0.35)
-    + deaths * Math.min(500000, Math.floor(user.economy.bankValue * 0.005));
+  const supplyCost = (boss.raid ? work : Math.max(kills, work * .25)) * boss.cost * (1.2 - user.career.thrift * .35);
+  const deathCost = deaths * Math.min(500000, Math.floor(user.economy.bankValue * .005));
+  const cost = Math.min(budget / costIndex("bossing", market), supplyCost + deathCost);
   const oldKC = user.bosses[boss.key];
   user.bosses[boss.key] = integer(oldKC + kills);
   const milestone = [100,500,1000,5000,10000,50000,100000].filter(n => oldKC < n && user.bosses[boss.key] >= n).at(-1);
   if (milestone) user.career.lastBossMilestone = { boss:boss.key, value:milestone, timestamp:date.getTime() };
   user.economy.rareDrops = integer(user.economy.rareDrops + drops);
   user.economy.deaths = integer(user.economy.deaths + deaths);
-  const combatSkill = ["attack", "strength", "defence", "ranged", "magic"][Math.min(4, Math.floor(rng() * 5))];
+  const styles = bossCombatSkills(user, boss);
+  const combatSkill = styles[Math.min(styles.length - 1, Math.floor(rng() * styles.length))];
   gains[combatSkill] = kills * boss.hp * 4 / pace;
   gains.hitpoints = kills * boss.hp * 4 / (3 * pace);
   if (boss.slayer) gains.slayer = kills * boss.hp / pace;
@@ -278,20 +306,26 @@ export function progressBossing(user, date, { hours, rng, market, scale = 1 }) {
 const SKILL_INCOME = { fishing: 150000, mining: 180000, woodcutting: 90000, thieving: 300000, hunter: 220000, runecraft: 280000, farming: 180000, slayer: 160000, sailing: 160000, agility: 30000 };
 const SKILL_COST = { construction: 1200000, herblore: 700000, prayer: 900000, crafting: 300000, smithing: 180000, fletching: 100000, firemaking: 60000, cooking: 30000, magic: 100000, sailing: 60000 };
 export function progressSkillingEconomy(user, date, { skill, hours, rng = Math.random, market, append = false, fundingCost = 0 }) {
-  if (!(hours > 0) || !skill) return;
+  if (!(hours > 0) || !skill) return { fraction: 0 };
   valueBank(user, market);
   const level = user.skills[skill].level;
   const efficiency = 0.15 + 0.85 * (level / 99) ** 1.5;
   const rate = clamp(lognormal(rng, 0.25), 0.3, 3);
-  const earned = (SKILL_INCOME[skill] || 15000) * hours * efficiency * rate;
-  const spent = (SKILL_COST[skill] || 5000) * hours * (1.2 - user.career.thrift * 0.5);
-  const item = SKILL_ITEMS[skill];
+  const estimated = (SKILL_COST[skill] || 5000) * hours * (1.2 - user.career.thrift * 0.5) + fundingCost;
+  const fraction = BUYABLE_SKILLS.has(skill)
+    ? Math.min(1, spendableBank(user, market) / Math.max(1, Math.ceil(estimated * costIndex(skill, market)))) : 1;
+  if (!(fraction > 0)) return { fraction: 0 };
+  hours *= fraction;
+  const earned = BUYABLE_SKILLS.has(skill) ? 0 : (SKILL_INCOME[skill] || 15000) * hours * efficiency * rate;
+  const spent = estimated * fraction;
+  const item = skillingItem(skill, level);
   const previous = append ? user.economy.lastSession : null;
-  settle(user, item ? 0 : earned, spent + fundingCost, { activity: "skilling", skill, hours }, date, market, item ? { [item]: Math.floor(earned / priceOf(null, item)) } : {});
+  settle(user, item ? 0 : earned, spent, { activity: "skilling", skill, hours }, date, market, item ? { [item]: Math.floor(earned / priceOf(null, item)) } : {});
   if (previous) {
     const current = user.economy.lastSession;
     user.economy.lastSession = { ...previous, trainingSkill: skill, trainingHours: hours, earned: previous.earned + current.earned, spent: previous.spent + current.spent, net: previous.net + current.net, estimatedCost: previous.estimatedCost + current.estimatedCost, unpaid: previous.unpaid + current.unpaid };
   }
+  return { fraction };
 }
 
 // Authored treasure-trail model: four steps per casket, ordinary coin rewards
@@ -299,7 +333,10 @@ export function progressSkillingEconomy(user, date, { skill, hours, rng = Math.r
 export function progressClues(user, date, { hours, scale=1, rng=Math.random, market }) {
   const chance = archetypePolicy(user.archetype).clueChance || .008;
   if (!(hours>0) || rng()>=chance) return {active:false,trainingHours:hours,gains:{}};
-  const used = hours*(.45+rng()*.4);
+  valueBank(user, market);
+  const availableHours = spendableBank(user, market) / (activityScale(scale) * 12000);
+  const used = Math.min(hours*(.45+rng()*.4), availableHours);
+  if (!(used > 0)) return {active:false,trainingHours:hours,gains:{}};
   const trail = user.career.clues ||= { steps:0, completed:0 };
   trail.steps += used*activityScale(scale)*8;
   const completed = Math.floor(trail.steps/4);

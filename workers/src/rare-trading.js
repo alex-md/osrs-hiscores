@@ -59,18 +59,18 @@ export function tradeRares(users, date, previous = null, {hours=.25,rng=Math.ran
   };
   for (const seller of shuffled) {
     if (count>=MAX_TRADES) break;
-    if (seller.archetype === 'IRON_SOUL' || busy.has(seller) || rng()>=.18*participation) continue;
+    if (busy.has(seller) || rng()>=.18*participation) continue;
     const offers=Object.entries(seller.economy.holdings).filter(([id,n])=>{
       if (!(n>0) || !items[id]?.rare) return false;
-      // Collectors and self-sufficient accounts keep their first copy. Other
+      // Collectors prefer to keep their first copy. All accounts can trade. Other
       // owners may choose a windfall; duplicates are offered much more readily.
-      return n>1 || (!['IRON_SOUL','COLLECTION_HUNTER','COMPLETIONIST'].includes(seller.archetype)
+      return n>1 || (!['COLLECTION_HUNTER','COMPLETIONIST'].includes(seller.archetype)
         && seller.career.thrift>.6 && rng()<.12);
     }).sort((a,b)=>priceOf(market,b[0])-priceOf(market,a[0]));
     const offer=offers[0];
     if (!offer) continue;
     const id=offer[0];
-    const buyer=buyers.find(user=>user!==seller && !busy.has(user) && user.archetype!=='IRON_SOUL' && canBuy(user,id,market));
+    const buyer=buyers.find(user=>user!==seller && !busy.has(user) && canBuy(user,id,market));
     if (buyer) {record(seller,buyer,id,false);summary.playerTrades++;}
     else if ((stock[id] || 0)<1000 && priceOf(market,id)<=outsideBudget && rng()<.35) {
       record(seller,null,id,true); stock[id]=(stock[id] || 0)+1;
@@ -79,7 +79,7 @@ export function tradeRares(users, date, previous = null, {hours=.25,rng=Math.ran
   }
   for (const buyer of buyers) {
     if (count>=MAX_TRADES) break;
-    if (busy.has(buyer) || buyer.archetype==='IRON_SOUL') continue;
+    if (busy.has(buyer)) continue;
     const id=Object.keys(stock).filter(id=>stock[id]>0 && canBuy(buyer,id,market))
       .sort((a,b)=>(items[b].power-items[a].power) || priceOf(market,a)-priceOf(market,b))[0];
     if (!id) continue;

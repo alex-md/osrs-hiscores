@@ -66,20 +66,68 @@ export function xpForLevel(level) {
   return XP_TABLE[target] || 0;
 }
 
-// Compute hitpoints level as the rounded average of primary combat skills.
+// The simulation models ordinary damage-based Slayer: 4 combat XP and
+// 4/3 Hitpoints XP per Slayer XP. It does not model lamps, recoil or cannon pures.
+export const DAMAGE_SKILLS = ["attack", "strength", "defence", "ranged"];
+const damageXP = skills => DAMAGE_SKILLS.reduce((sum, skill) =>
+  sum + Math.max(0, (skills[skill]?.xp || 0) - 1), 0);
+
 export function computeHitpointsLevelFromCombat(skills) {
-  const combatStats = [
-    "attack",
-    "strength",
-    "defence",
-    "ranged",
-    "magic",
-    "prayer",
-  ];
-  const levels = combatStats.map((s) => skills?.[s]?.level || 1);
-  const avg = levels.reduce((a, b) => a + b, 0) / levels.length;
-  // Minimum starting HP level often is 10; respect that floor.
-  return Math.max(10, Math.round(avg));
+  return levelFromXp(Math.max(1154, 1154 + Math.floor(damageXP(skills) / 3)));
+}
+
+// One-time, additive repair: preserve earned Slayer and other existing XP.
+// Store the exact correction separately from newly earned session XP.
+export function repairCombatProgression(user, date = new Date()) {
+  if (user.progressionRulesVersion >= 1) return;
+  const gains = {};
+  // Legacy Magic may have come from damage; do not invent melee training
+  // merely because the account used spells. Noncombat Magic alone implies no HP.
+  const slayerDamage = 4 * Math.max(0, user.skills.slayer.xp - 1);
+  const support = damageXP(user.skills) + Math.max(0, user.skills.magic.xp - 1);
+  const deficit = Math.max(0, slayerDamage - support);
+  let remaining = deficit;
+  for (let i = 0; i < DAMAGE_SKILLS.length; i++) {
+    const skill = DAMAGE_SKILLS[i];
+    const gain = Math.min(200_000_000 - user.skills[skill].xp,
+      Math.ceil(remaining / (DAMAGE_SKILLS.length - i)));
+    if (gain > 0) {
+      user.skills[skill].xp += gain;
+      user.skills[skill].level = levelFromXp(user.skills[skill].xp);
+      gains[skill] = gain;
+      remaining -= gain;
+    }
+  }
+  const hp = Math.min(200_000_000, 1154 + Math.floor(Math.max(damageXP(user.skills), slayerDamage) / 3));
+  if (hp > user.skills.hitpoints.xp) {
+    gains.hitpoints = hp - user.skills.hitpoints.xp;
+    user.skills.hitpoints = { xp: hp, level: levelFromXp(hp) };
+  }
+  user.progressionRulesVersion = 1;
+  if (Object.keys(gains).length) {
+    user.progressionRepair = { version: 1, timestamp: date.getTime(), gains };
+    const newLevel = totalLevel(user.skills);
+    // History tracks differences between cumulative balances. Shift its saved
+    // baselines by the correction so repairs cannot become daily XP records.
+    if (user.tracking) {
+      const correction = [Object.values(gains).reduce((sum, n) => sum + n, 0), ...SKILLS.map(skill => gains[skill] || 0)];
+      const shifted = new Set();
+      for (const key of ["base", "last", "initial"]) {
+        const values = user.tracking[key];
+        if (values && !shifted.has(values)) {
+          correction.forEach((n, i) => { values[i] += n; });
+          shifted.add(values);
+        }
+      }
+      user.tracking.corrections = correction.map((n, i) => n + (user.tracking.corrections?.[i] || 0));
+      const levelGain = newLevel - user.totalLevel;
+      user.tracking.levelCorrections = (user.tracking.levelCorrections || 0) + levelGain;
+      for (const key of ["levelBase", "lastLevel", "initialLevel"])
+        if (Number.isFinite(user.tracking[key])) user.tracking[key] += levelGain;
+    }
+    user.totalXP = totalXP(user.skills);
+    user.totalLevel = newLevel;
+  }
 }
 
 // Meta tier inference prioritizing overall rank percentiles with fallbacks.
@@ -302,6 +350,17 @@ export function distributeInitialXP(
     // If overflow remains, all recipients are capped; we drop remainder to satisfy cap constraint.
   }
 
+  // Transfer part of an unsupported Slayer allocation into its combat history.
+  // This preserves the sampled non-HP budget and each skill's initial cap.
+  const combat = DAMAGE_SKILLS.reduce((sum, skill) => sum + xpMap[skill] - 1, 0);
+  const transfer = Math.max(0, Math.ceil((4 * (xpMap.slayer - 1) - combat) / 5));
+  xpMap.slayer -= transfer;
+  let pending = transfer;
+  for (const skill of DAMAGE_SKILLS) {
+    const take = Math.min(pending, MAX_PER_SKILL - xpMap[skill]);
+    xpMap[skill] += take;
+    pending -= take;
+  }
   return xpMap;
 }
 

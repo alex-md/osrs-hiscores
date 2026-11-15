@@ -39,8 +39,9 @@ export async function stageHistory(env, profiles, generation, now) {
     const activeBoss = h.bossStreak.day === day ? h.bossStreak.count : 0;
     // Packed row: name, daily metric deltas, day-start ranks, current ranks,
     // level delta, XP/KC streaks, interval start/end, cumulative metrics,
-    // initial metrics/ranks/time, current/initial total level.
-    rows.push([user.username, gains, h.rankBase, r, user.totalLevel - h.levelBase, activeXP, activeBoss, h.from, now, v, h.initial, h.initialRanks, h.initialAt, user.totalLevel, h.initialLevel]);
+    // initial metrics/ranks/time, current/initial total level, cumulative
+    // administrative corrections and level corrections (append-only fields).
+    rows.push([user.username, gains, h.rankBase, r, user.totalLevel - h.levelBase, activeXP, activeBoss, h.from, now, v, h.initial, h.initialRanks, h.initialAt, user.totalLevel, h.initialLevel, h.corrections || [], h.levelCorrections || 0]);
     for (let i = 0; i < gains.length; i++) {
       const key = PROGRESS_METRICS[i].key;
       record(meta.records, `daily:${key}`, gains[i], user.username, day, now);
@@ -160,14 +161,14 @@ export async function historyResponse(request, env) {
       // No json_each scan over all players/days, and no 30-day payload in memory.
       for (const shard of lastRows.results) for (const row of JSON.parse(shard.payload)) {
         byName.set(row[0], {username:row[0],gain:(row[9][index] ?? 0)-(row[10][index] ?? 0),levels:row[13]-row[14],
-          startRank:row[11][index],endRank:row[3][index],fromAt:row[12],throughAt:row[8],xpStreak:row[5],bossStreak:row[6],current:row[9][index] ?? 0,currentLevel:row[13],initialAt:row[12]});
+          startRank:row[11][index],endRank:row[3][index],fromAt:row[12],throughAt:row[8],xpStreak:row[5],bossStreak:row[6],current:row[9][index] ?? 0,currentLevel:row[13],initialAt:row[12],correction:row[15]?.[index] || 0,levelCorrection:row[16] || 0});
       }
       const first = await env.HISTORY_DB.prepare('SELECT MIN(day) AS day FROM progress_players WHERE day >= ?').bind(from).first();
       if (first?.day) {
         const startRows = await env.HISTORY_DB.prepare('SELECT payload FROM progress_players WHERE day = ? ORDER BY shard').bind(first.day).all();
         for (const shard of startRows.results) for (const row of JSON.parse(shard.payload)) {
           const player=byName.get(row[0]);
-          if (player && player.initialAt === row[12]) {player.gain=player.current-((row[9][index] ?? 0)-(row[1][index] ?? 0));player.levels=player.currentLevel-(row[13]-row[4]);player.startRank=row[2][index];player.fromAt=row[7];}
+          if (player && player.initialAt === row[12]) {player.gain=player.current-((row[9][index] ?? 0)-(row[1][index] ?? 0))-(player.correction-(row[15]?.[index] || 0));player.levels=player.currentLevel-(row[13]-row[4])-(player.levelCorrection-(row[16] || 0));player.startRank=row[2][index];player.fromAt=row[7];}
         }
       }
       const totals = await env.HISTORY_DB.prepare("SELECT day, json_extract(summary, ?) AS gain, json_extract(summary, '$.levels') AS levels FROM progress_days WHERE day >= ? ORDER BY day")
@@ -176,7 +177,7 @@ export async function historyResponse(request, env) {
     }
     for (const player of byName.values()) {
       player.movement=player.startRank && player.endRank ? player.startRank-player.endRank : null;
-      delete player.current;delete player.currentLevel;delete player.initialAt;
+      delete player.current;delete player.currentLevel;delete player.initialAt;delete player.correction;delete player.levelCorrection;
     }
     const order = sort === 'rises' ? p => p.movement || 0 : sort === 'falls' ? p => -(p.movement || 0) : sort === 'xp-streak' ? p => p.xpStreak : sort === 'boss-streak' ? p => p.bossStreak : p => p.gain;
     const players = [...byName.values()].filter(p => username || (sort === 'gains' ? p.gain !== 0 : order(p)>0))
