@@ -50,8 +50,14 @@ function avg(arr) {
   return arr.length ? sum(arr) / arr.length : 0;
 }
 
+// A player without a recorded milestone gets the current publication timestamp.
+function milestoneTime(user, key, publishedAt) {
+  const timestamp = Number(user.achievements?.[key]);
+  return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : publishedAt;
+}
+
 // The same deterministic ordering is used by the public rankings.
-export function computeAchievementContext(users) {
+export function computeAchievementContext(users, publishedAt = Infinity) {
   const sort = (a, b) => a.username.localeCompare(b.username);
   const overall = [...users].sort(
     (a, b) =>
@@ -63,12 +69,22 @@ export function computeAchievementContext(users) {
   const top1SkillsByUserCount = new Map(),
     top10BySkill = new Map(),
     top100BySkill = new Map(),
-    skillAvgLevel = new Map();
+    skillAvgLevel = new Map(),
+    rankedBySkill = new Map();
   for (const skill of SKILLS) {
-    const ranked = [...users].sort(
-      (a, b) =>
-        (b.skills[skill]?.xp || 0) - (a.skills[skill]?.xp || 0) || sort(a, b),
-    );
+    const milestoneKey = `skill-200m-${skill}`;
+    const ranked = [...users].sort((a, b) => {
+      const aXP = a.skills[skill]?.xp || 0;
+      const bXP = b.skills[skill]?.xp || 0;
+      if (aXP !== bXP) return bXP - aXP;
+      if (aXP === 200_000_000) {
+        const aTime = milestoneTime(a, milestoneKey, publishedAt);
+        const bTime = milestoneTime(b, milestoneKey, publishedAt);
+        if (aTime !== bTime) return aTime - bTime;
+      }
+      return sort(a, b);
+    });
+    rankedBySkill.set(skill, ranked);
     const names = ranked.map((u) => u.username.toLowerCase());
     if (ranked[0]?.skills[skill]?.xp > 0) {
       const name = names[0];
@@ -89,6 +105,7 @@ export function computeAchievementContext(users) {
   }
   return {
     rankByUser,
+    rankedBySkill,
     top1SkillsByUserCount,
     top10BySkill,
     top100BySkill,

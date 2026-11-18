@@ -183,6 +183,35 @@ test("skill ties use the same username ordering for rankings and achievement cro
   assert.equal(context.top1SkillsByUserCount.get("ada"), SKILLS.length);
   assert.equal(context.top1SkillsByUserCount.get("zed"), undefined);
 });
+test("200M skill ties use recorded milestone order across publications", async () => {
+  const e = env();
+  const key = "skill-200m-attack";
+  const users = [player("Ada"), player("Bea"), player("Cy"), player("Max"), player("Zed")];
+  for (const user of users) user.skills.attack = { xp: 200_000_000, level: 99 };
+  users[3].achievements[key] = 1700000900000;
+  users[4].achievements[key] = 1700000000000;
+  users[0].skills.attack.xp--;
+  // An old milestone alone cannot outrank a player with more XP.
+  users[0].achievements[key] = 1699999999999;
+
+  const expected = ["Zed", "Max", "Bea", "Cy", "Ada"];
+  const first = await publishSnapshot(e, users);
+  const { players } = await (
+    await call(e, "/api/skill-rankings?skill=attack")
+  ).json();
+  assert.deepEqual(players.map((row) => [row.username, row.rank]),
+    expected.map((name, index) => [name, index + 1]));
+  const zed = await (await call(e, "/api/users/Zed")).json();
+  assert.equal(zed.ranks.attack, 1);
+  assert.equal(zed.achievements["crowned-any"], first.generatedAt);
+  assert.equal(zed.achievements[key], 1700000000000);
+
+  await publishSnapshot(e);
+  const { rankings } = await (await call(e, "/api/skill-rankings")).json();
+  assert.deepEqual(rankings.attack, players);
+  const bea = await (await call(e, "/api/users/Bea")).json();
+  assert.equal(bea.achievements[key], first.generatedAt);
+});
 test("player profiles expose authoritative ranks, combat level and persisted achievement timestamps", async () => {
   const e = env();
   const user = player("Rune Mage", 99);

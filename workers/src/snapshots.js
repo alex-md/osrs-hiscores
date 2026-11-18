@@ -53,10 +53,8 @@ export function buildRankings(
     })),
   };
   for (const skill of SKILLS) {
-    rankings[skill] = users
-      .map((u) => ({ username: u.username, ...u.skills[skill] }))
-      .sort((a, b) => b.xp - a.xp || a.username.localeCompare(b.username))
-      .map((u, i) => ({ ...u, rank: i + 1 }));
+    rankings[skill] = context.rankedBySkill.get(skill)
+      .map((u, i) => ({ username: u.username, ...u.skills[skill], rank: i + 1 }));
   }
   const activityScores = [
     ["bank", user => user.economy?.bankValue || 0],
@@ -76,7 +74,7 @@ export async function publishSnapshot(env, users = null) {
   if (users.length > MAX_PLAYERS)
     throw new HttpError(409, `The simulated world is limited to ${MAX_PLAYERS} players to preserve free-tier headroom.`);
   const now = Date.now(),
-    context = computeAchievementContext(users);
+    context = computeAchievementContext(users, now);
   const training = trainingInfo(new Date(now), await readJSON(env, "system:training-climate"));
   const [legacy, previous, oldLog, previousSnapshot] = await Promise.all([
     readJSON(env, "ach:firsts", {}),
