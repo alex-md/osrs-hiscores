@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "dev": "npm --prefix .. run build && wrangler dev",
+    "deploy": "npm --prefix .. run build && wrangler deploy",
     "test": "node --test src/*.test.js"
   },
   "devDependencies": {

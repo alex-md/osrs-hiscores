@@ -1,3 +1,4 @@
+import "./config.js";
 import items from "./lib/items.js";
 import { RARE_ITEMS } from "./lib/loot.js";
 import { bankView } from "./lib/bank-view.js";

@@ -33,7 +33,7 @@ Local development:
 ```sh
 cd workers
 npx wrangler d1 migrations apply osrs-hiscores-history --local
-npx wrangler dev
+npm run dev
 ```
 
 Wrangler references the provisioned `osrs-hiscores-history` database. Local Wrangler development still uses a separate local database. The release workflow runs `scripts/prepare-history-db.mjs`, which finds or creates `osrs-hiscores-history` in the configured Cloudflare account and writes its real ID into the release checkout. It then applies `workers/migrations` remotely before deploying the Worker. Existing database data is preserved; migrations use Wrangler's migration ledger. The Cloudflare release token needs **Account / D1 / Edit**, in addition to its existing Worker permissions. No token belongs in the repository.

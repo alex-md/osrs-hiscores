@@ -35,8 +35,10 @@ test("hash routes retain filters and select the matching title and navigation", 
 
 test("legacy HTML entry points preserve defaults and allow hash overrides", () => {
   assert.equal(parse("/achievements.html").type, "achievements");
+  assert.equal(parse("/achievements").type, "achievements");
   assert.equal(parse("/skill-hiscores.html").skill, "attack");
   assert.equal(parse("/skill-hiscores.html?skill=sailing").skill, "sailing");
+  assert.equal(parse("/skill-hiscores?skill=sailing").skill, "sailing");
   assert.equal(parse("/skill-hiscores.html?skill=unknown").type, "invalid");
   assert.equal(parse("/achievements.html#wealth").path, "wealth");
   assert.equal(parse("/").type, "overall");

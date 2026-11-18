@@ -1,3 +1,2 @@
-// Cloudflare uses its same-origin API. The GitHub Pages publish script supplies
-// the separate Worker URL, including when Pages uses a custom domain.
-globalThis.HISCORES_CONFIG = Object.freeze({ apiBase: "" });
+// The Vite build supplies a Worker origin for GitHub Pages.
+globalThis.HISCORES_CONFIG = Object.freeze({ apiBase: __HISCORES_API_BASE__ });

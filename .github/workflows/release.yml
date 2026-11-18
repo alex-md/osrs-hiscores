@@ -19,11 +19,15 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: workers/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            workers/package-lock.json
+      - run: npm ci
       - run: npm ci --prefix workers
       - run: npm test
       - run: npm run check
       - run: npm run capacity
+      - run: npm run build
       - name: Verify Pages Functions with the hosted build version
         run: npx --yes wrangler@3.114.17 pages functions build functions --outfile /tmp/pages-worker.mjs
       - run: npm exec -- wrangler deploy --dry-run
@@ -51,7 +55,10 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: workers/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            workers/package-lock.json
+      - run: npm ci
       - run: npm ci --prefix workers
       - name: Resolve the history database
         run: node scripts/prepare-history-db.mjs
@@ -82,12 +89,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+      - run: npm ci
       - name: Prepare frontend with the same Worker connection and release commit
-        run: node scripts/prepare-pages.mjs
+        run: npm run build:pages
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist/pages
+          path: dist-pages
       - uses: actions/deploy-pages@v4
         id: deployment
       - name: Verify published frontend commit and API connection

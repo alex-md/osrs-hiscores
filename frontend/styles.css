@@ -332,7 +332,7 @@ body {
   max-width: 1024px;
   padding: 0 29px;
   border: 1px solid #080a06;
-  background: linear-gradient(#0003, #0001), url("stone-wall.svg?v=1") repeat;
+  background: linear-gradient(#0003, #0001), url("stone-wall.svg") repeat;
   box-shadow: 0 0 0 3px #26291c, 0 0 0 5px #080a06, 0 12px 45px #000;
   isolation: isolate;
 }
@@ -342,7 +342,7 @@ body {
   top: 0;
   bottom: 0;
   width: 32px;
-  background: url("ivy-column.svg?v=1") repeat-y center top;
+  background: url("ivy-column.svg") repeat-y center top;
   pointer-events: none;
   z-index: -1;
 }

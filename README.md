@@ -7,12 +7,13 @@ A simulated Old School RuneScape world with overall rankings, all 24 skill ladde
 Requires Node.js 22.16 or newer.
 
 ```sh
+npm ci
 npm ci --prefix workers
 cp workers/.dev.vars.example workers/.dev.vars
 npm run dev
 ```
 
-Open **http://localhost:8787**. Wrangler serves the frontend and API together and uses a local SQLite-backed Durable Object. No frontend build, CSS runtime, icon CDN, or JavaScript framework is required. The interface uses local system fonts, bundled stone and ivy SVG textures, and CSS parchment; no external font or texture requests are needed.
+Open **http://localhost:8787**. Vite 7 builds the frontend with Rollup into `dist/`, then Wrangler serves that folder and the API together using a local SQLite-backed Durable Object. Run `npm run build` to rebuild the frontend after editing it. The interface uses local system fonts, bundled stone and ivy SVG textures, and CSS parchment.
 
 A new local Durable Object starts empty. To create accounts, use the token you placed in `.dev.vars`:
 
@@ -34,10 +35,10 @@ This repository is one application: `frontend/` holds the website, `workers/` ho
 
 Every push to `main` starts **Verify and deploy application** (`.github/workflows/release.yml`):
 
-1. Run the application and release tests, JavaScript checks, the 5,000-player capacity check, Pages Functions build and Worker bundle check.
-2. Deploy the Worker, its matching frontend assets, the existing Durable Object binding/migrations and cron. Tag the deployment with the commit SHA.
+1. Run the application and release tests, JavaScript checks, capacity check, Vite build, Pages Functions build and Worker bundle check.
+2. Deploy the Worker with the built `dist/` assets, the existing Durable Object binding/migrations and cron. Tag the deployment with the commit SHA.
 3. Check the live `/api/health` response for the exact commit and a healthy SQLite Durable Object binding.
-4. Publish GitHub Pages from `frontend/`, with the same API connection, asset URLs stamped with the commit SHA, and a `release.json` manifest. Check the live manifest for the expected commit and Worker URL.
+4. Build and publish GitHub Pages with `npm run build:pages`. Vite writes to `dist-pages/` with content-hashed bundles and the configured Worker URL. Check the live `release.json` manifest for the expected commit and Worker URL.
 
 A failed backend deployment or health check stops the Pages deployment. Production releases run serially, without cancelling a release halfway through. Pull requests only verify; they cannot deploy. The workflow can also be run manually on `main` to retry a release. The former separate frontend and manual Worker workflows are replaced by this one pipeline.
 
@@ -59,14 +60,15 @@ For an exceptional local deployment:
 cd workers
 npx wrangler login
 npx wrangler secret put ADMIN_TOKEN
+cd ..
 npm run deploy
 ```
 
-The GitHub Pages artifact is built only from `frontend/`. The site remains at the project root, and redirects preserve `/frontend/` bookmarks. `scripts/prepare-pages.mjs` supplies the API origin explicitly, including on a custom domain. Optional connection settings can select a different Worker. Cloudflare's Worker-hosted copy uses the same-origin API. Cron remains `*/15 * * * *` (UTC), and `/api` routes reach the same Durable Object.
+Both builds use `frontend/` as their source. GitHub Pages serves from the project root, and redirects preserve `/frontend/` bookmarks. The GitHub Pages bundle uses the configured Worker URL, including on a custom domain. Cloudflare's Worker-hosted copy uses the same-origin API. Optional connection settings can select a different Worker. Cron remains `*/15 * * * *` (UTC), and `/api` routes reach the same Durable Object.
 
 ### Cloudflare Pages
 
-For an existing Pages project, use `frontend` as the output directory with no build command. Keep `functions/` at the repository root. In the Pages project, bind `HISCORES_WORLD` to class `HiscoresWorld` in Worker `osrs-hiscores-clone` after deploying that Worker. The sole `/api/[[path]]` Function forwards to the same `main-world` object. Do not bind the old KV namespace. Pages Functions do not run cron; the Worker owns scheduled updates.
+For an existing Pages project, set the build command to `npm run build` and the output directory to `dist`. Keep `functions/` at the repository root. In the Pages project, bind `HISCORES_WORLD` to class `HiscoresWorld` in Worker `osrs-hiscores-clone` after deploying that Worker. The sole `/api/[[path]]` Function forwards to the same `main-world` object. The Worker owns scheduled updates.
 
 ## Application
 
@@ -191,6 +193,7 @@ workers/src/
 ```sh
 npm test
 npm run check
+npm run build
 cd workers && npx wrangler deploy --dry-run
 ```
 
@@ -223,7 +226,7 @@ Sailing and 48 encounter categories share the existing world. Training uses cali
 
 The public **Gains & records** page (`#progress`) tracks XP, skill and boss gains, rank rises/falls, player timelines, daily records, training streaks and rank-one reigns. Filter by today, 7 days or 30 days and any skill or boss. History starts at the first capture and retains 35 UTC dates; lifetime records remain. The live simulation stays in its Durable Object, with retryable publication to D1.
 
-The release pipeline creates/resolves the named history database and applies migrations before Worker deployment. Add **Account / D1 / Edit** to the Cloudflare release token. Local preview needs `cd workers && npx wrangler d1 migrations apply osrs-hiscores-history --local` before `npx wrangler dev`. See [progress history](docs/progress-history.md) for data definitions, storage, quotas and manual deployment.
+The release pipeline creates/resolves the named history database and applies migrations before Worker deployment. Add **Account / D1 / Edit** to the Cloudflare release token. For local preview, apply the local D1 migrations before starting Wrangler. See [progress history](docs/progress-history.md) for commands, data definitions, storage, quotas and manual deployment.
 
 
 ## Rare rewards and wealth progression

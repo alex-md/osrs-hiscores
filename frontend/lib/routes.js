@@ -11,14 +11,15 @@ export function route(location) {
   }
   const [path, query = ""] = raw.split("?");
   const params = new URLSearchParams(query);
+  const page = location.pathname.replace(/\/$/, "").split("/").pop().replace(/\.html$/, "");
   if (
     path === "achievements" ||
-    (!raw && location.pathname.endsWith("achievements.html"))
+    (!raw && page === "achievements")
   )
     return { type: "achievements", params };
   if (
     path.startsWith("skills/") ||
-    (!raw && location.pathname.endsWith("skill-hiscores.html"))
+    (!raw && page === "skill-hiscores")
   ) {
     const skill =
       path.slice(7) ||

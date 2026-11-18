@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -52,23 +52,26 @@ test("Pages verification preserves project subpaths and checks both commit and A
     fetcher: async () => Response.json({ revision, apiBase: "https://other-worker.example" }) }), /different Worker/);
 });
 
-test("Pages packaging stamps the same commit and Worker into config and public manifest", () => {
-  // Run the real packager in an isolated copy, without touching a developer's dist.
-  const root = mkdtempSync(join(tmpdir(), "hiscores-release-"));
+test("Pages packaging bundles all entry points with a shared Worker origin and release manifest", () => {
+  const output = mkdtempSync(join(tmpdir(), "hiscores-release-"));
   try {
-    mkdirSync(join(root, "scripts"));
-    cpSync(new URL("../frontend/", import.meta.url), join(root, "frontend"), { recursive: true });
-    for (const name of ["prepare-pages.mjs", "deployment-config.mjs"])
-      cpSync(new URL(name, import.meta.url), join(root, "scripts", name));
-    const { status, stderr } = spawnSync(process.execPath, [join(root, "scripts/prepare-pages.mjs")], {
-      env: { ...process.env, RELEASE_SHA: revision, WORKER_BASE_URL: "https://worker.example/api" }, encoding: "utf8",
+    const packager = new URL("./prepare-pages.mjs", import.meta.url).href;
+    const { status, stderr } = spawnSync(process.execPath, [
+      "--input-type=module", "-e", `import { preparePages } from ${JSON.stringify(packager)}; await preparePages(process.argv[1]);`, output,
+    ], {
+      env: { ...process.env, RELEASE_SHA: revision, WORKER_BASE_URL: "https://worker.example/api" },
+      encoding: "utf8",
     });
     assert.equal(status, 0, stderr);
-    const output = join(root, "dist/pages");
     assert.deepEqual(JSON.parse(readFileSync(join(output, "release.json"), "utf8")), { revision, apiBase: "https://worker.example" });
-    assert.ok(readFileSync(join(output, "config.js"), "utf8").includes('"apiBase":"https://worker.example"'));
-    assert.ok(readFileSync(join(output, "index.html"), "utf8").includes('id="app"'));
-    assert.ok(readFileSync(join(output, "index.html"), "utf8").includes(`app.js?v=${revision}`));
-    assert.ok(readFileSync(join(output, "frontend/index.html"), "utf8").includes("location.replace"));
-  } finally { rmSync(root, { recursive: true, force: true }); }
+    for (const page of ["index.html", "skill-hiscores.html", "achievements.html"]) {
+      const html = readFileSync(join(output, page), "utf8");
+      const script = html.match(/src="\.\/(assets\/[^"]+\.js)"/)?.[1];
+      const stylesheet = html.match(/href="\.\/(assets\/[^"]+\.css)"/)?.[1];
+      assert.ok(html.includes('id="app"') && script && stylesheet);
+      assert.ok(readFileSync(join(output, script), "utf8").includes("https://worker.example"));
+      assert.ok(readFileSync(join(output, stylesheet), "utf8").length);
+      assert.ok(readFileSync(join(output, "frontend", page), "utf8").includes("location.replace"));
+    }
+  } finally { rmSync(output, { recursive: true, force: true }); }
 });
