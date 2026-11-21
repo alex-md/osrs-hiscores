@@ -62,7 +62,9 @@ The migration does not rewrite player state or D1 history.
 Each scheduled update loads the D1 document once, validates it and publishes it
 with the world snapshot. The browser reads `/api/game-catalog`, using the same
 published definitions as the ladders. Public reads issue no D1 catalog queries
-and perform no writes. The bundled bootstrap supports old snapshots and tests.
+and perform no writes. Progress-history reads also pass through the world so their
+packed metric indices use the published encounter order; edge caching remains in
+place. The bundled bootstrap supports old snapshots and tests.
 If D1 becomes unavailable or an operator introduces invalid content, an existing
 world keeps its last known good published catalog and reports `catalogInfo.source`
 as `last-known-good` with an error. It never silently replaces custom content with

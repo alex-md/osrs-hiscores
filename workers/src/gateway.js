@@ -1,4 +1,3 @@
-import { historyResponse } from "./history.js";
 import { json } from "./http.js";
 
 export function worldStub(env) {
@@ -6,20 +5,13 @@ export function worldStub(env) {
   return env.HISCORES_WORLD.get(env.HISCORES_WORLD.idFromName("main-world"));
 }
 export async function forwardApiRequest(request, env, ctx) {
-  if (new URL(request.url).pathname === "/api/progress" && request.method === "GET") {
-    const historyCache = ctx?.waitUntil && globalThis.caches?.default;
-    const hit = historyCache && await historyCache.match(request);
-    if (hit) return hit;
-    const response = await historyResponse(request, env);
-    if (historyCache && response.ok && response.headers.has("cache-control"))
-      ctx.waitUntil(historyCache.put(request, response.clone()));
-    return response;
-  }
+  // History metric indices must use the world's published D1 encounter catalog.
+  // Keep the edge gateway independent of engine/data modules for Pages builds.
   const stub = worldStub(env);
   if (!stub) return json({ error: "HISCORES_WORLD Durable Object binding is missing." }, 503);
   const edge = ctx?.waitUntil && globalThis.caches?.default;
   const cacheable = request.method === "GET" &&
-    /^\/api\/(world|world-watch|festival|collections|game-catalog|stories|leaderboard|skill-rankings|activity-rankings|users(?:\/.*)?|achievements\/.*|banners\/rare)$/.test(new URL(request.url).pathname);
+    /^\/api\/(world|world-watch|festival|collections|game-catalog|stories|progress|leaderboard|skill-rankings|activity-rankings|users(?:\/.*)?|achievements\/.*|banners\/rare)$/.test(new URL(request.url).pathname);
   if (edge && cacheable) {
     const hit = await edge.match(request);
     if (hit) return hit;

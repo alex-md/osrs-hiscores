@@ -301,3 +301,11 @@ test("economy prices, bank quotes and public generation commit together and surv
   assert.equal(next.economy.capturedAt,now);
   assert.ok(next.economy.items[1515].history.length>first.economy.items[1515].history.length);
 });
+
+test('history requests use the canonical world catalog and never load game data in the edge gateway',async()=>{
+  let forwarded;
+  const env={HISTORY_DB:new Proxy({}, {get(){throw new Error('Gateway must not query D1 directly');}}),
+    HISCORES_WORLD:{idFromName:()=> 'world',get:()=>({fetch:async request=>{forwarded=new URL(request.url).pathname;return Response.json({available:true},{headers:{'cache-control':'public, max-age=60'}});}})}};
+  const response=await forwardApiRequest(new Request('https://site/api/progress?metric=vardorvis'),env);
+  assert.equal(response.status,200);assert.equal(forwarded,'/api/progress');assert.equal((await response.json()).available,true);
+});
