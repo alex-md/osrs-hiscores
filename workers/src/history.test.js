@@ -11,6 +11,7 @@ import { SKILLS } from './constants.js';
 function setup() {
   const db = new DatabaseSync(':memory:'), history = new DatabaseSync(':memory:');
   history.exec(readFileSync(new URL('../migrations/0001_progress.sql',import.meta.url),'utf8'));
+  history.exec(readFileSync(new URL('../migrations/0002_game_catalog.sql',import.meta.url),'utf8'));
   const storage = { sql:{exec(sql,...args) {
     const stmt=db.prepare(sql);const rows=stmt.columns().length?stmt.all(...args):(stmt.run(...args),[]);return {toArray:()=>rows};
   }},transactionSync(fn){db.exec('BEGIN');try {fn();db.exec('COMMIT');} catch(e){db.exec('ROLLBACK');throw e;}} };

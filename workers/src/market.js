@@ -8,16 +8,8 @@ export function priceOf(market, id) {
   const quote = market?.model === MARKET_MODEL ? market.prices?.[id] : null;
   return Number.isFinite(quote) && quote > 0 ? Math.round(clamp(quote, Math.max(1, opening * .15), opening * 8)) : opening;
 }
-export const SKILL_ITEMS = { fishing: 7944, mining: 444, woodcutting: 1515, hunter: 10034, runecraft: 560, farming: 257, slayer: 565, sailing: 1515 };
-// Conservative authored output tiers: opening accounts cannot manufacture
-// late-game resources simply because their chosen skill shares an income table.
-export const SKILL_OUTPUTS = {
-  mining: [[1,436],[15,440],[40,444]],
-  woodcutting: [[1,1511],[15,1521],[30,1519],[60,1515]],
-  fishing: [[1,317],[20,335],[62,7944]],
-  hunter: [[63,10034]], runecraft: [[65,560]], farming: [[32,257]],
-  slayer: [[1,565]], sailing: [[1,1511],[60,1515]],
-};
+import { gameSkillItems as SKILL_ITEMS, gameSkillOutputs as SKILL_OUTPUTS } from '../../frontend/lib/game-content.js';
+export { SKILL_ITEMS, SKILL_OUTPUTS };
 export function skillingItem(skill, level) {
   return SKILL_OUTPUTS[skill]?.filter(([required]) => level >= required).at(-1)?.[1] || null;
 }

@@ -31,6 +31,7 @@ export function route(location) {
       params,
     };
   }
+  if (["festival", "collections"].includes(path)) return { type: path, params };
   if (path === "world") return { type: "world", params };
   if (path === "economy") return { type: "economy", params };
   if (path === "stories") return { type: "stories", params };
@@ -41,6 +42,8 @@ export function route(location) {
   return { type: "overall", params };
 }
 const PAGE_TITLES = {
+  festival: "Gielinor festival",
+  collections: "Collection hall",
   world: "World watch",
   economy: "Item economy",
   stories: "World stories",

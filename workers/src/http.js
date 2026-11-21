@@ -28,10 +28,10 @@ export function integer(value, fallback, min, max, name) {
     );
   return number;
 }
-export async function bodyJSON(request) {
+export async function bodyJSON(request, maxLength = 64_000) {
   try {
     const text = await request.text();
-    if (text.length > 64_000)
+    if (text.length > maxLength)
       throw new HttpError(413, "Request body is too large.");
     const body = text ? JSON.parse(text) : {};
     if (!body || typeof body !== "object" || Array.isArray(body))

@@ -1,3 +1,5 @@
+import { loadGameCatalog } from './game-catalog.js';
+import { festivalWeek, recordFestival, discoveryCount, bossCount, rollRelic } from './festival.js';
 import { advanceEconomy, economyFrame } from './market.js';
 import { trainingBenefits } from './wealth-progression.js';
 import { tradeRares } from './rare-trading.js';
@@ -69,6 +71,9 @@ export function progressUser(
   date = new Date(),
   { hours = TICK_HOURS, rng = Math.random, climate, market } = {},
 ) {
+  const festival = festivalWeek(+date);
+  climate = { ...climate, festivalSkill: festival.skill };
+  const beforeDiscoveries = discoveryCount(user), beforeKC = bossCount(user);
   normalizeCareer(user);
   adoptExpandedCareer(user, date);
   user.xpGainTier = determineXpGainTierFromTotal(user.totalXP);
@@ -108,7 +113,7 @@ export function progressUser(
     const training = progressSkillingEconomy(user, date, { skill, hours: bossing.trainingHours * activityScale(scale), rng, market, append: bossing.active || clues.active, fundingCost: benefits.fundingCost });
     trainingFraction = training.fraction;
     const stat = user.skills[skill];
-    const skillScale = climate?.focusSkill === skill ? climate.skillFactor : 1;
+    const skillScale = (climate?.focusSkill === skill ? climate.skillFactor : 1) * (festival.skill === skill ? festival.bonus : 1);
     const combat = skill === "slayer" ? DAMAGE_SKILLS[Math.floor(rng() * DAMAGE_SKILLS.length)] : null;
     // A low-level fighter cannot use a high-level Slayer XP rate independently
     // of the damage they can deal. Both rewards come from the same kills.
@@ -145,7 +150,8 @@ export function progressUser(
         personalScale: personal.multiplier,
         wealthScale: benefits.multiplier,
         benefits,
-        skillScale: climate?.focusSkill === skill ? climate.skillFactor : 1,
+        skillScale: (climate?.focusSkill === skill ? climate.skillFactor : 1) * (festival.skill === skill ? festival.bonus : 1),
+        festivalSkill: festival.skill,
         trainingPhase: personal.phase,
         gainedXP,
         gains,
@@ -156,6 +162,9 @@ export function progressUser(
   }
   if (duration > 0 && user.economy.lastActivityAt === date.getTime())
     user.updatedAt = date.getTime();
+  const completedKills = bossCount(user) - beforeKC;
+  if (bossing.active) rollRelic(user, bossing.boss, completedKills, date, rng);
+  recordFestival(user, date, { gainedXP, skillXP: gains[festival.skill] || 0, kills: completedKills, discoveries: discoveryCount(user) - beforeDiscoveries });
   user.totalLevel = totalLevel(user.skills);
   user.totalXP = totalXP(user.skills);
   user.version = 5;
@@ -164,6 +173,9 @@ export function progressUser(
 export async function runScheduled(env) {
   const startedAt = Date.now();
   await reserveUpdate(env);
+  const published = await readJSON(env, "snapshot:current");
+  const loadedCatalog = await loadGameCatalog(env, published?.gameContent);
+  await writeJSON(env, "system:catalog", {source:loadedCatalog.source, revision:loadedCatalog.revision || published?.catalogInfo?.revision || 0, ...(loadedCatalog.error ? {error:loadedCatalog.error} : {})});
   let users = await allUsers(env);
   const existing = new Set(users.map((u) => u.username.toLowerCase()));
   const changed = [];

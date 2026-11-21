@@ -1,3 +1,4 @@
+import { BOSSES, RAID_KEYS } from '../../frontend/lib/activities.js';
 // Achievement evaluation and utilities for OSRS Hiscores Worker
 // Stores unlock timestamps per user and supports global stats + first-to-achieve logging
 
@@ -265,7 +266,21 @@ export function evaluateAchievements(user, ctx) {
   if (totalXp >= 10_000_000) out.add("totalxp-10m");
   else if (totalXp >= 1_000_000) out.add("xp-millionaire");
 
-  // Activity achievements removed
+  const encounters = BOSSES.filter(boss => (user.bosses?.[boss.key] || 0) >= 100).length;
+  if (encounters >= 10) out.add('boss-explorer');
+  if (encounters >= 25) out.add('boss-veteran');
+  if (encounters >= BOSSES.length) out.add('boss-world-tour');
+  if (RAID_KEYS.every(key => (user.bosses?.[key] || 0) >= 100)) out.add('raid-trilogy');
+  const finds = Object.values(user.economy?.rareFinds || {}).filter(row => row.quantity > 0).length;
+  for (const count of [10,30,60]) if (finds >= count) out.add(`collection-${count}`);
+  const relics = Object.keys(user.expedition?.relics || {}).filter(key => BOSSES.some(b => b.key === key)).length;
+  for (const [count,key] of [[1,'seeker'],[12,'curator'],[24,'archivist'],[BOSSES.length,'completionist']])
+    if (relics >= count) out.add(`relic-${key}`);
+  if (user.festivalWins >= 1) out.add('festival-champion');
+  if (user.festivalWins >= 5) out.add('festival-five');
+  if (SKILLS.filter(s => user.skills[s]?.xp >= 100_000_000).length >= 5) out.add('five-100m');
+  if (SKILLS.filter(s => user.skills[s]?.xp >= 200_000_000).length >= 10) out.add('ten-200m');
+  if (totalXp >= 3_000_000_000) out.add('xp-three-billion');
 
   // Average level milestones
   const avgLevel = totalLvl / SKILLS.length;

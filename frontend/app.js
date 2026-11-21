@@ -1,3 +1,4 @@
+import { applyGameContent } from './lib/game-content.js';
 import "./config.js";
 import items from "./lib/items.js";
 import { RARE_ITEMS } from "./lib/loot.js";
@@ -24,7 +25,7 @@ function layout() {
       <div class="header-ornament" aria-hidden="true">${skillIcon("mining")}${skillIcon("woodcutting")}${skillIcon("fishing")}</div>
       <a class="brand" href="#overall">${crest}<span><small>Simulated RuneScape accounts</small><strong>Old School <span>Hiscores</span></strong><span class="brand-home">Home</span></span></a>
       <div class="header-ornament" aria-hidden="true">${skillIcon("attack")}${skillIcon("magic")}${skillIcon("prayer")}</div>
-    </div><div class="navigation-bar"><nav aria-label="Main navigation"><a data-nav="overall" href="#overall">Hiscores</a><a data-nav="bosses" href="#bosses">Boss kill counts</a><a data-nav="wealth" href="#wealth">Bank value</a><a data-nav="progress" href="#progress">Gains & records</a><a data-nav="economy" href="#economy">Item economy</a><a data-nav="world" href="#world">World watch</a><a data-nav="stories" href="#stories">World stories</a><a data-nav="achievements" href="#achievements">Achievements</a></nav><button class="icon-button" id="theme" aria-label="Switch color theme" title="Switch color theme">◐</button></div></header>
+    </div><div class="navigation-bar"><nav aria-label="Main navigation"><a data-nav="overall" href="#overall">Hiscores</a><a data-nav="bosses" href="#bosses">Boss kill counts</a><a data-nav="wealth" href="#wealth">Bank value</a><a data-nav="progress" href="#progress">Gains & records</a><a data-nav="economy" href="#economy">Item economy</a><a data-nav="festival" href="#festival">Weekly festival</a><a data-nav="collections" href="#collections">Collection hall</a><a data-nav="world" href="#world">World watch</a><a data-nav="stories" href="#stories">World stories</a><a data-nav="achievements" href="#achievements">Achievements</a></nav><button class="icon-button" id="theme" aria-label="Switch color theme" title="Switch color theme">◐</button></div></header>
     <main class="workspace" id="content" tabindex="-1">
       <aside class="sidebar" aria-label="Hiscores categories"><button id="category-toggle" class="button category-toggle" aria-expanded="false" aria-controls="category-options">Browse skills & categories <span aria-hidden="true">▾</span></button><div id="category-options" class="category-options"><div class="sidebar-label category-banner">Category</div><a class="sidebar-link" data-skill="overall" href="#overall"><span aria-hidden="true">♜</span> Overall <span class="link-arrow">↗</span></a>
         <a class="sidebar-link" data-activity="bosses" href="#bosses"><span aria-hidden="true">♟</span> Boss kill counts</a><a class="sidebar-link" data-activity="wealth" href="#wealth"><span aria-hidden="true">¤</span> Bank value</a><div class="sidebar-label skill-heading">Skills <span>${SKILLS.length}</span></div><nav class="skill-nav" aria-label="Skill rankings">${SKILLS.map((s) => `<a class="sidebar-link" data-skill="${s}" href="#skills/${s}">${skillIcon(s)}${title(s)}</a>`).join("")}</nav>
@@ -32,7 +33,7 @@ function layout() {
       </div></aside>
       <aside class="tool-rail" aria-label="Player search and hiscores tools">
         <section class="stone-tool"><h2>Search by name</h2><form id="player-search" role="search"><label class="sr-only" for="search">Find a player</label><input id="search" placeholder="Player name" maxlength="12" autocomplete="off" list="player-names"><datalist id="player-names"></datalist><button class="button" type="submit">Search</button></form></section>
-        <section class="stone-tool"><h2>Explore hiscores</h2><nav aria-label="More hiscores"><a href="#overall">Overall rankings</a><a href="#bosses">Boss kill counts</a><a href="#wealth">Bank value</a><a href="#progress">Gains & records</a><a href="#economy">Item economy</a><a href="#world">World watch</a><a href="#stories">World stories</a><a href="#achievements">Achievement firsts</a></nav></section>
+        <section class="stone-tool"><h2>Explore hiscores</h2><nav aria-label="More hiscores"><a href="#overall">Overall rankings</a><a href="#bosses">Boss kill counts</a><a href="#wealth">Bank value</a><a href="#progress">Gains & records</a><a href="#economy">Item economy</a><a href="#festival">Weekly festival</a><a href="#collections">Collection hall</a><a href="#world">World watch</a><a href="#stories">World stories</a><a href="#achievements">Achievement firsts</a></nav></section>
         <section class="stone-tool world-notice"><h2>World updates</h2><p>Scores update every 15 minutes.</p><span class="notice-rule" aria-hidden="true">◆</span><p class="simulation-disclosure">All accounts and scores are simulated.</p></section>
       </aside>
       <div class="main-content"><div id="view" aria-live="polite"></div></div>
@@ -310,7 +311,7 @@ async function playerView(current, signal, revision) {
       ["Total experience", number(user.totalXP)],
       ["Combat level", number(user.combatLevel), "/ 126"],
     ], "profile-summary")}
-    <div class="profile-notes"><p><a href="#progress?username=${encodeURIComponent(user.username)}">View XP, bossing & rank history ↗</a></p>${user.progress?.lastSession ? `<p class="profile-updated">Latest session: ${escape(title(user.progress.lastSession.skill))} · +${number(user.progress.lastSession.gainedXP)} XP${user.progress.lastSession.xpScale ? ` at ${xpScale(user.progress.lastSession.xpScale)}× world` : ""} · ${number(user.progress.sessions)} sessions recorded · Best session: ${number(user.progress.bestSessionXP)} XP</p>` : ""}
+    <div class="profile-notes"><p><a href="#collections?username=${encodeURIComponent(user.username)}">Open collection cabinet · ${number(Object.keys(user.expedition?.relics || {}).length)} relics</a> · <a href="#festival">${number(user.festivalWins || 0)} festival honours ↗</a></p><p><a href="#progress?username=${encodeURIComponent(user.username)}">View XP, bossing & rank history ↗</a></p>${user.progress?.lastSession ? `<p class="profile-updated">Latest session: ${escape(title(user.progress.lastSession.skill))} · +${number(user.progress.lastSession.gainedXP)} XP${user.progress.lastSession.xpScale ? ` at ${xpScale(user.progress.lastSession.xpScale)}× world` : ""} · ${number(user.progress.sessions)} sessions recorded · Best session: ${number(user.progress.bestSessionXP)} XP</p>` : ""}
     <p class="profile-updated">${user.restDay ? 'Taking a day off today (UTC).' : `Current focus: ${escape(title(user.trainingState?.focusSkill || 'Exploring'))}.`} ${user.career?.clues ? `${number(user.career.clues.completed)} treasure caskets completed. ` : ""}${Object.entries(user.career?.raidProgress || {}).filter(([,progress])=>progress>0).map(([key,progress])=>`${escape(BOSS_BY_KEY[key]?.name || key)}: ${(progress*100).toFixed(0)}% toward the next completion.`).join(' ')}</p>
     </div><section class="panel skills-panel"><div class="panel-heading"><h2>Skills & experience</h2><span class="updated">${mastered} of ${SKILLS.length} skills mastered</span></div>
     <div class="skill-book" role="region" aria-label="Skills and experience table" tabindex="0"><table class="profile-skills-table"><colgroup><col class="skill-name-column"><col class="skill-level-column"><col><col class="skill-rank-column"></colgroup><thead><tr><th scope="col">Skill</th><th scope="col" class="numeric">Level</th><th scope="col" class="numeric">XP</th><th scope="col" class="numeric">Rank</th></tr></thead><tbody>${SKILLS.map((s) => {
@@ -367,14 +368,16 @@ async function achievementsView(current, signal, revision) {
         : ""
     }
     <section class="panel catalog-panel"><div class="panel-heading"><div><div class="eyebrow">The collection</div><h2>Achievement catalog</h2></div><span class="updated">Rarity follows recorded unlocks</span></div>
-    <form class="filter-bar" id="catalog-filters"><label class="search-filter"><span class="sr-only">Search achievements</span><span aria-hidden="true">⌕</span><input id="achievement-search" placeholder="Search milestones…"></label><label>Category<select id="category"><option value="">All categories</option>${["Competition", "Progression", "Mastery", "Playstyle"].map((c) => `<option>${c}</option>`).join("")}</select></label><label>Rarity<select id="rarity"><option value="">All rarities</option>${["mythic", "legendary", "epic", "rare", "uncommon", "common", "unclaimed"].map((r) => `<option value="${r}">${title(r)}</option>`).join("")}</select></label><label>Sort<select id="sort"><option value="name">Name</option><option value="rarest">Rarest first</option><option value="popular">Most unlocked</option></select></label></form><div id="catalog-results" class="catalog-results"></div></section>
+    <form class="filter-bar" id="catalog-filters"><label class="search-filter"><span class="sr-only">Search achievements</span><span aria-hidden="true">⌕</span><input id="achievement-search" placeholder="Search milestones…"></label><label>Era<select id="achievement-era"><option value="current">Current challenges</option><option value="legacy">Early milestones archive</option><option value="all">Every milestone</option></select></label><label>Category<select id="category"><option value="">All categories</option>${["Endgame", "Competition", "Progression", "Mastery", "Playstyle"].map((c) => `<option>${c}</option>`).join("")}</select></label><label>Rarity<select id="rarity"><option value="">All rarities</option>${["mythic", "legendary", "epic", "rare", "uncommon", "common", "unclaimed"].map((r) => `<option value="${r}">${title(r)}</option>`).join("")}</select></label><label>Sort<select id="sort"><option value="name">Name</option><option value="rarest">Rarest first</option><option value="popular">Most unlocked</option></select></label></form><div id="catalog-results" class="catalog-results"></div></section>
     <p class="below-table">Firsts show the earliest recorded unlock. Unclaimed milestones have no unlocks yet.</p>`;
   const render = () => {
     const query = $("#achievement-search").value.toLowerCase(),
       category = $("#category").value,
       tier = $("#rarity").value;
+    const era = $("#achievement-era").value;
     const filtered = items.filter(
       (a) =>
+        (era === "all" || (era === "legacy" ? a.legacy : !a.legacy)) &&
         (!query ||
           `${a.name} ${a.description}`.toLowerCase().includes(query)) &&
         (!category || a.category === category) &&
@@ -427,6 +430,9 @@ async function renderRoute() {
   });
   $("#view").innerHTML = loading();
   try {
+    const game = await request("/api/game-catalog", {signal:state.request.signal}).catch(error => { if (error.status !== 404) throw error; return null; });
+    if (revision !== state.revision) return;
+    if (game?.content) applyGameContent(game.content);
     if (current.type === "invalid")
       throw new Error(
         "This page does not exist. Use the navigation to return to the rankings.",
@@ -436,6 +442,11 @@ async function renderRoute() {
     else if (current.type === "economy") {
       const { economyView } = await import("./lib/economy-view.js");
       await economyView({signal:state.request.signal,isCurrent:()=>revision === state.revision,view:$("#view"),escape,number,date,pageHeading});
+    }
+    else if (["festival", "collections"].includes(current.type)) {
+      const module = current.type === "festival" ? await import("./lib/festival-view.js") : await import("./lib/collection-view.js");
+      const show = module.festivalView || module.collectionView;
+      await show({current,signal:state.request.signal,isCurrent:()=>revision === state.revision,view:$("#view"),escape,number,date,playerLink,pageHeading});
     }
     else if (current.type === "world") {
       const { worldWatchView } = await import("./lib/world-watch-view.js");

@@ -1,3 +1,4 @@
+import { applyGameContent } from '../../frontend/lib/game-content.js';
 import { readJSON, writeJSON } from './store.js';
 import { flushHistory } from "./history.js";
 import { DurableStore } from "./durable-store.js";
@@ -28,6 +29,8 @@ export class HiscoresWorld {
   async respond(request) {
     try {
       const path = new URL(request.url).pathname;
+      const published = await readJSON(this.env, "snapshot:current");
+      applyGameContent(published?.gameContent);
       let response;
       if (path === "/internal/scheduled") {
         // Only the Worker can address this object; its public router never

@@ -289,3 +289,16 @@ and coin inflation also influence prices. Prices persist across updates, feed
 rare trades and revalue held items in banks. Base XP remains available with an
 empty bank. See [the economy model](docs/simulation-economy.md#dynamic-prices-and-bank-values)
 for smoothing, price bounds, accounting and simulation limitations.
+
+### Weekly festival and editable game content
+
+The weekly festival adds fresh XP, bossing and discovery races, with a separate
+newcomer division and a rotating featured-skill bonus. The collection hall shows
+personal rare drops and 48 permanent expedition relics. Early milestones remain
+available in the achievement archive.
+
+Items, encounters, explicit drop tables, supplies, resource tiers and training
+ceilings are loaded from the existing D1 database, then published with each world
+snapshot. They can be edited without redeploying JavaScript. See
+[the festival rules and catalog editing guide](docs/festival-and-catalog.md) for
+migration details, validation, revision history and the pull/check/push workflow.

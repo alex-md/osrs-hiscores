@@ -11,7 +11,8 @@ export async function storiesView({signal,isCurrent,view,escape,number,date,play
   const contenders = data.contenders.filter(p => p.totalLevel < maxLevel);
   const player = name => `<a href="${playerLink(name)}">${escape(name)}</a>`;
   const metric = key => key === 'overall' ? 'overall rankings' : key === 'activity:bank' ? 'wealth rankings' : key === 'activity:bosses' ? 'total boss count' : title(key);
-  const describe = story => story.kind === 'loot'
+  const describe = story => story.kind === 'relic' ? `${player(story.username)} discovered the <strong>${escape(BOSS_BY_KEY[story.metric]?.name || title(story.metric))} expedition relic</strong>. <a href="#collections?username=${encodeURIComponent(story.username)}">Open their cabinet ↗</a>`
+    : story.kind === 'loot'
     ? `${player(story.username)} found <strong>${number(story.quantity)} × ${escape(items[story.itemId]?.name || 'a rare item')}</strong><p>${escape(BOSS_BY_KEY[story.boss]?.name || title(story.boss))} · ${number(story.value)} GP · ${number(story.kc)} ${escape(story.countUnit || "KC")} when recorded</p>`
     : story.kind === 'boss-milestone' ? `${player(story.username)} reached <strong>${number(story.value)} ${escape(BOSS_BY_KEY[story.boss]?.name || title(story.boss))} ${BOSS_BY_KEY[story.boss]?.unit || 'kills'}</strong>.`
     : story.kind === 'crown' ? `${player(story.username)} took the <strong>${escape(metric(story.metric))}</strong> crown from ${player(story.previous)}.`

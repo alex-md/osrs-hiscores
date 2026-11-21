@@ -70,13 +70,7 @@ export function normalizeCareer(user) {
 }
 // Authored readiness floor: total combat alone can be inflated by Prayer/Defence.
 export function bossCombatSkills(user, boss) {
-  const styles = {
-    kraken: ["magic"], "dagannoth-rex": ["magic"],
-    "dagannoth-prime": ["ranged"], "dagannoth-supreme": ["attack", "strength", "defence"],
-    kreearra: ["ranged", "magic"], "the-whisperer": ["magic"],
-    "the-leviathan": ["ranged"],
-  };
-  const allowed = boss.styles || styles[boss.key] || ["attack", "strength", "defence", "ranged", "magic"];
+  const allowed = boss.styles || ['attack', 'strength', 'defence', 'ranged', 'magic'];
   const floor = Math.max(1, Math.ceil(boss.combat * .6));
   return allowed.filter(skill => skill === "defence"
     ? user.skills.defence.level >= floor && Math.min(user.skills.attack.level, user.skills.strength.level) >= floor
@@ -254,7 +248,8 @@ export function progressBossing(user, date, { hours, rng, market, scale = 1 }) {
     const slayerPreference = boss.slayer ? policy.slayerWeight || 1 : 1;
     const exploration = (policy.collection || policy.completion) ? 1 + 5 / Math.sqrt(1 + user.bosses[boss.key]) : 1;
     const collection = policy.collection ? 1 + bossDropTable(boss).filter(d=>d.rare && !(user.economy.flows?.created?.[d.id]>0)).length * 1.5 : 1;
-    return preference * challenge * (1 + familiarity) * raidPreference * slayerPreference * exploration * collection;
+    const relicHunt = user.expedition?.relics?.[boss.key] ? 1 : policy.collection ? 2 : policy.completion ? 1.5 : 1;
+    return preference * challenge * (1 + familiarity) * raidPreference * slayerPreference * exploration * collection * relicHunt;
   }, rng);
   // Bossing consumes this session's time; it does not run alongside a full XP session.
   let bossHours = hours * (0.6 + rng() * 0.4);
@@ -351,6 +346,9 @@ export function progressClues(user, date, { hours, scale=1, rng=Math.random, mar
     const loot={itemId:2577,quantity:drops,boss:'treasure-trails',kc:trail.completed,countUnit:'caskets',timestamp:+date,value:drops*priceOf(market,2577)};
     user.economy.notableLoot=[loot,...(user.economy.notableLoot||[])].slice(0,8);
     user.economy.rareDrops=integer(user.economy.rareDrops+drops);
+    user.economy.rareFinds ||= {};
+    const prior = user.economy.rareFinds[2577];
+    user.economy.rareFinds[2577] = {quantity:(prior?.quantity || 0)+drops,firstAt:prior?.firstAt || +date,lastAt:+date,boss:'treasure-trails'};
   }
   if(completed) user.career.lastTrail={completed:trail.completed,timestamp:+date};
   return {active:true,trainingHours:hours-used,gains:{agility:used*2500,thieving:used*2500}};

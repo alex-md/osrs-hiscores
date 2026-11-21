@@ -14,9 +14,12 @@ import { publishSnapshot } from './workers/src/snapshots.js';
 import { flushHistory } from './workers/src/history.js';
 import { MAX_PLAYERS, UPDATE_INTERVAL_MS } from './frontend/lib/simulation-config.js';
 import baseline from './workers/data/ge-baseline.js';
+import content from './content/catalog.json';
 export class BenchWorld extends HiscoresWorld {
  async fetch(request) {
   await this.env.HISTORY_DB.exec('CREATE TABLE IF NOT EXISTS progress_days (day TEXT PRIMARY KEY,captured_at INTEGER NOT NULL,generation TEXT NOT NULL,summary TEXT NOT NULL); CREATE TABLE IF NOT EXISTS progress_players (day TEXT NOT NULL,shard INTEGER NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(day,shard));');
+  await this.env.HISTORY_DB.exec("CREATE TABLE IF NOT EXISTS game_catalog (id TEXT PRIMARY KEY, revision INTEGER, payload TEXT);");
+  await this.env.HISTORY_DB.prepare("INSERT INTO game_catalog VALUES ('active',1,?)").bind(JSON.stringify(content)).run();
   let d1Read=0, d1Written=0;
   const rawD1=this.env.HISTORY_DB;
   const measureD1=results=>{for(const result of results){d1Read+=result.meta.rows_read || 0;d1Written+=result.meta.rows_written || 0;}return results;};
@@ -33,6 +36,9 @@ export class BenchWorld extends HiscoresWorld {
    user.economy.notableLoot=Array.from({length:8},(_,n)=>({itemId:20997,quantity:1,boss:'chambers-of-xeric',kc:1000000+i,timestamp:Date.now()-n*900000,value:1427650000}));
    user.economy.rareFinds=Object.fromEntries(Object.entries(baseline).filter(([,item])=>item.rare).map(([id])=>[id,{quantity:1000,firstAt:Date.now()-86400000,lastAt:Date.now(),boss:'chambers-of-xeric'}]));
    user.economy.trades=Array.from({length:8},(_,n)=>({side:'sell',itemId:20997,price:1427650000,tax:28553000,counterparty:'Bench'+n,timestamp:Date.now()}));
+   user.expedition={relics:Object.fromEntries(BOSSES.map(b=>[b.key,Date.now()]))};
+   user.festivalHonours=Object.fromEntries(Array.from({length:24},(_,n)=>[String(Date.now()-n)+':newcomers:discoveries',Date.now()]));
+   user.festivalWins=24;
    user.career.raidProgress={'chambers-of-xeric':.9,'theatre-of-blood':.9,'tombs-of-amascut':.9};
    return normalizeUser(user);
   });
@@ -50,7 +56,7 @@ export class BenchWorld extends HiscoresWorld {
   ]).flat());
   const historySize=await this.env.HISTORY_DB.prepare('SELECT sum(length(payload)) AS bytes, count(*) AS rows FROM progress_players').first();
   const reads=[];
-  for(const path of ['/api/users/batch?usernames='+Array.from({length:50},(_,i)=>'Bench'+(i*100)).join(','),'/api/activity-rankings?category=bank','/api/activity-rankings?category=vorkath','/api/users/Bench0','/api/stories','/api/health','/api/progress?days=30']){
+  for(const path of ['/api/users/batch?usernames='+Array.from({length:50},(_,i)=>'Bench'+(i*100)).join(','),'/api/activity-rankings?category=bank','/api/activity-rankings?category=vorkath','/api/users/Bench0','/api/stories','/api/festival','/api/collections','/api/game-catalog','/api/health','/api/progress?days=30']){
    const beforeRead=read, beforeWritten=written, beforeD1Read=d1Read, beforeD1Written=d1Written, startRead=Date.now();
    const response=await this.respond(new Request('https://world'+path));
    if(!response.ok) throw new Error('Read failed: '+path);

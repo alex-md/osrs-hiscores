@@ -1,3 +1,6 @@
+import { currentGameContent } from '../../frontend/lib/game-content.js';
+import { buildFestival } from './festival.js';
+import { buildCollectionHall } from './collection-hall.js';
 import { buildWorldWatch } from './world-watch.js';
 import { publicEconomy } from './market.js';
 import { buildStories } from './stories.js';
@@ -23,7 +26,7 @@ import {
 } from "./store.js";
 
 const CHUNK_SIZE = 250; // Expanded per-boss ladders share each ranking row.
-const PROFILE_CHUNK_SIZE = 48; // Room for discoveries, trades and per-item market quotes.
+const PROFILE_CHUNK_SIZE = 40; // Room for discoveries, trades and per-item market quotes.
 
 export function buildRankings(
   users,
@@ -88,6 +91,7 @@ export async function publishSnapshot(env, users = null) {
     for (const [key, value] of Object.entries(source))
       if (!firsts[key] || value.timestamp < firsts[key].timestamp)
         firsts[key] = value;
+  const festival = buildFestival(users, previousSnapshot?.festival, now);
   const events = [];
   for (const user of users) {
     const unlocked = evaluateAchievements(user, context);
@@ -188,10 +192,14 @@ export async function publishSnapshot(env, users = null) {
   }
   const snapshot = {
     version: 2,
+    gameContent: currentGameContent(),
+    catalogInfo: await readJSON(env, "system:catalog", {source:"bootstrap",revision:0}),
     activitiesVersion: 2,
     economy: publicEconomy(await readJSON(env, "system:economy")),
     rareTrading: (await readJSON(env, "system:rare-trading"))?.summary || null,
     worldWatch: buildWorldWatch(users, now),
+    festival,
+    collectionHall: buildCollectionHall(users),
     stories: chronicle.stories,
     storyLeaders: chronicle.leaders,
     races: chronicle.races,

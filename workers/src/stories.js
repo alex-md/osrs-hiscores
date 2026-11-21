@@ -14,20 +14,23 @@ export function buildStories(profiles, rankings, events, previous, now) {
     for (const user of profiles) {
       for (const loot of user.economy?.notableLoot || [])
         if (loot.timestamp > previous.generatedAt) add({ ...loot, kind: 'loot', username: user.username });
+      for (const [boss,timestamp] of Object.entries(user.expedition?.relics || {}))
+        if (timestamp > previous.generatedAt) add({kind:'relic',metric:boss,username:user.username,timestamp});
       const milestone = user.career?.lastBossMilestone;
       if (milestone?.timestamp > previous.generatedAt)
         add({ ...milestone, metric:milestone.boss, kind:'boss-milestone', username:user.username });
     }
     for (const event of events) {
-      if (!['maxed-account','total-2376','xp-billionaire'].includes(event.key) && !event.key.startsWith('skill-master-')) continue;
+      if (!['maxed-account','total-2376','xp-billionaire','festival-champion','relic-curator','relic-archivist','relic-completionist'].includes(event.key) && !event.key.startsWith('skill-master-')) continue;
       const count = profiles.filter(p => p.achievements[event.key]).length;
-      if (['maxed-account', 'total-2376', 'xp-billionaire'].includes(event.key) ||
+      if (['maxed-account', 'total-2376', 'xp-billionaire','festival-champion','relic-curator','relic-archivist','relic-completionist'].includes(event.key) ||
           (event.key.startsWith('skill-master-') && count <= Math.max(3, profiles.length * .01)))
         add({ ...event, kind: 'milestone' });
     }
   }
   const seen = new Set();
-  const stories = [...fresh.sort((a,b) => b.timestamp-a.timestamp || (b.value || 0)-(a.value || 0)), ...(previous?.stories || [])]
+  const noteworthy = fresh.filter(story=>story.kind !== 'loot').sort((a,b)=>b.timestamp-a.timestamp).slice(0,12);
+  const stories = [...noteworthy, ...fresh.sort((a,b) => b.timestamp-a.timestamp || (b.value || 0)-(a.value || 0)), ...(previous?.stories || [])]
     .filter(event => !seen.has(event.id) && seen.add(event.id)).slice(0,48);
   const maxLevel = SKILLS.length * 99;
   const contenders = rankings.overall.filter(row => row.totalLevel < maxLevel).slice(0,3)

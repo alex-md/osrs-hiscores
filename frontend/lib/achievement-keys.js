@@ -1,4 +1,12 @@
+export const ENDGAME_KEYS = [
+  "boss-explorer", "boss-veteran", "boss-world-tour", "raid-trilogy",
+  "collection-10", "collection-30", "collection-60",
+  "relic-seeker", "relic-curator", "relic-archivist", "relic-completionist",
+  "festival-champion", "festival-five", "five-100m", "ten-200m", "xp-three-billion",
+];
+export const LEGACY_ACHIEVEMENTS = new Set(["first-session", "hundred-sessions", "million-xp-day", "total-500", "total-1000", "xp-millionaire", "totalxp-10m", "totalxp-50m", "level-50-average"]);
 export const ACHIEVEMENT_KEYS = [
+  ...ENDGAME_KEYS,
   "first-session",
   "hundred-sessions",
   "million-xp-day",

@@ -702,3 +702,33 @@ dialog { background: var(--paper); border-color: #88744f; }
 .watch-newcomers p { margin: 4px 0; color: var(--muted); font-size: 11px; }
 @media (max-width: 1000px) { .watch-columns { grid-template-columns: 1fr; } .watch-newcomers { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .watch-table-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+
+/* Festival race lanes and an expedition stamp book, in the site's brass/stone palette. */
+.festival-banner { display:flex; justify-content:space-between; gap:24px; border-top:4px solid var(--gold); }
+.festival-banner p { max-width:60ch; line-height:1.6; }
+.festival-races { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
+.race-card .panel-heading { align-items:flex-start; gap:12px; flex-wrap:wrap; }
+.race-lanes { list-style:none; padding:0; margin:0; }
+.race-lanes li { padding:12px 0; border-bottom:1px solid var(--line); }
+.race-lanes li>div { display:flex; gap:10px; align-items:baseline; }
+.race-lanes a { overflow-wrap:anywhere; }
+.race-lanes strong { margin-left:auto; font:14px var(--mono); white-space:nowrap; }
+.race-position { color:var(--muted); font:12px var(--mono); min-width:16px; }
+.race-lanes meter { width:100%; height:16px; margin-top:6px; accent-color:var(--green); }
+.race-lanes small { color:var(--muted); font-size:11px; }
+.race-lanes .racer-highlight { background:var(--gold-faint); outline:2px solid var(--gold); outline-offset:3px; }
+.collection-leaders { display:flex; flex-wrap:wrap; gap:8px; padding:0 20px 20px; }
+.relic-atlas { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; padding:0 20px 20px; }
+.relic-tile { display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; min-height:120px; gap:8px; padding:10px 6px; border:1px dashed var(--line); color:var(--muted); text-decoration:none; }
+.relic-tile>span { font-size:28px; }
+.relic-tile strong { font-size:12px; overflow-wrap:anywhere; }
+.relic-tile small { font-size:10px; }
+.relic-tile.discovered { border:1px solid var(--gold); background:var(--gold-faint); color:var(--heading); }
+.reward-cabinet { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; padding:0 20px 20px; }
+.reward-slot { padding:16px; border:1px dashed var(--line); }
+.reward-slot.discovered { border-style:solid; box-shadow:inset 0 3px var(--green); }
+.reward-slot h3 { font:20px var(--display); color:var(--heading); margin:8px 0; }
+.reward-slot p { line-height:1.6; font-size:12px; }
+.reward-slot meter { display:block; width:100%; accent-color:var(--green); }
+@media(max-width:1000px) { .relic-atlas { grid-template-columns:repeat(4,minmax(0,1fr)); } .reward-cabinet { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:650px) { .festival-races { grid-template-columns:1fr; } .festival-banner { flex-direction:column; } .relic-atlas { grid-template-columns:repeat(3,minmax(0,1fr)); padding:0 10px 10px; } .reward-cabinet { grid-template-columns:1fr; padding:0 10px 10px; } }

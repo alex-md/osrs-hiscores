@@ -1,3 +1,5 @@
+import { editGameCatalog } from './game-catalog.js';
+import { currentGameContent } from '../../frontend/lib/game-content.js';
 import { worldDiagnostics } from './diagnostics.js';
 import { recoverProgress, RECOVERY_ID } from "./progress-recovery.js";
 import { historyResponse } from "./history.js";
@@ -90,12 +92,27 @@ async function route(request, env) {
       },
       env.WORLD_STORE ? 200 : 503,
     );
+  if (path === '/api/admin/game-catalog' && method === 'GET') {
+    requireAdmin(request,env);
+    if (!env.HISTORY_DB) throw new HttpError(503,'D1 is not configured.');
+    const row = await env.HISTORY_DB.prepare("SELECT payload, revision FROM game_catalog WHERE id = 'active'").first();
+    if (!row) throw new HttpError(503,'Apply the game catalog migration.');
+    return json({content:JSON.parse(row.payload),revision:row.revision});
+  }
   if (path === "/api/progress" && method === "GET") return historyResponse(request, env);
   if (!env.WORLD_STORE)
     throw new HttpError(503, "WORLD_STORE is not bound to this deployment.");
   if (method === "POST") {
     requireAdmin(request, env);
     return mutate(env, async () => {
+      if (path === "/api/admin/game-catalog") {
+        const body = await bodyJSON(request, 450_000);
+        if (body.dryRun !== undefined && typeof body.dryRun !== 'boolean') throw new HttpError(400,'dryRun must be a boolean.');
+        let result;
+        try { result = await editGameCatalog(env, body); }
+        catch (error) { if (error.message.startsWith('Invalid game catalog:')) throw new HttpError(400,error.message); throw error; }
+        return json(result,result.conflict ? 409 : 200);
+      }
       if (path === "/api/admin/progress/recover-2026-10-28") {
         const body = await bodyJSON(request);
         if (body.dryRun !== undefined && typeof body.dryRun !== "boolean")
@@ -289,9 +306,15 @@ async function route(request, env) {
     "/api/economy",
     "/api/stories",
     "/api/world-watch",
+    "/api/festival",
+    "/api/collections",
+    "/api/game-catalog",
   ];
   if (!known.includes(path)) throw new HttpError(404, "Unknown API route.");
   const snapshot = await getSnapshot(env);
+  if (path === "/api/game-catalog") return cached({ ...snapshotInfo(snapshot), content: snapshot.gameContent || currentGameContent(), catalogInfo:snapshot.catalogInfo || {source:"bootstrap",revision:0} });
+  if (path === "/api/festival") return cached({ ...snapshotInfo(snapshot), festival: snapshot.festival || null });
+  if (path === "/api/collections") return cached({ ...snapshotInfo(snapshot), hall: snapshot.collectionHall || null });
   if (path === "/api/world-watch") return cached({ ...snapshotInfo(snapshot), watch:snapshot.worldWatch || null });
   if (path === "/api/economy") return cached({ ...snapshotInfo(snapshot), economy:snapshot.economy || null });
   if (path === "/api/stories") return cached({ ...snapshotInfo(snapshot),

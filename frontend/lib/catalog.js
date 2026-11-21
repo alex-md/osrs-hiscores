@@ -1,6 +1,23 @@
-import { ACHIEVEMENT_KEYS } from "./achievement-keys.js";
+import { ACHIEVEMENT_KEYS, ENDGAME_KEYS, LEGACY_ACHIEVEMENTS } from "./achievement-keys.js";
 import { title, rarity } from "./domain.js";
 const descriptions = {
+  'boss-explorer': 'Reach 100 KC in 10 different encounters.',
+  'boss-veteran': 'Reach 100 KC in 25 different encounters.',
+  'boss-world-tour': 'Reach 100 KC in every modeled encounter.',
+  'raid-trilogy': 'Complete each of the three raids 100 times.',
+  'collection-10': 'Personally earn 10 different rare item drops. Purchases do not count.',
+  'collection-30': 'Personally earn 30 different rare item drops. Purchases do not count.',
+  'collection-60': 'Personally earn 60 different rare item drops. Purchases do not count.',
+  'relic-seeker': 'Discover your first expedition relic from a completed encounter.',
+  'relic-curator': 'Discover expedition relics from 12 different encounters.',
+  'relic-archivist': 'Discover expedition relics from 24 different encounters.',
+  'relic-completionist': 'Discover an expedition relic from every modeled encounter.',
+  'festival-champion': 'Lead a festival race or division at its last capture before the week ends.',
+  'festival-five': 'Earn five festival race or division victories.',
+  'five-100m': 'Reach 100 million XP in five different skills.',
+  'ten-200m': 'Reach the 200 million XP cap in ten different skills.',
+  'xp-three-billion': 'Reach 3 billion total XP.',
+
   "first-session": "Complete your first recorded training session.",
   "hundred-sessions": "Complete 100 recorded training sessions.",
   "million-xp-day": "Earn 1 million simulated XP in a UTC day.",
@@ -48,7 +65,7 @@ export function catalog(counts = {}, totalPlayers = 0, firsts = {}) {
       description =
         descriptions[key] ||
         "A recorded achievement for account progression or playstyle.";
-    let category = "Playstyle";
+    let category = ENDGAME_KEYS.includes(key) ? "Endgame" : "Playstyle";
     if (key.startsWith("skill-master-")) {
       name = `${title(key.slice(13))} mastery`;
       description = `Reach level 99 in ${title(key.slice(13))}.`;
@@ -103,6 +120,7 @@ export function catalog(counts = {}, totalPlayers = 0, firsts = {}) {
     const count = counts[key] || 0;
     return {
       key,
+      legacy: LEGACY_ACHIEVEMENTS.has(key),
       name,
       description,
       category,

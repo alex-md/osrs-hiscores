@@ -20,33 +20,8 @@ export const SESSION_FRACTIONS = {
 };
 // Design estimates cap composite/zero-time EHP methods and expensive endgame methods.
 // These are ordinary high-level training ceilings BEFORE the time-of-day world scale.
-export const ORDINARY_CEILINGS = {
-  attack: 85000,
-  strength: 95000,
-  defence: 85000,
-  hitpoints: 30000,
-  ranged: 180000,
-  magic: 140000,
-  prayer: 350000,
-  cooking: 280000,
-  woodcutting: 80000,
-  fletching: 250000,
-  fishing: 60000,
-  firemaking: 200000,
-  crafting: 260000,
-  smithing: 170000,
-  mining: 60000,
-  herblore: 220000,
-  agility: 60000,
-  thieving: 150000,
-  slayer: 45000,
-  farming: 120000,
-  runecraft: 55000,
-  hunter: 130000,
-  construction: 350000,
-  // Provisional ordinary Sailing ceiling; older calibration predates this skill.
-  sailing: 95000,
-};
+import { gameTrainingCeilings as ORDINARY_CEILINGS } from '../../frontend/lib/game-content.js';
+export { ORDINARY_CEILINGS };
 export function expectedRate(skill, xp, level) {
   const ceiling = ORDINARY_CEILINGS[skill];
   const methods = calibration.methods[skill];
@@ -83,7 +58,7 @@ export function chooseTrainingSkill(user, rng = Math.random, { climate } = {}) {
     const specialty = policy.specialty ? (s === user.career?.specialty ? 30 : .12) : 1;
     const rank = user.ranks?.[s];
     const crown = policy.crowns && rank ? rank === 1 ? .4 : 1 + 12 / Math.sqrt(rank) : 1;
-    return preferenceWeight(s, user) * completionist * specialty * crown * completion * (skiller && combat ? .04 : 1) * (climate?.focusSkill === s ? 4 : 1);
+    return preferenceWeight(s, user) * completionist * specialty * crown * completion * (skiller && combat ? .04 : 1) * (climate?.focusSkill === s ? 4 : 1) * (climate?.festivalSkill === s ? 2 : 1);
   });
   let pick = rng() * weights.reduce((a, b) => a + b, 0);
   for (let i = 0; i < entries.length; i++) {
