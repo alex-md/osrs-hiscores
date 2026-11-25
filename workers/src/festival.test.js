@@ -1,45 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { festivalWeek, recordFestival, buildFestival, rollRelic, discoveryCount } from './festival.js';
+import { rollRelic, discoveryCount } from './festival.js';
 import { buildCollectionHall } from './collection-hall.js';
 import { normalizeUser } from './store.js';
 import { progressUser } from './simulation.js';
-import { evaluateAchievements } from './achievements.js';
 import { BOSSES } from '../../frontend/lib/activities.js';
 import { SKILLS } from './constants.js';
 const now = Date.parse('2026-11-21T12:00:00Z');
 const player = username => normalizeUser({username, createdAt:now-86400000, skills:Object.fromEntries(SKILLS.map(s=>[s,{xp:20_000_000}]))});
 
-test('festival rolls on Monday UTC, rotates all trainable skills and never selects HP',()=>{
-  const monday=Date.parse('2026-11-23T00:00:00Z');
-  assert.equal(festivalWeek(monday-1).end,monday);
-  assert.equal(festivalWeek(monday).start,monday);
-  const skills = new Set(Array.from({length:23},(_,i)=>festivalWeek(monday+i*7*86400000).skill));
-  assert.equal(skills.size,23);assert.ok(!skills.has('hitpoints'));
-});
-test('scores use earned deltas, reset weekly and lock newcomer eligibility',()=>{
-  const a=player('Ada');a.createdAt=now-100*86400000;
-  recordFestival(a,new Date(now),{gainedXP:500,skillXP:50,kills:2,discoveries:1});
-  recordFestival(a,new Date(now+900000),{gainedXP:100});
-  assert.equal(a.festival.xp,600);assert.equal(a.festival.newcomer,false);
-  assert.equal(a.festival.bosses,2);
-  recordFestival(a,new Date(festivalWeek(now).end),{gainedXP:30});
-  assert.equal(a.festival.xp,30);assert.equal(a.festival.discoveries,0);
-});
-test('closed results retain last capture, award each division once and bound the archive',()=>{
-  const a=player('Ada'), b=player('Bea');
-  recordFestival(a,new Date(now),{gainedXP:100,kills:10});
-  recordFestival(b,new Date(now),{gainedXP:200,kills:1});
-  const first=buildFestival([a,b],null,now);
-  const closed=buildFestival([a,b],first,first.end+1);
-  assert.equal(closed.archive[0].observedAt,now);
-  assert.equal(b.festivalWins,2);assert.equal(a.festivalWins,2);
-  assert.ok(evaluateAchievements(a).has('festival-champion'));
-  buildFestival([a,b],closed,first.end+2);
-  assert.equal(a.festivalWins,2);
-  const later=buildFestival([a,b],{...first,archive:Array.from({length:8},(_,i)=>({id:'old'+i}))},first.end+1);
-  assert.equal(later.archive.length,8);
-});
 test('relics require completed encounters and are permanent, unique, and worthless to the bank',()=>{
   const a=player('Ada'), cash=a.economy.cash, kc=a.bosses.scurrius;
   assert.equal(rollRelic(a,'scurrius',0,new Date(now),()=>0),false);
@@ -63,14 +32,14 @@ test('collection hall counts earned drops and retained relics, never purchases o
   assert.deepEqual(hall.leaders,[{username:'Ada',found:1,relics:1}]);
   assert.equal(hall.relics.length,BOSSES.length);
 });
-test('spotlight bonus reaches actual XP calculation and records only newly earned scores',t=>{
+test('retired festival no longer modifies XP, scores or historical honours',t=>{
   t.mock.method(Math,'random',()=>.999);
-  const a=player('Ada'), skill=festivalWeek(now).skill;
+  const a=player('Ada'), skill='sailing';
+  a.festival={id:'historical',xp:123}; a.festivalWins=2;
   a.trainingState={aptitude:1,fatigue:0,momentum:1,remaining:100,phase:'steady',phaseRemaining:100,focusSkill:skill,targetXP:200000000};
   progressUser(a,new Date(now),{hours:.25,rng:()=>.5});
-  assert.equal(a.progress.lastSession.trainingSkill,skill);
-  assert.equal(a.progress.lastSession.skillScale,1.15);
-  assert.equal(a.festival.skill,a.progress.lastSession.gains[skill]);
-  assert.equal(a.festival.xp,a.progress.lastSession.gainedXP);
-  assert.ok(a.festival.xp>0 && a.festival.xp < a.totalXP);
+  assert.equal(a.progress.lastSession.skillScale,1);
+  assert.equal(a.progress.lastSession.festivalSkill,undefined);
+  assert.deepEqual(a.festival,{id:'historical',xp:123});
+  assert.equal(a.festivalWins,2);
 });

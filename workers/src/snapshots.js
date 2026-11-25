@@ -1,9 +1,9 @@
 import { currentGameContent } from '../../frontend/lib/game-content.js';
-import { buildFestival } from './festival.js';
+import { buildFinance } from './finance.js';
+import { buildDiscoveries } from './discoveries.js';
 import { buildCollectionHall } from './collection-hall.js';
 import { buildWorldWatch } from './world-watch.js';
 import { publicEconomy } from './market.js';
-import { buildStories } from './stories.js';
 import { stageHistory } from "./history.js";
 import { BOSSES } from "../../frontend/lib/activities.js";
 import { MAX_PLAYERS } from "../../frontend/lib/simulation-config.js";
@@ -91,7 +91,6 @@ export async function publishSnapshot(env, users = null) {
     for (const [key, value] of Object.entries(source))
       if (!firsts[key] || value.timestamp < firsts[key].timestamp)
         firsts[key] = value;
-  const festival = buildFestival(users, previousSnapshot?.festival, now);
   const events = [];
   for (const user of users) {
     const unlocked = evaluateAchievements(user, context);
@@ -163,7 +162,9 @@ export async function publishSnapshot(env, users = null) {
     };
   });
   await stageHistory(env, profiles, generation, now);
-  const chronicle = buildStories(profiles, rankings, events, previousSnapshot, now);
+  const market = publicEconomy(await readJSON(env, 'system:economy'));
+  const finance = buildFinance(profiles, now);
+  const discoveries = buildDiscoveries(profiles, market, previousSnapshot, now);
   // Pack skill and activity ladders together: one write per 500 players.
   const shardCount = Math.ceil(users.length / CHUNK_SIZE);
   for (const name of Object.keys(rankings)) chunks[name] = shardCount;
@@ -195,15 +196,13 @@ export async function publishSnapshot(env, users = null) {
     gameContent: currentGameContent(),
     catalogInfo: await readJSON(env, "system:catalog", {source:"bootstrap",revision:0}),
     activitiesVersion: 2,
-    economy: publicEconomy(await readJSON(env, "system:economy")),
+    economy: market,
+    finance,
+    discoveries,
     rareTrading: (await readJSON(env, "system:rare-trading"))?.summary || null,
     worldWatch: buildWorldWatch(users, now),
-    festival,
     collectionHall: buildCollectionHall(users),
-    stories: chronicle.stories,
-    storyLeaders: chronicle.leaders,
-    races: chronicle.races,
-    contenders: chronicle.contenders,
+    stories: [], races: [], contenders: [], // Legacy clients receive no retired competitions.
     profileChunkSize: PROFILE_CHUNK_SIZE,
     generation,
     generatedAt: now,

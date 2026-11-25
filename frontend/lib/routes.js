@@ -4,7 +4,8 @@ export function route(location) {
   const raw = location.hash.slice(1);
   if (raw.startsWith("user/")) {
     try {
-      return { type: "player", username: decodeURIComponent(raw.slice(5)) };
+      const [name,query] = raw.slice(5).split("?");
+      return { type: "player", username: decodeURIComponent(name), ...(query ? {params:new URLSearchParams(query)} : {}) };
     } catch {
       return { type: "invalid" };
     }
@@ -31,7 +32,8 @@ export function route(location) {
       params,
     };
   }
-  if (["festival", "collections"].includes(path)) return { type: path, params };
+  if (path === "festival" || path === "discoveries") return {type:"stories",params};
+  if (path === "collections") return { type: path, params };
   if (path === "world") return { type: "world", params };
   if (path === "economy") return { type: "economy", params };
   if (path === "stories") return { type: "stories", params };
@@ -42,15 +44,14 @@ export function route(location) {
   return { type: "overall", params };
 }
 const PAGE_TITLES = {
-  festival: "Gielinor festival",
   collections: "Collection hall",
   world: "World watch",
   economy: "Item economy",
-  stories: "World stories",
+  stories: "World discoveries",
   progress: "Gains & records",
   achievements: "Achievements",
 };
-const ACTIVITY_TITLES = { wealth: "Bank value hiscores", bosses: "Boss hiscores" };
+const ACTIVITY_TITLES = { wealth: "Wealth & fortunes", bosses: "Boss hiscores" };
 
 export function routeTitle(current) {
   if (current.type === "player") return current.username;

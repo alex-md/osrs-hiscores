@@ -1,25 +1,17 @@
 import { request } from './api.js';
-import items from './items.js';
-import { BOSS_BY_KEY } from './activities.js';
-import { SKILLS, title } from './domain.js';
-import { catalog } from './catalog.js';
+import { discoveryArticle } from './discovery-view.js';
 
-export async function storiesView({signal,isCurrent,view,escape,number,date,playerLink,pageHeading}) {
-  const data = await request('/api/stories', {signal});
+export async function storiesView(ctx) {
+  const {signal,isCurrent,view,escape,number,date,playerLink,pageHeading,current}=ctx;
+  const data=await request('/api/discoveries',{signal});
   if (!isCurrent()) return;
-  const maxLevel = SKILLS.length * 99;
-  const contenders = data.contenders.filter(p => p.totalLevel < maxLevel);
-  const player = name => `<a href="${playerLink(name)}">${escape(name)}</a>`;
-  const metric = key => key === 'overall' ? 'overall rankings' : key === 'activity:bank' ? 'wealth rankings' : key === 'activity:bosses' ? 'total boss count' : title(key);
-  const describe = story => story.kind === 'relic' ? `${player(story.username)} discovered the <strong>${escape(BOSS_BY_KEY[story.metric]?.name || title(story.metric))} expedition relic</strong>. <a href="#collections?username=${encodeURIComponent(story.username)}">Open their cabinet ↗</a>`
-    : story.kind === 'loot'
-    ? `${player(story.username)} found <strong>${number(story.quantity)} × ${escape(items[story.itemId]?.name || 'a rare item')}</strong><p>${escape(BOSS_BY_KEY[story.boss]?.name || title(story.boss))} · ${number(story.value)} GP · ${number(story.kc)} ${escape(story.countUnit || "KC")} when recorded</p>`
-    : story.kind === 'boss-milestone' ? `${player(story.username)} reached <strong>${number(story.value)} ${escape(BOSS_BY_KEY[story.boss]?.name || title(story.boss))} ${BOSS_BY_KEY[story.boss]?.unit || 'kills'}</strong>.`
-    : story.kind === 'crown' ? `${player(story.username)} took the <strong>${escape(metric(story.metric))}</strong> crown from ${player(story.previous)}.`
-    : `${player(story.username)} reached <strong>${escape(catalog().find(item=>item.key===story.key)?.name || title(story.key))}</strong>.`;
-  view.innerHTML = `${pageHeading('The world noticeboard','World stories','New crowns, unlikely loot and the race to the final cape.')}
-    <section class="panel noticeboard"><div class="panel-heading"><h2>Rivals to watch</h2><span class="updated">Updated ${date(data.generatedAt)}</span></div>
-    <div class="rivalries">${data.races.map(race=>`<article><div class="eyebrow">${escape(metric(race.metric))}</div><h3>${player(race.first)} <span>vs</span> ${player(race.second)}</h3><p>${number(race.gap)} ${race.metric==='overall'?'levels':race.metric==='activity:bank'?'GP':'kills / completions'} apart${race.xpGap!==null?` · ${number(race.xpGap)} XP breaks the level tie`:''}.</p></article>`).join('')}</div></section>
-    <section class="panel"><div class="panel-heading"><h2>The race to max</h2><a href="#overall">View the ladder ↗</a></div><ol class="max-race">${contenders.map(p=>`<li>${player(p.username)}<span>${number(p.totalLevel)} / ${number(maxLevel)} · ${number(maxLevel-p.totalLevel)} levels to go</span><progress aria-label="${escape(p.username)} total level" max="${maxLevel}" value="${p.totalLevel}"></progress></li>`).join('')}</ol>${contenders.length ? '' : '<p class="history-note">No unfinished accounts are in this snapshot’s race. Explore the hiscores for XP records beyond 99.</p>'}</section>
-    <section class="panel"><div class="panel-heading"><h2>From around the world</h2><span class="updated">Latest 48 events</span></div>${data.stories.length?`<ol class="story-list">${data.stories.map(story=>`<li><span class="story-kind">${story.kind==='loot'?'Loot':story.kind==='crown'?'New crown':'Milestone'}</span><div>${describe(story)}</div><time>${date(story.timestamp)}</time></li>`).join('')}</ol>`:'<p class="history-note">The noticeboard starts with the next new crown, notable drop or rare milestone. Earlier events are not reconstructed.</p>'}</section>`;
+  const selected=current?.params.get('username') || '';
+  view.innerHTML=`${pageHeading('The Gielinor field journal','World discoveries','Follow changing fortunes, unusual days and the consequences of life in this world.')}<section class="panel"><div class="panel-heading"><h2>Worth investigating</h2><span class="updated">Updated ${date(data.generatedAt)}</span></div><div class="filter-bar"><label>Show<select id="discovery-kind"><option value="">All discoveries</option><option value="market">Market movements</option><option value="windfall">Windfalls</option><option value="unusual-income">Financial outliers</option><option value="after-purchase">Player histories</option></select></label><label class="search-filter">Player<input id="discovery-player" type="search" placeholder="Player name" value="${escape(selected)}"></label></div><p class="history-note">A developing journal of the past seven days. Market stories require a full day of prices; financial outliers need seven complete days of personal history. Routine milestones stay in player records.</p><div id="discoveries"></div></section>`;
+  const render=()=>{
+    const kind=view.querySelector('#discovery-kind').value, query=view.querySelector('#discovery-player').value.trim().toLowerCase();
+    const rows=data.discoveries.filter(r=>(!kind || r.kind===kind) && (!query || r.username?.toLowerCase().includes(query)));
+    view.querySelector('#discoveries').innerHTML=rows.length ? rows.map(row=>discoveryArticle(row,{escape,number,date,playerLink})).join('') : '<p class="history-note">No qualifying discoveries in this selection yet. <a href="#economy">Explore item trends</a> or <a href="#world">inspect current activity</a> while observations accumulate.</p>';
+  };
+  view.querySelector('#discovery-kind').addEventListener('change',render);
+  view.querySelector('#discovery-player').addEventListener('input',render);render();
 }

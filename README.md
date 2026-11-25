@@ -77,10 +77,10 @@ One application serves every view. Routes work on static hosts, including under 
 - `#overall` — rankings, name filtering, pagination, page-size selection, CSV export.
 - `#skills/attack` — skill ladder, level and XP ranges, filtering, pagination, CSV export.
 - `#user/Rune%20Mage` — player summary, combat level, skill ranks, XP progress, achievement history.
-- `#wealth` — modeled bank-value rankings, name filtering and pagination.
+- `#wealth` — world finances, wealth concentration and bank-value rankings.
 - `#bosses` — total recorded boss KC; `#bosses?boss=vorkath` selects an encounter.
 - `#world` — recent world activity, approaching 99s, searchable boss field guide and newcomers.
-- `#stories` — new crowns, notable loot, boss milestones, rivalries and the race to max.
+- `#stories` — evidence-backed market movements, meaningful windfalls, financial outliers and purchase follow-through. `#festival` redirects here.
 - `#achievements` — searchable catalog, category and rarity filters, sort controls, recent unlocks, recorded firsts.
 
 The older `skill-hiscores.html?skill=attack` and `achievements.html` entry points still work. Theme and connection preferences are optional local storage settings. `?api=https://example.workers.dev` temporarily selects another API. Blank connection settings restore the default. A missing API or failed request produces a retry screen with connection controls. Player search supports keyboard submission and native username suggestions.
@@ -94,8 +94,10 @@ All responses are JSON with CORS enabled. Reads cache for 30 seconds in browsers
 | Method | Endpoint                              | Response                                                                            |
 | ------ | ------------------------------------- | ----------------------------------------------------------------------------------- |
 | GET    | `/api/world-watch`                    | Snapshot-backed activity, approaching 99s, boss participation and recent arrivals |
-| GET    | `/api/stories`                        | Bounded world noticeboard, leading rivalries and maxing contenders |
-| GET    | `/api/economy`                       | Simulated item prices, supply/demand pressure and up to 24 hours of quotes           |
+| GET    | `/api/discoveries`                    | Up to 40 evidence-backed discoveries from the last seven days |
+| GET    | `/api/finance`                        | Current world finances, observed daily changes and largest item exposures |
+| GET    | `/api/stories`                        | Compatibility response with empty retired competition arrays |
+| GET    | `/api/economy`                       | Simulated item prices, supply/demand pressure and up to 24 hours of intraday quotes plus 35 daily closing quotes           |
 | GET    | `/api/world`                          | Snapshot generation, training calibration and estimated next update                  |
 | GET    | `/api/health`                         | Liveness and Durable Object storage status                                                      |
 | GET    | `/api/debug`                          | Binding status and last successful simulation; no secret values                     |
@@ -290,15 +292,37 @@ rare trades and revalue held items in banks. Base XP remains available with an
 empty bank. See [the economy model](docs/simulation-economy.md#dynamic-prices-and-bank-values)
 for smoothing, price bounds, accounting and simulation limitations.
 
-### Weekly festival and editable game content
+### Fortunes, discoveries and editable game content
 
-The weekly festival adds fresh XP, bossing and discovery races, with a separate
-newcomer division and a rotating featured-skill bonus. The collection hall shows
-personal rare drops and 48 permanent expedition relics. Early milestones remain
-available in the achievement archive.
+Weekly competition scoring, honours and featured-skill XP/selection bonuses are
+retired. Historical player scores, honours and achievement unlocks remain stored.
+Old `#festival` bookmarks open World discoveries; `/api/festival` reports its
+retirement. Ordinary hiscores and collection records remain available.
+
+World discoveries selects material market moves, drops worth at least 15% of a
+player's pre-session bank (and 1M GP), exceptional daily asset flows against seven
+complete personal observation days, and real purchases followed by an encounter
+while the item is still retained. Categories have bounded quotas so routine trade
+follow-through cannot crowd out other discoveries. No inferred rivalry or new
+crown is generated. Current player banks link to item histories and exposed banks.
+
+Scheduled updates retain 35 compact daily financial observations per player and
+35 daily closing item quotes, alongside existing 24-hour price history. The first
+financial observation is a zero-delta baseline. Each subsequent bank change is
+reconciled into price movements on opening holdings plus changes to cash and
+items valued at closing prices. Asset flows include activities, trades, costs,
+taxes and sinks; they are not labelled pure operating profit. Public reads and
+rebuilds never advance financial observations. All records commit with the world.
+
+Profit-sensitive players adjust encounter choice by current expected loot value
+less supply costs relative to opening conditions, bounded to 0.35–2.5 times the
+usual selection weight. Resource and training choices respond within 0.5–2 times
+the usual weight. Personal goals continue across sessions. Collectors,
+completionists and single-skill training specialists keep their existing motives.
+These responses change preferences, never create extra loot, cash, time or XP.
 
 Items, encounters, explicit drop tables, supplies, resource tiers and training
 ceilings are loaded from the existing D1 database, then published with each world
 snapshot. They can be edited without redeploying JavaScript. See
-[the festival rules and catalog editing guide](docs/festival-and-catalog.md) for
+[the collection and catalog editing guide](docs/festival-and-catalog.md) for
 migration details, validation, revision history and the pull/check/push workflow.

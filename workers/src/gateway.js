@@ -11,7 +11,7 @@ export async function forwardApiRequest(request, env, ctx) {
   if (!stub) return json({ error: "HISCORES_WORLD Durable Object binding is missing." }, 503);
   const edge = ctx?.waitUntil && globalThis.caches?.default;
   const cacheable = request.method === "GET" &&
-    /^\/api\/(world|world-watch|festival|collections|game-catalog|stories|progress|leaderboard|skill-rankings|activity-rankings|users(?:\/.*)?|achievements\/.*|banners\/rare)$/.test(new URL(request.url).pathname);
+    /^\/api\/(world|world-watch|finance|discoveries|festival|collections|game-catalog|stories|progress|leaderboard|skill-rankings|activity-rankings|users(?:\/.*)?|achievements\/.*|banners\/rare)$/.test(new URL(request.url).pathname);
   if (edge && cacheable) {
     const hit = await edge.match(request);
     if (hit) return hit;

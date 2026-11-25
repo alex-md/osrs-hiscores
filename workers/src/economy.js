@@ -83,6 +83,17 @@ export function spendableBank(user, market) {
     .reduce((sum, [id, n]) => sum + (baseline[id]?.rare ? 0 : n * priceOf(market, id)), 0));
 }
 export const BUYABLE_SKILLS = new Set(["construction", "herblore", "prayer", "crafting", "smithing", "fletching", "firemaking", "cooking", "magic", "sailing"]);
+export function bossProfitWeight(user, boss, market) {
+  if (!market || archetypePolicy(user.archetype).collection || archetypePolicy(user.archetype).completion) return 1;
+  const table = bossDropTable(boss);
+  const commonEV=table.filter(drop=>!drop.rare).reduce((sum,drop)=>sum+drop.chance*drop.quantity*priceOf(null,drop.id),0);
+  const common = Math.max(0,(boss.commonLoot || 0)-commonEV);
+  const value = quote => common + table.reduce((sum, drop) => sum + drop.chance * drop.quantity * priceOf(quote, drop.id), 0);
+  const openingNet = Math.max(1, value(null) - boss.cost);
+  const currentNet = Math.max(0, value(market) - boss.cost * costIndex('bossing', market));
+  const sensitivity = .25 + .75 * user.career.thrift;
+  return clamp((currentNet / openingNet) ** sensitivity, .35, 2.5);
+}
 export function eligibleBosses(user) {
   const combat = combatLevel(user.skills);
   return BOSSES.filter(boss => combat >= boss.combat && bossCombatSkills(user, boss).length > 0 && (!boss.slayer || user.skills.slayer?.level >= boss.slayer)
@@ -249,7 +260,7 @@ export function progressBossing(user, date, { hours, rng, market, scale = 1 }) {
     const exploration = (policy.collection || policy.completion) ? 1 + 5 / Math.sqrt(1 + user.bosses[boss.key]) : 1;
     const collection = policy.collection ? 1 + bossDropTable(boss).filter(d=>d.rare && !(user.economy.flows?.created?.[d.id]>0)).length * 1.5 : 1;
     const relicHunt = user.expedition?.relics?.[boss.key] ? 1 : policy.collection ? 2 : policy.completion ? 1.5 : 1;
-    return preference * challenge * (1 + familiarity) * raidPreference * slayerPreference * exploration * collection * relicHunt;
+    return preference * challenge * (1 + familiarity) * raidPreference * slayerPreference * exploration * collection * relicHunt * bossProfitWeight(user, boss, market);
   }, rng);
   // Bossing consumes this session's time; it does not run alongside a full XP session.
   let bossHours = hours * (0.6 + rng() * 0.4);
@@ -287,7 +298,7 @@ export function progressBossing(user, date, { hours, rng, market, scale = 1 }) {
   gains[combatSkill] = kills * boss.hp * 4 / pace;
   gains.hitpoints = kills * boss.hp * 4 / (3 * pace);
   if (boss.slayer) gains.slayer = kills * boss.hp / pace;
-  settle(user, coins, cost, { activity: "bossing", boss: boss.key, kills, rareDrops: drops, deaths, hours: bossHours, activityScale: pace, raidProgress: user.career.raidProgress?.[boss.key] ?? null }, date, market, rewards);
+  settle(user, coins, cost, { activity: "bossing", boss: boss.key, profitWeight: bossProfitWeight(user,boss,market), kills, rareDrops: drops, deaths, hours: bossHours, activityScale: pace, raidProgress: user.career.raidProgress?.[boss.key] ?? null }, date, market, rewards);
   user.economy.rareFinds ||= {};
   for (const drop of notable) {
     const prior = user.economy.rareFinds[drop.itemId];

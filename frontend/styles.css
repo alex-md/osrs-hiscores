@@ -629,18 +629,12 @@ dialog { background: var(--paper); border-color: #88744f; }
 .pagination #history-prev, .pagination #history-next { width: auto; min-width: 62px; padding: 3px 8px; }
 @media (max-width: 400px) { .history-summary { grid-template-columns: 1fr; } }
 
-/* World noticeboard: pinned dispatches and a quiet race-to-max ledger. */
+/* Observed stories and individual progress. */
 .category-toggle { display: none; }
 .scroll-cue { font-size: 11px; color: var(--muted); margin: 8px 12px; text-align: right; }
 .scroll-cue[hidden] { display: none; }
 .chart-partial { fill: url(#partial-day); }
-.noticeboard { border-top: 3px double #866c3c; }
-.rivalries { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); }
-.rivalries article { padding: 18px; border-right: 1px solid var(--line); }
-.rivalries article:last-child { border-right: 0; }
-.rivalries h3 { font: bold 16px/1.6 var(--display); }
-.rivalries h3 span { display: block; font: italic 12px var(--display); color: var(--muted); }
-.rivalries p, .story-list p { font-size: 12px; margin: 5px 0; }
+.story-list p {font-size:12px;margin:5px 0}
 .story-list { list-style: none; margin: 0; padding: 0; }
 .story-list li { position: relative; padding: 16px 20px 16px 30px; border-bottom: 1px solid var(--line); line-height: 1.6; }
 .story-list li::before { content: '◆'; position: absolute; left: 12px; top: 18px; color: #897044; font-size: 8px; }
@@ -652,7 +646,6 @@ dialog { background: var(--paper); border-color: #88744f; }
 .max-race progress { width: 100%; height: 9px; accent-color: #7a874a; }
 .bank-view, .loot-log { margin: 16px 0; }
 .ranking-panel > .filter-bar { border-bottom: 1px solid var(--line); }
-@media (max-width: 940px) { .rivalries { grid-template-columns: 1fr; } .rivalries article { border-right: 0; border-bottom: 1px solid var(--line); } }
 @media (max-width: 650px) {
   .site-header { padding-bottom: 6px; }
   .header-inner { min-height: 0; padding: 8px 0; }
@@ -703,20 +696,7 @@ dialog { background: var(--paper); border-color: #88744f; }
 @media (max-width: 1000px) { .watch-columns { grid-template-columns: 1fr; } .watch-newcomers { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .watch-table-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
 
-/* Festival race lanes and an expedition stamp book, in the site's brass/stone palette. */
-.festival-banner { display:flex; justify-content:space-between; gap:24px; border-top:4px solid var(--gold); }
-.festival-banner p { max-width:60ch; line-height:1.6; }
-.festival-races { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
-.race-card .panel-heading { align-items:flex-start; gap:12px; flex-wrap:wrap; }
-.race-lanes { list-style:none; padding:0; margin:0; }
-.race-lanes li { padding:12px 0; border-bottom:1px solid var(--line); }
-.race-lanes li>div { display:flex; gap:10px; align-items:baseline; }
-.race-lanes a { overflow-wrap:anywhere; }
-.race-lanes strong { margin-left:auto; font:14px var(--mono); white-space:nowrap; }
-.race-position { color:var(--muted); font:12px var(--mono); min-width:16px; }
-.race-lanes meter { width:100%; height:16px; margin-top:6px; accent-color:var(--green); }
-.race-lanes small { color:var(--muted); font-size:11px; }
-.race-lanes .racer-highlight { background:var(--gold-faint); outline:2px solid var(--gold); outline-offset:3px; }
+/* Expedition stamp book. */
 .collection-leaders { display:flex; flex-wrap:wrap; gap:8px; padding:0 20px 20px; }
 .relic-atlas { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; padding:0 20px 20px; }
 .relic-tile { display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; min-height:120px; gap:8px; padding:10px 6px; border:1px dashed var(--line); color:var(--muted); text-decoration:none; }
@@ -731,4 +711,20 @@ dialog { background: var(--paper); border-color: #88744f; }
 .reward-slot p { line-height:1.6; font-size:12px; }
 .reward-slot meter { display:block; width:100%; accent-color:var(--green); }
 @media(max-width:1000px) { .relic-atlas { grid-template-columns:repeat(4,minmax(0,1fr)); } .reward-cabinet { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-@media(max-width:650px) { .festival-races { grid-template-columns:1fr; } .festival-banner { flex-direction:column; } .relic-atlas { grid-template-columns:repeat(3,minmax(0,1fr)); padding:0 10px 10px; } .reward-cabinet { grid-template-columns:1fr; padding:0 10px 10px; } }
+@media(max-width:650px) { .relic-atlas { grid-template-columns:repeat(3,minmax(0,1fr)); padding:0 10px 10px; } .reward-cabinet { grid-template-columns:1fr; padding:0 10px 10px; } }
+
+/* The fortune journal uses the existing parchment, ink and stone palette. */
+.finance-totals {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.25rem;margin:1.25rem 16px}
+.finance-totals div {border-inline-start:3px solid var(--line);padding-inline-start:1rem;min-width:0}
+.finance-totals dt {font-size:.85rem;font-weight:bold}
+.finance-totals dd {margin:.35rem 0;font-size:clamp(1rem,2.2vw,1.5rem);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.finance-totals small {display:block;font-size:.75rem;font-weight:normal}
+.discovery-entry {padding:1.4rem 16px;border-top:1px solid var(--line)}
+.discovery-entry h2 {font-size:1.25rem;line-height:1.45;margin:.7rem 0}
+.discovery-entry p {line-height:1.65;max-width:75ch}
+.discovery-stamp {display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;font-size:.8rem}
+.financial-history td {white-space:nowrap}
+.item-investigation {margin-block:1rem}
+@media(max-width:480px) {.finance-totals {grid-template-columns:1fr}.discovery-stamp {display:block}.discovery-stamp time {display:block;margin-top:.4rem}}
+.item-price-chart svg {width:100%;height:120px;margin-block:1rem;overflow:visible}
+.item-price-chart polyline {vector-effect:non-scaling-stroke;stroke-width:2}

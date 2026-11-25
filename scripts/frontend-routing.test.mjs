@@ -10,13 +10,13 @@ test("hash routes retain filters and select the matching title and navigation", 
     ["overall", "overall", "Rankings", "overall"],
     ["achievements", "achievements", "Achievements", "achievements"],
     ["world", "world", "World watch", "world"],
-    ["festival", "festival", "Gielinor festival", "festival"],
+    ["festival", "stories", "World discoveries", "stories"],
     ["collections", "collections", "Collection hall", "collections"],
-    ["stories", "stories", "World stories", "stories"],
+    ["stories", "stories", "World discoveries", "stories"],
     ["economy", "economy", "Item economy", "economy"],
     ["progress", "progress", "Gains & records", "progress"],
     ["bosses", "activity", "Boss hiscores", "bosses"],
-    ["wealth", "activity", "Bank value hiscores", "wealth"],
+    ["wealth", "activity", "Wealth & fortunes", "wealth"],
   ]) {
     const current = parse(`/#${hash}?page=2&q=Ada`);
     assert.equal(current.type, type);

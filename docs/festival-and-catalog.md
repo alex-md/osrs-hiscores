@@ -1,47 +1,22 @@
-# Festival, expeditions and the D1 game catalog
+# Collections and the D1 game catalog
 
 The world keeps its XP, boss KC, cash, holdings, achievements and history. This
 release adds future progression rather than resetting accounts or fabricating
 past rewards.
 
-## Something new to follow
+## Collections and retired competitions
 
-- **Weekly festival (`#festival`)**: four races for earned XP, featured-skill XP,
-  completed boss KC and first personal discoveries (new rare item types plus
-  expedition relics). Every Monday at 00:00 UTC, scores start fresh. Newcomers
-  have a separate division: accounts created within the preceding fourteen days,
-  or during that week. Qualification stays fixed for the week. An empty newcomer
-  division is allowed; the population ceiling is unchanged.
-- **Featured skill**: rotates through all 23 trainable skills, gets twice its
-  ordinary selection weight and a 15% training XP bonus. Existing personalities,
-  funding, downtime, level gates, climate and the 200M cap still apply. The base
-  world XP schedule is unchanged. Existing multi-session goals can continue.
-- **Expedition relics**: 48 simulation-only, permanent encounter keepsakes. A
-  completed encounter can produce its own relic; previous KC cannot. The chance
-  across K completions is `1 - exp(-K / (ordinaryKillsPerHour * 40))`, approximately
-  forty ordinary boss-hours per relic before existing activity scaling. Relics
-  have no GP value, combat power or trade route. No extra combat time or KC is
-  granted. Different encounter speeds have equal expected ordinary effort.
-- **Collection hall (`#collections`)**: encounter stamp atlas and searchable rare
-  reward cabinets. Open an actual player's cabinet, filter found/missing rewards,
-  sort by rarity or recency, or investigate an encounter. Rare finds persist when
-  items are sold; purchases and opening inventory are never discoveries. Ranger
-  boots now enter discovery records when actually earned from a future casket;
-  old clue loot is not reconstructed.
-- **Achievements**: sixteen new endgame milestones cover boss breadth, raid
-  completions, earned collections, relics, festival honours and post-99 XP.
-  Nine early milestones move into the catalog's archive view. Historical unlocks
-  remain on accounts. New relic stories and important turning points receive
-  reserved noticeboard space so repeat loot does not bury every breakthrough.
+The weekly festival, featured-skill XP bonus, score accumulation and further
+honours were retired in favour of financial history and World discoveries.
+Existing scores, honours and unlocks remain historical. `#festival` opens the
+new journal; `/api/festival` returns `{ festival: null, retired: true }`.
+See the [current feature and accounting rules](../README.md#fortunes-discoveries-and-editable-game-content).
 
-Scores use newly earned deltas within actual simulation sessions, including XP
-caps and paid-method limits. Session completion time assigns the week. Publication
-rebuilds do not create scores or relics. Closed festival records keep the last
-observed results, not an invented final capture, for eight recorded weeks. The
-first place in each scored track/division earns an honour; equal scores use name
-order. One player can win multiple honours in a week. Each profile retains 24
-honour details and a cumulative win count. Results begin at the first capture
-with this feature, which can be partway through the first week.
+The collection hall remains a record of personal rare drops and 48 permanent
+expedition relics. Only completed encounters can produce a relic; old KC does
+not backfill them. Their chance across K completions is
+`1 - exp(-K / (ordinaryKillsPerHour * 40))`. Relics have no bank value, combat power
+or trade route. Rare finds persist after sale, and purchases never count as finds.
 
 ## Database-owned content
 

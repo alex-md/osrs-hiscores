@@ -33,7 +33,7 @@ export function publicEconomy(market) {
     items:Object.fromEntries(Object.entries(market.items).map(([id,row]) => [id, {
       price:row.price, changePct:row.changePct, dayChangePct:row.dayChangePct, driver:row.driver,
       produced:row.produced, demand:row.demand, upgradeDemand:row.upgradeDemand, held:row.held, stock:row.stock,
-      history:row.history,
+      history:row.history, dailyHistory:row.dailyHistory || [],
     }])) };
 }
 export function recordDemand(economy, activity, spent, market) {
@@ -111,12 +111,14 @@ export function advanceEconomy(previous, before, users, date, {hours=.25, stock=
     const fairValue = clamp(current*Math.exp(move),Math.max(1,item.price*.15),item.price*8);
     const price = Math.round(fairValue);
     const history = [...(old?.history || [[+date-Math.max(0,hours)*3600000,item.price]]),[+date,price]].filter(([timestamp]) => timestamp >= +date-86400000).slice(-97);
+    const day = new Date(+date).toISOString().slice(0,10);
+    const dailyHistory = [...(old?.dailyHistory || []).filter(([at]) => new Date(at).toISOString().slice(0,10) !== day), [+date,price]].filter(([at]) => at >= +date-35*86400000).slice(-35);
     const dayPrice = history[0][1];
     market.prices[id] = price;
     market.items[id] = { price, fairValue, openingHeld, supplyRate, demandRate, produced, removed,
       demand:wanted, upgradeDemand:demand[id] || 0, held:end.held, stock:stock[id] || 0,
       change:price-priceOf(saved,id), changePct:100*(price/priceOf(saved,id)-1), dayChangePct:100*(price/dayPrice-1),
-      driver: pressure > .025 ? 'Demand / scarcity' : pressure < -.025 ? 'Supply / surplus' : inflation > 1.01 ? 'Coin inflation' : inflation < .99 ? 'Coin contraction' : 'Balanced', history };
+      driver: pressure > .025 ? 'Demand / scarcity' : pressure < -.025 ? 'Supply / surplus' : inflation > 1.01 ? 'Coin inflation' : inflation < .99 ? 'Coin contraction' : 'Balanced', history, dailyHistory };
   }
   return market;
 }

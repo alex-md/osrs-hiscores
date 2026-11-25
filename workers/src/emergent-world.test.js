@@ -5,7 +5,7 @@ import { chooseTrainingSkill } from './training.js';
 import { normalizeUser } from './store.js';
 import { valueBank, progressBossing, rollBossDrops, bossDropTable } from './economy.js';
 import { buildRankings, publishSnapshot } from './snapshots.js';
-import { buildStories } from './stories.js';
+import { buildDiscoveries } from './discoveries.js';
 import { worldDiagnostics } from './diagnostics.js';
 import { handleApiRequest } from './index.js';
 import { SKILLS } from './constants.js';
@@ -80,13 +80,6 @@ test('completing a legacy raid releases its priority while retaining fractional 
   assert.ok(visited.size>15,`Only visited ${[...visited]}`);
   assert.ok([...visited].some(key=>BOSSES.slice(24).some(b=>b.key===key)));
 });
-test('max race advances beyond finished accounts and handles an entirely maxed world',()=>{
-  const users=[player('Finished'),player('Almost'),player('Chasing')];
-  users[1].totalLevel--;users[2].totalLevel-=2;
-  const rankings=buildRankings(users);
-  assert.deepEqual(buildStories(users,rankings,[],null,+at).contenders.map(p=>p.username),['Almost','Chasing']);
-  assert.deepEqual(buildStories([users[0]],buildRankings([users[0]]),[],null,+at).contenders,[]);
-});
 test('selected reward tables have finite rewards and common plus rare value covering base costs',()=>{
   for(const boss of BOSSES) {
     const table=bossDropTable(boss),common=table.filter(d=>!d.rare).reduce((n,d)=>n+d.quantity*d.chance*items[d.id].price,0);
@@ -101,21 +94,20 @@ test('notable loot is backed by actual rewards, not inferred from starting holdi
   assert.deepEqual(result.notable,[{itemId:20997,quantity:2}]);assert.equal(result.rewards[20997],2);assert.equal(result.drops,2);
   assert.equal(player().economy.notableLoot,undefined);
 });
-test('stories record new crowns and rewards once without inventing old acquisitions',()=>{
-  const users=[player('Ada'),player('Bea')],rankings=buildRankings(users);
+test('discoveries require meaningful observed rewards and never infer opening acquisitions',()=>{
+  const users=[player('Ada')];
+  users[0].finance={last:{at:+at,bankBefore:1000000}};
   users[0].economy.notableLoot=[{itemId:20997,quantity:1,boss:'chambers-of-xeric',kc:1,timestamp:+at,value:items[20997].price}];
-  assert.equal(buildStories(users,rankings,[],null,+at).stories.length,0);
-  const prior={generatedAt:+at-1,storyLeaders:{overall:'Bea'},stories:[]};
-  const result=buildStories(users,rankings,[],prior,+at);
-  assert.equal(result.stories.filter(s=>s.kind==='loot').length,1);
-  assert.equal(result.stories.filter(s=>s.kind==='crown').length,1);
-  assert.equal(buildStories(users,rankings,[],{generatedAt:+at,storyLeaders:result.leaders,stories:result.stories},+at+1).stories.length,2);
+  assert.equal(buildDiscoveries(users,null,null,+at).length,0);
+  const result=buildDiscoveries(users,null,{generatedAt:+at-1},+at);
+  assert.equal(result.filter(s=>s.kind==='windfall').length,1);
+  assert.equal(buildDiscoveries(users,null,{generatedAt:+at,discoveries:result},+at+1).length,1);
 });
 test('public stories are snapshot reads and diagnostics detect stale progression',async()=>{
   const WORLD_STORE=store(),env={WORLD_STORE},u=player();u.skills.sailing={xp:xpForLevel(98),level:98};await publishSnapshot(env,[u]);
   const before=new Map(WORLD_STORE.data);
   const response=await handleApiRequest(new Request('https://world/api/stories'),env);
-  assert.equal(response.status,200);assert.equal((await response.json()).contenders[0].username,'Ada');
+  assert.equal(response.status,200);assert.deepEqual((await response.json()).contenders,[]);
   assert.deepEqual(WORLD_STORE.data,before);
   await WORLD_STORE.put('system:last-run',JSON.stringify({generatedAt:+at-3600000,durationMs:55}));
   await WORLD_STORE.put('history:pending',JSON.stringify({'2026-11-03':1}));

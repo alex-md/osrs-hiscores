@@ -307,13 +307,17 @@ async function route(request, env) {
     "/api/stories",
     "/api/world-watch",
     "/api/festival",
+    "/api/finance",
+    "/api/discoveries",
     "/api/collections",
     "/api/game-catalog",
   ];
   if (!known.includes(path)) throw new HttpError(404, "Unknown API route.");
   const snapshot = await getSnapshot(env);
   if (path === "/api/game-catalog") return cached({ ...snapshotInfo(snapshot), content: snapshot.gameContent || currentGameContent(), catalogInfo:snapshot.catalogInfo || {source:"bootstrap",revision:0} });
-  if (path === "/api/festival") return cached({ ...snapshotInfo(snapshot), festival: snapshot.festival || null });
+  if (path === "/api/festival") return cached({ ...snapshotInfo(snapshot), festival: null, retired: true });
+  if (path === "/api/finance") return cached({ ...snapshotInfo(snapshot), finance: snapshot.finance || null });
+  if (path === "/api/discoveries") return cached({ ...snapshotInfo(snapshot), discoveries: snapshot.discoveries || [] });
   if (path === "/api/collections") return cached({ ...snapshotInfo(snapshot), hall: snapshot.collectionHall || null });
   if (path === "/api/world-watch") return cached({ ...snapshotInfo(snapshot), watch:snapshot.worldWatch || null });
   if (path === "/api/economy") return cached({ ...snapshotInfo(snapshot), economy:snapshot.economy || null });

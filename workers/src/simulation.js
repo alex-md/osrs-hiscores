@@ -1,5 +1,6 @@
 import { loadGameCatalog } from './game-catalog.js';
-import { festivalWeek, recordFestival, discoveryCount, bossCount, rollRelic } from './festival.js';
+import { bossCount, rollRelic } from './festival.js';
+import { financeFrame, recordFinance } from './finance.js';
 import { advanceEconomy, economyFrame } from './market.js';
 import { trainingBenefits } from './wealth-progression.js';
 import { tradeRares } from './rare-trading.js';
@@ -71,9 +72,7 @@ export function progressUser(
   date = new Date(),
   { hours = TICK_HOURS, rng = Math.random, climate, market } = {},
 ) {
-  const festival = festivalWeek(+date);
-  climate = { ...climate, festivalSkill: festival.skill };
-  const beforeDiscoveries = discoveryCount(user), beforeKC = bossCount(user);
+  const beforeKC = bossCount(user);
   normalizeCareer(user);
   adoptExpandedCareer(user, date);
   user.xpGainTier = determineXpGainTierFromTotal(user.totalXP);
@@ -89,7 +88,7 @@ export function progressUser(
   const duration =
     Math.max(0, Math.min(TICK_HOURS, hours)) * (min + rng() * (max - min)) * (phase === "quiet" ? .35 : 1);
   const scale = Math.max(MIN_XP_SCALE, Math.min(MAX_XP_SCALE, windowXpScale(date, hours) * (climate?.factor || 1)));
-  const personal = personalTraining(user, { hours: Math.max(0, Math.min(TICK_HOURS, hours)), activeHours: duration, rng, climate });
+  const personal = personalTraining(user, { hours: Math.max(0, Math.min(TICK_HOURS, hours)), activeHours: duration, rng, climate, market });
   const clues = progressClues(user,date,{hours:duration,rng,scale,market});
   const bossing = clues.active ? {active:false,trainingHours:clues.trainingHours,gains:{}} : progressBossing(user, date, { hours: duration, rng, scale, market });
   const gains = {};
@@ -113,7 +112,7 @@ export function progressUser(
     const training = progressSkillingEconomy(user, date, { skill, hours: bossing.trainingHours * activityScale(scale), rng, market, append: bossing.active || clues.active, fundingCost: benefits.fundingCost });
     trainingFraction = training.fraction;
     const stat = user.skills[skill];
-    const skillScale = (climate?.focusSkill === skill ? climate.skillFactor : 1) * (festival.skill === skill ? festival.bonus : 1);
+    const skillScale = (climate?.focusSkill === skill ? climate.skillFactor : 1);
     const combat = skill === "slayer" ? DAMAGE_SKILLS[Math.floor(rng() * DAMAGE_SKILLS.length)] : null;
     // A low-level fighter cannot use a high-level Slayer XP rate independently
     // of the damage they can deal. Both rewards come from the same kills.
@@ -150,8 +149,7 @@ export function progressUser(
         personalScale: personal.multiplier,
         wealthScale: benefits.multiplier,
         benefits,
-        skillScale: (climate?.focusSkill === skill ? climate.skillFactor : 1) * (festival.skill === skill ? festival.bonus : 1),
-        festivalSkill: festival.skill,
+        skillScale: (climate?.focusSkill === skill ? climate.skillFactor : 1),
         trainingPhase: personal.phase,
         gainedXP,
         gains,
@@ -164,7 +162,6 @@ export function progressUser(
     user.updatedAt = date.getTime();
   const completedKills = bossCount(user) - beforeKC;
   if (bossing.active) rollRelic(user, bossing.boss, completedKills, date, rng);
-  recordFestival(user, date, { gainedXP, skillXP: gains[festival.skill] || 0, kills: completedKills, discoveries: discoveryCount(user) - beforeDiscoveries });
   user.totalLevel = totalLevel(user.skills);
   user.totalXP = totalXP(user.skills);
   user.version = 5;
@@ -205,6 +202,7 @@ export async function runScheduled(env) {
     : TICK_HOURS;
   for (const user of users) valueBank(user, market);
   const economyBefore = economyFrame(users);
+  const financesBefore = new Map(users.map(user => [user.username, financeFrame(user)]));
   for (const user of users) {
     const before = JSON.stringify(user);
     valueBank(user, market);
@@ -222,7 +220,10 @@ export async function runScheduled(env) {
   }
   const rareTrading = tradeRares(users, date, previousTrades, {hours,market:economy});
   await writeJSON(env, "system:rare-trading", rareTrading);
-  for (const user of users) valueBank(user, economy);
+  for (const user of users) {
+    valueBank(user, economy);
+    recordFinance(user, financesBefore.get(user.username), market, economy, +date);
+  }
   await writeJSON(env, "system:economy", economy);
   const snapshot = await publishSnapshot(env, users);
   const result = {

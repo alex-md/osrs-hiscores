@@ -57,7 +57,7 @@ test('new public APIs are snapshot-only; D1 content editing requires authorizati
   const data=new Map(), env={ADMIN_TOKEN:'secret',WORLD_STORE:{get:async key=>data.get(key)||null,put:async(k,v)=>data.set(k,v),delete:async k=>data.delete(k)}};
   const snapshot=await publishSnapshot(env,[normalizeUser({username:'Ada',skills:{}})]), before=new Map(data);
   env.HISTORY_DB={prepare(){throw new Error('public reads must not query D1');}};
-  for (const [path,key] of [['game-catalog','content'],['festival','festival'],['collections','hall']]) {
+  for (const [path,key] of [['game-catalog','content'],['finance','finance'],['discoveries','discoveries'],['collections','hall']]) {
     const response=await handleApiRequest(new Request('https://world/api/'+path),env);assert.equal(response.status,200);
     const result=await response.json();assert.equal(result.generation,snapshot.generation);assert.ok(result[key]);
   }

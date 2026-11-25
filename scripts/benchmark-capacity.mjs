@@ -9,6 +9,9 @@ const source = `
 import { HiscoresWorld } from './workers/src/world.js';
 import { newUser } from './workers/src/simulation.js';
 import { BOSSES } from './frontend/lib/activities.js';
+import { packFinanceDays } from './frontend/lib/finance-data.js';
+import { advanceEconomy,economyFrame } from './workers/src/market.js';
+import { writeJSON } from './workers/src/store.js';
 import { normalizeUser } from './workers/src/store.js';
 import { publishSnapshot } from './workers/src/snapshots.js';
 import { flushHistory } from './workers/src/history.js';
@@ -39,9 +42,17 @@ export class BenchWorld extends HiscoresWorld {
    user.expedition={relics:Object.fromEntries(BOSSES.map(b=>[b.key,Date.now()]))};
    user.festivalHonours=Object.fromEntries(Array.from({length:24},(_,n)=>[String(Date.now()-n)+':newcomers:discoveries',Date.now()]));
    user.festivalWins=24;
+   user.finance={since:Date.now()-35*86400000,at:Date.now(),last:{at:Date.now(),change:12345678,market:-123456,flows:12469134,bankBefore:user.economy.bankValue},days:Array.from({length:35},(_,n)=>({day:new Date(Date.now()-(34-n)*86400000).toISOString().slice(0,10),from:Date.now()-(35-n)*86400000,at:Date.now()-(34-n)*86400000,bank:999999999999,cash:123456789,change:12345678,market:-1234567,flows:13580245,earned:123456789,spent:12345678,trades:12,observedMs:86400000}))};
+   user.finance.days=packFinanceDays(user.finance.days);
    user.career.raidProgress={'chambers-of-xeric':.9,'theatre-of-blood':.9,'tombs-of-amascut':.9};
    return normalizeUser(user);
   });
+  const frame=economyFrame(users), market=advanceEconomy(null,frame,users,new Date());
+  for(const row of Object.values(market.items)) {
+    row.history=Array.from({length:97},(_,i)=>[Date.now()-(96-i)*900000,row.price]);
+    row.dailyHistory=Array.from({length:35},(_,i)=>[Date.now()-(34-i)*86400000,row.price]);
+  }
+  await writeJSON(this.env,'system:economy',market);
   await publishSnapshot(this.env, users); this.store.commit(); await flushHistory(this.env); d1Read=0; d1Written=0;
   const sql = this.store.sql; let read=0, written=0;
   this.store.sql={exec:(...args)=>{const c=sql.exec(...args);read+=c.rowsRead;written+=c.rowsWritten;return c;}};
@@ -56,7 +67,7 @@ export class BenchWorld extends HiscoresWorld {
   ]).flat());
   const historySize=await this.env.HISTORY_DB.prepare('SELECT sum(length(payload)) AS bytes, count(*) AS rows FROM progress_players').first();
   const reads=[];
-  for(const path of ['/api/users/batch?usernames='+Array.from({length:50},(_,i)=>'Bench'+(i*100)).join(','),'/api/activity-rankings?category=bank','/api/activity-rankings?category=vorkath','/api/users/Bench0','/api/stories','/api/festival','/api/collections','/api/game-catalog','/api/health','/api/progress?days=30']){
+  for(const path of ['/api/users/batch?usernames='+Array.from({length:50},(_,i)=>'Bench'+(i*100)).join(','),'/api/activity-rankings?category=bank','/api/activity-rankings?category=vorkath','/api/users/Bench0','/api/stories','/api/finance','/api/discoveries','/api/festival','/api/collections','/api/game-catalog','/api/health','/api/progress?days=30']){
    const beforeRead=read, beforeWritten=written, beforeD1Read=d1Read, beforeD1Written=d1Written, startRead=Date.now();
    const response=await this.respond(new Request('https://world'+path));
    if(!response.ok) throw new Error('Read failed: '+path);

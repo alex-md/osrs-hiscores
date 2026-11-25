@@ -276,8 +276,6 @@ export function evaluateAchievements(user, ctx) {
   const relics = Object.keys(user.expedition?.relics || {}).filter(key => BOSSES.some(b => b.key === key)).length;
   for (const [count,key] of [[1,'seeker'],[12,'curator'],[24,'archivist'],[BOSSES.length,'completionist']])
     if (relics >= count) out.add(`relic-${key}`);
-  if (user.festivalWins >= 1) out.add('festival-champion');
-  if (user.festivalWins >= 5) out.add('festival-five');
   if (SKILLS.filter(s => user.skills[s]?.xp >= 100_000_000).length >= 5) out.add('five-100m');
   if (SKILLS.filter(s => user.skills[s]?.xp >= 200_000_000).length >= 10) out.add('ten-200m');
   if (totalXp >= 3_000_000_000) out.add('xp-three-billion');

@@ -1,3 +1,4 @@
+import { skillingItem, priceOf, costIndex } from './market.js';
 import { archetypePolicy } from './archetypes.js';
 import { TICK_HOURS, UPDATE_MINUTES, MAX_PLAYERS } from "../../frontend/lib/simulation-config.js";
 export { TICK_HOURS };
@@ -42,7 +43,7 @@ export function preferenceWeight(skill, user) {
     (user.multipliers?.perSkill?.[skill] || 1)
   );
 }
-export function chooseTrainingSkill(user, rng = Math.random, { climate } = {}) {
+export function chooseTrainingSkill(user, rng = Math.random, { climate, market } = {}) {
   const entries = Object.entries(user.skills).filter(
     ([s, v]) => s !== "hitpoints" && v.xp < 200000000,
   );
@@ -58,7 +59,10 @@ export function chooseTrainingSkill(user, rng = Math.random, { climate } = {}) {
     const specialty = policy.specialty ? (s === user.career?.specialty ? 30 : .12) : 1;
     const rank = user.ranks?.[s];
     const crown = policy.crowns && rank ? rank === 1 ? .4 : 1 + 12 / Math.sqrt(rank) : 1;
-    return preferenceWeight(s, user) * completionist * specialty * crown * completion * (skiller && combat ? .04 : 1) * (climate?.focusSkill === s ? 4 : 1) * (climate?.festivalSkill === s ? 2 : 1);
+    const output = skillingItem(s, level);
+    const priceRatio = output ? priceOf(market, output) / Math.max(1, priceOf(null, output)) : 1;
+    const response = policy.collection || policy.completion || policy.specialty ? 1 : Math.max(.5, Math.min(2, (priceRatio / costIndex(s, market)) ** (user.career?.thrift || .5)));
+    return response * preferenceWeight(s, user) * completionist * specialty * crown * completion * (skiller && combat ? .04 : 1) * (climate?.focusSkill === s ? 4 : 1);
   });
   let pick = rng() * weights.reduce((a, b) => a + b, 0);
   for (let i = 0; i < entries.length; i++) {

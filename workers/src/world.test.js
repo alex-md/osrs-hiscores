@@ -309,3 +309,23 @@ test('history requests use the canonical world catalog and never load game data 
   const response=await forwardApiRequest(new Request('https://site/api/progress?metric=vardorvis'),env);
   assert.equal(response.status,200);assert.equal(forwarded,'/api/progress');assert.equal((await response.json()).available,true);
 });
+
+test('financial baselines, price history and discoveries publish atomically and rebuild without extra observations',async t=>{
+  let now=Date.parse('2026-11-24T12:00:00Z');t.mock.method(Date,'now',()=>now);
+  const {request,object}=setup();await request('/api/seed',{usernames:['Fortune']});
+  assert.equal((await request('/internal/scheduled',{})).status,200);
+  const first=await(await request('/api/users/Fortune')).json();
+  assert.equal(first.finance.since,now);assert.equal(first.finance.last.change,0);
+  const finance=first.finance;
+  const market=await(await request('/api/economy')).json();
+  assert.equal(market.economy.items[1515].dailyHistory.length,1);
+  await request('/api/admin/rebuild',{});
+  assert.deepEqual((await(await request('/api/users/Fortune')).json()).finance,finance);
+  now+=900000;assert.equal((await request('/internal/scheduled',{})).status,200);
+  const second=await(await request('/api/users/Fortune')).json();
+  assert.equal(second.finance.last.change,second.finance.last.market+second.finance.last.flows);
+  assert.equal(second.finance.at,now);
+  const before=await object.store.get("snapshot:current");
+  for(const path of ['/api/finance','/api/discoveries'])assert.equal((await request(path)).status,200);
+  assert.equal(await object.store.get("snapshot:current"),before);
+});
